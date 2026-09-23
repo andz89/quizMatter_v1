@@ -1,5 +1,5 @@
 {
-  "name": "quiz-builder-tmp",
+  "name": "quiz-builder",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -9,9 +9,16 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/modifiers": "^9.0.0",
+    "@dnd-kit/sortable": "^10.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
     "next": "16.3.5",
     "react": "19.2.8",
-    "react-dom": "19.2.8"
+    "react-dom": "19.2.8",
+    "react-rnd": "^10.5.3",
+    "zod": "^4.6.5",
+    "zustand": "^5.0.15"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

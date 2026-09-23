@@ -1,26 +1,87 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Background & surfaces */
+  --bg-page: #faf9f6;
+  --bg-surface: #ffffff;
+  --border-default: #e8e6e1;
+
+  /* Text */
+  --text-primary: #1f1f1f;
+  --text-secondary: #9b9994;
+  --text-header: #a8a6a1;
+
+  /* Accent / brand */
+  --accent-navy: #191a2c;
+  --accent-green: #1e8e4f;
+  --accent-orange: #f2a93b;
+  --accent-gray: #a8a6a1;
+
+  /* Radius */
+  --radius-card: 14px;
+  --radius-button: 10px;
+  --radius-dropdown: 8px;
+  --radius-input: 8px;
+
+  /* Spacing */
+  --space-card-x: 20px;
+  --space-card-y: 14px;
+  --row-height: 52px;
+  --gutter-section: 20px;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+  --color-bg-page: var(--bg-page);
+  --color-bg-surface: var(--bg-surface);
+  --color-border-default: var(--border-default);
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-header: var(--text-header);
+
+  --color-accent-navy: var(--accent-navy);
+  --color-accent-green: var(--accent-green);
+  --color-accent-orange: var(--accent-orange);
+  --color-accent-gray: var(--accent-gray);
+
+  --radius-card: var(--radius-card);
+  --radius-button: var(--radius-button);
+  --radius-dropdown: var(--radius-dropdown);
+  --radius-input: var(--radius-input);
+
+  --font-sans: var(--font-inter);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--bg-page);
+  color: var(--text-primary);
+  font-family: var(--font-sans), system-ui, sans-serif;
+}
+
+.zoom-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--border-default);
+}
+
+.zoom-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 13px;
+  height: 13px;
+  border-radius: 999px;
+  background: var(--accent-navy);
+  cursor: pointer;
+  border: none;
+}
+
+.zoom-slider::-moz-range-thumb {
+  width: 13px;
+  height: 13px;
+  border-radius: 999px;
+  background: var(--accent-navy);
+  cursor: pointer;
+  border: none;
 }
