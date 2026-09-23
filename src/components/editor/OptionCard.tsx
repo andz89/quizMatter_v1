@@ -8,6 +8,7 @@ import { EditableText } from "./EditableText";
 import { GripIcon } from "@/components/icons/GripIcon";
 import { SvgElementItem } from "./SvgElementItem";
 import { GroupSelectionOverlay } from "./GroupSelectionOverlay";
+import { ContainerClearButtons } from "./ContainerClearButtons";
 import type { Option, SvgElement } from "@/lib/schema";
 
 interface OptionCardProps {
@@ -26,11 +27,13 @@ export function OptionCard({ slideId, option, index, isCorrect, elements, questi
   const selectedContainerId = useEditorStore((s) => s.selectedContainerId);
   const selectedElementIds = useEditorStore((s) => s.selectedElementIds);
   const selectContainer = useEditorStore((s) => s.selectContainer);
+  const dragOverContainerId = useEditorStore((s) => s.dragOverContainerId);
 
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: option.id });
   const { isDragOver, dropHandlers } = useElementDropTarget(slideId, option.id);
+  const isElementDragOver = dragOverContainerId === option.id;
 
-  const isSelectedContainer = selectedContainerId === option.id || isDragOver;
+  const isSelectedContainer = selectedContainerId === option.id || isDragOver || isElementDragOver;
   const boundElements = elements.filter((el) => el.containerId === option.id);
   const bounds = { width: OPTION_CONTAINER_WIDTH, height: getOptionContainerHeight(questionHeight) };
 
@@ -42,7 +45,8 @@ export function OptionCard({ slideId, option, index, isCorrect, elements, questi
     : undefined;
 
   const borderColor = isSelectedContainer ? "var(--accent-navy)" : isCorrect ? "var(--accent-green)" : "var(--border-default)";
-  const background = isDragOver ? "rgba(25, 26, 44, 0.08)" : isCorrect ? "rgba(30, 142, 79, 0.06)" : "var(--bg-page)";
+  const background =
+    isDragOver || isElementDragOver ? "rgba(25, 26, 44, 0.08)" : isCorrect ? "rgba(30, 142, 79, 0.06)" : "var(--bg-page)";
 
   return (
     <div
@@ -50,7 +54,7 @@ export function OptionCard({ slideId, option, index, isCorrect, elements, questi
       data-container-id={option.id}
       onClick={() => selectContainer(option.id, slideId)}
       {...dropHandlers}
-      className="group relative rounded-button border p-6 pl-16 transition-colors"
+      className="group group/box relative rounded-button border p-6 pl-16 transition-colors"
       style={{
         borderColor,
         background,
@@ -85,12 +89,21 @@ export function OptionCard({ slideId, option, index, isCorrect, elements, questi
         <GripIcon size={20} />
       </div>
 
+      <ContainerClearButtons
+        slideId={slideId}
+        containerId={option.id}
+        hasText={option.text !== ""}
+        hasElements={boundElements.length > 0}
+        onClearText={() => updateOption(slideId, option.id, "", "")}
+        className="right-11 top-1"
+      />
+
       <div className="h-full w-full">
         <EditableText
-          value={option.text}
-          onChange={(text) => updateOption(slideId, option.id, text)}
+          text={option.text}
+          html={option.html}
+          onChange={(text, html) => updateOption(slideId, option.id, text, html)}
           placeholder={`Option ${OPTION_LABELS[index]}`}
-          resetKey={option.id}
           minFontSize={22}
           maxFontSize={44}
           className="text-text-primary"

@@ -1,90 +1,100 @@
 "use client";
 
-import { useLayoutEffect, useRef } from "react";
+import { useEffect } from "react";
+import { EditorContent, useEditor } from "@tiptap/react";
+import { useEditorStore } from "@/lib/store";
 import { useAutoFitText } from "@/lib/useAutoFitText";
-
-// Pressing Enter in a contentEditable doesn't insert a literal "\n" character — Chrome represents
-// each subsequent line as its own sibling <div> (Firefox uses <br>), and neither contributes a "\n"
-// to el.textContent, so a plain textContent read silently loses every line break. This walks the
-// top-level child nodes and reconstructs the break as an explicit "\n", so the stored value (and
-// anything that later renders it as plain text with white-space: pre-wrap, e.g. presentation mode)
-// keeps the line breaks the editor already shows.
-function getTextWithLineBreaks(el: HTMLElement): string {
-  let result = "";
-  for (const node of el.childNodes) {
-    if (node.nodeType === Node.TEXT_NODE) {
-      result += node.textContent ?? "";
-    } else if (node.nodeName === "BR") {
-      result += "\n";
-    } else {
-      if (result !== "") result += "\n";
-      result += node.textContent ?? "";
-    }
-  }
-  return result;
-}
+import { TEXT_EXTENSIONS, textToHtml } from "@/lib/richText";
 
 interface EditableTextProps {
-  value: string;
-  onChange: (text: string) => void;
+  text: string;
+  // Styled version of `text`. Missing on quizzes saved before styled text existed.
+  html: string | undefined;
+  onChange: (text: string, html: string) => void;
   placeholder: string;
-  resetKey: string;
   minFontSize: number;
   maxFontSize: number;
   className?: string;
-  textAlign?: "left" | "center";
 }
 
 export function EditableText({
-  value,
+  text,
+  html,
   onChange,
   placeholder,
-  resetKey,
   minFontSize,
   maxFontSize,
   className,
-  textAlign = "left",
 }: EditableTextProps) {
+  const setActiveTextEditor = useEditorStore((s) => s.setActiveTextEditor);
   const { ref, fontSize, remeasure } = useAutoFitText<HTMLDivElement>({ minFontSize, maxFontSize });
-  const lastResetKey = useRef<string | null>(null);
+  const content = html ?? textToHtml(text);
 
-  useLayoutEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    if (lastResetKey.current === resetKey) return;
-    el.textContent = value;
-    lastResetKey.current = resetKey;
+  const editor = useEditor({
+    extensions: TEXT_EXTENSIONS,
+    content,
+    // Next.js renders this on the server first; the editor can only be built in the browser.
+    immediatelyRender: false,
+    editorProps: {
+      attributes: { class: "h-full outline-none" },
+      handleDOMEvents: {
+        // Paste as plain text only, so colors and fonts from other sites don't come along.
+        paste: (view, event) => {
+          event.preventDefault();
+          view.pasteText(event.clipboardData?.getData("text/plain") ?? "");
+          return true;
+        },
+      },
+    },
+    onUpdate: ({ editor }) => {
+      if (editor.isEmpty) onChange("", "");
+      else onChange(editor.getText({ blockSeparator: "\n" }), editor.getHTML());
+      remeasure();
+    },
+    // The header shows the format toolbar for whichever box has focus.
+    onFocus: ({ editor }) => setActiveTextEditor(editor),
+    // Only clear it if it's still this box — when jumping straight into another box, that box may
+    // already have claimed it.
+    onBlur: ({ editor }) => {
+      if (useEditorStore.getState().activeTextEditor === editor) setActiveTextEditor(null);
+    },
+  });
+
+  // This box is removed while being edited (e.g. its slide was deleted): drop it from the header too.
+  useEffect(() => {
+    return () => {
+      if (editor && useEditorStore.getState().activeTextEditor === editor) setActiveTextEditor(null);
+    };
+  }, [editor, setActiveTextEditor]);
+
+  // Text changed from outside (e.g. the "Clear text" button or undo): show the new value. While typing,
+  // the editor and the stored value always match, so this never moves the cursor mid-edit.
+  useEffect(() => {
+    if (!editor) return;
+    const current = editor.isEmpty ? "" : editor.getHTML();
+    if (current !== content) {
+      editor.commands.setContent(content, { emitUpdate: false });
+      // Replacing the text drops the cursor, so if the user is in this field (e.g. pressed Ctrl+Z
+      // while typing), put the cursor back at the end.
+      if (editor.isFocused) editor.commands.focus("end");
+    }
     remeasure();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resetKey]);
+  }, [editor, content, remeasure]);
 
   return (
     <div className="relative flex h-full w-full items-center overflow-hidden">
-      {value === "" && (
-        <span
-          className="pointer-events-none absolute text-text-secondary"
-          style={{ fontSize, textAlign }}
-        >
+      {text === "" && (
+        <span className="pointer-events-none absolute text-text-secondary" style={{ fontSize }}>
           {placeholder}
         </span>
       )}
       <div
         ref={ref}
-        contentEditable
-        suppressContentEditableWarning
-        onInput={(e) => {
-          onChange(getTextWithLineBreaks(e.currentTarget));
-          remeasure();
-        }}
-        onPaste={(e) => {
-          // Force plain-text-only paste (no formatting/images carried over from rich sources).
-          e.preventDefault();
-          const text = e.clipboardData.getData("text/plain");
-          document.execCommand("insertText", false, text);
-        }}
-        className={`h-full w-full overflow-hidden whitespace-pre-wrap break-words outline-none ${className ?? ""}`}
-        style={{ fontSize, textAlign, lineHeight: 1.25 }}
-      />
+        className={`h-full w-full overflow-hidden break-words ${className ?? ""}`}
+        style={{ fontSize, lineHeight: 1.25 }}
+      >
+        <EditorContent editor={editor} className="h-full" />
+      </div>
     </div>
   );
 }

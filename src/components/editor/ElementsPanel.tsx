@@ -1,47 +1,50 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useEditorStore } from "@/lib/store";
-import { ELEMENT_LIBRARY, ELEMENT_CATEGORY_LABELS, type ElementCategory } from "@/lib/svgLibrary";
-import { QUESTION_CONTAINER_ID, OPTION_LABELS, ELEMENT_DRAG_MIME } from "@/lib/constants";
+import { ELEMENT_LIBRARY, ELEMENT_CATEGORY_LABELS, getElementAsset, type ElementCategory } from "@/lib/svgLibrary";
+import { ELEMENT_DRAG_MIME } from "@/lib/constants";
 import { ElementSvg } from "./ElementSvg";
 
-const CATEGORIES: ElementCategory[] = ["shape", "icon", "decorative", "cloud", "number", "letter", "symbol"];
+const CATEGORIES: ElementCategory[] = ["shape", "solid", "icon", "time", "math", "decorative", "cloud", "number", "letter", "symbol", "emoji", "music", "fruit"];
 
 export function ElementsPanel() {
-  const selectedSlideId = useEditorStore((s) => s.selectedSlideId);
-  const selectedContainerId = useEditorStore((s) => s.selectedContainerId);
-  const slide = useEditorStore((s) => s.quiz.slides.find((sl) => sl.id === s.selectedSlideId));
-  const addElement = useEditorStore((s) => s.addElement);
   const closeElementsPanel = useEditorStore((s) => s.closeElementsPanel);
+  const recentElementAssetIds = useEditorStore((s) => s.recentElementAssetIds);
+
+  // Which category's items are showing; null means the top-level category grid. Escape steps back
+  // one level at a time (out of a category first, then closes the panel), matching the back arrow.
+  const [openCategory, setOpenCategory] = useState<ElementCategory | null>(null);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") closeElementsPanel();
+      if (e.key !== "Escape") return;
+      if (openCategory) setOpenCategory(null);
+      else closeElementsPanel();
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [closeElementsPanel]);
+  }, [openCategory, closeElementsPanel]);
 
-  // Click inserts into whichever container is currently selected; dragging (handled by the
-  // question/option boxes themselves) targets whatever it's dropped on instead, so the grid stays
-  // usable either way. The panel is left open in both cases so several elements can be added in a row.
-  const handleInsert = (assetId: string) => {
-    if (!selectedContainerId) return;
-    addElement(selectedSlideId, assetId, selectedContainerId);
-  };
-
+  // Elements are added only by dragging; the question/option boxes handle the drop themselves.
+  // The panel stays open so several elements can be added in a row.
   const handleDragStart = (e: React.DragEvent, assetId: string) => {
     e.dataTransfer.setData(ELEMENT_DRAG_MIME, assetId);
     e.dataTransfer.effectAllowed = "copy";
-  };
 
-  const targetLabel =
-    selectedContainerId === QUESTION_CONTAINER_ID
-      ? "the question"
-      : selectedContainerId
-        ? `option ${OPTION_LABELS[slide?.options.findIndex((o) => o.id === selectedContainerId) ?? 0]}`
-        : null;
+    const image = e.currentTarget.querySelector<HTMLElement>("[data-drag-image]");
+    if (image) {
+      // The browser snapshots whatever is behind the element too (the tile's gray background),
+      // so drag a copy placed off-screen with nothing behind it, then remove it.
+      const rect = image.getBoundingClientRect();
+      const copy = image.cloneNode(true) as HTMLElement;
+      copy.style.cssText = `position:fixed;top:-1000px;left:0;width:${rect.width}px;height:${rect.height}px;color:${getComputedStyle(image).color}`;
+      document.body.appendChild(copy);
+      // Keep the cursor at the same spot on the SVG it was grabbed from.
+      e.dataTransfer.setDragImage(copy, e.clientX - rect.left, e.clientY - rect.top);
+      setTimeout(() => copy.remove());
+    }
+  };
 
   return (
     <div
@@ -49,7 +52,21 @@ export function ElementsPanel() {
       className="flex w-72 shrink-0 flex-col overflow-y-auto border-r border-border-default bg-bg-surface p-5"
     >
       <div className="mb-1 flex items-center justify-between">
-        <h2 className="text-[15px] font-semibold text-text-primary">Elements</h2>
+        <div className="flex items-center gap-1">
+          {openCategory && (
+            <button
+              type="button"
+              onClick={() => setOpenCategory(null)}
+              title="Back"
+              className="flex h-8 w-8 items-center justify-center rounded-dropdown text-text-primary hover:bg-bg-page"
+            >
+              <BackIcon />
+            </button>
+          )}
+          <h2 className="text-[15px] font-semibold text-text-primary">
+            {openCategory ? ELEMENT_CATEGORY_LABELS[openCategory] : "Elements"}
+          </h2>
+        </div>
         <button
           type="button"
           onClick={closeElementsPanel}
@@ -59,39 +76,80 @@ export function ElementsPanel() {
           <CloseIcon />
         </button>
       </div>
-      <p className="mb-4 text-xs text-text-secondary">
-        {targetLabel ? (
-          <>
-            Adding to <span className="font-medium text-text-primary">{targetLabel}</span> — it&apos;ll move with it.
-          </>
-        ) : (
-          "Drag an element onto the question or an option to add it."
-        )}
-      </p>
+      <p className="mb-4 text-xs text-text-secondary">Drag an element onto the question or an option to add it.</p>
 
-      {CATEGORIES.map((category) => (
-        <div key={category} className="mb-5 last:mb-0">
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-header">
-            {ELEMENT_CATEGORY_LABELS[category]}
-          </p>
-          <div className="grid grid-cols-4 justify-items-center gap-3">
-            {ELEMENT_LIBRARY.filter((asset) => asset.category === category).map((asset) => (
-              <button
-                key={asset.id}
-                type="button"
-                draggable
-                onDragStart={(e) => handleDragStart(e, asset.id)}
-                title={asset.label}
-                onClick={() => handleInsert(asset.id)}
-                className="flex h-12 w-12 items-center justify-center rounded-dropdown border border-border-default bg-bg-page p-2.5 text-text-primary transition-colors hover:border-accent-navy"
-              >
-                <ElementSvg assetId={asset.id} color="currentColor" />
-              </button>
-            ))}
+      {openCategory === null ? (
+        <>
+          {recentElementAssetIds.length > 0 && (
+            <div className="mb-5">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-header">Recently used</p>
+              <div className="grid grid-cols-4 justify-items-center gap-3">
+                {recentElementAssetIds.map((assetId) => {
+                  const asset = ELEMENT_LIBRARY.find((a) => a.id === assetId);
+                  return asset ? (
+                    <ElementButton key={asset.id} assetId={asset.id} label={asset.label} onDragStart={handleDragStart} />
+                  ) : null;
+                })}
+              </div>
+            </div>
+          )}
+
+          <div className="grid grid-cols-3 gap-4">
+            {CATEGORIES.map((category) => {
+              const previewAsset = ELEMENT_LIBRARY.find((asset) => asset.category === category);
+              return (
+                <button
+                  key={category}
+                  type="button"
+                  onClick={() => setOpenCategory(category)}
+                  className="flex flex-col items-center gap-2"
+                >
+                  <span className="flex h-14 w-14 items-center justify-center rounded-card border border-border-default bg-bg-page p-3 text-text-primary transition-colors hover:border-accent-navy">
+                    {previewAsset && <ElementSvg assetId={previewAsset.id} color={previewAsset.defaultColor ?? "currentColor"} />}
+                  </span>
+                  <span className="text-xs font-medium text-text-primary">{ELEMENT_CATEGORY_LABELS[category]}</span>
+                </button>
+              );
+            })}
           </div>
+        </>
+      ) : (
+        <div className="grid grid-cols-4 justify-items-center gap-3">
+          {ELEMENT_LIBRARY.filter((asset) => asset.category === openCategory).map((asset) => (
+            <ElementButton key={asset.id} assetId={asset.id} label={asset.label} onDragStart={handleDragStart} />
+          ))}
         </div>
-      ))}
+      )}
     </div>
+  );
+}
+
+function ElementButton({
+  assetId,
+  label,
+  onDragStart,
+}: {
+  assetId: string;
+  label: string;
+  onDragStart: (e: React.DragEvent, assetId: string) => void;
+}) {
+  const asset = getElementAsset(assetId);
+  return (
+    <button
+      type="button"
+      draggable
+      onDragStart={(e) => onDragStart(e, assetId)}
+      title={label}
+      className={`flex h-12 w-12 cursor-grab items-center justify-center rounded-dropdown border border-border-default bg-bg-page text-text-primary transition-colors hover:border-accent-navy ${
+        // Shapes get less padding so they fill more of the tile and are easier to see.
+        asset?.category === "shape" || asset?.category === "solid" ? "p-1" : "p-2.5"
+      }`}
+    >
+      {/* Used as the drag image so the ghost shows only the SVG, not the tile's border/padding. */}
+      <span data-drag-image className="block h-full w-full">
+        <ElementSvg assetId={assetId} color={asset?.defaultColor ?? "currentColor"} />
+      </span>
+    </button>
   );
 }
 
@@ -99,6 +157,14 @@ function CloseIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
       <path d="M4 4L12 12M12 4L4 12" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function BackIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+      <path d="M10 3L5 8l5 5" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }

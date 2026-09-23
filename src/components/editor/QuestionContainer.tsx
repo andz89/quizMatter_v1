@@ -7,6 +7,7 @@ import { useElementDropTarget } from "@/lib/useElementDropTarget";
 import { EditableText } from "./EditableText";
 import { SvgElementItem } from "./SvgElementItem";
 import { GroupSelectionOverlay } from "./GroupSelectionOverlay";
+import { ContainerClearButtons } from "./ContainerClearButtons";
 import type { Slide } from "@/lib/schema";
 
 export function QuestionContainer({ slide }: { slide: Slide }) {
@@ -16,11 +17,15 @@ export function QuestionContainer({ slide }: { slide: Slide }) {
   const selectedContainerId = useEditorStore((s) => s.selectedContainerId);
   const selectedElementIds = useEditorStore((s) => s.selectedElementIds);
   const selectContainer = useEditorStore((s) => s.selectContainer);
+  const dragOverContainerId = useEditorStore((s) => s.dragOverContainerId);
 
   const resizeState = useRef<{ y: number; height: number } | null>(null);
   const { isDragOver, dropHandlers } = useElementDropTarget(slide.id, QUESTION_CONTAINER_ID);
+  const selectedSlideId = useEditorStore((s) => s.selectedSlideId);
+  // Every slide's question box shares the same id, so also check this is the slide being edited.
+  const isElementDragOver = dragOverContainerId === QUESTION_CONTAINER_ID && selectedSlideId === slide.id;
 
-  const isSelected = selectedContainerId === QUESTION_CONTAINER_ID || isDragOver;
+  const isSelected = selectedContainerId === QUESTION_CONTAINER_ID || isDragOver || isElementDragOver;
   const boundElements = slide.elements.filter((el) => el.containerId === QUESTION_CONTAINER_ID);
   const bounds = { width: QUESTION_CONTAINER_WIDTH, height: slide.questionHeight };
 
@@ -45,18 +50,18 @@ export function QuestionContainer({ slide }: { slide: Slide }) {
       data-container-id={QUESTION_CONTAINER_ID}
       onClick={() => selectContainer(QUESTION_CONTAINER_ID, slide.id)}
       {...dropHandlers}
-      className="relative shrink-0 rounded-button border p-4 transition-colors"
+      className="group/box relative shrink-0 rounded-button border p-4 transition-colors"
       style={{
         height: slide.questionHeight,
         borderColor: isSelected ? "var(--accent-navy)" : "var(--border-default)",
-        background: isDragOver ? "rgba(25, 26, 44, 0.05)" : undefined,
+        background: isDragOver || isElementDragOver ? "rgba(25, 26, 44, 0.05)" : undefined,
       }}
     >
       <EditableText
-        value={slide.question}
-        onChange={(text) => updateQuestion(slide.id, text)}
+        text={slide.question}
+        html={slide.questionHtml}
+        onChange={(text, html) => updateQuestion(slide.id, text, html)}
         placeholder="Type your question…"
-        resetKey={slide.id}
         minFontSize={22}
         maxFontSize={40}
         className="font-semibold text-text-primary"
@@ -75,6 +80,15 @@ export function QuestionContainer({ slide }: { slide: Slide }) {
         ))}
         <GroupSelectionOverlay slideId={slide.id} elements={boundElements} bounds={bounds} />
       </div>
+
+      <ContainerClearButtons
+        slideId={slide.id}
+        containerId={QUESTION_CONTAINER_ID}
+        hasText={slide.question !== ""}
+        hasElements={boundElements.length > 0}
+        onClearText={() => updateQuestion(slide.id, "", "")}
+        className="right-1 top-1"
+      />
 
       <div
         onPointerDown={handleResizePointerDown}

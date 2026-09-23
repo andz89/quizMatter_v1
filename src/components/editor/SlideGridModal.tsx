@@ -43,7 +43,7 @@ export function SlideGridModal() {
         if (e.target === e.currentTarget) closeGridView();
       }}
     >
-      <div className="flex max-h-full w-full max-w-4xl flex-col rounded-card bg-bg-surface p-6">
+      <div className="flex h-[85vh] w-[90vw] max-w-6xl flex-col rounded-card bg-bg-surface p-6">
         <div className="mb-4 flex shrink-0 items-center justify-between">
           <h2 className="text-[15px] font-semibold text-text-primary">All slides ({quiz.slides.length})</h2>
           <button
@@ -56,7 +56,7 @@ export function SlideGridModal() {
           </button>
         </div>
 
-        <div className="overflow-y-auto">
+        <div className="min-h-0 flex-1 overflow-y-auto">
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
             <SortableContext items={quiz.slides.map((s) => s.id)} strategy={rectSortingStrategy}>
               <div className="grid justify-center gap-4" style={{ gridTemplateColumns: "repeat(auto-fill, 200px)" }}>

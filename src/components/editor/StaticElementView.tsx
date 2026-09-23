@@ -9,9 +9,15 @@ export function StaticElementView({ elements }: { elements: SvgElement[] }) {
         <div
           key={element.id}
           className="pointer-events-none absolute"
-          style={{ left: element.x, top: element.y, width: element.width, height: element.height }}
+          style={{
+            left: element.x,
+            top: element.y,
+            width: element.width,
+            height: element.height,
+            transform: `rotate(${element.rotation ?? 0}deg)`,
+          }}
         >
-          <ElementSvg assetId={element.assetId} color={element.color} />
+          <ElementSvg assetId={element.assetId} color={element.color} settings={element} />
         </div>
       ))}
     </>

@@ -20,8 +20,9 @@ export function SlideStaticView({ slide }: SlideStaticViewProps) {
       >
         <FitText
           text={slide.question || "Untitled question"}
+          html={slide.questionHtml}
           minFontSize={22}
-          maxFontSize={44}
+          maxFontSize={40}
           className="font-semibold text-text-primary"
         />
         <StaticElementView elements={slide.elements.filter((el) => el.containerId === QUESTION_CONTAINER_ID)} />
@@ -41,7 +42,7 @@ export function SlideStaticView({ slide }: SlideStaticViewProps) {
               {OPTION_LABELS[index]}
             </span>
             <div className="h-full w-full">
-              <FitText text={option.text} minFontSize={22} maxFontSize={44} className="text-text-primary" />
+              <FitText text={option.text} html={option.html} minFontSize={22} maxFontSize={44} className="text-text-primary" />
             </div>
             <StaticElementView elements={slide.elements.filter((el) => el.containerId === option.id)} />
           </div>

@@ -5,7 +5,7 @@ import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, type D
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { restrictToVerticalAxis } from "@dnd-kit/modifiers";
 import { useEditorStore, MIN_ZOOM } from "@/lib/store";
-import { CANVAS_WIDTH } from "@/lib/constants";
+import { CANVAS_WIDTH, CANVAS_HEIGHT } from "@/lib/constants";
 import { SlideWorkspaceItem } from "./SlideWorkspaceItem";
 import { ZoomControls } from "./ZoomControls";
 
@@ -28,12 +28,15 @@ export function Workspace() {
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
-  // Fit the fixed-size canvas to the available width on first load.
+  // Fit the fixed-size canvas inside the visible area (both width and height) on first load,
+  // so one whole slide shows without scrolling.
   useLayoutEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
     const availableWidth = el.clientWidth - WORKSPACE_PADDING * 2;
-    setZoom(Math.max(MIN_ZOOM, Math.min(1, availableWidth / CANVAS_WIDTH)));
+    const availableHeight = el.clientHeight - WORKSPACE_PADDING * 2;
+    const fit = Math.min(1, availableWidth / CANVAS_WIDTH, availableHeight / CANVAS_HEIGHT);
+    setZoom(Math.max(MIN_ZOOM, fit));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

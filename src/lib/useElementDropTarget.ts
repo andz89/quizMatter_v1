@@ -10,6 +10,7 @@ import { ELEMENT_DRAG_MIME } from "./constants";
  */
 export function useElementDropTarget(slideId: string, containerId: string) {
   const addElement = useEditorStore((s) => s.addElement);
+  const zoom = useEditorStore((s) => s.zoom);
   const dragDepth = useRef(0);
   const [isDragOver, setIsDragOver] = useState(false);
 
@@ -40,7 +41,11 @@ export function useElementDropTarget(slideId: string, containerId: string) {
         e.stopPropagation();
         dragDepth.current = 0;
         setIsDragOver(false);
-        addElement(slideId, assetId, containerId);
+        const rect = e.currentTarget.getBoundingClientRect();
+        addElement(slideId, assetId, containerId, {
+          x: (e.clientX - rect.left) / zoom,
+          y: (e.clientY - rect.top) / zoom,
+        });
       },
     },
   };

@@ -3,6 +3,7 @@
 import type { useSortable } from "@dnd-kit/sortable";
 import { useEditorStore } from "@/lib/store";
 import { GripIcon } from "@/components/icons/GripIcon";
+import { EraserIcon } from "@/components/icons/EraserIcon";
 import type { Slide } from "@/lib/schema";
 
 type DragHandleProps = Pick<ReturnType<typeof useSortable>, "attributes" | "listeners">;
@@ -21,8 +22,12 @@ interface SlideToolbarProps {
 /** Canva-style per-slide toolbar shown above each slide in the workspace. */
 export function SlideToolbar({ slide, index, isFirst, isLast, canDelete, onMoveUp, onMoveDown, dragHandle }: SlideToolbarProps) {
   const duplicateSlide = useEditorStore((s) => s.duplicateSlide);
+  const shuffleOptions = useEditorStore((s) => s.shuffleOptions);
   const addSlide = useEditorStore((s) => s.addSlide);
   const deleteSlide = useEditorStore((s) => s.deleteSlide);
+  const clearSlide = useEditorStore((s) => s.clearSlide);
+
+  const isEmpty = slide.question === "" && slide.options.every((o) => o.text === "") && slide.elements.length === 0;
 
   return (
     <>
@@ -61,6 +66,23 @@ export function SlideToolbar({ slide, index, isFirst, isLast, canDelete, onMoveU
         </button>
         <button
           type="button"
+          onClick={() => shuffleOptions(slide.id)}
+          title="Shuffle options"
+          className="flex h-9 w-9 items-center justify-center rounded-dropdown text-text-primary hover:bg-bg-page"
+        >
+          <ShuffleIcon />
+        </button>
+        <button
+          type="button"
+          onClick={() => clearSlide(slide.id)}
+          disabled={isEmpty}
+          title="Clear slide content"
+          className="flex h-9 w-9 items-center justify-center rounded-dropdown text-text-primary hover:bg-bg-page disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent"
+        >
+          <EraserIcon size={18} />
+        </button>
+        <button
+          type="button"
           onClick={() => duplicateSlide(slide.id)}
           title="Duplicate slide"
           className="flex h-9 w-9 items-center justify-center rounded-dropdown text-text-primary hover:bg-bg-page"
@@ -94,6 +116,18 @@ function ChevronIcon({ direction }: { direction: "up" | "down" }) {
   return (
     <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.6">
       <path d={d} strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function ShuffleIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.3">
+      <path
+        d="M1.5 3.5h2c1.5 0 2.5.8 3.2 2l.6 1c.7 1.2 1.7 2 3.2 2h2M1.5 10.5h2c1.5 0 2.5-.8 3.2-2M8 5.5c.6-1.2 1.6-2 3-2h1.5M11 1.5l2 2-2 2M11 8.5l2 2-2 2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
