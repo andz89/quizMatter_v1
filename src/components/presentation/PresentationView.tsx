@@ -2,10 +2,14 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useEditorStore } from "@/lib/store";
-import { CANVAS_WIDTH, CANVAS_HEIGHT } from "@/lib/constants";
+import { CANVAS_WIDTH, CANVAS_HEIGHT, getSlideNumbers } from "@/lib/constants";
 import { SlideStaticView } from "./SlideStaticView";
+import { AnswerModal } from "@/components/editor/AnswerModal";
 
-const VIEW_PADDING = 48;
+// Clicks in the left 25% of the screen go to the previous slide.
+const PREV_ZONE = 0.25;
+// Empty space kept above and below the slide, so the top buttons and the page counter sit fully on the dark background.
+const EDGE_SPACE = 64;
 
 export function PresentationView() {
   const quiz = useEditorStore((s) => s.quiz);
@@ -16,24 +20,30 @@ export function PresentationView() {
 
   const containerRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
+  // The slide whose answer is showing. Moving to another slide hides it again.
+  const [revealedSlideId, setRevealedSlideId] = useState<string | null>(null);
 
   const slide = quiz.slides[presentationIndex];
-  const isFirst = presentationIndex === 0;
-  const isLast = presentationIndex === quiz.slides.length - 1;
+  const isAnswerShown = revealedSlideId === slide?.id;
+  const isChoice = (slide?.type ?? "choice") === "choice";
+  const canReveal = slide?.type === "short-answer" || (isChoice && !!slide?.correctOptionId);
 
   useLayoutEffect(() => {
     const el = containerRef.current;
     if (!el) return;
 
     const fit = () => {
-      const availableWidth = el.clientWidth - VIEW_PADDING * 2;
-      const availableHeight = el.clientHeight - VIEW_PADDING * 2;
-      setScale(Math.min(availableWidth / CANVAS_WIDTH, availableHeight / CANVAS_HEIGHT, 1));
+      const availableWidth = el.clientWidth;
+      const availableHeight = el.clientHeight - EDGE_SPACE * 2;
+      setScale(Math.min(availableWidth / CANVAS_WIDTH, availableHeight / CANVAS_HEIGHT));
     };
 
+    // Watch the container itself: entering fullscreen can finish after this view mounts,
+    // and a window "resize" event isn't always fired for it.
     fit();
-    window.addEventListener("resize", fit);
-    return () => window.removeEventListener("resize", fit);
+    const observer = new ResizeObserver(fit);
+    observer.observe(el);
+    return () => observer.disconnect();
   }, []);
 
   useEffect(() => {
@@ -65,6 +75,12 @@ export function PresentationView() {
     exitPresentation();
   };
 
+  // Like Canva: click the left part of the screen to go back, anywhere else to go forward.
+  const handleScreenClick = (e: React.MouseEvent) => {
+    if (e.clientX < window.innerWidth * PREV_ZONE) prevSlide();
+    else nextSlide();
+  };
+
   if (!slide) return null;
 
   return (
@@ -72,15 +88,34 @@ export function PresentationView() {
       ref={containerRef}
       className="fixed inset-0 z-50 flex items-center justify-center"
       style={{ background: "var(--text-primary)" }}
+      onClick={handleScreenClick}
     >
       <button
         type="button"
-        onClick={handleExit}
+        onClick={(e) => {
+          e.stopPropagation();
+          handleExit();
+        }}
         title="Exit presentation (Esc)"
-        className="absolute right-5 top-5 flex h-9 w-9 items-center justify-center rounded-full text-white/70 hover:bg-white/10 hover:text-white"
+        className="absolute right-5 top-5 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-black/30 text-white/80 hover:bg-black/50 hover:text-white"
       >
         <CloseIcon />
       </button>
+
+      {canReveal && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            // Choice slides toggle the green highlight; short-answer slides open the answer popup.
+            setRevealedSlideId(isChoice && isAnswerShown ? null : slide.id);
+          }}
+          title={isChoice && isAnswerShown ? "Hide answer" : "Show answer"}
+          className="absolute right-16 top-5 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-black/30 text-white/80 hover:bg-black/50 hover:text-white"
+        >
+          <EyeIcon />
+        </button>
+      )}
 
       <div style={{ width: CANVAS_WIDTH * scale, height: CANVAS_HEIGHT * scale }}>
         <div
@@ -91,30 +126,18 @@ export function PresentationView() {
             transformOrigin: "top left",
           }}
         >
-          <SlideStaticView slide={slide} />
+          <SlideStaticView
+            slide={slide}
+            number={getSlideNumbers(quiz.slides).get(slide.id)}
+            revealAnswer={isChoice && isAnswerShown}
+          />
         </div>
       </div>
 
-      <button
-        type="button"
-        onClick={prevSlide}
-        disabled={isFirst}
-        title="Previous slide"
-        className="absolute left-5 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full text-white/70 hover:bg-white/10 hover:text-white disabled:opacity-20"
-      >
-        <ChevronIcon direction="left" />
-      </button>
-      <button
-        type="button"
-        onClick={nextSlide}
-        disabled={isLast}
-        title="Next slide"
-        className="absolute right-5 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full text-white/70 hover:bg-white/10 hover:text-white disabled:opacity-20"
-      >
-        <ChevronIcon direction="right" />
-      </button>
 
-      <div className="absolute bottom-5 left-1/2 -translate-x-1/2 rounded-dropdown bg-white/10 px-3 py-1 text-xs font-medium text-white/80">
+      {isAnswerShown && slide.type === "short-answer" && <AnswerModal answer={slide.correctAnswer ?? ""} onClose={() => setRevealedSlideId(null)} />}
+
+      <div className="absolute bottom-5 left-1/2 -translate-x-1/2 rounded-dropdown bg-black/30 px-3 py-1 text-xs font-medium text-white/80">
         {presentationIndex + 1} / {quiz.slides.length}
       </div>
     </div>
@@ -129,11 +152,11 @@ function CloseIcon() {
   );
 }
 
-function ChevronIcon({ direction }: { direction: "left" | "right" }) {
-  const d = direction === "left" ? "M11 4L6 9L11 14" : "M7 4L12 9L7 14";
+function EyeIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5">
-      <path d={d} strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M1.5 9C3.2 5.8 5.9 4 9 4s5.8 1.8 7.5 5c-1.7 3.2-4.4 5-7.5 5S3.2 12.2 1.5 9Z" strokeLinejoin="round" />
+      <circle cx="9" cy="9" r="2.25" />
     </svg>
   );
 }

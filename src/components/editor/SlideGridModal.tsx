@@ -5,6 +5,7 @@ import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, type D
 import { SortableContext, rectSortingStrategy } from "@dnd-kit/sortable";
 import { useEditorStore } from "@/lib/store";
 import { SlideGridItem } from "./SlideGridItem";
+import { CloseIcon } from "@/components/icons/CloseIcon";
 
 export function SlideGridModal() {
   const quiz = useEditorStore((s) => s.quiz);
@@ -34,6 +35,8 @@ export function SlideGridModal() {
   const handleSelect = (slideId: string) => {
     selectSlide(slideId);
     closeGridView();
+    // Bring the picked slide to the middle of the workspace, or the view stays on the old slide.
+    document.querySelector(`[data-slide-id="${slideId}"]`)?.scrollIntoView({ block: "center" });
   };
 
   return (
@@ -75,24 +78,30 @@ export function SlideGridModal() {
           </DndContext>
         </div>
 
-        <div className="mt-4 shrink-0 border-t border-border-default pt-4">
+        <div className="mt-4 flex shrink-0 gap-3 border-t border-border-default pt-4">
           <button
             type="button"
-            onClick={() => addSlide()}
+            onClick={() => addSlide(undefined, "choice")}
             className="rounded-button bg-accent-navy px-4 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90"
           >
-            + Add slide
+            + Multiple choice
+          </button>
+          <button
+            type="button"
+            onClick={() => addSlide(undefined, "short-answer")}
+            className="rounded-button bg-accent-navy px-4 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+          >
+            + Short answer
+          </button>
+          <button
+            type="button"
+            onClick={() => addSlide(undefined, "lesson")}
+            className="rounded-button bg-accent-navy px-4 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+          >
+            + Blank slide
           </button>
         </div>
       </div>
     </div>
-  );
-}
-
-function CloseIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-      <path d="M4 4L12 12M12 4L4 12" strokeLinecap="round" />
-    </svg>
   );
 }

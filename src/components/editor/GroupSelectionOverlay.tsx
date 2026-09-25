@@ -1,11 +1,10 @@
 "use client";
 
 import { useRef } from "react";
-import { useEditorStore } from "@/lib/store";
+import { useEditorStore, selectedIdsOn } from "@/lib/store";
+import { getOuterEdges, MIN_ELEMENT_SIZE } from "@/lib/geometry";
 import type { SvgElement } from "@/lib/schema";
 import { CORNERS, type Corner } from "./SvgElementItem";
-
-const MIN_SIZE = 24;
 
 interface ResizeItem {
   id: string;
@@ -24,8 +23,8 @@ interface GroupSelectionOverlayProps {
 /** Shown instead of per-element handles when 2+ SVG elements (within the same container) are selected together, or a group is selected. */
 export function GroupSelectionOverlay({ slideId, elements, bounds }: GroupSelectionOverlayProps) {
   const zoom = useEditorStore((s) => s.zoom);
-  const selectedElementIds = useEditorStore((s) => s.selectedElementIds);
-  const updateElement = useEditorStore((s) => s.updateElement);
+  const selectedElementIds = useEditorStore(selectedIdsOn(slideId));
+  const updateElements = useEditorStore((s) => s.updateElements);
   // Hidden while the group is being dragged into another box — the ghost previews show it there instead.
   const isGhosting = useEditorStore((s) => s.elementDragGhosts.length > 0);
 
@@ -44,10 +43,7 @@ export function GroupSelectionOverlay({ slideId, elements, bounds }: GroupSelect
   const selected = elements.filter((el) => selectedElementIds.includes(el.id));
   if (selected.length < 2 || isGhosting) return null;
 
-  const minX = Math.min(...selected.map((el) => el.x));
-  const minY = Math.min(...selected.map((el) => el.y));
-  const maxX = Math.max(...selected.map((el) => el.x + el.width));
-  const maxY = Math.max(...selected.map((el) => el.y + el.height));
+  const { minX, minY, maxX, maxY } = getOuterEdges(selected);
   // A saved group gets a solid outline; a temporary multi-select keeps the dashed one.
   const isSavedGroup = !!selected[0].groupId && selected.every((el) => el.groupId === selected[0].groupId);
 
@@ -86,17 +82,23 @@ export function GroupSelectionOverlay({ slideId, elements, bounds }: GroupSelect
     const roomY = sy > 0 ? bounds.height - anchorY : anchorY;
 
     const smallestDimension = Math.min(...items.flatMap((i) => [i.width, i.height]));
-    const minScale = MIN_SIZE / smallestDimension;
+    const minScale = MIN_ELEMENT_SIZE / smallestDimension;
     const maxScale = Math.min(roomX / groupWidth, roomY / groupHeight);
     const scale = Math.min(maxScale, Math.max(minScale, newDistance / originalDistance));
 
-    items.forEach((item) =>
-      updateElement(slideId, item.id, {
-        x: anchorX + (item.x - anchorX) * scale,
-        y: anchorY + (item.y - anchorY) * scale,
-        width: item.width * scale,
-        height: item.height * scale,
-      })
+    updateElements(
+      slideId,
+      Object.fromEntries(
+        items.map((item) => [
+          item.id,
+          {
+            x: anchorX + (item.x - anchorX) * scale,
+            y: anchorY + (item.y - anchorY) * scale,
+            width: item.width * scale,
+            height: item.height * scale,
+          },
+        ])
+      )
     );
   };
 

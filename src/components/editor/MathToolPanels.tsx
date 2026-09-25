@@ -17,8 +17,16 @@ import {
   DEFAULT_PROTRACTOR,
   THERMOMETER_MIN,
   THERMOMETER_MAX,
+  NUMBER_LINE_STEPS,
+  FRACTION_PARTS,
+  FRACTION_NUMBER_MAX,
+  TEN_FRAME_SIDE_MAX,
+  BASE_TEN_MAX,
+  BAR_GRAPH_MAX,
+  BAR_COUNTS,
+  BAR_LABEL_MAX,
 } from "@/lib/svgLibrary";
-import { getContainerBounds } from "@/lib/constants";
+import { getContainerBounds, type BoxLayout } from "@/lib/constants";
 import type { SvgElement } from "@/lib/schema";
 import { PanelLabel, PanelReadout, PanelSlider, ResetButton, ToggleChip, ToolPanelButton } from "./PanelControls";
 
@@ -27,11 +35,12 @@ type Update = (patch: Partial<Omit<SvgElement, "id" | "assetId">>) => void;
 interface MathToolControlsProps {
   element: SvgElement;
   slideId: string;
-  questionHeight: number;
+  // The slide's box sizes (question height, layout, shape strip).
+  box: BoxLayout;
 }
 
 /** The settings button + panel for a selected math tool (number line, fraction, counting frame…), or nothing. */
-export function MathToolControls({ element, slideId, questionHeight }: MathToolControlsProps) {
+export function MathToolControls({ element, slideId, box }: MathToolControlsProps) {
   const updateElement = useEditorStore((s) => s.updateElement);
   const asset = getElementAsset(element.assetId);
   const update: Update = (patch) => updateElement(slideId, element.id, patch);
@@ -44,9 +53,9 @@ export function MathToolControls({ element, slideId, questionHeight }: MathToolC
     case "fractionNumber":
       return <FractionNumberControls element={element} update={update} />;
     case "tenFrame":
-      return <TenFrameControls key={element.id} element={element} questionHeight={questionHeight} update={update} />;
+      return <TenFrameControls key={element.id} element={element} box={box} update={update} />;
     case "baseTen":
-      return <BaseTenControls key={element.id} element={element} questionHeight={questionHeight} update={update} />;
+      return <BaseTenControls key={element.id} element={element} box={box} update={update} />;
     case "thermometer":
       return <ThermometerControls element={element} update={update} />;
     case "barGraph":
@@ -72,7 +81,7 @@ interface SizeSnapshot {
  * The size is always worked out from the element's size before the first change, not from the
  * last (maybe shrunk) one — so 1 → 9 → 1 hundreds ends up back at the starting size.
  */
-function useResizeForViewBox(element: SvgElement, questionHeight: number) {
+function useResizeForViewBox(element: SvgElement, box: BoxLayout) {
   const base = useRef<{ from: SizeSnapshot; applied: SizeSnapshot } | null>(null);
 
   return (oldViewBox: string, newViewBox: string) => {
@@ -84,7 +93,7 @@ function useResizeForViewBox(element: SvgElement, questionHeight: number) {
     const [, , fromW, fromH] = from.viewBox.split(" ").map(Number);
     const [, , newW, newH] = newViewBox.split(" ").map(Number);
     const pxPerUnit = Math.min(from.width / fromW, from.height / fromH);
-    const bounds = getContainerBounds(element.containerId, questionHeight);
+    const bounds = getContainerBounds(element.containerId, box);
     const fit = Math.min(1, bounds.width / (newW * pxPerUnit), bounds.height / (newH * pxPerUnit));
     const width = newW * pxPerUnit * fit;
     const height = newH * pxPerUnit * fit;
@@ -139,7 +148,7 @@ function NumberLineControls({
       <div className="flex flex-col gap-1.5">
         <PanelLabel>Step</PanelLabel>
         <div className="flex gap-2">
-          {[1, 2, 5, 10].map((step) => (
+          {NUMBER_LINE_STEPS.map((step) => (
             <ToggleChip key={step} active={settings.step === step} onClick={() => set({ step })} className="flex-1">
               {step}
             </ToggleChip>
@@ -184,49 +193,65 @@ function FractionControls({ element, update }: { element: SvgElement; update: Up
       <PanelReadout>
         {fraction.shaded}/{fraction.parts}
       </PanelReadout>
-      <PanelSlider label="Parts" value={fraction.parts} min={2} max={12} unit="" onChange={(parts) => set({ parts })} />
+      <PanelSlider label="Parts" value={fraction.parts} min={FRACTION_PARTS.min} max={FRACTION_PARTS.max} unit="" onChange={(parts) => set({ parts })} />
       <PanelSlider label="Shaded" value={fraction.shaded} min={0} max={fraction.parts} unit="" onChange={(shaded) => set({ shaded })} />
       <ResetButton onClick={() => set(DEFAULT_FRACTION)} />
     </ToolPanelButton>
   );
 }
 
-// Up to 3 digits, so the numbers still fit inside the element's square.
-const FRACTION_NUMBER_MAX = 999;
-
 // Written fraction: type any numerator and denominator, so improper fractions like 5/4 work too.
 function FractionNumberControls({ element, update }: { element: SvgElement; update: Update }) {
   const fraction = element.fraction ?? DEFAULT_FRACTION_NUMBER;
   const set = (patch: Partial<typeof fraction>) => update({ fraction: { ...fraction, ...patch } });
-
-  // Only whole numbers in range are saved; a half-typed or empty box just leaves the fraction as it was.
-  const numberBox = (label: string, value: number, min: number, onChange: (value: number) => void) => (
-    <label className="flex items-center justify-between gap-3">
-      <PanelLabel>{label}</PanelLabel>
-      <input
-        type="number"
-        min={min}
-        max={FRACTION_NUMBER_MAX}
-        value={value}
-        onChange={(e) => {
-          const next = Number(e.target.value);
-          if (e.target.value !== "" && Number.isInteger(next) && next >= min && next <= FRACTION_NUMBER_MAX) onChange(next);
-        }}
-        className="w-20 rounded-input border border-border-default px-2 py-1 text-right text-sm text-text-primary"
-      />
-    </label>
-  );
 
   return (
     <ToolPanelButton title="Edit fraction" icon={<FractionIcon />}>
       <PanelReadout>
         {fraction.shaded}/{fraction.parts}
       </PanelReadout>
-      {numberBox("Numerator", fraction.shaded, 0, (shaded) => set({ shaded }))}
+      <FractionNumberBox label="Numerator" value={fraction.shaded} min={0} onChange={(shaded) => set({ shaded })} />
       {/* Never 0 — you can't divide by zero. */}
-      {numberBox("Denominator", fraction.parts, 1, (parts) => set({ parts }))}
+      <FractionNumberBox label="Denominator" value={fraction.parts} min={1} onChange={(parts) => set({ parts })} />
       <ResetButton onClick={() => set(DEFAULT_FRACTION_NUMBER)} />
     </ToolPanelButton>
+  );
+}
+
+// Only whole numbers in range are saved; a half-typed or empty box just leaves the fraction as it was.
+// The typed text is kept here so the box can be emptied while typing a new number.
+function FractionNumberBox({
+  label,
+  value,
+  min,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  min: number;
+  onChange: (value: number) => void;
+}) {
+  const [text, setText] = useState(String(value));
+  // Show the saved value whenever it changes from outside (Reset, undo) — but not mid-typing.
+  const shown = text !== "" && Number(text) !== value ? String(value) : text;
+
+  return (
+    <label className="flex items-center justify-between gap-3">
+      <PanelLabel>{label}</PanelLabel>
+      <input
+        type="number"
+        min={min}
+        max={FRACTION_NUMBER_MAX}
+        value={shown}
+        onChange={(e) => {
+          setText(e.target.value);
+          const next = Number(e.target.value);
+          if (e.target.value !== "" && Number.isInteger(next) && next >= min && next <= FRACTION_NUMBER_MAX) onChange(next);
+        }}
+        onBlur={() => setText(String(value))}
+        className="w-20 rounded-input border border-border-default px-2 py-1 text-right text-sm text-text-primary"
+      />
+    </label>
   );
 }
 
@@ -236,11 +261,11 @@ const FRAME_PRESETS = [
   { total: 20, rows: 2, columns: 10 },
 ];
 
-function TenFrameControls({ element, questionHeight, update }: { element: SvgElement; questionHeight: number; update: Update }) {
+function TenFrameControls({ element, box, update }: { element: SvgElement; box: BoxLayout; update: Update }) {
   const tenFrame = { ...DEFAULT_TEN_FRAME, ...element.tenFrame };
   const rows = tenFrame.rows ?? 2;
   const columns = tenFrame.columns ?? 5;
-  const resize = useResizeForViewBox(element, questionHeight);
+  const resize = useResizeForViewBox(element, box);
   const set = (patch: Partial<typeof tenFrame>) => {
     const next = { ...tenFrame, ...patch };
     // Can't have more dots than boxes (e.g. 8 dots on a 1×5 frame becomes 5).
@@ -262,17 +287,17 @@ function TenFrameControls({ element, questionHeight, update }: { element: SvgEle
           </ToggleChip>
         ))}
       </div>
-      <PanelSlider label="Rows" value={rows} min={1} max={10} unit="" onChange={(rows) => set({ rows })} />
-      <PanelSlider label="Columns" value={columns} min={1} max={10} unit="" onChange={(columns) => set({ columns })} />
+      <PanelSlider label="Rows" value={rows} min={1} max={TEN_FRAME_SIDE_MAX} unit="" onChange={(rows) => set({ rows })} />
+      <PanelSlider label="Columns" value={columns} min={1} max={TEN_FRAME_SIDE_MAX} unit="" onChange={(columns) => set({ columns })} />
       <PanelSlider label="Count" value={tenFrame.count} min={0} max={rows * columns} unit="" onChange={(count) => set({ count })} />
       <ResetButton onClick={() => set(DEFAULT_TEN_FRAME)} />
     </ToolPanelButton>
   );
 }
 
-function BaseTenControls({ element, questionHeight, update }: { element: SvgElement; questionHeight: number; update: Update }) {
+function BaseTenControls({ element, box, update }: { element: SvgElement; box: BoxLayout; update: Update }) {
   const blocks = element.baseTen ?? DEFAULT_BASE_TEN;
-  const resize = useResizeForViewBox(element, questionHeight);
+  const resize = useResizeForViewBox(element, box);
   const set = (patch: Partial<typeof blocks>) => {
     const next = { ...blocks, ...patch };
     update({ baseTen: next, ...resize(getBaseTenViewBox(blocks), getBaseTenViewBox(next)) });
@@ -281,9 +306,9 @@ function BaseTenControls({ element, questionHeight, update }: { element: SvgElem
   return (
     <ToolPanelButton title="Edit blocks" icon={<BaseTenIcon />}>
       <PanelReadout>{blocks.hundreds * 100 + blocks.tens * 10 + blocks.ones}</PanelReadout>
-      <PanelSlider label="Hundreds" value={blocks.hundreds} min={0} max={9} unit="" onChange={(hundreds) => set({ hundreds })} />
-      <PanelSlider label="Tens" value={blocks.tens} min={0} max={9} unit="" onChange={(tens) => set({ tens })} />
-      <PanelSlider label="Ones" value={blocks.ones} min={0} max={9} unit="" onChange={(ones) => set({ ones })} />
+      <PanelSlider label="Hundreds" value={blocks.hundreds} min={0} max={BASE_TEN_MAX} unit="" onChange={(hundreds) => set({ hundreds })} />
+      <PanelSlider label="Tens" value={blocks.tens} min={0} max={BASE_TEN_MAX} unit="" onChange={(tens) => set({ tens })} />
+      <PanelSlider label="Ones" value={blocks.ones} min={0} max={BASE_TEN_MAX} unit="" onChange={(ones) => set({ ones })} />
       <ResetButton onClick={() => set(DEFAULT_BASE_TEN)} />
     </ToolPanelButton>
   );
@@ -317,7 +342,7 @@ function BarGraphControls({ element, update }: { element: SvgElement; update: Up
       <div className="flex flex-col gap-1.5">
         <PanelLabel>Bars</PanelLabel>
         <div className="flex gap-1.5">
-          {[2, 3, 4, 5, 6].map((count) => (
+          {BAR_COUNTS.map((count) => (
             <ToggleChip key={count} active={bars.length === count} onClick={() => setCount(count)} className="flex-1">
               {count}
             </ToggleChip>
@@ -329,14 +354,14 @@ function BarGraphControls({ element, update }: { element: SvgElement; update: Up
           <input
             type="text"
             value={bar.label}
-            maxLength={12}
+            maxLength={BAR_LABEL_MAX}
             onChange={(e) => setBar(i, { label: e.target.value })}
             className="w-20 rounded-input border border-border-default px-2 py-1 text-sm text-text-primary"
           />
           <input
             type="range"
             min={0}
-            max={10}
+            max={BAR_GRAPH_MAX}
             value={bar.value}
             onChange={(e) => setBar(i, { value: Number(e.target.value) })}
             className="min-w-0 flex-1 accent-[var(--accent-navy)]"

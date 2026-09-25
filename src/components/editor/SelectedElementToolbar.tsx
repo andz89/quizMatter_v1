@@ -1,14 +1,19 @@
 "use client";
 
-import { useState } from "react";
 import { useEditorStore } from "@/lib/store";
 import { getElementAsset, DEFAULT_CLOCK_TIME } from "@/lib/svgLibrary";
 import { DEFAULT_ROTATION_3D } from "@/lib/solids";
+import { OPACITY_MIN } from "@/lib/constants";
 import { toCssBackground } from "./ElementSvg";
 import { RotateIcon } from "./SvgElementItem";
 import { ArrangePanel } from "./ArrangePanel";
 import { MathToolControls } from "./MathToolPanels";
 import { PanelReadout, PanelSlider, ResetButton, ToggleChip, ToolPanelButton } from "./PanelControls";
+import { DuplicateIcon } from "@/components/icons/DuplicateIcon";
+import { TrashIcon } from "@/components/icons/TrashIcon";
+
+// Quick angles shown above the Rotate slider.
+const ANGLE_PRESETS = [-90, -45, 0, 45, 90, 180];
 
 const MIXED_COLOR_SWATCH = "conic-gradient(#191A2C, #1E8E4F, #F2A93B, #A8A6A1, #1F1F1F, #191A2C)";
 
@@ -17,7 +22,7 @@ export function SelectedElementToolbar() {
   const selectedSlideId = useEditorStore((s) => s.selectedSlideId);
   const selectedElementIds = useEditorStore((s) => s.selectedElementIds);
   const slide = useEditorStore((s) => s.quiz.slides.find((sl) => sl.id === s.selectedSlideId));
-  const deleteElement = useEditorStore((s) => s.deleteElement);
+  const deleteElements = useEditorStore((s) => s.deleteElements);
   const duplicateElements = useEditorStore((s) => s.duplicateElements);
   const groupSelectedElements = useEditorStore((s) => s.groupSelectedElements);
   const ungroupSelectedElements = useEditorStore((s) => s.ungroupSelectedElements);
@@ -25,7 +30,8 @@ export function SelectedElementToolbar() {
   const isColorPanelOpen = useEditorStore((s) => s.isColorPanelOpen);
   const toggleColorPanel = useEditorStore((s) => s.toggleColorPanel);
   const updateElement = useEditorStore((s) => s.updateElement);
-  const [isArrangePanelOpen, setIsArrangePanelOpen] = useState(false);
+  const updateElements = useEditorStore((s) => s.updateElements);
+  const fitElementsToContainer = useEditorStore((s) => s.fitElementsToContainer);
 
   const elements = slide?.elements.filter((el) => selectedElementIds.includes(el.id)) ?? [];
   if (elements.length === 0) return null;
@@ -46,6 +52,13 @@ export function SelectedElementToolbar() {
   const setTime = (patch: Partial<typeof time>) =>
     clock && updateElement(selectedSlideId, clock.id, { clockTime: { ...time, ...patch } });
 
+  // Opacity applies to every selected element at once; the slider starts at the first one's value.
+  const opacity = elements[0].opacity ?? 100;
+  const setOpacity = (value: number) => {
+    const clamped = Math.min(100, Math.max(OPACITY_MIN, value));
+    updateElements(selectedSlideId, Object.fromEntries(elements.map((el) => [el.id, { opacity: clamped }])));
+  };
+
   const commonColor = elements.every((el) => el.color === elements[0].color) ? elements[0].color : null;
 
   // Selection is exactly one whole group → offer Ungroup. 2+ elements in one box otherwise → offer Group.
@@ -53,13 +66,16 @@ export function SelectedElementToolbar() {
   const canGroup = elements.length > 1 && !isOneGroup && elements.every((el) => el.containerId === elements[0].containerId);
   const canUngroup = elements.length > 1 && elements.some((el) => el.groupId);
 
+  // "Fit to box" only works on elements that sit in a box and aren't text boxes (same rule as the right-click menu).
+  const canFit = elements.some((el) => el.containerId !== null && !getElementAsset(el.assetId)?.isTextBox);
+
   const handleDuplicate = () => {
     const newIds = duplicateElements(selectedSlideId, elements.map((el) => el.id));
     if (newIds.length > 0) selectElements(newIds);
   };
 
   const handleDelete = () => {
-    elements.forEach((el) => deleteElement(selectedSlideId, el.id));
+    deleteElements(selectedSlideId, elements.map((el) => el.id));
   };
 
   return (
@@ -92,22 +108,24 @@ export function SelectedElementToolbar() {
               <UngroupIcon />
             </button>
           )}
-          <div className="relative">
-            <button
-              type="button"
-              title="Arrange"
-              onClick={() => setIsArrangePanelOpen((open) => !open)}
-              className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-dropdown text-text-primary hover:bg-bg-page ${isArrangePanelOpen ? "bg-bg-page" : ""}`}
-            >
-              <ArrangeIcon />
-            </button>
-            {isArrangePanelOpen && slide && (
-              <ArrangePanel slideId={selectedSlideId} questionHeight={slide.questionHeight} elements={elements} />
-            )}
-          </div>
-          <div className="h-5 w-px bg-border-default" />
         </>
       )}
+      {slide && (
+        <ToolPanelButton title={elements.length > 1 ? "Arrange" : "Align"} icon={<ArrangeIcon />} panelWidthClassName="w-64">
+          <ArrangePanel slideId={selectedSlideId} box={slide} elements={elements} />
+        </ToolPanelButton>
+      )}
+      {canFit && (
+        <button
+          type="button"
+          title="Fit to box"
+          onClick={() => fitElementsToContainer(selectedSlideId, elements.map((el) => el.id))}
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-dropdown text-text-primary hover:bg-bg-page"
+        >
+          <FitToBoxIcon />
+        </button>
+      )}
+      <div className="h-5 w-px bg-border-default" />
 
       <button
         type="button"
@@ -121,6 +139,10 @@ export function SelectedElementToolbar() {
         }}
       />
       <div className="mx-1 h-5 w-px bg-border-default" />
+      <ToolPanelButton title="Opacity" icon={<OpacityIcon />}>
+        <PanelSlider label="Opacity" value={opacity} min={OPACITY_MIN} max={100} unit="%" onChange={setOpacity} />
+        <ResetButton onClick={() => setOpacity(100)} />
+      </ToolPanelButton>
       {solid && (
         <ToolPanelButton title="Rotate 3D" icon={<Rotate3dIcon />}>
           <PanelSlider label="Tilt" value={rotation.x} min={-90} max={90} onChange={(x) => setRotation({ x })} />
@@ -150,10 +172,22 @@ export function SelectedElementToolbar() {
         </ToolPanelButton>
       )}
       {elements.length === 1 && slide && (
-        <MathToolControls element={elements[0]} slideId={selectedSlideId} questionHeight={slide.questionHeight} />
+        <MathToolControls element={elements[0]} slideId={selectedSlideId} box={slide} />
       )}
       {flat && (
         <ToolPanelButton title="Rotate" icon={<RotateIcon />}>
+          <div className="flex gap-1">
+            {ANGLE_PRESETS.map((preset) => (
+              <ToggleChip
+                key={preset}
+                active={(flat.rotation ?? 0) === preset}
+                onClick={() => setAngle(preset)}
+                className="flex-1"
+              >
+                {preset}°
+              </ToggleChip>
+            ))}
+          </div>
           <PanelSlider label="Angle" value={flat.rotation ?? 0} min={-180} max={180} onChange={setAngle} />
           <ResetButton onClick={() => setAngle(0)} />
         </ToolPanelButton>
@@ -189,6 +223,16 @@ function Rotate3dIcon() {
   );
 }
 
+function OpacityIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round">
+      <rect x="2" y="2" width="12" height="12" rx="2" />
+      <path d="M2 8h12M8 2v12" strokeOpacity="0.35" />
+      <path d="M8 2h4a2 2 0 0 1 2 2v4H8ZM2 8h6v6H4a2 2 0 0 1-2-2Z" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
 function ClockIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round">
@@ -204,6 +248,15 @@ function ArrangeIcon() {
       <path d="M2 1.5v13" />
       <rect x="4.5" y="3" width="9" height="3.5" rx="1" />
       <rect x="4.5" y="9.5" width="6" height="3.5" rx="1" />
+    </svg>
+  );
+}
+
+function FitToBoxIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M1.5 5V2.5a1 1 0 0 1 1-1H5M11 1.5h2.5a1 1 0 0 1 1 1V5M14.5 11v2.5a1 1 0 0 1-1 1H11M5 14.5H2.5a1 1 0 0 1-1-1V11" />
+      <rect x="5" y="5" width="6" height="6" rx="1" />
     </svg>
   );
 }
@@ -224,23 +277,6 @@ function UngroupIcon() {
       <rect x="1.5" y="1.5" width="13" height="13" rx="2" strokeDasharray="2 2" />
       <rect x="4" y="4" width="4.5" height="4.5" rx="0.8" />
       <rect x="7.5" y="7.5" width="4.5" height="4.5" rx="0.8" />
-    </svg>
-  );
-}
-
-function DuplicateIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.3">
-      <rect x="1.5" y="1.5" width="8" height="8" rx="1.2" />
-      <path d="M4.5 12.5h6a2 2 0 0 0 2-2v-6" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function TrashIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4">
-      <path d="M2.5 3.5h9M5 3.5V2h4v1.5M5.5 6.5v4M8.5 6.5v4M3.5 3.5l.5 8h6l.5-8" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }

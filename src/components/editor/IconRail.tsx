@@ -4,12 +4,15 @@ import type { ReactNode } from "react";
 import { useEditorStore } from "@/lib/store";
 import { ElementsIcon } from "@/components/icons/ElementsIcon";
 import { GridIcon } from "@/components/icons/GridIcon";
+import { BackgroundIcon } from "@/components/icons/BackgroundIcon";
 
-/** Canva-style narrow icon bar: "Elements" expands the sidebar panel, "Slides" opens the thumbnail modal. */
+/** Canva-style narrow icon bar: "Elements" and "Background" expand their sidebar panels, "Slides" opens the thumbnail modal. */
 export function IconRail() {
   const isElementsPanelOpen = useEditorStore((s) => s.isElementsPanelOpen);
   const toggleElementsPanel = useEditorStore((s) => s.toggleElementsPanel);
   const openGridView = useEditorStore((s) => s.openGridView);
+  const isBackgroundPanelOpen = useEditorStore((s) => s.isBackgroundPanelOpen);
+  const toggleBackgroundPanel = useEditorStore((s) => s.toggleBackgroundPanel);
   const slideCount = useEditorStore((s) => s.quiz.slides.length);
 
   return (
@@ -19,6 +22,9 @@ export function IconRail() {
       </RailButton>
       <RailButton label="Slides" title={`Slides (${slideCount})`} onClick={openGridView}>
         <GridIcon size={20} />
+      </RailButton>
+      <RailButton label="Background" active={isBackgroundPanelOpen} onClick={toggleBackgroundPanel}>
+        <BackgroundIcon size={20} />
       </RailButton>
     </aside>
   );

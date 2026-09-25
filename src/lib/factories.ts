@@ -1,10 +1,11 @@
 import { createId } from "./id";
 import { DEFAULT_QUESTION_HEIGHT } from "./constants";
-import type { Quiz, Slide } from "./schema";
+import type { Quiz, Slide, SlideType } from "./schema";
 
-export function createBlankSlide(): Slide {
+export function createBlankSlide(type: SlideType = "choice"): Slide {
   return {
     id: createId(),
+    type,
     question: "",
     layout: "grid",
     options: [
@@ -14,6 +15,7 @@ export function createBlankSlide(): Slide {
       { id: createId(), text: "" },
     ],
     correctOptionId: null,
+    correctAnswer: "",
     elements: [],
     questionHeight: DEFAULT_QUESTION_HEIGHT,
   };

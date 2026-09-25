@@ -1,0 +1,87 @@
+{
+  "slides": [
+    {
+      "type": "choice",
+      "layout": "grid",
+      "question": "How many apples are there?",
+      "options": ["2", "3", "4", "5"],
+      "answer": "B",
+      "elements": [{ "asset": "apple", "in": "side", "count": 3 }]
+    },
+    {
+      "type": "choice",
+      "layout": "list",
+      "question": "Which fruit is yellow and tastes sour?",
+      "options": ["Lemon", "Cherry", "Grapes", "Watermelon"],
+      "answer": "A",
+      "elements": [
+        { "asset": "lemon", "in": "A" },
+        { "asset": "cherry", "in": "B" },
+        { "asset": "grapes", "in": "C" },
+        { "asset": "watermelon", "in": "D" }
+      ]
+    },
+    {
+      "type": "choice",
+      "layout": "list-side",
+      "question": "What time does the clock show?",
+      "options": ["3:00", "4:30", "6:15", "9:45"],
+      "answer": "C",
+      "elements": [{ "asset": "clock", "in": "side", "size": "large", "clockTime": { "hours": 6, "minutes": 15 } }]
+    },
+    {
+      "type": "choice",
+      "layout": "grid",
+      "question": "Which picture shows 3/8?",
+      "options": ["", "", "", ""],
+      "answer": "A",
+      "elements": [
+        { "asset": "fraction-circle", "in": "A", "fraction": { "parts": 8, "shaded": 3 } },
+        { "asset": "fraction-circle", "in": "B", "fraction": { "parts": 8, "shaded": 5 } },
+        { "asset": "fraction-circle", "in": "C", "fraction": { "parts": 4, "shaded": 3 } },
+        { "asset": "fraction-circle", "in": "D", "fraction": { "parts": 3, "shaded": 1 } }
+      ]
+    },
+    {
+      "type": "choice",
+      "layout": "grid",
+      "question": "Which number is missing?",
+      "options": ["4", "5", "6", "8"],
+      "answer": "C",
+      "elements": [{ "asset": "number-line", "in": "side", "numberLine": { "start": 0, "step": 2, "hidden": [6] } }]
+    },
+    {
+      "type": "short-answer",
+      "question": "What number do the blocks show?",
+      "answer": "123",
+      "elements": [{ "asset": "base-ten-blocks", "in": "side", "baseTen": { "hundreds": 1, "tens": 2, "ones": 3 } }]
+    },
+    {
+      "type": "lesson",
+      "layout": "text-left",
+      "title": "Telling Time",
+      "text": "The short hand shows the hour.\nThe long hand shows the minutes.",
+      "elements": [{ "asset": "clock", "clockTime": { "hours": 3, "minutes": 0 } }]
+    },
+    {
+      "type": "lesson",
+      "title": "Let's talk!",
+      "text": "Which fruit do you like best? Why?",
+      "elements": [{ "asset": "apple" }, { "asset": "banana" }, { "asset": "grapes" }, { "asset": "watermelon" }]
+    },
+    {
+      "type": "choice",
+      "question": "What is 2 + 3?",
+      "options": ["4", "5", "6", "7"],
+      "answer": "B",
+      "elements": [{ "asset": "apple", "count": 2 }, { "asset": "symbol-plus" }, { "asset": "apple", "count": 3 }]
+    },
+    {
+      "type": "choice",
+      "question": "How many apples are there?",
+      "options": ["6", "7", "8", "9"],
+      "answer": "C",
+      "elements": [{ "asset": "apple", "count": 8 }]
+    }
+  ]
+}

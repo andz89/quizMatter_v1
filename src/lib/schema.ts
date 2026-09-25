@@ -25,6 +25,8 @@ export const svgElementSchema = z.object({
   rotation3d: z.object({ x: z.number(), y: z.number() }).optional(),
   // Flat (2D) spin in degrees around the element's center. Missing = 0. Not used by solids.
   rotation: z.number().optional(),
+  // How see-through the element is, in percent (OPACITY_MIN–100). Missing = 100 (solid).
+  opacity: z.number().optional(),
   // Only used by the clocks: the time they show (hours 1–12, minutes 0–59). Missing = 10:10.
   // `pm` is only shown by the digital clock; missing = AM.
   clockTime: z.object({ hours: z.number(), minutes: z.number(), pm: z.boolean().optional() }).optional(),
@@ -45,16 +47,50 @@ export const svgElementSchema = z.object({
   barGraph: z.object({ bars: z.array(z.object({ label: z.string(), value: z.number() })) }).optional(),
   // Only used by the protractor: the angle between its two lines, 0–180°.
   protractor: z.object({ angle: z.number() }).optional(),
+  // Only used by the text box: its styled text, as HTML from the text editor. Empty string = no text.
+  text: z.object({ html: z.string() }).optional(),
+  // Only used by custom drawings (assetId CUSTOM_SVG_ID, e.g. drawn by Claude): the SVG markup. Shown
+  // as an image, so nothing inside it can run.
+  svg: z.string().optional(),
 });
 
 export const slideSchema = z.object({
   id: z.string(),
+  // choice = 4 options to pick from; short-answer = no options, the teacher types the correct answer;
+  // lesson = a blank slide for teaching (free-placed elements only, no question, no number).
+  // Missing = "choice" (older quizzes).
+  type: z.enum(["choice", "short-answer", "lesson"]).optional(),
+  // Name the teacher gave the slide. Question slides show it after their number ("Q1 · Fractions");
+  // blank slides show it instead of "Slide 1". Missing = no name.
+  name: z.string().optional(),
   question: z.string(),
   // Styled version of `question`, as HTML from the text editor. Missing on older quizzes.
   questionHtml: z.string().optional(),
-  layout: z.enum(["grid", "list"]),
+  // grid = 2x2 options; list = 4 stacked rows; list-side = 4 rows on the left and a box for
+  // elements on the right.
+  layout: z.enum(["grid", "list", "list-side"]),
+  // Grid/list only: show the shape box as a strip between the question and the options. Turned on
+  // when leaving list-side with shapes in its box. Missing = no strip.
+  hasShapeBox: z.boolean().optional(),
+  // Height of that strip, set by dragging its bottom edge. Missing = DEFAULT_SHAPE_STRIP_HEIGHT.
+  shapeStripHeight: z.number().optional(),
+  // Shape box fill and border color. Missing = none (a plain box in fullscreen).
+  shapeBoxFill: z.string().optional(),
+  shapeBoxBorder: z.string().optional(),
+  // The slide's background color, behind everything. Missing = the plain white surface.
+  background: z.string().optional(),
+  // Full-slide artwork (SVG markup) drawn over the background color, behind everything else. Shown
+  // as an image, so nothing inside it can run. Missing = none.
+  backgroundSvg: z.string().optional(),
+  // Which library pattern `backgroundSvg` was drawn from (e.g. "background-dots"), so it can be
+  // redrawn when the color changes. Missing = no pattern (the artwork, if any, is Claude's own).
+  backgroundPattern: z.string().optional(),
+  // How solid that pattern is, in percent. Missing = DEFAULT_PATTERN_OPACITY.
+  backgroundOpacity: z.number().optional(),
   options: z.tuple([optionSchema, optionSchema, optionSchema, optionSchema]),
   correctOptionId: z.string().nullable(),
+  // Short-answer slides only: the answer the teacher expects. (Their options stay empty and aren't shown.)
+  correctAnswer: z.string().optional(),
   elements: z.array(svgElementSchema),
   questionHeight: z.number(),
 });
@@ -70,4 +106,5 @@ export const quizSchema = z.object({
 export type Option = z.infer<typeof optionSchema>;
 export type SvgElement = z.infer<typeof svgElementSchema>;
 export type Slide = z.infer<typeof slideSchema>;
+export type SlideType = NonNullable<Slide["type"]>;
 export type Quiz = z.infer<typeof quizSchema>;

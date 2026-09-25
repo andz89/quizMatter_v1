@@ -1,10 +1,9 @@
 "use client";
 
-import { useEffect } from "react";
-import { EditorContent, useEditor } from "@tiptap/react";
-import { useEditorStore } from "@/lib/store";
-import { useAutoFitText } from "@/lib/useAutoFitText";
-import { TEXT_EXTENSIONS, textToHtml } from "@/lib/richText";
+import { useState } from "react";
+import { EditorContent } from "@tiptap/react";
+import { useCanvasTextEditor } from "@/lib/useCanvasTextEditor";
+import { textToHtml } from "@/lib/richText";
 
 interface EditableTextProps {
   text: string;
@@ -26,63 +25,29 @@ export function EditableText({
   maxFontSize,
   className,
 }: EditableTextProps) {
-  const setActiveTextEditor = useEditorStore((s) => s.setActiveTextEditor);
-  const { ref, fontSize, remeasure } = useAutoFitText<HTMLDivElement>({ minFontSize, maxFontSize });
-  const content = html ?? textToHtml(text);
+  // Where the user double-clicked to start typing (screen coordinates); null = not editing.
+  // Read-only until then, so a drag on the box draws the selection rectangle instead of selecting words.
+  const [editStart, setEditStart] = useState<{ x: number; y: number } | null>(null);
 
-  const editor = useEditor({
-    extensions: TEXT_EXTENSIONS,
-    content,
-    // Next.js renders this on the server first; the editor can only be built in the browser.
-    immediatelyRender: false,
-    editorProps: {
-      attributes: { class: "h-full outline-none" },
-      handleDOMEvents: {
-        // Paste as plain text only, so colors and fonts from other sites don't come along.
-        paste: (view, event) => {
-          event.preventDefault();
-          view.pasteText(event.clipboardData?.getData("text/plain") ?? "");
-          return true;
-        },
-      },
-    },
-    onUpdate: ({ editor }) => {
+  const { editor, ref, fontSize } = useCanvasTextEditor({
+    content: html ?? textToHtml(text),
+    editStart,
+    minFontSize,
+    maxFontSize,
+    editorClass: "h-full",
+    onUpdate: (editor) => {
       if (editor.isEmpty) onChange("", "");
       else onChange(editor.getText({ blockSeparator: "\n" }), editor.getHTML());
-      remeasure();
     },
-    // The header shows the format toolbar for whichever box has focus.
-    onFocus: ({ editor }) => setActiveTextEditor(editor),
-    // Only clear it if it's still this box — when jumping straight into another box, that box may
-    // already have claimed it.
-    onBlur: ({ editor }) => {
-      if (useEditorStore.getState().activeTextEditor === editor) setActiveTextEditor(null);
-    },
+    onStopEditing: () => setEditStart(null),
   });
 
-  // This box is removed while being edited (e.g. its slide was deleted): drop it from the header too.
-  useEffect(() => {
-    return () => {
-      if (editor && useEditorStore.getState().activeTextEditor === editor) setActiveTextEditor(null);
-    };
-  }, [editor, setActiveTextEditor]);
-
-  // Text changed from outside (e.g. the "Clear text" button or undo): show the new value. While typing,
-  // the editor and the stored value always match, so this never moves the cursor mid-edit.
-  useEffect(() => {
-    if (!editor) return;
-    const current = editor.isEmpty ? "" : editor.getHTML();
-    if (current !== content) {
-      editor.commands.setContent(content, { emitUpdate: false });
-      // Replacing the text drops the cursor, so if the user is in this field (e.g. pressed Ctrl+Z
-      // while typing), put the cursor back at the end.
-      if (editor.isFocused) editor.commands.focus("end");
-    }
-    remeasure();
-  }, [editor, content, remeasure]);
-
   return (
-    <div className="relative flex h-full w-full items-center overflow-hidden">
+    <div
+      // Already typing: leave it be, so a double-click selects a word instead of moving the cursor.
+      onDoubleClick={(e) => setEditStart((current) => current ?? { x: e.clientX, y: e.clientY })}
+      className={`relative flex h-full w-full items-center overflow-hidden ${editStart ? "cursor-text" : ""}`}
+    >
       {text === "" && (
         <span className="pointer-events-none absolute text-text-secondary" style={{ fontSize }}>
           {placeholder}
@@ -90,7 +55,8 @@ export function EditableText({
       )}
       <div
         ref={ref}
-        className={`h-full w-full overflow-hidden break-words ${className ?? ""}`}
+        // Not typing: no text highlighting, so a drag draws the selection rectangle instead.
+        className={`h-full w-full overflow-hidden break-words ${editStart ? "" : "select-none"} ${className ?? ""}`}
         style={{ fontSize, lineHeight: 1.25 }}
       >
         <EditorContent editor={editor} className="h-full" />

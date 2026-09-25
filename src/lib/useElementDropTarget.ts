@@ -8,7 +8,7 @@ import { ELEMENT_DRAG_MIME } from "./constants";
  * is being dragged over it; a depth counter (rather than a plain boolean) keeps that highlight stable
  * while the pointer moves across the container's own children, which fire their own drag-leave/enter.
  */
-export function useElementDropTarget(slideId: string, containerId: string) {
+export function useElementDropTarget(slideId: string, containerId: string | null) {
   const addElement = useEditorStore((s) => s.addElement);
   const zoom = useEditorStore((s) => s.zoom);
   const dragDepth = useRef(0);
@@ -41,7 +41,9 @@ export function useElementDropTarget(slideId: string, containerId: string) {
         e.stopPropagation();
         dragDepth.current = 0;
         setIsDragOver(false);
-        const rect = e.currentTarget.getBoundingClientRect();
+        // Measure from the box's elements area (it can be inset, e.g. past an option's ✓/A button).
+        const layer = e.currentTarget.querySelector("[data-element-layer]") ?? e.currentTarget;
+        const rect = layer.getBoundingClientRect();
         addElement(slideId, assetId, containerId, {
           x: (e.clientX - rect.left) / zoom,
           y: (e.clientY - rect.top) / zoom,

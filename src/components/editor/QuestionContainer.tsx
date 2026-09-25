@@ -1,49 +1,34 @@
 "use client";
 
-import { useRef } from "react";
-import { useEditorStore } from "@/lib/store";
+import { useEditorStore, selectedIdsOn } from "@/lib/store";
 import { QUESTION_CONTAINER_ID, QUESTION_CONTAINER_WIDTH } from "@/lib/constants";
 import { useElementDropTarget } from "@/lib/useElementDropTarget";
 import { EditableText } from "./EditableText";
 import { SvgElementItem } from "./SvgElementItem";
 import { GroupSelectionOverlay } from "./GroupSelectionOverlay";
-import { ContainerClearButtons } from "./ContainerClearButtons";
+import { SnapGuides } from "./SnapGuides";
+import { ResizeHandle } from "./ResizeHandle";
 import type { Slide } from "@/lib/schema";
 
 export function QuestionContainer({ slide }: { slide: Slide }) {
   const updateQuestion = useEditorStore((s) => s.updateQuestion);
   const setQuestionHeight = useEditorStore((s) => s.setQuestionHeight);
-  const zoom = useEditorStore((s) => s.zoom);
-  const selectedContainerId = useEditorStore((s) => s.selectedContainerId);
-  const selectedElementIds = useEditorStore((s) => s.selectedElementIds);
-  const selectContainer = useEditorStore((s) => s.selectContainer);
-  const dragOverContainerId = useEditorStore((s) => s.dragOverContainerId);
-
-  const resizeState = useRef<{ y: number; height: number } | null>(null);
-  const { isDragOver, dropHandlers } = useElementDropTarget(slide.id, QUESTION_CONTAINER_ID);
-  const selectedSlideId = useEditorStore((s) => s.selectedSlideId);
+  const selectedElementIds = useEditorStore(selectedIdsOn(slide.id));
   // Every slide's question box shares the same id, so also check this is the slide being edited.
-  const isElementDragOver = dragOverContainerId === QUESTION_CONTAINER_ID && selectedSlideId === slide.id;
+  // Only yes/no values, so a click elsewhere doesn't redraw this box.
+  const isContainerSelected = useEditorStore(
+    (s) => s.selectedSlideId === slide.id && s.selectedContainerId === QUESTION_CONTAINER_ID
+  );
+  const isElementDragOver = useEditorStore(
+    (s) => s.selectedSlideId === slide.id && s.dragOverContainerId === QUESTION_CONTAINER_ID
+  );
+  const selectContainer = useEditorStore((s) => s.selectContainer);
 
-  const isSelected = selectedContainerId === QUESTION_CONTAINER_ID || isDragOver || isElementDragOver;
+  const { isDragOver, dropHandlers } = useElementDropTarget(slide.id, QUESTION_CONTAINER_ID);
+
+  const isSelected = isContainerSelected || isDragOver || isElementDragOver;
   const boundElements = slide.elements.filter((el) => el.containerId === QUESTION_CONTAINER_ID);
   const bounds = { width: QUESTION_CONTAINER_WIDTH, height: slide.questionHeight };
-
-  const handleResizePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    e.stopPropagation();
-    resizeState.current = { y: e.clientY, height: slide.questionHeight };
-    e.currentTarget.setPointerCapture(e.pointerId);
-  };
-
-  const handleResizePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!resizeState.current) return;
-    const { y, height } = resizeState.current;
-    setQuestionHeight(slide.id, height + (e.clientY - y) / zoom);
-  };
-
-  const stopResize = () => {
-    resizeState.current = null;
-  };
 
   return (
     <div
@@ -64,10 +49,10 @@ export function QuestionContainer({ slide }: { slide: Slide }) {
         placeholder="Type your question…"
         minFontSize={22}
         maxFontSize={40}
-        className="font-semibold text-text-primary"
+        className="font-normal text-text-primary"
       />
 
-      <div className="pointer-events-none absolute inset-0">
+      <div data-element-layer className="pointer-events-none absolute inset-0">
         {boundElements.map((element) => (
           <SvgElementItem
             key={element.id}
@@ -79,28 +64,10 @@ export function QuestionContainer({ slide }: { slide: Slide }) {
           />
         ))}
         <GroupSelectionOverlay slideId={slide.id} elements={boundElements} bounds={bounds} />
+        <SnapGuides slideId={slide.id} containerId={QUESTION_CONTAINER_ID} />
       </div>
 
-      <ContainerClearButtons
-        slideId={slide.id}
-        containerId={QUESTION_CONTAINER_ID}
-        hasText={slide.question !== ""}
-        hasElements={boundElements.length > 0}
-        onClearText={() => updateQuestion(slide.id, "", "")}
-        className="right-1 top-1"
-      />
-
-      <div
-        onPointerDown={handleResizePointerDown}
-        onPointerMove={handleResizePointerMove}
-        onPointerUp={stopResize}
-        onPointerLeave={stopResize}
-        onClick={(e) => e.stopPropagation()}
-        title="Drag to resize"
-        className="group absolute -bottom-1.5 left-1/2 flex h-3 w-16 -translate-x-1/2 cursor-ns-resize items-center justify-center"
-      >
-        <div className="h-1 w-10 rounded-full bg-border-default transition-colors group-hover:bg-accent-navy" />
-      </div>
+      <ResizeHandle height={slide.questionHeight} onResize={(height) => setQuestionHeight(slide.id, height)} />
     </div>
   );
 }

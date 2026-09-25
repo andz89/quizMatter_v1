@@ -5,8 +5,9 @@ import { useEditorStore } from "@/lib/store";
 import { ELEMENT_LIBRARY, ELEMENT_CATEGORY_LABELS, getElementAsset, type ElementCategory } from "@/lib/svgLibrary";
 import { ELEMENT_DRAG_MIME } from "@/lib/constants";
 import { ElementSvg } from "./ElementSvg";
+import { CloseIcon } from "@/components/icons/CloseIcon";
 
-const CATEGORIES: ElementCategory[] = ["shape", "solid", "icon", "time", "math", "decorative", "cloud", "number", "letter", "symbol", "emoji", "music", "fruit"];
+const CATEGORIES: ElementCategory[] = ["shape", "line", "arrow", "solid", "icon", "time", "math", "decorative", "cloud", "number", "letter", "symbol", "emoji", "music", "fruit", "kitchen", "vehicle", "animal", "space", "sport", "tree", "leaf"];
 
 export function ElementsPanel() {
   const closeElementsPanel = useEditorStore((s) => s.closeElementsPanel);
@@ -80,12 +81,26 @@ export function ElementsPanel() {
 
       {openCategory === null ? (
         <>
+          <button
+            type="button"
+            draggable
+            onDragStart={(e) => handleDragStart(e, "text-box")}
+            className="mb-5 flex w-full cursor-grab items-center gap-3 rounded-button border border-border-default bg-bg-surface p-1.5 text-sm font-medium text-text-primary transition-colors hover:border-accent-navy"
+          >
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-dropdown bg-bg-page">
+              <span data-drag-image className="block h-4 w-4">
+                <ElementSvg assetId="text-box" color="currentColor" />
+              </span>
+            </span>
+            Text box
+          </button>
+
           {recentElementAssetIds.length > 0 && (
             <div className="mb-5">
               <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-header">Recently used</p>
               <div className="grid grid-cols-4 justify-items-center gap-3">
                 {recentElementAssetIds.map((assetId) => {
-                  const asset = ELEMENT_LIBRARY.find((a) => a.id === assetId);
+                  const asset = getElementAsset(assetId);
                   return asset ? (
                     <ElementButton key={asset.id} assetId={asset.id} label={asset.label} onDragStart={handleDragStart} />
                   ) : null;
@@ -150,14 +165,6 @@ function ElementButton({
         <ElementSvg assetId={assetId} color={asset?.defaultColor ?? "currentColor"} />
       </span>
     </button>
-  );
-}
-
-function CloseIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-      <path d="M4 4L12 12M12 4L4 12" strokeLinecap="round" />
-    </svg>
   );
 }
 

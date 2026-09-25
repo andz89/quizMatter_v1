@@ -17,12 +17,6 @@
   --accent-orange: #f2a93b;
   --accent-gray: #a8a6a1;
 
-  /* Radius */
-  --radius-card: 14px;
-  --radius-button: 10px;
-  --radius-dropdown: 8px;
-  --radius-input: 8px;
-
   /* Spacing */
   --space-card-x: 20px;
   --space-card-y: 14px;
@@ -44,18 +38,22 @@
   --color-accent-orange: var(--accent-orange);
   --color-accent-gray: var(--accent-gray);
 
-  --radius-card: var(--radius-card);
-  --radius-button: var(--radius-button);
-  --radius-dropdown: var(--radius-dropdown);
-  --radius-input: var(--radius-input);
-
   --font-sans: var(--font-inter);
 }
 
+/* Radius — plain values here (not in :root) so Tailwind builds rounded-card etc. and still
+   exposes them as --radius-* variables. */
+@theme {
+  --radius-card: 14px;
+  --radius-button: 10px;
+  --radius-dropdown: 8px;
+  --radius-input: 8px;
+}
+
+/* Font comes from Tailwind's base styles (html uses --font-sans), so body doesn't set it again. */
 body {
   background: var(--bg-page);
   color: var(--text-primary);
-  font-family: var(--font-sans), system-ui, sans-serif;
 }
 
 .zoom-slider {

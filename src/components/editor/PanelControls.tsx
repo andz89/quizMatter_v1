@@ -1,34 +1,70 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+
+// Closes whichever tool panel is open right now, so only one is open at a time.
+let closeOpenPanel: (() => void) | null = null;
 
 /** A toolbar icon button that opens a small settings panel below it (e.g. Rotate, Set time, Edit numbers). */
 export function ToolPanelButton({
   title,
   icon,
   wide = false,
+  buttonClassName = "h-8 w-8",
+  panelWidthClassName,
+  closeOnAnyClick = false,
   children,
 }: {
   title: string;
   icon: ReactNode;
   // Wider panel for controls that need more room (e.g. rows of number chips).
   wide?: boolean;
+  // Button size, for toolbars that use bigger buttons.
+  buttonClassName?: string;
+  // Overrides the panel's width (e.g. "w-auto" to fit its content).
+  panelWidthClassName?: string;
+  // Close on the next click anywhere, even inside the panel — for pick-one menus (e.g. Add slide).
+  closeOnAnyClick?: boolean;
   children: ReactNode;
 }) {
   const [isOpen, setIsOpen] = useState(false);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+
+  // Opening this panel closes the one that was open before it.
+  useEffect(() => {
+    if (!isOpen) return;
+    const close = () => setIsOpen(false);
+    closeOpenPanel?.();
+    closeOpenPanel = close;
+    return () => {
+      if (closeOpenPanel === close) closeOpenPanel = null;
+    };
+  }, [isOpen]);
+
+  // Listens on window, so a choice's own onClick runs first and then the panel closes. Clicks on
+  // the toggle button are skipped — it opens/closes the panel itself.
+  useEffect(() => {
+    if (!isOpen || !closeOnAnyClick) return;
+    const handleClick = (e: MouseEvent) => {
+      if (!buttonRef.current?.contains(e.target as Node)) setIsOpen(false);
+    };
+    window.addEventListener("click", handleClick);
+    return () => window.removeEventListener("click", handleClick);
+  }, [isOpen, closeOnAnyClick]);
   return (
     <div className="relative">
       <button
+        ref={buttonRef}
         type="button"
         title={title}
         onClick={() => setIsOpen((open) => !open)}
-        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-dropdown text-text-primary hover:bg-bg-page ${isOpen ? "bg-bg-page" : ""}`}
+        className={`flex ${buttonClassName} shrink-0 items-center justify-center rounded-dropdown text-text-primary hover:bg-bg-page ${isOpen ? "bg-bg-page" : ""}`}
       >
         {icon}
       </button>
       {isOpen && (
         <div
-          className={`absolute left-1/2 top-full z-30 mt-3 flex -translate-x-1/2 flex-col gap-3 rounded-card border border-border-default bg-bg-surface px-4 py-3 ${wide ? "w-72" : "w-60"}`}
+          className={`absolute left-1/2 top-full z-30 mt-3 flex -translate-x-1/2 flex-col gap-3 rounded-card border border-border-default bg-bg-surface px-4 py-3 ${panelWidthClassName ?? (wide ? "w-72" : "w-60")}`}
         >
           {children}
         </div>

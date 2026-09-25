@@ -15,6 +15,7 @@ export function StaticElementView({ elements }: { elements: SvgElement[] }) {
             width: element.width,
             height: element.height,
             transform: `rotate(${element.rotation ?? 0}deg)`,
+            opacity: (element.opacity ?? 100) / 100,
           }}
         >
           <ElementSvg assetId={element.assetId} color={element.color} settings={element} />

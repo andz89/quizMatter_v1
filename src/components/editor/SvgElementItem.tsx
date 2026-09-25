@@ -1,13 +1,29 @@
 "use client";
 
-import { useRef } from "react";
-import { useEditorStore } from "@/lib/store";
+import { useRef, useState } from "react";
+import { useEditorStore, withoutHistory } from "@/lib/store";
 import { getElementAsset } from "@/lib/svgLibrary";
-import { ElementSvg } from "./ElementSvg";
+import { ElementSvg, TRIM_PADDING } from "./ElementSvg";
+import { TextBoxContent } from "./TextBoxContent";
+import { findSnap, fitInBox, getOuterEdges, maxScaleFor, MIN_ELEMENT_SIZE, type Snap } from "@/lib/geometry";
 import type { SvgElement } from "@/lib/schema";
 
-const MIN_SIZE = 24;
 const ROTATE_SNAP = 15;
+// How close (in screen pixels) an edge or center must get to a line before it snaps onto it.
+const SNAP_DISTANCE = 6;
+/** A text box's, line's or stretchable shape's edge handle: "x" changes the width, "y" the height; dir = which way is outward. */
+interface EdgeHandle {
+  axis: "x" | "y";
+  dir: 1 | -1;
+  className: string;
+}
+
+const EDGE_HANDLES: EdgeHandle[] = [
+  { axis: "x", dir: -1, className: "top-1/2 -left-[5px] h-6 w-2.5 -translate-y-1/2 cursor-ew-resize" },
+  { axis: "x", dir: 1, className: "top-1/2 -right-[5px] h-6 w-2.5 -translate-y-1/2 cursor-ew-resize" },
+  { axis: "y", dir: -1, className: "left-1/2 -top-[5px] h-2.5 w-6 -translate-x-1/2 cursor-ns-resize" },
+  { axis: "y", dir: 1, className: "left-1/2 -bottom-[5px] h-2.5 w-6 -translate-x-1/2 cursor-ns-resize" },
+];
 
 /** A resize handle corner: sx/sy say which way "outward" is (+1 = right/down, -1 = left/up). */
 export interface Corner {
@@ -58,12 +74,15 @@ interface DragState {
 
 export function SvgElementItem({ slideId, element, allElements, isSelected, bounds }: SvgElementItemProps) {
   const zoom = useEditorStore((s) => s.zoom);
-  const selectedElementIds = useEditorStore((s) => s.selectedElementIds);
+  // Just "is exactly one element selected?", so a click elsewhere doesn't redraw every element.
+  const isSingleSelection = useEditorStore((s) => s.selectedElementIds.length === 1);
   const selectElement = useEditorStore((s) => s.selectElement);
   const selectElements = useEditorStore((s) => s.selectElements);
   const updateElement = useEditorStore((s) => s.updateElement);
+  const updateElements = useEditorStore((s) => s.updateElements);
   const setDragOverContainerId = useEditorStore((s) => s.setDragOverContainerId);
   const setElementDragGhosts = useEditorStore((s) => s.setElementDragGhosts);
+  const setSnapGuides = useEditorStore((s) => s.setSnapGuides);
   // While ghost previews show the dragged element(s) in a different box, hide the real ones so they're not duplicated.
   const isGhosting = useEditorStore((s) => s.elementDragGhosts.some((g) => g.id === element.id));
 
@@ -71,16 +90,24 @@ export function SvgElementItem({ slideId, element, allElements, isSelected, boun
   const resizeState = useRef<
     { pointerX: number; pointerY: number; x: number; y: number; w: number; h: number; sx: 1 | -1; sy: 1 | -1 } | null
   >(null);
+  const edgeResizeState = useRef<
+    { pointerX: number; pointerY: number; x: number; y: number; w: number; h: number; handle: EdgeHandle } | null
+  >(null);
   const isRotating = useRef(false);
   const boxRef = useRef<HTMLDivElement>(null);
+  // Text boxes only: where the user double-clicked to start typing; null = not typing.
+  const [editStart, setEditStart] = useState<{ x: number; y: number } | null>(null);
 
+  const asset = getElementAsset(element.assetId);
   // Solids turn in 3D from the toolbar instead, so they don't get the flat spin.
-  const canRotate = !getElementAsset(element.assetId)?.is3d;
+  const canRotate = !asset?.is3d;
   const angle = element.rotation ?? 0;
-  const isOnlySelected = isSelected && selectedElementIds.length === 1;
+  const isOnlySelected = isSelected && isSingleSelection;
 
   const handleBodyPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     e.stopPropagation();
+    // While typing, clicks and drags place the cursor or select words instead of moving the box.
+    if (editStart) return;
 
     if (e.shiftKey) {
       selectElement(slideId, element.id, true);
@@ -116,17 +143,39 @@ export function SvgElementItem({ slideId, element, allElements, isSelected, boun
     const state = dragState.current;
     const { x, y, items } = state;
 
-    const minX = Math.min(...items.map((i) => i.x));
-    const minY = Math.min(...items.map((i) => i.y));
-    const maxX = Math.max(...items.map((i) => i.x + i.width));
-    const maxY = Math.max(...items.map((i) => i.y + i.height));
+    const { minX, minY, maxX, maxY } = getOuterEdges(items);
 
-    const dx = Math.min(bounds.width - maxX, Math.max(-minX, (e.clientX - x) / zoom));
-    const dy = Math.min(bounds.height - maxY, Math.max(-minY, (e.clientY - y) / zoom));
+    let rawDx = (e.clientX - x) / zoom;
+    let rawDy = (e.clientY - y) / zoom;
+
+    // Snap the moved selection's edges/center onto the box's edges/center or another element's
+    // edges/center. Alt turns snapping off for fine placement.
+    let snap: { x: Snap; y: Snap } | null = null;
+    if (!e.altKey) {
+      const others = allElements.filter((el) => !items.some((item) => item.id === el.id));
+      const threshold = SNAP_DISTANCE / zoom;
+      snap = {
+        x: findSnap(
+          [minX, (minX + maxX) / 2, maxX].map((v) => v + rawDx),
+          [0, bounds.width / 2, bounds.width, ...others.flatMap((el) => [el.x, el.x + el.width / 2, el.x + el.width])],
+          threshold
+        ),
+        y: findSnap(
+          [minY, (minY + maxY) / 2, maxY].map((v) => v + rawDy),
+          [0, bounds.height / 2, bounds.height, ...others.flatMap((el) => [el.y, el.y + el.height / 2, el.y + el.height])],
+          threshold
+        ),
+      };
+      rawDx += snap.x.shift;
+      rawDy += snap.y.shift;
+    }
+
+    const dx = Math.min(bounds.width - maxX, Math.max(-minX, rawDx));
+    const dy = Math.min(bounds.height - maxY, Math.max(-minY, rawDy));
     state.dx = dx;
     state.dy = dy;
 
-    items.forEach((item) => updateElement(slideId, item.id, { x: item.x + dx, y: item.y + dy }));
+    updateElements(slideId, Object.fromEntries(items.map((item) => [item.id, { x: item.x + dx, y: item.y + dy }])));
 
     // Which box (if any other than this element's own) is under the pointer right now — drives
     // the "drop here" highlight and, on release, where the element ends up.
@@ -137,6 +186,13 @@ export function SvgElementItem({ slideId, element, allElements, isSelected, boun
     const hoveredId = hovered?.dataset.containerId ?? null;
     const isOtherContainer = hovered !== null && hoveredId !== element.containerId;
     const nextHoverId = isOtherContainer ? hoveredId : null;
+
+    // No lines while the drag is headed into another box — the ghost preview shows it there instead.
+    setSnapGuides(
+      snap && !isOtherContainer && (snap.x.lines.length > 0 || snap.y.lines.length > 0)
+        ? { slideId, containerId: element.containerId, xs: snap.x.lines, ys: snap.y.lines }
+        : null
+    );
 
     if (state.hoverContainerId !== nextHoverId) {
       state.hoverContainerEl = isOtherContainer ? hovered : null;
@@ -179,13 +235,15 @@ export function SvgElementItem({ slideId, element, allElements, isSelected, boun
     if (!state) return;
     setDragOverContainerId(null);
     setElementDragGhosts([]);
+    setSnapGuides(null);
 
     // Released over a different box — move the dragged element(s) there, landing the one actually
     // under the cursor exactly where the ghost preview showed it (same grab point under the cursor),
     // and shifting the rest of a multi-selected group by that same amount to keep their layout.
     if (!state.hoverContainerEl || !state.hoverContainerId) return;
 
-    const targetRect = state.hoverContainerEl.getBoundingClientRect();
+    // Measure from the box's elements area (it can be inset, e.g. past an option's ✓/A button).
+    const targetRect = (state.hoverContainerEl.querySelector("[data-element-layer]") ?? state.hoverContainerEl).getBoundingClientRect();
     const targetBounds = { width: targetRect.width / zoom, height: targetRect.height / zoom };
 
     const finalItems = state.items.map((item) => ({ ...item, x: item.x + state.dx, y: item.y + state.dy }));
@@ -202,20 +260,18 @@ export function SvgElementItem({ slideId, element, allElements, isSelected, boun
       return !!groupId && allElements.some((el) => el.groupId === groupId && !movedIds.includes(el.id));
     };
 
-    finalItems.forEach((item) => {
-      // Too big for the new box — shrink evenly (keeping the shape) so it fits.
-      const scale = Math.min(1, targetBounds.width / item.width, targetBounds.height / item.height);
-      const width = item.width * scale;
-      const height = item.height * scale;
-      updateElement(slideId, item.id, {
-        ...(leavesGroup(item.id) && { groupId: undefined }),
-        containerId: state.hoverContainerId,
-        width,
-        height,
-        x: Math.min(targetBounds.width - width, Math.max(0, item.x + shiftX)),
-        y: Math.min(targetBounds.height - height, Math.max(0, item.y + shiftY)),
-      });
-    });
+    const containerId = state.hoverContainerId;
+    updateElements(
+      slideId,
+      Object.fromEntries(
+        finalItems.map((item) => {
+          const shifted = { width: item.width, height: item.height, x: item.x + shiftX, y: item.y + shiftY };
+          // Too big for the new box — shrink evenly (keeping the shape) so it fits.
+          const patch = { ...fitInBox(shifted, targetBounds), containerId, ...(leavesGroup(item.id) && { groupId: undefined }) };
+          return [item.id, patch];
+        })
+      )
+    );
   };
 
   const handleResizePointerDown = (e: React.PointerEvent<HTMLDivElement>, corner: Corner) => {
@@ -262,7 +318,7 @@ export function SvgElementItem({ slideId, element, allElements, isSelected, boun
       maxScaleFor(y + h / 2 - moveY, moveY - h / 2, 0, bounds.height), // top edge
       maxScaleFor(y + h / 2 - moveY, moveY + h / 2, 0, bounds.height), // bottom edge
     );
-    const minScale = Math.max(MIN_SIZE / w, MIN_SIZE / h);
+    const minScale = Math.max(MIN_ELEMENT_SIZE / w, MIN_ELEMENT_SIZE / h);
     const scale = Math.min(maxScale, Math.max(minScale, newDistance / originalDistance));
     const width = w * scale;
     const height = h * scale;
@@ -278,6 +334,58 @@ export function SvgElementItem({ slideId, element, allElements, isSelected, boun
 
   const stopResize = () => {
     resizeState.current = null;
+    edgeResizeState.current = null;
+  };
+
+  // Text boxes, lines, squares and rectangles only: the side handles change the width alone, the top/bottom ones the height alone.
+  const handleEdgePointerDown = (e: React.PointerEvent<HTMLDivElement>, handle: EdgeHandle) => {
+    e.stopPropagation();
+    edgeResizeState.current = {
+      pointerX: e.clientX,
+      pointerY: e.clientY,
+      x: element.x,
+      y: element.y,
+      w: element.width,
+      h: element.height,
+      handle,
+    };
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+
+  const handleEdgePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!edgeResizeState.current) return;
+    const { pointerX, pointerY, x, y, w, h, handle } = edgeResizeState.current;
+    const rad = (angle * Math.PI) / 180;
+    const cos = Math.cos(rad);
+    const sin = Math.sin(rad);
+    // The direction the handle's side faces on screen (the box's own width or height direction,
+    // turned with the box), flipped so dragging outward always grows it.
+    const ux = (handle.axis === "x" ? cos : -sin) * handle.dir;
+    const uy = (handle.axis === "x" ? sin : cos) * handle.dir;
+    const grow = ((e.clientX - pointerX) * ux + (e.clientY - pointerY) * uy) / zoom;
+    // The opposite side stays put, so the center moves half the growth toward the dragged side.
+    // The box's outer edges then move in a straight line with the growth g, which gives a simple
+    // largest g that keeps it inside the bounds (same idea as the corner resize).
+    const centerX = x + w / 2;
+    const centerY = y + h / 2;
+    const halfX = (w * Math.abs(cos) + h * Math.abs(sin)) / 2;
+    const halfY = (w * Math.abs(sin) + h * Math.abs(cos)) / 2;
+    const maxGrow = Math.min(
+      maxScaleFor(centerX - halfX, (ux - Math.abs(ux)) / 2, 0, bounds.width), // left edge
+      maxScaleFor(centerX + halfX, (ux + Math.abs(ux)) / 2, 0, bounds.width), // right edge
+      maxScaleFor(centerY - halfY, (uy - Math.abs(uy)) / 2, 0, bounds.height), // top edge
+      maxScaleFor(centerY + halfY, (uy + Math.abs(uy)) / 2, 0, bounds.height), // bottom edge
+    );
+    const size = handle.axis === "x" ? w : h;
+    const g = Math.min(maxGrow, Math.max(MIN_ELEMENT_SIZE - size, grow));
+    const width = handle.axis === "x" ? w + g : w;
+    const height = handle.axis === "y" ? h + g : h;
+    updateElement(slideId, element.id, {
+      width,
+      height,
+      x: centerX + (g / 2) * ux - width / 2,
+      y: centerY + (g / 2) * uy - height / 2,
+    });
   };
 
   const handleRotatePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -298,6 +406,29 @@ export function SvgElementItem({ slideId, element, allElements, isSelected, boun
     // Keep it in -180..180 so the toolbar slider can show it.
     next = ((((next + 180) % 360) + 360) % 360) - 180;
     updateElement(slideId, element.id, { rotation: Math.round(next) });
+  };
+
+  // Element boxes start square, but most drawings aren't. Shrink the box's short side to the
+  // drawing's shape (keeping its center), so the 2px gap is the same on all four sides. Only ever
+  // shrinks, so the box can't grow past its question/option box.
+  const fitBoxToDrawing = (drawWidth: number, drawHeight: number) => {
+    const { width, height } = element;
+    const pad = TRIM_PADDING * 2;
+    const scale = Math.min((width - pad) / drawWidth, (height - pad) / drawHeight);
+    const fitWidth = drawWidth * scale + pad;
+    const fitHeight = drawHeight * scale + pad;
+    // Already fitted (this runs again after every resize), or too thin to still be grabbed.
+    if (Math.abs(fitWidth - width) < 0.5 && Math.abs(fitHeight - height) < 0.5) return;
+    if (fitWidth < MIN_ELEMENT_SIZE || fitHeight < MIN_ELEMENT_SIZE) return;
+    // Not an undo step of its own: it's the box tidying itself, and it runs again after every undo.
+    withoutHistory(() =>
+      updateElement(slideId, element.id, {
+        width: fitWidth,
+        height: fitHeight,
+        x: element.x + (width - fitWidth) / 2,
+        y: element.y + (height - fitHeight) / 2,
+      })
+    );
   };
 
   const stopRotate = () => {
@@ -328,10 +459,26 @@ export function SvgElementItem({ slideId, element, allElements, isSelected, boun
         onPointerLeave={stopDrag}
         onClick={(e) => e.stopPropagation()}
         // Double-click picks just this one element out of its group, to edit it on its own.
-        onDoubleClick={() => element.groupId && selectElements([element.id])}
-        className="h-full w-full cursor-move"
+        // On a text box it also starts typing.
+        onDoubleClick={(e) => {
+          if (element.groupId) selectElements([element.id]);
+          // Already typing: leave it be, so a double-click selects a word instead of moving the cursor.
+          if (asset?.isTextBox) setEditStart((current) => current ?? { x: e.clientX, y: e.clientY });
+        }}
+        className={`h-full w-full ${editStart ? "cursor-text" : "cursor-move"}`}
+        style={{ opacity: (element.opacity ?? 100) / 100 }}
       >
-        <ElementSvg assetId={element.assetId} color={element.color} settings={element} />
+        {asset?.isTextBox ? (
+          <TextBoxContent
+            html={element.text?.html ?? ""}
+            color={element.color}
+            editStart={editStart}
+            onChange={(html) => updateElement(slideId, element.id, { text: { html } })}
+            onStopEditing={() => setEditStart(null)}
+          />
+        ) : (
+          <ElementSvg assetId={element.assetId} color={element.color} settings={element} onMeasure={fitBoxToDrawing} />
+        )}
       </div>
 
       {isOnlySelected && canRotate && (
@@ -362,15 +509,25 @@ export function SvgElementItem({ slideId, element, allElements, isSelected, boun
             style={{ background: "var(--accent-navy)" }}
           />
         ))}
+
+      {isOnlySelected &&
+        (asset?.isTextBox || asset?.isLine || asset?.stretchX) &&
+        // Lines, squares and rectangles only get the left/right handles (lines grow longer, never thicker).
+        EDGE_HANDLES.filter((handle) => asset.isTextBox || handle.axis === "x").map((handle) => (
+          <div
+            key={handle.className}
+            onPointerDown={(e) => handleEdgePointerDown(e, handle)}
+            onPointerMove={handleEdgePointerMove}
+            onPointerUp={stopResize}
+            onPointerLeave={stopResize}
+            onClick={(e) => e.stopPropagation()}
+            title={handle.axis === "x" ? "Change width" : "Change height"}
+            className={`absolute rounded-full border-2 border-white shadow-sm ${handle.className}`}
+            style={{ background: "var(--accent-navy)" }}
+          />
+        ))}
     </div>
   );
-}
-
-/** Largest scale s where `start + s * rate` stays within [min, max]. */
-function maxScaleFor(start: number, rate: number, min: number, max: number) {
-  if (rate > 0) return (max - start) / rate;
-  if (rate < 0) return (min - start) / rate;
-  return Infinity;
 }
 
 export function RotateIcon() {

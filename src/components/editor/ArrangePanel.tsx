@@ -1,44 +1,58 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { useEditorStore } from "@/lib/store";
-import { getContainerBounds } from "@/lib/constants";
+import { getContainerBounds, type BoxLayout } from "@/lib/constants";
+import { fitInBox, getOuterEdges } from "@/lib/geometry";
 import type { SvgElement } from "@/lib/schema";
 
 type AlignMode = "left" | "center" | "right" | "top" | "middle" | "bottom";
 
 interface ArrangePanelProps {
   slideId: string;
-  questionHeight: number;
-  /** The selected elements (2 or more). */
+  // The slide's box sizes (question height, layout, shape strip).
+  box: BoxLayout;
+  /** The selected elements. With just one, it lines up against its own box instead. */
   elements: SvgElement[];
 }
 
-/** Align, distribute, and same-size tools for a multi-selection. */
-export function ArrangePanel({ slideId, questionHeight, elements }: ArrangePanelProps) {
+/** Align, distribute, and same-size tools for a multi-selection, or align-to-box for a single element.
+ *  Renders only the panel's contents — it sits inside a ToolPanelButton. */
+export function ArrangePanel({ slideId, box, elements }: ArrangePanelProps) {
   const selectedElementIds = useEditorStore((s) => s.selectedElementIds);
-  const updateElement = useEditorStore((s) => s.updateElement);
+  const updateElements = useEditorStore((s) => s.updateElements);
+  // Line items up against each other ("selection") or against their box — the slide itself for free items.
+  const [alignTo, setAlignTo] = useState<"selection" | "box">("selection");
 
-  // Each box measures positions from its own corner, so lining up only makes sense within one box.
+  // A single item has nothing to line up with but its box.
+  const isSingle = elements.length === 1;
+  const isBoxAlign = isSingle || alignTo === "box";
+  const boxName = elements.every((el) => el.containerId === null) ? "slide" : "box";
+
+  // Each box measures positions from its own corner, so lining items up with each other only makes
+  // sense within one box. Aligning to the box works anywhere: each item uses its own box.
   const isSameContainer = elements.every((el) => el.containerId === elements[0].containerId);
-  const alignHint = isSameContainer ? undefined : "Select items in the same box to align";
+  const canAlign = isBoxAlign || isSameContainer;
+  const alignHint = canAlign ? undefined : `Select items in the same box, or align to the ${boxName}`;
 
-  const minX = Math.min(...elements.map((el) => el.x));
-  const minY = Math.min(...elements.map((el) => el.y));
-  const maxX = Math.max(...elements.map((el) => el.x + el.width));
-  const maxY = Math.max(...elements.map((el) => el.y + el.height));
+  const { minX, minY, maxX, maxY } = getOuterEdges(elements);
 
   const align = (mode: AlignMode) => {
+    const patches: Record<string, Partial<SvgElement>> = {};
     elements.forEach((el) => {
+      // The area to line up inside: the item's box, or the outline around the whole selection.
+      const bounds = getContainerBounds(el.containerId, box);
+      const [left, top, right, bottom] = isBoxAlign ? [0, 0, bounds.width, bounds.height] : [minX, minY, maxX, maxY];
       const patch: Partial<SvgElement> = {};
-      if (mode === "left") patch.x = minX;
-      if (mode === "center") patch.x = (minX + maxX) / 2 - el.width / 2;
-      if (mode === "right") patch.x = maxX - el.width;
-      if (mode === "top") patch.y = minY;
-      if (mode === "middle") patch.y = (minY + maxY) / 2 - el.height / 2;
-      if (mode === "bottom") patch.y = maxY - el.height;
-      updateElement(slideId, el.id, patch);
+      if (mode === "left") patch.x = left;
+      if (mode === "center") patch.x = (left + right) / 2 - el.width / 2;
+      if (mode === "right") patch.x = right - el.width;
+      if (mode === "top") patch.y = top;
+      if (mode === "middle") patch.y = (top + bottom) / 2 - el.height / 2;
+      if (mode === "bottom") patch.y = bottom - el.height;
+      patches[el.id] = patch;
     });
+    updateElements(slideId, patches);
   };
 
   // Equal gaps between items: the first stays put, the rest are laid out one after another.
@@ -49,91 +63,112 @@ export function ArrangePanel({ slideId, questionHeight, elements }: ArrangePanel
     const totalSize = sorted.reduce((sum, el) => sum + el[size], 0);
     const gap = (span - totalSize) / (sorted.length - 1);
     let cursor = axis === "x" ? minX : minY;
+    const patches: Record<string, Partial<SvgElement>> = {};
     sorted.forEach((el) => {
-      updateElement(slideId, el.id, { [axis]: cursor });
+      patches[el.id] = { [axis]: cursor };
       cursor += el[size] + gap;
     });
+    updateElements(slideId, patches);
   };
 
   // Copy the first-selected item's size onto the rest, keeping each one's center in place.
   const matchSize = () => {
     const reference = elements.find((el) => el.id === selectedElementIds[0]) ?? elements[0];
-    elements.forEach((el) => {
-      const bounds = getContainerBounds(el.containerId, questionHeight);
+    const patches = elements.map((el) => {
+      const { width, height } = reference;
+      const resized = { width, height, x: el.x + el.width / 2 - width / 2, y: el.y + el.height / 2 - height / 2 };
       // Shrink (keeping the shape) if the box is too small to fit the reference size.
-      const fit = Math.min(1, bounds.width / reference.width, bounds.height / reference.height);
-      const width = reference.width * fit;
-      const height = reference.height * fit;
-      const x = el.x + el.width / 2 - width / 2;
-      const y = el.y + el.height / 2 - height / 2;
-      updateElement(slideId, el.id, {
-        width,
-        height,
-        x: Math.min(bounds.width - width, Math.max(0, x)),
-        y: Math.min(bounds.height - height, Math.max(0, y)),
-      });
+      return [el.id, fitInBox(resized, getContainerBounds(el.containerId, box), true)];
     });
+    updateElements(slideId, Object.fromEntries(patches));
   };
 
   return (
-    <div className="absolute left-1/2 top-full z-30 mt-3 flex w-64 -translate-x-1/2 flex-col gap-3 rounded-card border border-border-default bg-bg-surface px-4 py-3">
-      <Section label="Align">
-        <ToolButton title={alignHint ?? "Align left"} disabled={!isSameContainer} onClick={() => align("left")}>
+    <>
+      <Section
+        label={isSingle ? `Align to ${boxName}` : "Align"}
+        action={
+          !isSingle && (
+            <div className="flex rounded-dropdown border border-border-default p-0.5">
+              {(["selection", "box"] as const).map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  onClick={() => setAlignTo(option)}
+                  className={`rounded-[6px] px-2 py-0.5 text-xs font-semibold capitalize ${
+                    alignTo === option ? "bg-accent-navy text-white" : "text-text-secondary hover:text-text-primary"
+                  }`}
+                >
+                  {option === "box" ? boxName : option}
+                </button>
+              ))}
+            </div>
+          )
+        }
+      >
+        <ToolButton title={alignHint ?? "Align left"} disabled={!canAlign} onClick={() => align("left")}>
           <AlignIcon d="M2 1.5v13M4.5 4h8M4.5 10h5" />
         </ToolButton>
-        <ToolButton title={alignHint ?? "Align center"} disabled={!isSameContainer} onClick={() => align("center")}>
+        <ToolButton title={alignHint ?? "Align center"} disabled={!canAlign} onClick={() => align("center")}>
           <AlignIcon d="M8 1.5v13M3.5 4h9M5 10h6" />
         </ToolButton>
-        <ToolButton title={alignHint ?? "Align right"} disabled={!isSameContainer} onClick={() => align("right")}>
+        <ToolButton title={alignHint ?? "Align right"} disabled={!canAlign} onClick={() => align("right")}>
           <AlignIcon d="M14 1.5v13M3.5 4h8M6.5 10h5" />
         </ToolButton>
-        <ToolButton title={alignHint ?? "Align top"} disabled={!isSameContainer} onClick={() => align("top")}>
+        <ToolButton title={alignHint ?? "Align top"} disabled={!canAlign} onClick={() => align("top")}>
           <AlignIcon d="M1.5 2h13M4 4.5v8M10 4.5v5" />
         </ToolButton>
-        <ToolButton title={alignHint ?? "Align middle"} disabled={!isSameContainer} onClick={() => align("middle")}>
+        <ToolButton title={alignHint ?? "Align middle"} disabled={!canAlign} onClick={() => align("middle")}>
           <AlignIcon d="M1.5 8h13M4 3.5v9M10 5v6" />
         </ToolButton>
-        <ToolButton title={alignHint ?? "Align bottom"} disabled={!isSameContainer} onClick={() => align("bottom")}>
+        <ToolButton title={alignHint ?? "Align bottom"} disabled={!canAlign} onClick={() => align("bottom")}>
           <AlignIcon d="M1.5 14h13M4 3.5v8M10 6.5v5" />
         </ToolButton>
       </Section>
 
-      <Section label="Distribute">
-        <ToolButton
-          title={alignHint ?? (elements.length < 3 ? "Select 3 or more items" : "Space evenly across")}
-          disabled={!isSameContainer || elements.length < 3}
-          onClick={() => distribute("x")}
-        >
-          <AlignIcon d="M1.5 2v12M14.5 2v12M6 5v6M10 5v6" />
-        </ToolButton>
-        <ToolButton
-          title={alignHint ?? (elements.length < 3 ? "Select 3 or more items" : "Space evenly down")}
-          disabled={!isSameContainer || elements.length < 3}
-          onClick={() => distribute("y")}
-        >
-          <AlignIcon d="M2 1.5h12M2 14.5h12M5 6h6M5 10h6" />
-        </ToolButton>
-      </Section>
+      {!isSingle && (
+        <>
+          <Section label="Distribute">
+            <ToolButton
+              title={alignHint ?? (elements.length < 3 ? "Select 3 or more items" : "Space evenly across")}
+              disabled={!isSameContainer || elements.length < 3}
+              onClick={() => distribute("x")}
+            >
+              <AlignIcon d="M1.5 2v12M14.5 2v12M6 5v6M10 5v6" />
+            </ToolButton>
+            <ToolButton
+              title={alignHint ?? (elements.length < 3 ? "Select 3 or more items" : "Space evenly down")}
+              disabled={!isSameContainer || elements.length < 3}
+              onClick={() => distribute("y")}
+            >
+              <AlignIcon d="M2 1.5h12M2 14.5h12M5 6h6M5 10h6" />
+            </ToolButton>
+          </Section>
 
-      <Section label="Size">
-        <button
-          type="button"
-          title="Make all items the size of the first one you selected"
-          onClick={matchSize}
-          className="flex h-8 items-center gap-2 rounded-dropdown px-2 text-sm font-semibold text-text-primary hover:bg-bg-page"
-        >
-          <AlignIcon d="M2 2h5v5H2zM9 9h5v5H9z" />
-          Same size
-        </button>
-      </Section>
-    </div>
+          <Section label="Size">
+            <button
+              type="button"
+              title="Make all items the size of the first one you selected"
+              onClick={matchSize}
+              className="flex h-8 items-center gap-2 rounded-dropdown px-2 text-sm font-semibold text-text-primary hover:bg-bg-page"
+            >
+              <AlignIcon d="M2 2h5v5H2zM9 9h5v5H9z" />
+              Same size
+            </button>
+          </Section>
+        </>
+      )}
+    </>
   );
 }
 
-function Section({ label, children }: { label: string; children: ReactNode }) {
+function Section({ label, action, children }: { label: string; action?: ReactNode; children: ReactNode }) {
   return (
     <div className="flex flex-col gap-1.5">
-      <span className="text-xs font-semibold uppercase tracking-[0.05em] text-text-header">{label}</span>
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-semibold uppercase tracking-[0.05em] text-text-header">{label}</span>
+        {action}
+      </div>
       <div className="flex flex-wrap items-center gap-1">{children}</div>
     </div>
   );

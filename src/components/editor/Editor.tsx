@@ -1,49 +1,51 @@
 "use client";
 
 import { useEffect } from "react";
+import dynamic from "next/dynamic";
 import { useEditorStore } from "@/lib/store";
+import { useEditorShortcuts } from "@/lib/useEditorShortcuts";
 import { EditorTopBar } from "./EditorTopBar";
 import { IconRail } from "./IconRail";
 import { Workspace } from "./Workspace";
-import { SlideGridModal } from "./SlideGridModal";
 import { ElementsPanel } from "./ElementsPanel";
 import { ColorPanel } from "./ColorPanel";
-import { PresentationView } from "@/components/presentation/PresentationView";
+import { BackgroundPanel } from "./BackgroundPanel";
+import type { Quiz } from "@/lib/schema";
 
-export function Editor() {
+// Only downloaded the first time they're opened, so the editor itself loads faster.
+const SlideGridModal = dynamic(() => import("./SlideGridModal").then((mod) => mod.SlideGridModal));
+const PresentationView = dynamic(() =>
+  import("@/components/presentation/PresentationView").then((mod) => mod.PresentationView)
+);
+
+export function Editor({ quiz }: { quiz: Quiz }) {
+  // Until the quiz below is in the store, the store still holds the placeholder (or the last quiz opened).
+  const isLoaded = useEditorStore((s) => s.quiz.id === quiz.id);
+  const hasUnsavedChanges = useEditorStore((s) => s.quiz !== s.savedQuiz);
   const isPresenting = useEditorStore((s) => s.isPresenting);
   const isGridViewOpen = useEditorStore((s) => s.isGridViewOpen);
   const isElementsPanelOpen = useEditorStore((s) => s.isElementsPanelOpen);
   const isColorPanelOpen = useEditorStore((s) => s.isColorPanelOpen);
+  const isBackgroundPanelOpen = useEditorStore((s) => s.isBackgroundPanelOpen);
   const closeColorPanel = useEditorStore((s) => s.closeColorPanel);
   const selectedElementIds = useEditorStore((s) => s.selectedElementIds);
   const clearElementSelection = useEditorStore((s) => s.clearElementSelection);
   const selectedContainerId = useEditorStore((s) => s.selectedContainerId);
   const selectContainer = useEditorStore((s) => s.selectContainer);
-  const undo = useEditorStore((s) => s.undo);
-  const redo = useEditorStore((s) => s.redo);
 
-  // Ctrl/Cmd+Z undoes; Ctrl+Y or Ctrl/Cmd+Shift+Z redoes. This also runs while typing (replacing the
-  // browser's own text undo), so there's only one undo history to think about.
+  useEditorShortcuts();
+
   useEffect(() => {
-    if (isPresenting) return;
+    useEditorStore.getState().loadQuiz(quiz);
+  }, [quiz]);
 
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (!(e.ctrlKey || e.metaKey)) return;
-      const key = e.key.toLowerCase();
-      if (key === "z") {
-        e.preventDefault();
-        if (e.shiftKey) redo();
-        else undo();
-      } else if (key === "y") {
-        e.preventDefault();
-        redo();
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isPresenting, undo, redo]);
+  // Closing or reloading the tab with unsaved changes makes the browser ask "Leave page?" first.
+  useEffect(() => {
+    if (!hasUnsavedChanges) return;
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => e.preventDefault();
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [hasUnsavedChanges]);
 
   // Clicking anywhere except a selected SVG element/toolbar or a selected container deselects them.
   useEffect(() => {
@@ -62,6 +64,8 @@ export function Editor() {
     return () => window.removeEventListener("pointerdown", handlePointerDown);
   }, [selectedElementIds, selectedContainerId, clearElementSelection, selectContainer, closeColorPanel]);
 
+  if (!isLoaded) return null;
+
   return (
     <div className="flex h-screen flex-col">
       <EditorTopBar />
@@ -69,6 +73,7 @@ export function Editor() {
         <IconRail />
         {isElementsPanelOpen && <ElementsPanel />}
         {isColorPanelOpen && <ColorPanel />}
+        {isBackgroundPanelOpen && <BackgroundPanel />}
         <Workspace />
       </div>
       {isGridViewOpen && <SlideGridModal />}

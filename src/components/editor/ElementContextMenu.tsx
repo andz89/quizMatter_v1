@@ -8,13 +8,15 @@ interface ElementContextMenuProps {
   y: number;
   canCopy: boolean;
   canPaste: boolean;
+  canFit: boolean;
   onCopy: () => void;
   onPaste: () => void;
+  onFit: () => void;
   onClose: () => void;
 }
 
-/** Right-click menu for copying/pasting SVG elements, positioned at the cursor. */
-export function ElementContextMenu({ x, y, canCopy, canPaste, onCopy, onPaste, onClose }: ElementContextMenuProps) {
+/** Right-click menu for copying/pasting SVG elements and fitting them to their box, positioned at the cursor. */
+export function ElementContextMenu({ x, y, canCopy, canPaste, canFit, onCopy, onPaste, onFit, onClose }: ElementContextMenuProps) {
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -32,9 +34,8 @@ export function ElementContextMenu({ x, y, canCopy, canPaste, onCopy, onPaste, o
     };
   }, [onClose]);
 
-  // Rendered via a portal straight into <body>: `position: fixed` stops being relative to the
-  // viewport once any ancestor has a `transform` (which the zoomed slide canvas always does), so
-  // rendering the menu in place would offset it by however much the canvas is scaled/panned.
+  // Rendered via a portal straight into <body>: the slide canvas has CSS `zoom`, which would also
+  // multiply the menu's left/top (screen pixels), so rendering it in place would put it in the wrong spot.
   return createPortal(
     <div
       ref={ref}
@@ -66,6 +67,17 @@ export function ElementContextMenu({ x, y, canCopy, canPaste, onCopy, onPaste, o
       >
         Paste
         <span className="ml-auto text-xs text-text-secondary">Ctrl+V</span>
+      </button>
+      <button
+        type="button"
+        disabled={!canFit}
+        onClick={() => {
+          onFit();
+          onClose();
+        }}
+        className="flex w-full items-center px-3 py-2 text-left text-sm text-text-primary hover:bg-bg-page disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
+      >
+        Fit to box
       </button>
     </div>,
     document.body

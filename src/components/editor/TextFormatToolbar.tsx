@@ -3,6 +3,8 @@
 import { useEditorState, type Editor } from "@tiptap/react";
 import { useEditorStore } from "@/lib/store";
 import { DEFAULT_TEXT_COLOR } from "@/lib/richText";
+import { SIDE_CONTAINER_ID } from "@/lib/constants";
+import { EraserIcon } from "@/components/icons/EraserIcon";
 
 type Align = "left" | "center" | "right";
 
@@ -10,6 +12,10 @@ type Align = "left" | "center" | "right";
 export function TextFormatToolbar({ editor }: { editor: Editor }) {
   const isColorPanelOpen = useEditorStore((s) => s.isColorPanelOpen);
   const toggleColorPanel = useEditorStore((s) => s.toggleColorPanel);
+  const selectedSlideId = useEditorStore((s) => s.selectedSlideId);
+  const selectedContainerId = useEditorStore((s) => s.selectedContainerId);
+  const hasSelectedElements = useEditorStore((s) => s.selectedElementIds.length > 0);
+  const clearContainerElements = useEditorStore((s) => s.clearContainerElements);
   const state = useEditorState({
     editor,
     selector: ({ editor }) => ({
@@ -20,6 +26,18 @@ export function TextFormatToolbar({ editor }: { editor: Editor }) {
       color: (editor.getAttributes("textStyle").color as string | undefined) ?? DEFAULT_TEXT_COLOR,
     }),
   });
+
+  // Typing in the question or an option box (not in a text box element, which gets selected while
+  // edited). The side box has no text, so it never has a focused editor.
+  const clearableContainerId =
+    !hasSelectedElements && selectedContainerId !== SIDE_CONTAINER_ID ? selectedContainerId : null;
+
+  const handleClearAll = () => {
+    if (!selectedSlideId || !clearableContainerId) return;
+    // Emits an update, so the box's own onChange saves the empty text.
+    editor.chain().focus().clearContent().run();
+    clearContainerElements(selectedSlideId, clearableContainerId);
+  };
 
   return (
     <div
@@ -73,6 +91,15 @@ export function TextFormatToolbar({ editor }: { editor: Editor }) {
           }}
         />
       </button>
+
+      {clearableContainerId && (
+        <>
+          <Divider />
+          <ToolButton title="Clear all" active={false} onClick={handleClearAll}>
+            <EraserIcon size={20} />
+          </ToolButton>
+        </>
+      )}
     </div>
   );
 }

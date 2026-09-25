@@ -1,19 +1,19 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef } from "react";
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { restrictToVerticalAxis } from "@dnd-kit/modifiers";
 import { useEditorStore, MIN_ZOOM } from "@/lib/store";
-import { CANVAS_WIDTH, CANVAS_HEIGHT } from "@/lib/constants";
+import { CANVAS_WIDTH, CANVAS_HEIGHT, getSlideNumbers } from "@/lib/constants";
 import { SlideWorkspaceItem } from "./SlideWorkspaceItem";
 import { ZoomControls } from "./ZoomControls";
 
 const WORKSPACE_PADDING = 96;
-// Extra room above/below each slide for its floating toolbar (the Q{n}/delete pill and the
-// move/duplicate/add/drag pill both sit just above the slide, via `bottom-full`), so the toolbar
-// doesn't overlap the slide before it.
-const SLIDE_GAP = 96;
+// Space between one slide and the next slide's toolbar (the toolbar is part of each slide item).
+const SLIDE_GAP = 40;
+// Room the "+ Multiple choice / + Short answer / + Blank slide" row needs with one-line labels.
+const ADD_ROW_WIDTH = 460;
 
 export function Workspace() {
   const quiz = useEditorStore((s) => s.quiz);
@@ -49,12 +49,17 @@ export function Workspace() {
   // its callback immediately and reset the current selection mid-drag.
   const slideIds = quiz.slides.map((s) => s.id).join(",");
 
+  // True while we scroll to a new slide ourselves. The slides passed on the way shouldn't get
+  // selected: each pick redraws the slides mid-scroll and makes the scroll stutter.
+  const isAutoScrolling = useRef(false);
+
   useEffect(() => {
     const root = scrollRef.current;
     if (!root) return;
 
     const observer = new IntersectionObserver(
       (entries) => {
+        if (isAutoScrolling.current) return;
         const centered = entries.find((entry) => entry.isIntersecting);
         const slideId = centered?.target.getAttribute("data-slide-id");
         if (slideId && slideId !== useEditorStore.getState().selectedSlideId) selectSlide(slideId);
@@ -66,11 +71,74 @@ export function Workspace() {
     return () => observer.disconnect();
   }, [slideIds, selectSlide]);
 
-  const handleWheel = (e: React.WheelEvent) => {
-    if (!(e.ctrlKey || e.metaKey)) return;
-    e.preventDefault();
-    setZoom(zoom - e.deltaY * 0.001);
-  };
+  // A slide that wasn't there before (added, duplicated, or brought back by undo) scrolls into view.
+  const prevSlideIds = useRef(slideIds);
+  useEffect(() => {
+    const before = prevSlideIds.current.split(",");
+    prevSlideIds.current = slideIds;
+    const newId = slideIds.split(",").find((id) => !before.includes(id));
+    const node = newId && slideNodes.current.get(newId);
+    const root = scrollRef.current;
+    if (!node || !root) return;
+
+    // Added and duplicated slides are already selected by the store, but one brought back by undo
+    // isn't — select it now, since auto-select rests during the scroll and won't pick it later.
+    if (useEditorStore.getState().selectedSlideId !== newId) selectSlide(newId);
+
+    // Our own scroll instead of scrollIntoView's smooth mode, whose speed the browser picks (long
+    // jumps fly past and stop hard). Auto-select rests until the scroll ends.
+    isAutoScrolling.current = true;
+    let frame = 0;
+    const stop = () => {
+      cancelAnimationFrame(frame);
+      isAutoScrolling.current = false;
+      root.removeEventListener("wheel", stop);
+      root.removeEventListener("pointerdown", stop);
+    };
+    // Scrolling by hand takes over from the animation.
+    root.addEventListener("wheel", stop, { passive: true });
+    root.addEventListener("pointerdown", stop);
+
+    // Waits two frames, so the new slide's heavy first draw is done before anything moves.
+    frame = requestAnimationFrame(() => {
+      frame = requestAnimationFrame(() => {
+        const rootBox = root.getBoundingClientRect();
+        const nodeBox = node.getBoundingClientRect();
+        const offset = nodeBox.top + nodeBox.height / 2 - (rootBox.top + root.clientHeight / 2);
+        const from = root.scrollTop;
+        const to = Math.min(Math.max(0, from + offset), root.scrollHeight - root.clientHeight);
+        const distance = to - from;
+        // 400–700ms: short hops stay quick, long jumps don't rush.
+        const duration = Math.min(700, 400 + Math.abs(distance) * 0.15);
+        const start = performance.now();
+
+        const step = (now: number) => {
+          const t = Math.min(1, (now - start) / duration);
+          // Ease in-out: starts slow, speeds up, then settles gently.
+          const eased = t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2;
+          root.scrollTop = from + distance * eased;
+          if (t < 1) frame = requestAnimationFrame(step);
+          else stop();
+        };
+        frame = requestAnimationFrame(step);
+      });
+    });
+    return stop;
+  }, [slideIds, selectSlide]);
+
+  // Ctrl/Cmd + wheel zooms the canvas. Added by hand with passive: false because React's onWheel
+  // is passive, so its preventDefault can't stop the browser from zooming the whole page too.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const handleWheel = (e: WheelEvent) => {
+      if (!(e.ctrlKey || e.metaKey)) return;
+      e.preventDefault();
+      setZoom(useEditorStore.getState().zoom - e.deltaY * 0.001);
+    };
+    el.addEventListener("wheel", handleWheel, { passive: false });
+    return () => el.removeEventListener("wheel", handleWheel);
+  }, [setZoom]);
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
@@ -79,14 +147,19 @@ export function Workspace() {
     }
   };
 
-  const registerNode = (slideId: string, node: HTMLDivElement | null) => {
+  // Stays the same function between redraws, so it doesn't undo SlideWorkspaceItem's memo.
+  const registerNode = useCallback((slideId: string, node: HTMLDivElement | null) => {
     if (node) slideNodes.current.set(slideId, node);
     else slideNodes.current.delete(slideId);
-  };
+  }, []);
+
+  const slideNumbers = getSlideNumbers(quiz.slides);
+  // Below the needed width the add row shrinks as a whole (CSS zoom keeps it sharp) instead of wrapping.
+  const addRowScale = Math.min(1, (CANVAS_WIDTH * zoom) / ADD_ROW_WIDTH);
 
   return (
     <div className="relative flex-1 overflow-hidden bg-bg-page">
-      <div ref={scrollRef} className="h-full overflow-y-auto" onWheel={handleWheel}>
+      <div ref={scrollRef} className="h-full overflow-y-auto">
         <div
           className="flex flex-col items-center"
           style={{ gap: SLIDE_GAP, padding: `${WORKSPACE_PADDING}px` }}
@@ -102,27 +175,43 @@ export function Workspace() {
                 <SlideWorkspaceItem
                   key={slide.id}
                   slide={slide}
-                  index={index}
+                  slideNumber={slideNumbers.get(slide.id)!}
                   zoom={zoom}
-                  isFirst={index === 0}
-                  isLast={index === quiz.slides.length - 1}
+                  prevSlideId={quiz.slides[index - 1]?.id}
+                  nextSlideId={quiz.slides[index + 1]?.id}
                   canDelete={quiz.slides.length > 1}
-                  onMoveUp={() => reorderSlides(slide.id, quiz.slides[index - 1].id)}
-                  onMoveDown={() => reorderSlides(slide.id, quiz.slides[index + 1].id)}
                   registerNode={registerNode}
                 />
               ))}
             </SortableContext>
           </DndContext>
 
-          <button
-            type="button"
-            onClick={() => addSlide()}
-            className="flex shrink-0 items-center justify-center rounded-card border border-dashed border-border-default text-sm font-semibold text-text-secondary transition-colors hover:border-accent-navy hover:text-accent-navy"
-            style={{ width: CANVAS_WIDTH * zoom, height: 96 }}
+          <div
+            className="flex shrink-0 gap-4 whitespace-nowrap"
+            style={{ width: (CANVAS_WIDTH * zoom) / addRowScale, height: 96, zoom: addRowScale }}
           >
-            + Add slide
-          </button>
+            <button
+              type="button"
+              onClick={() => addSlide(undefined, "choice")}
+              className="flex flex-1 items-center justify-center rounded-card bg-bg-surface text-sm font-semibold text-text-secondary shadow-[0_1px_3px_rgba(0,0,0,0.08)] transition hover:text-accent-navy hover:shadow-[0_2px_8px_rgba(0,0,0,0.1)]"
+            >
+              + Multiple choice
+            </button>
+            <button
+              type="button"
+              onClick={() => addSlide(undefined, "short-answer")}
+              className="flex flex-1 items-center justify-center rounded-card bg-bg-surface text-sm font-semibold text-text-secondary shadow-[0_1px_3px_rgba(0,0,0,0.08)] transition hover:text-accent-navy hover:shadow-[0_2px_8px_rgba(0,0,0,0.1)]"
+            >
+              + Short answer
+            </button>
+            <button
+              type="button"
+              onClick={() => addSlide(undefined, "lesson")}
+              className="flex flex-1 items-center justify-center rounded-card bg-bg-surface text-sm font-semibold text-text-secondary shadow-[0_1px_3px_rgba(0,0,0,0.08)] transition hover:text-accent-navy hover:shadow-[0_2px_8px_rgba(0,0,0,0.1)]"
+            >
+              + Blank slide
+            </button>
+          </div>
         </div>
       </div>
       <ZoomControls />

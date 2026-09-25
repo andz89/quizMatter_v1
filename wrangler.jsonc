@@ -1,0 +1,15 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "quizmatter",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2026-09-01",
+  // nodejs_compat is needed by Next's server code, including proxy.ts (always runs on Node).
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  // Cloudflare creates the DNS record and HTTPS certificate for this domain on deploy.
+  "routes": [{ "pattern": "quizmatter.com", "custom_domain": true }],
+  "observability": { "enabled": true }
+}
