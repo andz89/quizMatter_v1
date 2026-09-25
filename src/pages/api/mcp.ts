@@ -17,46 +17,53 @@ import { saveDraft } from "@/lib/drafts";
 function createServer(appUrl: string) {
   const server = new McpServer({ name: "quizmatter", version: "1.0.0" });
 
-  server.registerTool(
-    "get_lesson_format",
-    {
-      description: "Returns the JSON format for quizMatter lesson slides, with notes and an example. Call this before send_lesson.",
-      annotations: { readOnlyHint: true },
-    },
-    async () => ({ content: [{ type: "text", text: getClaudeFormat() }] }),
-  );
-
-  server.registerTool(
-    "send_lesson",
-    {
-      description:
-        "Sends a new lesson (teaching slides and/or questions) to quizMatter and returns a link for the user. The link opens it in the editor as a new lesson, " +
-        "which the user checks and saves. `slides` must follow the format from get_lesson_format. " +
-        "If something is wrong, the errors come back — fix them and send again.",
-      inputSchema: {
-        details: quizDetailsSchema.describe("About the lesson as a whole."),
-        slides: z.array(z.unknown()).describe("The slides array, in the format from get_lesson_format."),
+  // Each tool also answers to its old name (from before quizzes were called lessons): Claude keeps the
+  // tool list a chat started with, so older chats still call send_quiz / get_quiz_format.
+  for (const name of ["get_lesson_format", "get_quiz_format"]) {
+    server.registerTool(
+      name,
+      {
+        description: "Returns the JSON format for quizMatter lesson slides, with notes and an example. Call this before send_lesson.",
+        annotations: { readOnlyHint: true },
       },
-    },
-    async ({ details, slides }) => {
-      // Built here only to catch mistakes while Claude can still fix them; the editor builds the slides again
-      // (and draws the background patterns, which can't be drawn on Cloudflare).
-      const result = buildSlides({ slides }, { drawPatterns: false });
-      if ("errors" in result) {
-        return { isError: true, content: [{ type: "text", text: `The lesson has mistakes. Fix them and send again:\n\n${result.errors.join("\n")}` }] };
-      }
-      const draftId = await saveDraft({ details, slides });
-      const link = `${appUrl}/quiz/new?draft=${draftId}`;
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Sent ${slides.length} slides. Give the user this link: ${link}\nIt opens "${details.title || "Untitled lesson"}" as a new lesson in the editor; nothing is saved until they click Save. The link works for 24 hours.`,
-          },
-        ],
-      };
-    },
-  );
+      async () => ({ content: [{ type: "text", text: getClaudeFormat() }] }),
+    );
+  }
+
+  for (const name of ["send_lesson", "send_quiz"]) {
+    server.registerTool(
+      name,
+      {
+        description:
+          "Sends a new lesson (teaching slides and/or questions) to quizMatter and returns a link for the user. The link opens it in the editor as a new lesson, " +
+          "which the user checks and saves. `slides` must follow the format from get_lesson_format. " +
+          "If something is wrong, the errors come back — fix them and send again.",
+        inputSchema: {
+          details: quizDetailsSchema.optional().describe("About the lesson as a whole."),
+          slides: z.array(z.unknown()).describe("The slides array, in the format from get_lesson_format."),
+        },
+      },
+      async ({ details = {}, slides }) => {
+        // Built here only to catch mistakes while Claude can still fix them; the editor builds the slides again
+        // (and draws the background patterns, which can't be drawn on Cloudflare).
+        const result = buildSlides({ slides }, { drawPatterns: false });
+        if ("errors" in result) {
+          const text = `The lesson has mistakes. Fix them and send again:\n\n${result.errors.join("\n")}`;
+          return { isError: true, content: [{ type: "text", text }] };
+        }
+        const draftId = await saveDraft({ details, slides });
+        const link = `${appUrl}/quiz/new?draft=${draftId}`;
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Sent ${slides.length} slides. Give the user this link: ${link}\nIt opens "${details.title || "Untitled lesson"}" as a new lesson in the editor; nothing is saved until they click Save. The link works for 24 hours.`,
+            },
+          ],
+        };
+      },
+    );
+  }
 
   return server;
 }
