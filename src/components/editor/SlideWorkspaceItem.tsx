@@ -20,6 +20,8 @@ interface SlideWorkspaceItemProps {
   prevSlideId?: string;
   nextSlideId?: string;
   canDelete: boolean;
+  // A slide dragged from the Lessons panel will go right before/after this one: a navy line shows where.
+  dropSide?: "before" | "after";
   registerNode: (slideId: string, node: HTMLDivElement | null) => void;
 }
 
@@ -35,6 +37,7 @@ export const SlideWorkspaceItem = memo(function SlideWorkspaceItem({
   prevSlideId,
   nextSlideId,
   canDelete,
+  dropSide,
   registerNode,
 }: SlideWorkspaceItemProps) {
   const reorderSlides = useEditorStore((s) => s.reorderSlides);
@@ -49,6 +52,7 @@ export const SlideWorkspaceItem = memo(function SlideWorkspaceItem({
         registerNode(slide.id, node);
       }}
       data-slide-id={slide.id}
+      className="relative"
       style={{
         width: slideWidth,
         transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
@@ -72,9 +76,22 @@ export const SlideWorkspaceItem = memo(function SlideWorkspaceItem({
       </div>
       {/* CSS zoom (not transform: scale) makes the browser multiply every size before drawing,
           so borders and text are drawn at their real screen size and stay sharp. */}
-      <div style={{ width: CANVAS_WIDTH, height: CANVAS_HEIGHT, zoom }}>
+      <div
+        style={{
+          width: CANVAS_WIDTH,
+          height: CANVAS_HEIGHT,
+          zoom,
+        }}
+      >
         <SlideCanvas slide={slide} />
       </div>
+      {/* In the middle of the 40px gap between slides (Workspace's SLIDE_GAP). */}
+      {dropSide && (
+        <div
+          className="pointer-events-none absolute inset-x-0 h-[3px] rounded-full bg-accent-navy"
+          style={dropSide === "before" ? { top: -22 } : { bottom: -22 }}
+        />
+      )}
     </div>
   );
 });

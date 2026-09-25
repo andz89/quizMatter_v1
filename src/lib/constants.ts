@@ -14,6 +14,9 @@ export const SIDE_CONTAINER_ID = "side";
 // dataTransfer type used to drag an element asset from the Elements panel onto a question/option box.
 export const ELEMENT_DRAG_MIME = "application/x-quizbuilder-element";
 
+// dataTransfer type used to drag a slide (as JSON) from the Lessons panel onto the workspace.
+export const SLIDE_DRAG_MIME = "application/x-quizbuilder-slide";
+
 // Each kind of text shrinks between these font sizes (px) to fit its box. `max` is the size it shows
 // at when the user hasn't chosen one; text boxes match the question box.
 export const QUESTION_FONT_SIZE = { min: 22, max: 40 };

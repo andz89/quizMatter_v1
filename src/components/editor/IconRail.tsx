@@ -6,9 +6,10 @@ import { ElementsIcon } from "@/components/icons/ElementsIcon";
 import { GridIcon } from "@/components/icons/GridIcon";
 import { BackgroundIcon } from "@/components/icons/BackgroundIcon";
 import { DetailsIcon } from "@/components/icons/DetailsIcon";
+import { LessonsIcon } from "@/components/icons/LessonsIcon";
 
 /**
- * Canva-style narrow icon bar: "Elements", "Background" and "Details" expand their sidebar panels,
+ * Canva-style narrow icon bar: "Elements", "Background", "Details" and "Lessons" expand their sidebar panels,
  * "Slides" opens the thumbnail modal.
  */
 export function IconRail() {
@@ -19,6 +20,8 @@ export function IconRail() {
   const toggleBackgroundPanel = useEditorStore((s) => s.toggleBackgroundPanel);
   const isDetailsPanelOpen = useEditorStore((s) => s.isDetailsPanelOpen);
   const toggleDetailsPanel = useEditorStore((s) => s.toggleDetailsPanel);
+  const isLessonsPanelOpen = useEditorStore((s) => s.isLessonsPanelOpen);
+  const toggleLessonsPanel = useEditorStore((s) => s.toggleLessonsPanel);
   const slideCount = useEditorStore((s) => s.quiz.slides.length);
 
   return (
@@ -34,6 +37,9 @@ export function IconRail() {
       </RailButton>
       <RailButton label="Details" active={isDetailsPanelOpen} onClick={toggleDetailsPanel}>
         <DetailsIcon size={20} />
+      </RailButton>
+      <RailButton label="Lessons" title="Slides from published lessons" active={isLessonsPanelOpen} onClick={toggleLessonsPanel}>
+        <LessonsIcon size={20} />
       </RailButton>
     </aside>
   );
@@ -58,10 +64,11 @@ function RailButton({
       data-keep-container-selection="true"
       onClick={onClick}
       title={title ?? label}
-      className="flex h-14 w-14 flex-col items-center justify-center gap-1 rounded-dropdown transition-colors hover:bg-bg-page"
-      style={{ color: active ? "var(--accent-navy)" : "var(--text-primary)", background: active ? "var(--bg-page)" : undefined }}
+      className={`flex h-14 w-14 flex-col items-center justify-center gap-1 rounded-dropdown text-text-primary transition-colors hover:bg-bg-page ${
+        active ? "bg-bg-page" : ""
+      }`}
     >
-      {children}
+      <span className="flex h-7 w-7 items-center justify-center">{children}</span>
       <span className="text-[10px] font-medium leading-none">{label}</span>
     </button>
   );

@@ -12,12 +12,24 @@ import { ElementsPanel } from "./ElementsPanel";
 import { ColorPanel } from "./ColorPanel";
 import { BackgroundPanel } from "./BackgroundPanel";
 import { DetailsPanel } from "./DetailsPanel";
+import { LessonsPanel } from "./LessonsPanel";
+import { Spinner } from "@/components/Spinner";
 import type { Quiz } from "@/lib/schema";
 
-// Only downloaded the first time they're opened, so the editor itself loads faster.
-const SlideGridModal = dynamic(() => import("./SlideGridModal").then((mod) => mod.SlideGridModal));
-const PresentationView = dynamic(() =>
-  import("@/components/presentation/PresentationView").then((mod) => mod.PresentationView)
+// Only downloaded the first time they're opened, so the editor itself loads faster. While one
+// downloads, a dimmed screen with the spinner shows over the editor. Without `loading`, the whole
+// page blanks to white for that moment.
+const LoadingOverlay = () => (
+  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+    <Spinner />
+  </div>
+);
+const SlideGridModal = dynamic(() => import("./SlideGridModal").then((mod) => mod.SlideGridModal), {
+  loading: LoadingOverlay,
+});
+const PresentationView = dynamic(
+  () => import("@/components/presentation/PresentationView").then((mod) => mod.PresentationView),
+  { loading: LoadingOverlay }
 );
 
 /**
@@ -34,6 +46,7 @@ export function Editor({ quiz, draft }: { quiz: Quiz; draft?: unknown }) {
   const isColorPanelOpen = useEditorStore((s) => s.isColorPanelOpen);
   const isBackgroundPanelOpen = useEditorStore((s) => s.isBackgroundPanelOpen);
   const isDetailsPanelOpen = useEditorStore((s) => s.isDetailsPanelOpen);
+  const isLessonsPanelOpen = useEditorStore((s) => s.isLessonsPanelOpen);
   const closeColorPanel = useEditorStore((s) => s.closeColorPanel);
   const selectedElementIds = useEditorStore((s) => s.selectedElementIds);
   const clearElementSelection = useEditorStore((s) => s.clearElementSelection);
@@ -91,6 +104,7 @@ export function Editor({ quiz, draft }: { quiz: Quiz; draft?: unknown }) {
         {isColorPanelOpen && <ColorPanel />}
         {isBackgroundPanelOpen && <BackgroundPanel />}
         {isDetailsPanelOpen && <DetailsPanel />}
+        {isLessonsPanelOpen && <LessonsPanel />}
         <Workspace />
       </div>
       {isGridViewOpen && <SlideGridModal />}

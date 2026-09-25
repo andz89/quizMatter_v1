@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { useEditorStore } from "@/lib/store";
+import { useEditorStore, isPanelEscape } from "@/lib/store";
 import { getElementAsset } from "@/lib/svgLibrary";
 import {
   BACKGROUND_COLORS,
@@ -27,7 +27,7 @@ export function BackgroundPanel() {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") closeBackgroundPanel();
+      if (isPanelEscape(e)) closeBackgroundPanel();
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);

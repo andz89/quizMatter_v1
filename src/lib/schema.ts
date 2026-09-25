@@ -176,6 +176,12 @@ export type Option = z.infer<typeof optionSchema>;
 export type SvgElement = z.infer<typeof svgElementSchema>;
 export type Slide = z.infer<typeof slideSchema>;
 export type SlideType = NonNullable<Slide["type"]>;
+
+/** The slide, checked against the schema, or null if it's in an old or broken shape. */
+export function parseSlide(data: unknown): Slide | null {
+  const result = slideSchema.safeParse(data);
+  return result.success ? result.data : null;
+}
 export type Quiz = z.infer<typeof quizSchema>;
 export type LessonDetails = Pick<
   Quiz,

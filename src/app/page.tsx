@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { listDrafts, type DraftSummary } from "@/lib/drafts";
 import { joinParts, slideCountLabel, timeAgo } from "@/lib/format";
-import { slideSchema, type Slide } from "@/lib/schema";
+import { parseSlide } from "@/lib/schema";
 import { LogoutButton, NewQuizButton } from "./QuizListButtons";
 import { LessonHome } from "./LessonHome";
 import type { LessonCardData } from "./LessonCard";
@@ -113,10 +113,4 @@ function toCard(quiz: CardQuiz, href: string, now: number): LessonCardData {
     meta: joinParts([quiz.grade, quiz.subject, slideCountLabel(slideCount), timeAgo(Date.parse(quiz.updated_at), now)]),
     firstSlide: parseSlide(quiz.first_slide[0]?.data),
   };
-}
-
-/** The slide, checked against the schema. A slide in an old or broken shape just shows no picture. */
-function parseSlide(data: unknown): Slide | null {
-  const result = slideSchema.safeParse(data);
-  return result.success ? result.data : null;
 }

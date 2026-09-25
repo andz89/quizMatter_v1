@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useEditorStore } from "@/lib/store";
+import { useEditorStore, isPanelEscape } from "@/lib/store";
 import { ELEMENT_LIBRARY, ELEMENT_CATEGORY_LABELS, getElementAsset, type ElementCategory } from "@/lib/svgLibrary";
 import { ELEMENT_DRAG_MIME } from "@/lib/constants";
 import { ElementSvg } from "./ElementSvg";
 import { CloseIcon } from "@/components/icons/CloseIcon";
+import { BackIcon } from "@/components/icons/BackIcon";
 
 const CATEGORIES: ElementCategory[] = ["shape", "line", "arrow", "solid", "icon", "time", "math", "decorative", "cloud", "number", "letter", "symbol", "emoji", "music", "fruit", "kitchen", "vehicle", "animal", "space", "sport", "tree", "leaf"];
 
@@ -19,7 +20,7 @@ export function ElementsPanel() {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key !== "Escape") return;
+      if (!isPanelEscape(e)) return;
       if (openCategory) setOpenCategory(null);
       else closeElementsPanel();
     };
@@ -165,13 +166,5 @@ function ElementButton({
         <ElementSvg assetId={assetId} color={asset?.defaultColor ?? "currentColor"} />
       </span>
     </button>
-  );
-}
-
-function BackIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-      <path d="M10 3L5 8l5 5" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
   );
 }

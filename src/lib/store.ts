@@ -47,6 +47,19 @@ export type TextTarget =
   | { kind: "option"; slideId: string; optionId: string }
   | { kind: "textBox"; slideId: string; elementId: string };
 
+/** Where copied slides go: right after the slide, or right before it when `before` is set. */
+export type SlideInsertTarget = { slideId: string; before?: boolean };
+
+/**
+ * True for an Escape press a side panel should act on. Not while the slide grid or the presentation
+ * is open, or while typing in a canvas text — those use Escape to close or stop themselves first.
+ */
+export function isPanelEscape(e: KeyboardEvent) {
+  if (e.key !== "Escape") return false;
+  const { isGridViewOpen, isPresenting } = useEditorStore.getState();
+  return !isGridViewOpen && !isPresenting && !(e.target as HTMLElement | null)?.isContentEditable;
+}
+
 function updateSlide(quiz: Quiz, slideId: string, updater: (slide: Slide) => Slide): Quiz {
   return {
     ...quiz,
@@ -175,6 +188,9 @@ interface EditorState {
   importSlides: (slides: Slide[]) => void;
   deleteSlide: (slideId: string) => void;
   duplicateSlide: (slideId: string) => void;
+  // Copies of slides from another lesson (new ids), put right after (or before) `at.slideId`, or at
+  // the end when `at` is missing or unknown. The first one gets selected.
+  insertSlides: (slides: Slide[], at?: SlideInsertTarget) => void;
   reorderSlides: (fromId: string, toId: string) => void;
   // Switches the options between a 2x2 grid, 4 stacked rows, and 4 rows beside an element box,
   // moving option-bound elements along.
@@ -291,6 +307,11 @@ interface EditorState {
   isDetailsPanelOpen: boolean;
   toggleDetailsPanel: () => void;
   closeDetailsPanel: () => void;
+
+  // The Lessons panel lists published lessons, to add their slides to this one.
+  isLessonsPanelOpen: boolean;
+  toggleLessonsPanel: () => void;
+  closeLessonsPanel: () => void;
 
   // Which box a placed element is currently being dragged over, while it's being moved from a
   // different box — drives that box's "drop here" highlight. Not part of quiz data.
@@ -430,6 +451,23 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set({
       quiz: { ...quiz, slides, updatedAt: Date.now() },
       selectedSlideId: copy.id,
+    });
+  },
+
+  insertSlides: (slides, at) => {
+    if (slides.length === 0) return;
+    const copies = slides.map(cloneSlide);
+    set((state) => {
+      const all = [...state.quiz.slides];
+      const targetIndex = at ? all.findIndex((s) => s.id === at.slideId) : -1;
+      const insertAt = targetIndex === -1 ? all.length : at?.before ? targetIndex : targetIndex + 1;
+      all.splice(insertAt, 0, ...copies);
+      return {
+        quiz: { ...state.quiz, slides: all, updatedAt: Date.now() },
+        selectedSlideId: copies[0].id,
+        selectedElementIds: [],
+        selectedContainerId: null,
+      };
     });
   },
 
@@ -988,6 +1026,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         isColorPanelOpen: next ? false : state.isColorPanelOpen,
         isBackgroundPanelOpen: next ? false : state.isBackgroundPanelOpen,
         isDetailsPanelOpen: next ? false : state.isDetailsPanelOpen,
+        isLessonsPanelOpen: next ? false : state.isLessonsPanelOpen,
       };
     }),
   closeElementsPanel: () => set({ isElementsPanelOpen: false }),
@@ -1001,6 +1040,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         isElementsPanelOpen: next ? false : state.isElementsPanelOpen,
         isBackgroundPanelOpen: next ? false : state.isBackgroundPanelOpen,
         isDetailsPanelOpen: next ? false : state.isDetailsPanelOpen,
+        isLessonsPanelOpen: next ? false : state.isLessonsPanelOpen,
       };
     }),
   closeColorPanel: () => set({ isColorPanelOpen: false }),
@@ -1014,6 +1054,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         isElementsPanelOpen: next ? false : state.isElementsPanelOpen,
         isBackgroundPanelOpen: next ? false : state.isBackgroundPanelOpen,
         isDetailsPanelOpen: next ? false : state.isDetailsPanelOpen,
+        isLessonsPanelOpen: next ? false : state.isLessonsPanelOpen,
       };
     }),
 
@@ -1026,6 +1067,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         isElementsPanelOpen: next ? false : state.isElementsPanelOpen,
         isColorPanelOpen: next ? false : state.isColorPanelOpen,
         isDetailsPanelOpen: next ? false : state.isDetailsPanelOpen,
+        isLessonsPanelOpen: next ? false : state.isLessonsPanelOpen,
       };
     }),
   closeBackgroundPanel: () => set({ isBackgroundPanelOpen: false }),
@@ -1039,9 +1081,24 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         isElementsPanelOpen: next ? false : state.isElementsPanelOpen,
         isColorPanelOpen: next ? false : state.isColorPanelOpen,
         isBackgroundPanelOpen: next ? false : state.isBackgroundPanelOpen,
+        isLessonsPanelOpen: next ? false : state.isLessonsPanelOpen,
       };
     }),
   closeDetailsPanel: () => set({ isDetailsPanelOpen: false }),
+
+  isLessonsPanelOpen: false,
+  toggleLessonsPanel: () =>
+    set((state) => {
+      const next = !state.isLessonsPanelOpen;
+      return {
+        isLessonsPanelOpen: next,
+        isElementsPanelOpen: next ? false : state.isElementsPanelOpen,
+        isColorPanelOpen: next ? false : state.isColorPanelOpen,
+        isBackgroundPanelOpen: next ? false : state.isBackgroundPanelOpen,
+        isDetailsPanelOpen: next ? false : state.isDetailsPanelOpen,
+      };
+    }),
+  closeLessonsPanel: () => set({ isLessonsPanelOpen: false }),
 
   dragOverContainerId: null,
   setDragOverContainerId: (containerId) => set({ dragOverContainerId: containerId }),

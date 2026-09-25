@@ -11,7 +11,6 @@ export function SlideGridModal() {
   const quiz = useEditorStore((s) => s.quiz);
   const selectedSlideId = useEditorStore((s) => s.selectedSlideId);
   const selectSlide = useEditorStore((s) => s.selectSlide);
-  const addSlide = useEditorStore((s) => s.addSlide);
   const reorderSlides = useEditorStore((s) => s.reorderSlides);
   const closeGridView = useEditorStore((s) => s.closeGridView);
 
@@ -76,30 +75,6 @@ export function SlideGridModal() {
               </div>
             </SortableContext>
           </DndContext>
-        </div>
-
-        <div className="mt-4 flex shrink-0 gap-3 border-t border-border-default pt-4">
-          <button
-            type="button"
-            onClick={() => addSlide(undefined, "choice")}
-            className="rounded-button bg-accent-navy px-4 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90"
-          >
-            + Multiple choice
-          </button>
-          <button
-            type="button"
-            onClick={() => addSlide(undefined, "short-answer")}
-            className="rounded-button bg-accent-navy px-4 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90"
-          >
-            + Short answer
-          </button>
-          <button
-            type="button"
-            onClick={() => addSlide(undefined, "lesson")}
-            className="rounded-button bg-accent-navy px-4 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90"
-          >
-            + Blank slide
-          </button>
         </div>
       </div>
     </div>
