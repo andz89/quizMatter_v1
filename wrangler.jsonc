@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "quizmatter",
+  "name": "quizmatter-v1",
   "main": ".open-next/worker.js",
   "compatibility_date": "2026-09-01",
   // nodejs_compat is needed by Next's server code, including proxy.ts (always runs on Node).
