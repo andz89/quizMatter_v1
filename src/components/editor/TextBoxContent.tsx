@@ -3,12 +3,11 @@
 import { EditorContent } from "@tiptap/react";
 import { useCanvasTextEditor } from "@/lib/useCanvasTextEditor";
 import { TEXT_BOX_FONT_SIZE } from "@/lib/constants";
-import { TextOverflowMark } from "./TextOverflowMark";
 import type { TextTarget } from "@/lib/store";
 
 interface TextBoxContentProps {
   html: string;
-  // Chosen font size. Missing = the default.
+  // Chosen font size (the largest it gets; it shrinks to fit). Missing = the default.
   fontSize: number | undefined;
   target: TextTarget;
   // Text color for words that don't have their own color.
@@ -20,27 +19,24 @@ interface TextBoxContentProps {
 }
 
 /** The text inside a text box element on the canvas. Read-only until double-clicked, then typeable. */
-export function TextBoxContent({ html, fontSize = TEXT_BOX_FONT_SIZE, target, color, editStart, onChange, onStopEditing }: TextBoxContentProps) {
-  const { editor, ref, overflows } = useCanvasTextEditor({
+export function TextBoxContent({ html, fontSize: chosenFontSize = TEXT_BOX_FONT_SIZE, target, color, editStart, onChange, onStopEditing }: TextBoxContentProps) {
+  const { editor, ref, fontSize } = useCanvasTextEditor({
     content: html,
     editStart,
     target,
-    fontSize,
+    fontSize: chosenFontSize,
     onUpdate: (editor) => onChange(editor.isEmpty ? "" : editor.getHTML()),
     onStopEditing,
   });
 
   return (
-    <div className="relative h-full w-full">
-      <div
-        ref={ref}
-        // Not typing: no text highlighting, so dragging moves the box instead.
-        className={`h-full w-full overflow-hidden break-words ${editStart ? "" : "select-none"}`}
-        style={{ fontSize, lineHeight: 1.25, color }}
-      >
-        <EditorContent editor={editor} />
-      </div>
-      {overflows && <TextOverflowMark />}
+    <div
+      ref={ref}
+      // Not typing: no text highlighting, so dragging moves the box instead.
+      className={`h-full w-full overflow-hidden break-words ${editStart ? "" : "select-none"}`}
+      style={{ fontSize, lineHeight: 1.25, color }}
+    >
+      <EditorContent editor={editor} />
     </div>
   );
 }

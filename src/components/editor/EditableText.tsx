@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { EditorContent } from "@tiptap/react";
 import { useCanvasTextEditor } from "@/lib/useCanvasTextEditor";
 import { textToHtml } from "@/lib/richText";
@@ -13,9 +13,8 @@ interface EditableTextProps {
   onChange: (text: string, html: string) => void;
   placeholder: string;
   target: TextTarget;
+  // The largest the text gets; it shrinks when it's too long for its box.
   fontSize: number;
-  // Told whether the text is too long for its box, so the box can show the red mark.
-  onOverflowChange: (overflows: boolean) => void;
   // Selected with one click: the header shows the format toolbar for all of this text.
   isSelected?: boolean;
   className?: string;
@@ -27,8 +26,7 @@ export function EditableText({
   onChange,
   placeholder,
   target,
-  fontSize,
-  onOverflowChange,
+  fontSize: chosenFontSize,
   isSelected = false,
   className,
 }: EditableTextProps) {
@@ -36,11 +34,11 @@ export function EditableText({
   // Read-only until then, so a drag on the box draws the selection rectangle instead of selecting words.
   const [editStart, setEditStart] = useState<{ x: number; y: number } | null>(null);
 
-  const { editor, ref, overflows } = useCanvasTextEditor({
+  const { editor, ref, fontSize } = useCanvasTextEditor({
     content: html ?? textToHtml(text),
     editStart,
     target,
-    fontSize,
+    fontSize: chosenFontSize,
     isSelected,
     editorClass: "h-full",
     onUpdate: (editor) => {
@@ -49,8 +47,6 @@ export function EditableText({
     },
     onStopEditing: () => setEditStart(null),
   });
-
-  useEffect(() => onOverflowChange(overflows), [overflows, onOverflowChange]);
 
   return (
     <div

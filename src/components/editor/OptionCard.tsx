@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { useEditorStore, selectedIdsOn } from "@/lib/store";
 import { OPTION_FONT_SIZE, OPTION_LABELS, getContainerBounds, type BoxLayout } from "@/lib/constants";
@@ -10,7 +9,6 @@ import { GripIcon } from "@/components/icons/GripIcon";
 import { SvgElementItem } from "./SvgElementItem";
 import { GroupSelectionOverlay } from "./GroupSelectionOverlay";
 import { SnapGuides } from "./SnapGuides";
-import { TextOverflowMark } from "./TextOverflowMark";
 import type { Option, SvgElement } from "@/lib/schema";
 
 interface OptionCardProps {
@@ -35,7 +33,6 @@ export function OptionCard({ slideId, option, index, isCorrect, elements, box }:
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: option.id });
   const { isDragOver, dropHandlers } = useElementDropTarget(slideId, option.id);
   const isElementDragOver = useEditorStore((s) => s.dragOverContainerId === option.id);
-  const [textOverflows, setTextOverflows] = useState(false);
 
   const isSelectedContainer = isContainerSelected || isDragOver || isElementDragOver;
   const boundElements = elements.filter((el) => el.containerId === option.id);
@@ -112,7 +109,6 @@ export function OptionCard({ slideId, option, index, isCorrect, elements, box }:
           placeholder={boundElements.length ? "" : `Option ${OPTION_LABELS[index]}`}
           target={{ kind: "option", slideId, optionId: option.id }}
           fontSize={option.fontSize ?? OPTION_FONT_SIZE}
-          onOverflowChange={setTextOverflows}
           isSelected={isContainerSelected}
           className="text-text-primary"
         />
@@ -132,7 +128,6 @@ export function OptionCard({ slideId, option, index, isCorrect, elements, box }:
         <GroupSelectionOverlay slideId={slideId} elements={boundElements} bounds={bounds} />
         <SnapGuides slideId={slideId} containerId={option.id} />
       </div>
-      {textOverflows && <TextOverflowMark />}
     </div>
   );
 }

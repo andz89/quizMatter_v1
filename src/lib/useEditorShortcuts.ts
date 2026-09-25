@@ -64,8 +64,12 @@ export function useEditorShortcuts() {
       if (isTypingTarget(e.target)) return;
 
       if (isMeta && key === "c") {
-        // Highlighted text wins over the selected element, so normal text copy still works.
-        if (selectedElementIds.length === 0 || window.getSelection()?.toString()) return;
+        // Highlighted text wins over the selected element, so normal text copy still works. A
+        // selected (not typing) text box highlights all its own text for the format toolbar — that
+        // doesn't count, or the text box could never be copied.
+        const textSelection = window.getSelection();
+        const isOwnTextBoxHighlight = textSelection?.anchorNode?.parentElement?.closest('[contenteditable="false"]');
+        if (selectedElementIds.length === 0 || (textSelection?.toString() && !isOwnTextBoxHighlight)) return;
         e.preventDefault();
         state.copySelectedElements();
       } else if (isMeta && key === "g") {

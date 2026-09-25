@@ -1,8 +1,9 @@
-import { useEffect, useLayoutEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
 import { useEditor, type Editor } from "@tiptap/react";
 import { useEditorStore, type TextTarget } from "@/lib/store";
-import { useTextOverflow } from "@/lib/useTextOverflow";
+import { useAutoFitText } from "@/lib/useAutoFitText";
 import { TEXT_EXTENSIONS } from "@/lib/richText";
+import { autoFitRange } from "@/lib/constants";
 
 interface CanvasTextEditorOptions {
   // The stored HTML to show.
@@ -11,6 +12,7 @@ interface CanvasTextEditorOptions {
   editStart: { x: number; y: number } | null;
   // Which text this is, so the format toolbar can change its font size.
   target: TextTarget;
+  // The largest the text gets; it shrinks when it's too long for its box.
   fontSize: number;
   // Selected with one click (not typing): the header's format toolbar changes all of this text.
   isSelected?: boolean;
@@ -22,8 +24,8 @@ interface CanvasTextEditorOptions {
 
 /**
  * The typing setup shared by every text on the canvas (question, options, text boxes): read-only
- * until double-clicked, plain-text paste, Escape to stop, the header's format toolbar, and a check
- * for text that's too long for its box.
+ * until double-clicked, plain-text paste, Escape to stop, the header's format toolbar, and text
+ * that shrinks to fit its box.
  */
 export function useCanvasTextEditor({
   content,
@@ -36,7 +38,8 @@ export function useCanvasTextEditor({
   onStopEditing,
 }: CanvasTextEditorOptions) {
   const setActiveTextEditor = useEditorStore((s) => s.setActiveTextEditor);
-  const { ref, overflows, check } = useTextOverflow<HTMLDivElement>();
+  // Re-measures by itself when the font size or the box's size changes.
+  const { ref, fontSize: fittedFontSize, remeasure } = useAutoFitText<HTMLDivElement>(autoFitRange(fontSize));
   // Read when the editor gets focus; kept in a ref so that handler always sees the latest one.
   const targetRef = useRef(target);
   useEffect(() => {
@@ -68,7 +71,7 @@ export function useCanvasTextEditor({
     },
     onUpdate: ({ editor }) => {
       onUpdate(editor);
-      check();
+      remeasure();
     },
     // The header shows the format toolbar for whichever text has focus.
     onFocus: ({ editor }) => setActiveTextEditor(editor, targetRef.current),
@@ -121,11 +124,8 @@ export function useCanvasTextEditor({
       // put the cursor back at the end.
       if (editor.isFocused) editor.commands.focus("end");
     }
-    check();
-  }, [editor, content, check]);
+    remeasure();
+  }, [editor, content, remeasure]);
 
-  // A new font size makes the text bigger or smaller without resizing the box.
-  useLayoutEffect(check, [fontSize, check]);
-
-  return { editor, ref, overflows };
+  return { editor, ref, fontSize: fittedFontSize };
 }

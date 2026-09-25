@@ -17,12 +17,21 @@ export const ELEMENT_DRAG_MIME = "application/x-quizbuilder-element";
 // dataTransfer type used to drag a slide (as JSON) from the Lessons panel onto the workspace.
 export const SLIDE_DRAG_MIME = "application/x-quizbuilder-slide";
 
-// The font size (px) each kind of text shows at when the user hasn't chosen one. Text never
-// shrinks to fit: too-long text is cut off at its box's edge (the editor marks it in red).
-// Text boxes match the question box.
-export const QUESTION_FONT_SIZE = 40;
-export const OPTION_FONT_SIZE = 44;
-export const TEXT_BOX_FONT_SIZE = 40;
+// The font size (px) each kind of text shows at when the user hasn't chosen one. It's the largest
+// the text gets: too-long text shrinks to fit its box. Text boxes match the question box.
+export const QUESTION_FONT_SIZE = 48;
+export const OPTION_FONT_SIZE = 56;
+export const TEXT_BOX_FONT_SIZE = 48;
+// How small text shrinks before going below it only as a last resort (see useAutoFitText).
+const AUTO_FIT_MIN_FONT_SIZE = 22;
+
+/**
+ * The auto-fit limits for a text of this size: it's the largest the text gets, and the smallest
+ * drops along with a small size, so picking 16 shrinks from 16 instead of jumping to 22.
+ */
+export function autoFitRange(fontSize: number) {
+  return { minFontSize: Math.min(AUTO_FIT_MIN_FONT_SIZE, fontSize), maxFontSize: fontSize };
+}
 
 // Lowest opacity (percent) an element can be set to, so it never fully disappears.
 export const OPACITY_MIN = 5;

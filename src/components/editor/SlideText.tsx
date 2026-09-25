@@ -1,24 +1,29 @@
 "use client";
 
-import { useLayoutEffect, useRef } from "react";
+import { useLayoutEffect } from "react";
+import { useAutoFitText } from "@/lib/useAutoFitText";
+import { autoFitRange } from "@/lib/constants";
 import { textToHtml, toSafeHtml } from "@/lib/richText";
 
 interface SlideTextProps {
   text: string;
   // Styled version of `text`; plain `text` is shown when it's missing or empty.
   html?: string;
+  // The largest the text gets; it shrinks when it's too long for its box.
   fontSize: number;
   className?: string;
 }
 
-/** Read-only slide text at a fixed size; too-long text is cut off. Used in presentation mode and thumbnails. */
-export function SlideText({ text, html, fontSize, className }: SlideTextProps) {
-  const ref = useRef<HTMLDivElement>(null);
+/** Read-only slide text that shrinks to fit its box. Used in presentation mode and thumbnails. */
+export function SlideText({ text, html, fontSize: chosenFontSize, className }: SlideTextProps) {
+  const { ref, fontSize, remeasure } = useAutoFitText<HTMLDivElement>(autoFitRange(chosenFontSize));
 
   // Filled in here instead of in JSX: toSafeHtml needs the browser's DOM, which the server doesn't have.
   useLayoutEffect(() => {
-    if (ref.current) ref.current.innerHTML = html ? toSafeHtml(html) : textToHtml(text);
-  }, [text, html]);
+    if (!ref.current) return;
+    ref.current.innerHTML = html ? toSafeHtml(html) : textToHtml(text);
+    remeasure();
+  }, [ref, text, html, remeasure]);
 
   return (
     <div

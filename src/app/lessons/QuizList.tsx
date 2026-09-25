@@ -3,8 +3,9 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { LinkPending } from "@/components/LinkPending";
+import { Spinner } from "@/components/Spinner";
 import { GlobeIcon } from "@/components/icons/GlobeIcon";
-import { discardDraft } from "../actions";
+import { removeLessons } from "../actions";
 
 export type QuizRow = {
   id: string;
@@ -23,22 +24,59 @@ export type QuizRow = {
 
 type Filter = "all" | "saved" | "draft";
 
+// Checkbox, title, status, slides, updated, trash. On phones: checkbox, title, then the rest in one cell.
+const COLUMNS = "grid-cols-[16px_minmax(0,1fr)_auto] sm:grid-cols-[16px_minmax(0,1fr)_96px_64px_112px_36px]";
+
+/** Deletes saved lessons and discards drafts in one call. False if anything failed. */
+function removeRows(rows: QuizRow[]) {
+  return removeLessons(
+    rows.filter((row) => row.status === "saved").map((row) => row.id),
+    rows.filter((row) => row.status === "draft").map((row) => row.id),
+  );
+}
+
 const FILTERS: { id: Filter; label: string }[] = [
   { id: "all", label: "All" },
   { id: "saved", label: "Saved" },
   { id: "draft", label: "Drafts" },
 ];
 
-/** The quiz list: saved quizzes and Claude's drafts together, with a filter and a search box. */
+/**
+ * The quiz list: saved quizzes and Claude's drafts together, with a filter and a search box. Rows can
+ * be checked and deleted together.
+ */
 export function QuizList({ rows }: { rows: QuizRow[] }) {
   const [filter, setFilter] = useState<Filter>("all");
   const [search, setSearch] = useState("");
+  const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
+  const [isDeleting, startDeleting] = useTransition();
 
   const query = search.trim().toLowerCase();
   const shown = rows.filter(
     (row) => (filter === "all" || row.status === filter) && `${row.title} ${row.meta} ${row.isPublished ? "published" : ""}`.toLowerCase().includes(query),
   );
   const countOf = (id: Filter) => (id === "all" ? rows.length : rows.filter((row) => row.status === id).length);
+
+  // Only rows you can see count, so a filter or search never deletes something hidden.
+  const checked = shown.filter((row) => checkedIds.has(row.id));
+  const allChecked = shown.length > 0 && checked.length === shown.length;
+
+  const toggle = (id: string) =>
+    setCheckedIds((ids) => {
+      const next = new Set(ids);
+      if (!next.delete(id)) next.add(id);
+      return next;
+    });
+  const toggleAll = () => setCheckedIds(new Set(allChecked ? [] : shown.map((row) => row.id)));
+
+  const deleteChecked = () => {
+    const count = checked.length;
+    if (!confirm(`Delete ${count} ${count === 1 ? "lesson" : "lessons"}? This can't be undone.`)) return;
+    startDeleting(async () => {
+      if (await removeRows(checked)) setCheckedIds(new Set());
+      else alert("Couldn't delete some lessons. Please try again.");
+    });
+  };
 
   return (
     <>
@@ -75,42 +113,110 @@ export function QuizList({ rows }: { rows: QuizRow[] }) {
         </label>
       </div>
 
+      {checked.length > 0 && (
+        <div className="mb-3 flex items-center gap-3 rounded-card border border-border-default bg-bg-surface px-5 py-2.5">
+          <span className="text-sm font-semibold text-text-primary">{checked.length} selected</span>
+          <button
+            type="button"
+            onClick={() => setCheckedIds(new Set())}
+            disabled={isDeleting}
+            className="text-sm text-text-secondary transition-colors hover:text-text-primary"
+          >
+            Clear
+          </button>
+          <button
+            type="button"
+            onClick={deleteChecked}
+            disabled={isDeleting}
+            className="ml-auto flex items-center gap-2 rounded-button bg-accent-navy px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
+          >
+            {isDeleting && <Spinner size={14} />}
+            {isDeleting ? "Deleting…" : "Delete"}
+          </button>
+        </div>
+      )}
+
       <div className="overflow-hidden rounded-card border border-border-default bg-bg-surface">
-        <div className="hidden grid-cols-[minmax(0,1fr)_96px_64px_112px_36px] items-center gap-4 border-b border-border-default px-5 py-3 text-[11px] font-bold tracking-[0.05em] text-text-header uppercase sm:grid">
+        <div
+          className={`grid ${COLUMNS} items-center gap-4 border-b border-border-default px-5 py-3 text-[11px] font-bold tracking-[0.05em] text-text-header uppercase`}
+        >
+          <input
+            type="checkbox"
+            checked={allChecked}
+            // Half-checked ("–") when only some rows are checked.
+            ref={(el) => {
+              if (el) el.indeterminate = checked.length > 0 && !allChecked;
+            }}
+            onChange={toggleAll}
+            disabled={shown.length === 0 || isDeleting}
+            aria-label="Select all lessons"
+            className="h-4 w-4 accent-accent-navy"
+          />
           <span>Title</span>
-          <span>Status</span>
-          <span>Slides</span>
-          <span>Updated</span>
-          <span />
+          <span className="hidden sm:block">Status</span>
+          <span className="hidden sm:block">Slides</span>
+          <span className="hidden sm:block">Updated</span>
+          <span className="hidden sm:block" />
         </div>
 
         {shown.length === 0 ? (
           <EmptyState hasQuizzes={rows.length > 0} search={search.trim()} />
         ) : (
-          shown.map((row) => <QuizListRow key={row.id} row={row} />)
+          shown.map((row) => (
+            <QuizListRow
+              key={row.id}
+              row={row}
+              isChecked={checkedIds.has(row.id)}
+              onToggle={() => toggle(row.id)}
+              isBeingDeleted={isDeleting && checkedIds.has(row.id)}
+            />
+          ))
         )}
       </div>
     </>
   );
 }
 
-function QuizListRow({ row }: { row: QuizRow }) {
-  const [isDiscarding, startDiscarding] = useTransition();
-  const href = row.status === "draft" ? `/quiz/new?draft=${row.id}` : `/quiz/${row.id}`;
+function QuizListRow({
+  row,
+  isChecked,
+  onToggle,
+  isBeingDeleted,
+}: {
+  row: QuizRow;
+  isChecked: boolean;
+  onToggle: () => void;
+  isBeingDeleted: boolean;
+}) {
+  const [isRemoving, startRemoving] = useTransition();
+  const isDraft = row.status === "draft";
+  const href = isDraft ? `/quiz/new?draft=${row.id}` : `/quiz/${row.id}`;
 
-  const discard = () => {
-    if (!confirm(`Discard "${row.title}"? Claude's draft will be deleted.`)) return;
-    startDiscarding(() => discardDraft(row.id));
+  const remove = () => {
+    const question = isDraft ? `Discard "${row.title}"? Claude's draft will be deleted.` : `Delete "${row.title}"? This can't be undone.`;
+    if (!confirm(question)) return;
+    startRemoving(async () => {
+      if (!(await removeRows([row]))) alert("Couldn't delete the lesson. Please try again.");
+    });
   };
 
   return (
     // The link stretches over the whole row (its ::after), so the row clicks through to the quiz while
     // the Discard button, sitting above it, stays its own button.
     <div
-      className={`relative grid min-h-14 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 border-b border-border-default px-5 py-3 transition-colors last:border-b-0 hover:bg-bg-page sm:grid-cols-[minmax(0,1fr)_96px_64px_112px_36px] ${
-        isDiscarding ? "opacity-50" : ""
+      className={`relative grid min-h-14 ${COLUMNS} items-center gap-x-4 border-b border-border-default px-5 py-3 transition-colors last:border-b-0 hover:bg-bg-page ${
+        isRemoving || isBeingDeleted ? "opacity-50" : ""
       }`}
     >
+      {/* z-10 keeps it above the row link's ::after, so checking doesn't open the lesson. */}
+      <input
+        type="checkbox"
+        checked={isChecked}
+        onChange={onToggle}
+        disabled={isBeingDeleted}
+        aria-label={`Select ${row.title}`}
+        className="relative z-10 h-4 w-4 accent-accent-navy"
+      />
       <div className="min-w-0">
         <Link href={href} className="block truncate text-sm text-text-primary after:absolute after:inset-0">
           {row.title}
@@ -141,13 +247,16 @@ function QuizListRow({ row }: { row: QuizRow }) {
         <span className="hidden text-sm text-text-primary sm:block">{row.slideCount}</span>
         <span className="hidden text-sm text-text-secondary sm:block">{row.dateLabel}</span>
         <span className="relative flex justify-end">
-          {row.status === "draft" && (
+          {isRemoving || isBeingDeleted ? (
+            <span className="flex p-1.5">
+              <Spinner size={16} />
+            </span>
+          ) : (
             <button
               type="button"
-              onClick={discard}
-              disabled={isDiscarding}
-              title="Discard draft"
-              aria-label={`Discard ${row.title}`}
+              onClick={remove}
+              title={isDraft ? "Discard draft" : "Delete lesson"}
+              aria-label={`${isDraft ? "Discard" : "Delete"} ${row.title}`}
               className="rounded-dropdown p-1.5 text-text-primary transition-colors hover:bg-border-default"
             >
               <TrashIcon />

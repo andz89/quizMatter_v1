@@ -16,7 +16,6 @@
   --accent-green: #1e8e4f;
   --accent-orange: #f2a93b;
   --accent-gray: #a8a6a1;
-  --accent-red: #d14343;
 
   /* Spacing */
   --space-card-x: 20px;
@@ -38,7 +37,6 @@
   --color-accent-green: var(--accent-green);
   --color-accent-orange: var(--accent-orange);
   --color-accent-gray: var(--accent-gray);
-  --color-accent-red: var(--accent-red);
 
   --font-sans: var(--font-inter);
 }

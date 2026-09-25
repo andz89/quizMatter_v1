@@ -185,9 +185,9 @@ const lessonDesign = {
   design: z.array(decorationRecipe).max(6).default([]).describe("Decorations behind everything."),
 };
 
-// A text's font size (px). Text never shrinks to fit, so long text needs a smaller size.
+// A text's font size (px). The text still shrinks to fit its box, so this is the largest it gets.
 const fontSize = whole(FONT_SIZE_RANGE.min, FONT_SIZE_RANGE.max);
-const fontSizeNote = "Font size in px. Text does not shrink to fit: set a smaller size when the text is long.";
+const fontSizeNote = "Largest font size in px; long text still shrinks to fit. Leave out unless the user asks for bigger or smaller text.";
 
 const slideRecipe = z.discriminatedUnion("type", [
   z.object({
@@ -298,12 +298,9 @@ Slide types:
   - give instructions for a new kind of question,
   - start a class discussion: ask an open question with no right answer ("Which fruit do you like best? Why?", "Where do you see fractions at home?").
 
-Text sizes: text does NOT shrink to fit its box. It shows at its font size, and text that doesn't fit is cut off. Defaults: question ${QUESTION_FONT_SIZE}px, options ${OPTION_FONT_SIZE}px, lesson title and text ${TEXT_BOX_FONT_SIZE}px.
-- Keep text short: a question in 1–2 lines (about 100 characters), an option in 1 line (about 40 characters in a list row, 20 in a grid cell), a lesson text in 1–4 sentences.
-- When text is longer, set a smaller size ("questionFontSize", "optionFontSize", "titleFontSize", "textFontSize", 12 to 96 px), e.g. 32 or 28.
-- A "list" slide with pictures in "side" has short rows: set "optionFontSize": 32.
-- Also set sizes when the user asks for bigger or smaller text, e.g. big text for young learners.
-- If a text is still too long, send_lesson tells you which one: shorten it or make its font smaller.
+Text sizes: every text shrinks to fit its box, so normally leave the font sizes out. The font size is the largest a text gets. Defaults: question ${QUESTION_FONT_SIZE}px, options ${OPTION_FONT_SIZE}px, lesson title and text ${TEXT_BOX_FONT_SIZE}px.
+- Keep text short anyway, so it stays big and easy to read: a question in 1–2 lines (about 100 characters), an option in 1 line (about 40 characters in a list row, 20 in a grid cell), a lesson text in 1–4 sentences.
+- Only set sizes ("questionFontSize", "optionFontSize", "titleFontSize", "textFontSize", 12 to 96 px) when the user asks for bigger or smaller text, e.g. big text for young learners.
 
 Which layout for a choice slide (leave "layout" out and the app picks with these same rules):
 - Read one tool (clock, thermometer, bar graph, protractor, base-ten blocks) → "list-side", the tool in "side".
@@ -493,10 +490,6 @@ function buildSlide(recipe: SlideRecipe, drawPatterns: boolean, reportError: (me
     textBoxes.push(textBox(lesson.title, styledHtml(recipe.title!, { bold: true, align }), recipe.titleFontSize));
   }
   if (recipe.type === "lesson" && lesson?.text) {
-    const size = recipe.textFontSize ?? TEXT_BOX_FONT_SIZE;
-    if (textHeightFor(recipe.text!, lesson.text.width, size) > lesson.text.height) {
-      reportError(`the lesson text is too long for its box at ${size}px. Shorten it or set a smaller "textFontSize".`);
-    }
     textBoxes.push(textBox(lesson.text, textToHtml(recipe.text!), recipe.textFontSize));
   }
 
@@ -599,9 +592,7 @@ function buildSlide(recipe: SlideRecipe, drawPatterns: boolean, reportError: (me
     return decorationElements(item, textRects);
   });
 
-  const built = { ...slide, elements: [...decorations, ...textBoxes, ...pictures, ...calloutParts] };
-  if (recipe.type !== "lesson") checkTextFits(built, reportError);
-  return built;
+  return { ...slide, elements: [...decorations, ...textBoxes, ...pictures, ...calloutParts] };
 }
 
 type SizeName = NonNullable<ElementRecipe["size"]>;
@@ -884,9 +875,6 @@ const CHAR_WIDTH_PER_PX = 0.525;
 const LINE_HEIGHT_PER_PX = 1.25;
 // The room the question box's edges take (px), top + bottom (and left + right): p-4 plus its 1px border.
 const QUESTION_PADDING = 34;
-// The room an option card's edges take (px), left + right and top + bottom: px-6 py-3 in list rows,
-// p-6 in grid cells, plus the 1px border.
-const OPTION_PADDING = { list: { x: 50, y: 26 }, grid: { x: 50, y: 50 } };
 
 /** Roughly how tall `text` is at `fontSize` in a box `width` wide. Each \n starts a new line. */
 function textHeightFor(text: string, width: number, fontSize: number): number {
@@ -899,31 +887,6 @@ function textHeightFor(text: string, width: number, fontSize: number): number {
 function questionHeightFor(question: string, fontSize = QUESTION_FONT_SIZE): number {
   const height = textHeightFor(question, QUESTION_CONTAINER_WIDTH - QUESTION_PADDING, fontSize) + QUESTION_PADDING;
   return Math.min(DEFAULT_QUESTION_HEIGHT, height);
-}
-
-/**
- * Text never shrinks to fit, so text that's too long for its box would be cut off. This reports it
- * (while Claude can still fix it) for the question and each option.
- */
-function checkTextFits(slide: Slide, reportError: (message: string) => void) {
-  const questionSize = slide.questionFontSize ?? QUESTION_FONT_SIZE;
-  const questionRoom = slide.questionHeight - QUESTION_PADDING;
-  if (textHeightFor(slide.question, QUESTION_CONTAINER_WIDTH - QUESTION_PADDING, questionSize) > questionRoom) {
-    reportError(`the question is too long for its box at ${questionSize}px. Shorten it or set a smaller "questionFontSize".`);
-  }
-  if (slide.type !== "choice") return;
-  const padding = OPTION_PADDING[slide.layout === "grid" ? "grid" : "list"];
-  slide.options.forEach((option, i) => {
-    if (!option.text) return;
-    const size = option.fontSize ?? OPTION_FONT_SIZE;
-    const box = getContainerBounds(option.id, slide);
-    // An option with pictures keeps only its left half for the text.
-    const hasPictures = slide.elements.some((el) => el.containerId === option.id);
-    const width = (box.width - padding.x) / (hasPictures ? 2 : 1);
-    if (textHeightFor(option.text, width, size) > box.height - padding.y) {
-      reportError(`option ${OPTION_LABELS[i]} doesn't fit in its box at ${size}px. Shorten it or set a smaller "optionFontSize".`);
-    }
-  });
 }
 
 function toContainerId(box: BoxName, slide: Slide): string | null {

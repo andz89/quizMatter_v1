@@ -1,7 +1,7 @@
 import { z } from "zod";
 
-// The font sizes (px) a user can choose for a text. The text always shows at the chosen
-// size; too-long text is cut off at its box's edge.
+// The font sizes (px) a user can choose for a text. The chosen size is the largest the text gets;
+// it still shrinks to fit its box when it's too long.
 export const FONT_SIZE_RANGE = { min: 12, max: 96 };
 const fontSizeSchema = z.number().int().min(FONT_SIZE_RANGE.min).max(FONT_SIZE_RANGE.max);
 

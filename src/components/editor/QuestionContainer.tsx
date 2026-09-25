@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import { useEditorStore, selectedIdsOn } from "@/lib/store";
 import { QUESTION_CONTAINER_ID, QUESTION_CONTAINER_WIDTH, QUESTION_FONT_SIZE } from "@/lib/constants";
 import { useElementDropTarget } from "@/lib/useElementDropTarget";
@@ -9,7 +8,6 @@ import { SvgElementItem } from "./SvgElementItem";
 import { GroupSelectionOverlay } from "./GroupSelectionOverlay";
 import { SnapGuides } from "./SnapGuides";
 import { ResizeHandle } from "./ResizeHandle";
-import { TextOverflowMark } from "./TextOverflowMark";
 import type { Slide } from "@/lib/schema";
 
 export function QuestionContainer({ slide }: { slide: Slide }) {
@@ -27,7 +25,6 @@ export function QuestionContainer({ slide }: { slide: Slide }) {
   const selectContainer = useEditorStore((s) => s.selectContainer);
 
   const { isDragOver, dropHandlers } = useElementDropTarget(slide.id, QUESTION_CONTAINER_ID);
-  const [textOverflows, setTextOverflows] = useState(false);
 
   const isSelected = isContainerSelected || isDragOver || isElementDragOver;
   const boundElements = slide.elements.filter((el) => el.containerId === QUESTION_CONTAINER_ID);
@@ -53,7 +50,6 @@ export function QuestionContainer({ slide }: { slide: Slide }) {
         placeholder="Type your question…"
         target={{ kind: "question", slideId: slide.id }}
         fontSize={slide.questionFontSize ?? QUESTION_FONT_SIZE}
-        onOverflowChange={setTextOverflows}
         isSelected={isContainerSelected}
         className="font-normal text-text-primary"
       />
@@ -73,7 +69,6 @@ export function QuestionContainer({ slide }: { slide: Slide }) {
         <SnapGuides slideId={slide.id} containerId={QUESTION_CONTAINER_ID} />
       </div>
 
-      {textOverflows && <TextOverflowMark />}
       <ResizeHandle height={slide.questionHeight} onResize={(height) => setQuestionHeight(slide.id, height)} />
     </div>
   );

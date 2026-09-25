@@ -55,6 +55,9 @@ export async function listDrafts(): Promise<DraftSummary[]> {
   return results;
 }
 
-export async function deleteDraft(id: string) {
-  await getCloudflareContext().env.DRAFTS_DB.prepare("DELETE FROM drafts WHERE id = ?").bind(id).run();
+/** Deletes these drafts in one trip to the database. */
+export async function deleteDrafts(ids: string[]) {
+  if (ids.length === 0) return;
+  const db = getCloudflareContext().env.DRAFTS_DB;
+  await db.batch(ids.map((id) => db.prepare("DELETE FROM drafts WHERE id = ?").bind(id)));
 }

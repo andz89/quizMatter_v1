@@ -152,8 +152,8 @@ const FONT_SIZES = [12, 14, 16, 18, 20, 24, 28, 32, 36, 40, 44, 48, 56, 64, 72, 
 
 /**
  * − / size / + for the texts being changed (the question, options, or a text box) — they all get the
- * same size, stepping from the first one's. The text always shows at this size; if it's too long for
- * its box, the box turns red.
+ * same size, stepping from the first one's. The size is the largest the text gets: it still shrinks
+ * to fit its box when it's too long.
  */
 function FontSizePicker({ targets }: { targets: TextTarget[] }) {
   const size = useEditorStore((s) => chosenFontSize(s.quiz, targets[0]));
@@ -176,7 +176,7 @@ function FontSizePicker({ targets }: { targets: TextTarget[] }) {
       <button
         type="button"
         onClick={() => setIsListOpen(!isListOpen)}
-        title="Text size"
+        title="Text size (it still shrinks to fit its box)"
         className="h-8 min-w-10 rounded-dropdown px-1.5 text-sm font-semibold tabular-nums text-text-primary hover:bg-bg-page"
       >
         {size}
