@@ -1,49 +1,83 @@
-import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { DRAFT_LIFETIME_MS, listDrafts, type DraftSummary } from "@/lib/drafts";
 import { LogoutButton, NewQuizButton } from "./QuizListButtons";
+import { QuizList, type QuizRow } from "./QuizList";
 
 export default async function QuizListPage() {
   const supabase = await createClient();
-  const { data: quizzes, error } = await supabase
-    .from("quizzes")
-    .select("id, title, updated_at")
-    .order("updated_at", { ascending: false });
+  const [{ data: quizzes, error }, drafts] = await Promise.all([
+    supabase.from("quizzes").select("id, title, updated_at, slides(count)").order("updated_at", { ascending: false }),
+    listDrafts(),
+  ]);
   if (error) throw error;
 
+  const rows = buildRows(quizzes, drafts);
+
   return (
-    <main className="mx-auto w-full max-w-3xl px-4 py-10">
-      <header className="mb-5 flex items-center gap-3">
-        <h1 className="text-base font-semibold text-text-primary">
-          My quizzes <span className="font-normal text-text-secondary">({quizzes.length})</span>
-        </h1>
+    <main className="mx-auto w-full max-w-4xl px-4 py-10 sm:py-14">
+      <header className="mb-6 flex flex-wrap items-center gap-3">
+        <div>
+          <h1 className="text-base font-semibold text-text-primary">My quizzes</h1>
+          <p className="mt-0.5 text-sm text-text-secondary">Your saved quizzes, and the ones Claude sent you.</p>
+        </div>
         <div className="ml-auto flex items-center gap-2">
           <LogoutButton />
           <NewQuizButton />
         </div>
       </header>
 
-      <div className="rounded-card border border-border-default bg-bg-surface">
-        <div className="flex border-b border-border-default px-5 py-3 text-[11px] font-bold tracking-[0.05em] text-text-header uppercase">
-          <span>Title</span>
-          <span className="ml-auto">Last saved</span>
-        </div>
-        {quizzes.length === 0 ? (
-          <p className="px-5 py-4 text-sm text-text-secondary">No quizzes yet. Click “+ New quiz” to make one.</p>
-        ) : (
-          quizzes.map((quiz) => (
-            <Link
-              key={quiz.id}
-              href={`/quiz/${quiz.id}`}
-              className="flex h-13 items-center border-b border-border-default px-5 text-sm text-text-primary last:border-b-0 hover:bg-bg-page"
-            >
-              <span className="truncate">{quiz.title || "Untitled quiz"}</span>
-              <span className="ml-auto shrink-0 pl-4 text-text-secondary">
-                {new Date(quiz.updated_at).toLocaleDateString("en-US", { dateStyle: "medium" })}
-              </span>
-            </Link>
-          ))
-        )}
-      </div>
+      <QuizList rows={rows} />
     </main>
   );
+}
+
+type SavedQuiz = { id: string; title: string; updated_at: string; slides: { count: number }[] };
+
+/** Saved quizzes and Claude's drafts as one list, newest first. */
+function buildRows(quizzes: SavedQuiz[], drafts: DraftSummary[]): QuizRow[] {
+  const now = Date.now();
+  const savedIds = new Set(quizzes.map((quiz) => quiz.id));
+  return [
+    ...quizzes.map((quiz) => {
+      const updatedAt = Date.parse(quiz.updated_at);
+      return {
+        id: quiz.id,
+        title: quiz.title || "Untitled quiz",
+        status: "saved" as const,
+        slideCount: quiz.slides[0]?.count ?? 0,
+        sortTime: updatedAt,
+        dateLabel: timeAgo(updatedAt, now),
+      };
+    }),
+    // A draft whose quiz is already saved is done (the saved quiz took the draft's id — see /quiz/new).
+    ...drafts
+      .filter((draft) => !savedIds.has(draft.id))
+      .map((draft) => ({
+        id: draft.id,
+        title: draft.title || "Untitled quiz",
+        status: "draft" as const,
+        slideCount: draft.slideCount,
+        sortTime: draft.createdAt,
+        dateLabel: timeAgo(draft.createdAt, now),
+        note: `From Claude · not saved yet · ${expiresIn(draft.createdAt + DRAFT_LIFETIME_MS - now)}`,
+      })),
+  ].sort((a, b) => b.sortTime - a.sortTime);
+}
+
+// Worked out here on the server so the page shows the same text before and after it loads in the browser.
+function timeAgo(time: number, now: number): string {
+  const minutes = Math.floor((now - time) / 60_000);
+  if (minutes < 1) return "Just now";
+  if (minutes < 60) return `${minutes} min ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} hr ago`;
+  const days = Math.floor(hours / 24);
+  if (days === 1) return "Yesterday";
+  if (days < 7) return `${days} days ago`;
+  return new Date(time).toLocaleDateString("en-US", { dateStyle: "medium" });
+}
+
+function expiresIn(ms: number): string {
+  const hours = Math.floor(ms / 3_600_000);
+  return hours >= 1 ? `expires in ${hours} hr` : "expires soon";
 }

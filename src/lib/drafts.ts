@@ -12,7 +12,7 @@ declare global {
   }
 }
 
-const DRAFT_LIFETIME_MS = 24 * 60 * 60 * 1000;
+export const DRAFT_LIFETIME_MS = 24 * 60 * 60 * 1000;
 
 /** What Claude sent: the quiz's details, and the slides as a recipe for buildSlides. */
 export type Draft = { details: QuizDetails; slides: unknown[] };
@@ -36,4 +36,24 @@ export async function getDraft(id: string): Promise<Draft | null> {
     .bind(id, Date.now() - DRAFT_LIFETIME_MS)
     .first<{ recipe: string }>();
   return row ? JSON.parse(row.recipe) : null;
+}
+
+/** What the quiz list shows of a draft. */
+export type DraftSummary = { id: string; title: string; slideCount: number; createdAt: number };
+
+/** Every draft that hasn't expired, newest first. */
+export async function listDrafts(): Promise<DraftSummary[]> {
+  const { results } = await getCloudflareContext()
+    .env.DRAFTS_DB.prepare(
+      `SELECT id, json_extract(recipe, '$.details.title') AS title, json_array_length(recipe, '$.slides') AS slideCount,
+         created_at AS createdAt
+       FROM drafts WHERE created_at >= ? ORDER BY created_at DESC`,
+    )
+    .bind(Date.now() - DRAFT_LIFETIME_MS)
+    .all<DraftSummary>();
+  return results;
+}
+
+export async function deleteDraft(id: string) {
+  await getCloudflareContext().env.DRAFTS_DB.prepare("DELETE FROM drafts WHERE id = ?").bind(id).run();
 }
