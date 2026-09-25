@@ -1,12 +1,10 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { quizSchema } from "@/lib/schema";
-import { getDraft } from "@/lib/drafts";
 import { QuizEditor } from "./QuizEditor";
 
-export default async function QuizPage({ params, searchParams }: PageProps<"/quiz/[id]">) {
+export default async function QuizPage({ params }: PageProps<"/quiz/[id]">) {
   const { id } = await params;
-  const { draft: draftId } = await searchParams;
   const supabase = await createClient();
 
   const { data, error } = await supabase
@@ -28,9 +26,5 @@ export default async function QuizPage({ params, searchParams }: PageProps<"/qui
     slides: data.slides.map((slide: { data: unknown }) => slide.data),
   });
 
-  // A draft from Claude (see /api/mcp): the editor puts its slides in place of the quiz's ones.
-  // null means the link was wrong or older than a day.
-  const draft = typeof draftId === "string" ? await getDraft(draftId) : undefined;
-
-  return <QuizEditor quiz={quiz} draft={draft} />;
+  return <QuizEditor quiz={quiz} />;
 }

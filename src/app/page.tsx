@@ -2,10 +2,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { LogoutButton, NewQuizButton } from "./QuizListButtons";
 
-export default async function QuizListPage({ searchParams }: PageProps<"/">) {
-  // Set when the user opens a link Claude gave them (see /api/mcp): picking a quiz loads that draft into it.
-  const { draft } = await searchParams;
-  const draftQuery = typeof draft === "string" ? `?draft=${encodeURIComponent(draft)}` : "";
+export default async function QuizListPage() {
   const supabase = await createClient();
   const { data: quizzes, error } = await supabase
     .from("quizzes")
@@ -21,16 +18,9 @@ export default async function QuizListPage({ searchParams }: PageProps<"/">) {
         </h1>
         <div className="ml-auto flex items-center gap-2">
           <LogoutButton />
-          <NewQuizButton draftQuery={draftQuery} />
+          <NewQuizButton />
         </div>
       </header>
-
-      {draftQuery && (
-        <p className="mb-5 rounded-card border border-border-default bg-bg-surface px-5 py-3.5 text-sm text-text-primary">
-          Claude sent you slides. Pick a quiz to put them in, or make a new one. They replace that quiz’s slides, and
-          nothing is saved until you click Save.
-        </p>
-      )}
 
       <div className="rounded-card border border-border-default bg-bg-surface">
         <div className="flex border-b border-border-default px-5 py-3 text-[11px] font-bold tracking-[0.05em] text-text-header uppercase">
@@ -43,7 +33,7 @@ export default async function QuizListPage({ searchParams }: PageProps<"/">) {
           quizzes.map((quiz) => (
             <Link
               key={quiz.id}
-              href={`/quiz/${quiz.id}${draftQuery}`}
+              href={`/quiz/${quiz.id}`}
               className="flex h-13 items-center border-b border-border-default px-5 text-sm text-text-primary last:border-b-0 hover:bg-bg-page"
             >
               <span className="truncate">{quiz.title || "Untitled quiz"}</span>

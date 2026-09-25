@@ -2,13 +2,13 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { z } from "zod";
-import { buildSlides, getClaudeFormat } from "@/lib/importQuiz";
+import { buildSlides, getClaudeFormat, quizDetailsSchema } from "@/lib/importQuiz";
 import { saveDraft } from "@/lib/drafts";
 
 /**
  * The MCP server Claude chat connects to (added in claude.ai as a custom connector with this URL).
  * Claude writes a quiz, `send_quiz` checks it and stores it as a draft, and Claude hands the user a
- * link that opens the draft in the editor. Nothing here touches the user's saved quizzes, so it
+ * link that opens the draft in the editor as a new quiz. Nothing here touches the user's saved quizzes, so it
  * needs no login — the proxy lets this path through. Instead it asks for a shared secret (below).
  *
  * It's a Pages Router API route (not an App Router route.ts) because the quiz importer imports
@@ -30,26 +30,28 @@ function createServer(appUrl: string) {
     "send_quiz",
     {
       description:
-        "Sends quiz slides to Quiz Builder and returns a link for the user. Opening the link lets them pick a quiz; " +
-        "these slides then replace that quiz's slides in the editor, and the user saves them. " +
-        "`slides` must follow the format from get_quiz_format. If something is wrong, the errors come back — fix them and send again.",
-      inputSchema: { slides: z.array(z.unknown()).describe("The slides array, in the format from get_quiz_format.") },
+        "Sends a new quiz to Quiz Builder and returns a link for the user. The link opens it in the editor as a new quiz, " +
+        "which the user checks and saves. `slides` must follow the format from get_quiz_format. " +
+        "If something is wrong, the errors come back — fix them and send again.",
+      inputSchema: {
+        details: quizDetailsSchema.describe("About the quiz as a whole."),
+        slides: z.array(z.unknown()).describe("The slides array, in the format from get_quiz_format."),
+      },
     },
-    async ({ slides }) => {
-      const recipe = { slides };
+    async ({ details, slides }) => {
       // Built here only to catch mistakes while Claude can still fix them; the editor builds the slides again
       // (and draws the background patterns, which can't be drawn on Cloudflare).
-      const result = buildSlides(recipe, { drawPatterns: false });
+      const result = buildSlides({ slides }, { drawPatterns: false });
       if ("errors" in result) {
         return { isError: true, content: [{ type: "text", text: `The quiz has mistakes. Fix them and send again:\n\n${result.errors.join("\n")}` }] };
       }
-      const draftId = await saveDraft(recipe);
-      const link = `${appUrl}/?draft=${draftId}`;
+      const draftId = await saveDraft({ details, slides });
+      const link = `${appUrl}/quiz/new?draft=${draftId}`;
       return {
         content: [
           {
             type: "text",
-            text: `Sent ${slides.length} slides. Give the user this link: ${link}\nIt opens their quiz list; the quiz they pick gets these slides (replacing its current ones), and nothing is saved until they click Save. The link works for 24 hours.`,
+            text: `Sent ${slides.length} slides. Give the user this link: ${link}\nIt opens "${details.title}" as a new quiz in the editor; nothing is saved until they click Save. The link works for 24 hours.`,
           },
         ],
       };

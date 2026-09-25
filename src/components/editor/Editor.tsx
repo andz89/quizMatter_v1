@@ -20,8 +20,8 @@ const PresentationView = dynamic(() =>
 );
 
 /**
- * `draft` is a quiz Claude sent through the MCP server (see /api/mcp): its slides replace the quiz's
- * slides, unsaved, like the Paste button does. null means the draft link had expired.
+ * `draft` is the slides recipe of a quiz Claude sent through the MCP server (see /quiz/new): its
+ * slides replace the new quiz's sample slide, unsaved, like the Paste button does.
  */
 export function Editor({ quiz, draft }: { quiz: Quiz; draft?: unknown }) {
   // Until the quiz below is in the store, the store still holds the placeholder (or the last quiz opened).
@@ -45,12 +45,9 @@ export function Editor({ quiz, draft }: { quiz: Quiz; draft?: unknown }) {
     store.loadQuiz(quiz);
     if (draft === undefined) return;
 
-    // Drop ?draft from the address, so a reload after saving doesn't load the draft again.
-    window.history.replaceState(null, "", window.location.pathname);
-    if (draft === null) {
-      alert("This link from Claude has expired (links last 24 hours). Ask Claude to send the quiz again.");
-      return;
-    }
+    // Show the quiz's own address instead of /quiz/new?draft=…, so a reload after saving opens the
+    // saved quiz instead of another new copy.
+    window.history.replaceState(null, "", `/quiz/${quiz.id}`);
     const result = buildSlides(draft);
     if ("errors" in result) alert(`Couldn't load the slides from Claude:\n\n${result.errors.join("\n")}`);
     else store.importSlides(result.slides);

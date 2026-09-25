@@ -6,11 +6,8 @@ import { createBlankQuiz } from "@/lib/factories";
 import { saveQuizToDb } from "@/lib/quizzes";
 import { createClient } from "@/lib/supabase/client";
 
-/**
- * Makes a blank quiz, saves it right away (so it has a row to open), then opens it in the editor.
- * `draftQuery` (e.g. "?draft=…") is passed on so a draft from Claude loads into the new quiz.
- */
-export function NewQuizButton({ draftQuery = "" }: { draftQuery?: string }) {
+/** Makes a blank quiz, saves it right away (so it has a row to open), then opens it in the editor. */
+export function NewQuizButton() {
   const router = useRouter();
   const [isCreating, setIsCreating] = useState(false);
 
@@ -19,7 +16,7 @@ export function NewQuizButton({ draftQuery = "" }: { draftQuery?: string }) {
     const quiz = createBlankQuiz();
     try {
       await saveQuizToDb(quiz);
-      router.push(`/quiz/${quiz.id}${draftQuery}`);
+      router.push(`/quiz/${quiz.id}`);
     } catch {
       alert("Couldn't create the quiz. Please try again.");
       setIsCreating(false);

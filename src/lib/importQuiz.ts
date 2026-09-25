@@ -207,6 +207,17 @@ const slideRecipe = z.discriminatedUnion("type", [
 
 export const quizRecipeSchema = z.object({ slides: z.array(slideRecipe).min(1) });
 
+/**
+ * Details about the quiz as a whole, which Claude fills in when it sends a quiz (see /api/mcp).
+ * New details (description, grade, subject, curriculum, learning competency) go here once the
+ * quiz can store them.
+ */
+export const quizDetailsSchema = z.object({
+  title: z.string().trim().min(1).max(120).describe('The quiz title, e.g. "Adding Fractions – Grade 4".'),
+});
+
+export type QuizDetails = z.infer<typeof quizDetailsSchema>;
+
 type SlideRecipe = z.infer<typeof slideRecipe>;
 type ElementRecipe = z.infer<typeof elementRecipe>;
 
