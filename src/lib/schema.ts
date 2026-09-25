@@ -124,8 +124,21 @@ export const DETAIL_MAX_LENGTH = {
   author: 120,
 };
 
-// A reference link: a full http(s) address. Other kinds (e.g. javascript:) are refused.
-export const referenceLinkSchema = z.url({ protocol: /^https?$/ }).max(500);
+const webLinkSchema = z.url({ protocol: /^https?$/ });
+
+/** Whether a reference is a web link (shown as a clickable link), not a book or module name. */
+export function isWebLink(reference: string): boolean {
+  return webLinkSchema.safeParse(reference).success;
+}
+
+// A reference: the name of a book or module, or a link. Anything with "://" must be a full http(s)
+// link, so broken links and other kinds (ftp://…) are refused. Plain text is only ever shown as text.
+export const referenceSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(500)
+  .refine((reference) => !reference.includes("://") || isWebLink(reference), "A link must start with http:// or https://");
 export const MAX_REFERENCE_LINKS = 20;
 
 export const quizSchema = z.object({
@@ -140,8 +153,8 @@ export const quizSchema = z.object({
   // Who wrote the content: the teacher, a book, another teacher… Not who published it — that's the
   // lesson's owner (the logged-in user who saved it).
   author: z.string().max(DETAIL_MAX_LENGTH.author),
-  // Links about the lesson (sources, the curriculum guide…), as many as the user adds.
-  referenceLinks: z.array(referenceLinkSchema).max(MAX_REFERENCE_LINKS),
+  // What the lesson is based on (links, or book / module names), as many as the user adds.
+  referenceLinks: z.array(referenceSchema).max(MAX_REFERENCE_LINKS),
   // Private (only the owner sees it) or published. What publishing shares isn't built yet.
   isPublished: z.boolean(),
   slides: z.array(slideSchema),

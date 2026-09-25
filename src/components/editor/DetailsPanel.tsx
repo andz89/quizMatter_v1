@@ -3,13 +3,13 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useEditorStore } from "@/lib/store";
 import { createClient } from "@/lib/supabase/client";
-import { DETAIL_MAX_LENGTH, GRADES, MAX_REFERENCE_LINKS, referenceLinkSchema, type LessonDetails } from "@/lib/schema";
+import { DETAIL_MAX_LENGTH, GRADES, MAX_REFERENCE_LINKS, isWebLink, referenceSchema, type LessonDetails } from "@/lib/schema";
 import { PanelLabel } from "./PanelControls";
 import { CloseIcon } from "@/components/icons/CloseIcon";
 
 /**
  * Sidebar panel for the lesson as a whole: title, description, grade, subject, curriculum,
- * learning competency, author, reference links, and private/published. All optional. Edits count as unsaved
+ * learning competency, author, references, and private/published. All optional. Edits count as unsaved
  * changes until Save, like any other edit.
  */
 export function DetailsPanel() {
@@ -120,7 +120,10 @@ export function DetailsPanel() {
   );
 }
 
-/** One input per link, plus "+ Add reference". Empty rows are dropped when the lesson is saved. */
+/**
+ * One input per reference (a link, or a book / module name), plus "+ Add reference". Links get an
+ * open button. Empty rows are dropped when the lesson is saved.
+ */
 function ReferenceLinks({ links, onChange }: { links: string[]; onChange: (links: string[]) => void }) {
   const setLink = (index: number, value: string) => onChange(links.map((link, i) => (i === index ? value : link)));
 
@@ -128,19 +131,19 @@ function ReferenceLinks({ links, onChange }: { links: string[]; onChange: (links
     <div className="flex flex-col gap-2">
       <PanelLabel>References</PanelLabel>
       {links.map((link, index) => {
-        const isValid = link.trim() === "" || referenceLinkSchema.safeParse(link.trim()).success;
+        const isValid = link.trim() === "" || referenceSchema.safeParse(link).success;
         return (
           <div key={index} className="flex flex-col gap-1">
             <div className="flex items-center gap-1">
               <input
                 value={link}
                 onChange={(e) => setLink(index, e.target.value)}
-                placeholder="https://…"
+                placeholder="A link, or a book / module name"
                 maxLength={500}
-                aria-label={`Reference link ${index + 1}`}
+                aria-label={`Reference ${index + 1}`}
                 className={`${inputClass} min-w-0 flex-1`}
               />
-              {isValid && link.trim() !== "" && (
+              {isWebLink(link.trim()) && (
                 <a
                   href={link.trim()}
                   target="_blank"
@@ -160,7 +163,7 @@ function ReferenceLinks({ links, onChange }: { links: string[]; onChange: (links
                 <CloseIcon />
               </button>
             </div>
-            {!isValid && <p className="text-[13px] text-red-600">Enter a full link, starting with https://</p>}
+            {!isValid && <p className="text-[13px] text-red-600">A link must start with http:// or https://</p>}
           </div>
         );
       })}

@@ -37,7 +37,7 @@ import {
   getNumberLineValue,
   CUSTOM_SVG_ID,
 } from "./svgLibrary";
-import { DETAIL_MAX_LENGTH, GRADES, MAX_REFERENCE_LINKS, referenceLinkSchema, type Slide, type SvgElement } from "./schema";
+import { DETAIL_MAX_LENGTH, GRADES, MAX_REFERENCE_LINKS, referenceSchema, type Slide, type SvgElement } from "./schema";
 
 type Asset = NonNullable<ReturnType<typeof getElementAsset>>;
 
@@ -230,10 +230,12 @@ export const quizDetailsSchema = z.object({
     .optional()
     .describe("Who wrote the content (a teacher, a book…). Only if the user says so."),
   referenceLinks: z
-    .array(referenceLinkSchema)
+    .array(referenceSchema)
     .max(MAX_REFERENCE_LINKS)
     .optional()
-    .describe("Full https:// links the lesson is based on (sources, curriculum guide). Only real links you're sure of."),
+    .describe(
+      'What the lesson is based on, one per item: a full https:// link, or a book / module name (e.g. "DepEd SLM Mathematics 5, Quarter 1 – Module 8"). Only links you are sure are real.',
+    ),
 });
 
 export type QuizDetails = z.infer<typeof quizDetailsSchema>;
