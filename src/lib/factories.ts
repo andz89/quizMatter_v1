@@ -51,6 +51,7 @@ export function createBlankQuiz(details: Partial<LessonDetails> = {}): Quiz {
     curriculum: "",
     learningCompetency: "",
     author: "",
+    referenceLinks: [],
     isPublished: false,
     ...details,
     slides: [createSampleSlide()],

@@ -3,13 +3,13 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useEditorStore } from "@/lib/store";
 import { createClient } from "@/lib/supabase/client";
-import { DETAIL_MAX_LENGTH, GRADES, type LessonDetails } from "@/lib/schema";
+import { DETAIL_MAX_LENGTH, GRADES, MAX_REFERENCE_LINKS, referenceLinkSchema, type LessonDetails } from "@/lib/schema";
 import { PanelLabel } from "./PanelControls";
 import { CloseIcon } from "@/components/icons/CloseIcon";
 
 /**
  * Sidebar panel for the lesson as a whole: title, description, grade, subject, curriculum,
- * learning competency, author, and private/published. All optional. Edits count as unsaved
+ * learning competency, author, reference links, and private/published. All optional. Edits count as unsaved
  * changes until Save, like any other edit.
  */
 export function DetailsPanel() {
@@ -89,6 +89,8 @@ export function DetailsPanel() {
       {textField("learningCompetency", "Learning competency", "The competency this lesson targets, with its code", true)}
       {textField("author", "Author", "Who wrote it: you, a book, another teacher…")}
 
+      <ReferenceLinks links={quiz.referenceLinks} onChange={(referenceLinks) => setLessonDetails({ referenceLinks })} />
+
       <Field label="Visibility">
         <div className="grid grid-cols-2 gap-1 rounded-button bg-bg-page p-1">
           {[
@@ -115,6 +117,71 @@ export function DetailsPanel() {
         <p className="truncate text-sm text-text-primary">{publishedBy ?? "—"}</p>
       </Field>
     </div>
+  );
+}
+
+/** One input per link, plus "+ Add reference". Empty rows are dropped when the lesson is saved. */
+function ReferenceLinks({ links, onChange }: { links: string[]; onChange: (links: string[]) => void }) {
+  const setLink = (index: number, value: string) => onChange(links.map((link, i) => (i === index ? value : link)));
+
+  return (
+    <div className="flex flex-col gap-2">
+      <PanelLabel>References</PanelLabel>
+      {links.map((link, index) => {
+        const isValid = link.trim() === "" || referenceLinkSchema.safeParse(link.trim()).success;
+        return (
+          <div key={index} className="flex flex-col gap-1">
+            <div className="flex items-center gap-1">
+              <input
+                value={link}
+                onChange={(e) => setLink(index, e.target.value)}
+                placeholder="https://…"
+                maxLength={500}
+                aria-label={`Reference link ${index + 1}`}
+                className={`${inputClass} min-w-0 flex-1`}
+              />
+              {isValid && link.trim() !== "" && (
+                <a
+                  href={link.trim()}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title="Open link"
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-dropdown text-text-primary hover:bg-bg-page"
+                >
+                  <OpenLinkIcon />
+                </a>
+              )}
+              <button
+                type="button"
+                onClick={() => onChange(links.filter((_, i) => i !== index))}
+                title="Remove link"
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-dropdown text-text-primary hover:bg-bg-page"
+              >
+                <CloseIcon />
+              </button>
+            </div>
+            {!isValid && <p className="text-[13px] text-red-600">Enter a full link, starting with https://</p>}
+          </div>
+        );
+      })}
+      {links.length < MAX_REFERENCE_LINKS && (
+        <button
+          type="button"
+          onClick={() => onChange([...links, ""])}
+          className="w-fit text-sm font-semibold text-accent-green hover:opacity-80"
+        >
+          + Add reference
+        </button>
+      )}
+    </div>
+  );
+}
+
+function OpenLinkIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9 3h4v4M13 3L7.5 8.5M11.5 9.5v3a1 1 0 0 1-1 1h-7a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1h3" />
+    </svg>
   );
 }
 

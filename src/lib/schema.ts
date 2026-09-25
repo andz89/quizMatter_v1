@@ -124,6 +124,10 @@ export const DETAIL_MAX_LENGTH = {
   author: 120,
 };
 
+// A reference link: a full http(s) address. Other kinds (e.g. javascript:) are refused.
+export const referenceLinkSchema = z.url({ protocol: /^https?$/ }).max(500);
+export const MAX_REFERENCE_LINKS = 20;
+
 export const quizSchema = z.object({
   id: z.string(),
   title: z.string().max(DETAIL_MAX_LENGTH.title),
@@ -136,6 +140,8 @@ export const quizSchema = z.object({
   // Who wrote the content: the teacher, a book, another teacher… Not who published it — that's the
   // lesson's owner (the logged-in user who saved it).
   author: z.string().max(DETAIL_MAX_LENGTH.author),
+  // Links about the lesson (sources, the curriculum guide…), as many as the user adds.
+  referenceLinks: z.array(referenceLinkSchema).max(MAX_REFERENCE_LINKS),
   // Private (only the owner sees it) or published. What publishing shares isn't built yet.
   isPublished: z.boolean(),
   slides: z.array(slideSchema),
@@ -150,5 +156,13 @@ export type SlideType = NonNullable<Slide["type"]>;
 export type Quiz = z.infer<typeof quizSchema>;
 export type LessonDetails = Pick<
   Quiz,
-  "title" | "description" | "grade" | "subject" | "curriculum" | "learningCompetency" | "author" | "isPublished"
+  | "title"
+  | "description"
+  | "grade"
+  | "subject"
+  | "curriculum"
+  | "learningCompetency"
+  | "author"
+  | "referenceLinks"
+  | "isPublished"
 >;
