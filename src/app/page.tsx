@@ -17,8 +17,8 @@ export default async function QuizListPage() {
     <main className="mx-auto w-full max-w-4xl px-4 py-10 sm:py-14">
       <header className="mb-6 flex flex-wrap items-center gap-3">
         <div>
-          <h1 className="text-base font-semibold text-text-primary">My quizzes</h1>
-          <p className="mt-0.5 text-sm text-text-secondary">Your saved quizzes, and the ones Claude sent you.</p>
+          <h1 className="text-base font-semibold text-text-primary">My lessons</h1>
+          <p className="mt-0.5 text-sm text-text-secondary">Your saved lessons, and the ones Claude sent you.</p>
         </div>
         <div className="ml-auto flex items-center gap-2">
           <LogoutButton />
@@ -42,7 +42,7 @@ function buildRows(quizzes: SavedQuiz[], drafts: DraftSummary[]): QuizRow[] {
       const updatedAt = Date.parse(quiz.updated_at);
       return {
         id: quiz.id,
-        title: quiz.title || "Untitled quiz",
+        title: quiz.title || "Untitled lesson",
         status: "saved" as const,
         slideCount: quiz.slides[0]?.count ?? 0,
         sortTime: updatedAt,
@@ -54,7 +54,7 @@ function buildRows(quizzes: SavedQuiz[], drafts: DraftSummary[]): QuizRow[] {
       .filter((draft) => !savedIds.has(draft.id))
       .map((draft) => ({
         id: draft.id,
-        title: draft.title || "Untitled quiz",
+        title: draft.title || "Untitled lesson",
         status: "draft" as const,
         slideCount: draft.slideCount,
         sortTime: draft.createdAt,

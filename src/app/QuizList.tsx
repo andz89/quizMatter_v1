@@ -62,8 +62,8 @@ export function QuizList({ rows }: { rows: QuizRow[] }) {
             type="search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search quizzes"
-            aria-label="Search quizzes"
+            placeholder="Search lessons"
+            aria-label="Search lessons"
             className="w-full rounded-input border border-border-default bg-bg-surface py-2 pr-3 pl-9 text-sm text-text-primary outline-none placeholder:text-text-secondary focus:border-text-secondary"
           />
         </label>
@@ -155,12 +155,12 @@ function EmptyState({ hasQuizzes, search }: { hasQuizzes: boolean; search: strin
   return (
     <div className="px-5 py-12 text-center">
       <p className="text-sm font-semibold text-text-primary">
-        {hasQuizzes ? (search ? `No quizzes match “${search}”` : "Nothing here yet") : "No quizzes yet"}
+        {hasQuizzes ? (search ? `No lessons match “${search}”` : "Nothing here yet") : "No lessons yet"}
       </p>
       <p className="mt-1 text-sm text-text-secondary">
         {hasQuizzes
           ? "Try another search or filter."
-          : "Click “+ New quiz” to make one, or ask Claude to send you one."}
+          : "Click “+ New lesson” to make one, or ask Claude to send you one."}
       </p>
     </div>
   );

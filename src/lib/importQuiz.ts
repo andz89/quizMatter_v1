@@ -214,7 +214,7 @@ export const quizRecipeSchema = z.object({ slides: z.array(slideRecipe).min(1) }
  * the login, not from what Claude writes.
  */
 export const quizDetailsSchema = z.object({
-  title: z.string().trim().min(1).max(120).describe('The quiz title, e.g. "Adding Fractions – Grade 4".'),
+  title: z.string().trim().min(1).max(120).describe('The lesson title, e.g. "Adding Fractions – Grade 4".'),
 });
 
 export type QuizDetails = z.infer<typeof quizDetailsSchema>;
@@ -237,7 +237,7 @@ const READING_TOOLS = new Set(["clock", "digital-clock", "thermometer", "bar-gra
 // Option text longer than this (characters) needs a full-width row (list) instead of a grid cell.
 const LONG_OPTION_CHARS = 25;
 
-const CLAUDE_NOTES = `Write a quiz for my quiz app as JSON. Reply with only the JSON. It must match the JSON Schema at the end.
+const CLAUDE_NOTES = `Write a lesson for my app (quizMatter) as JSON. A lesson is a set of slides: lesson slides that teach, and question slides. Reply with only the JSON. It must match the JSON Schema at the end.
 
 Slide types:
 - "choice": a question with 4 options (A–D). "answer" is the letter of the correct option.
@@ -282,7 +282,7 @@ Arrows that point at part of a picture ("callouts", lesson slides only):
 - On "text-top" lessons the room below the text is wide but not tall, so bring arrows from the left and right. An arrow from the top or bottom takes height and makes the picture smaller.
 
 Design — make every slide colorful and friendly:
-- "background": give every slide a soft, light color (e.g. #FEF3C7, #E0F2FE, #DCFCE7, #FCE7F3, #EDE9FE). Use one color family for the whole quiz and change the shade per slide or per topic. Dark colors are lightened automatically, because the text is dark.
+- "background": give every slide a soft, light color (e.g. #FEF3C7, #E0F2FE, #DCFCE7, #FCE7F3, #EDE9FE). Use one color family for the whole lesson and change the shade per slide or per topic. Dark colors are lightened automatically, because the text is dark.
 - "design": decorations drawn behind everything, placed at a "spot". Pick ones that match the topic (leaves and trees for nature, sparkle and confetti for celebrations, planets for space, clouds for weather, shapes like circle, star or wave for anything) in 2–3 colors that go well with the background.
   - Lesson slides: the 4 corners (big, about 180px; see-through where they sit under text) and "bottom-strip" (a row of small copies along the bottom). Use 2–4 decorations.
   - Question slides: only the 4 corners (small, about 32px, in the slide's edge). Use at most 2.
@@ -291,7 +291,7 @@ Background artwork — each slide can have one of these (or none, just the "back
 - Option 1, "backgroundPattern": a ready-made pattern from the app: ${BACKGROUND_PATTERN_IDS.join(", ")}. It shows as a soft frame around the slide's edges, always at 25% opacity; the middle stays plain in the "background" color. It replaces "design": a slide with a pattern gets no decorations.
 - Option 2, "backgroundSvg": your own full-slide artwork, drawn over "background", behind everything — even behind the question and option cards, so on question slides it shows around them. Use viewBox="0 0 1280 720". Good ideas: soft waves along the bottom, blobs in the corners, a sunburst, a frame. Keep the middle mostly empty so the text stays easy to read.
   - Always 20% opacity: the app shows your artwork at 20%, so draw it in full, bright colors and let the app soften it.
-- Mix them across the quiz: patterns on some slides, your own artwork or decorations on others.
+- Mix them across the lesson: patterns on some slides, your own artwork or decorations on others.
 
 Your own drawings (SVG) — for design only:
 - In "design", give "svg" instead of "asset" to draw your own decoration for a spot (square viewBox, e.g. "0 0 100 100").

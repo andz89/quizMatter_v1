@@ -35,7 +35,7 @@ export function EditorTopBar() {
       <input
         value={title}
         onChange={(e) => setQuizTitle(e.target.value)}
-        placeholder="Untitled quiz"
+        placeholder="Untitled lesson"
         className="rounded-input px-2 py-1 text-[15px] font-semibold text-text-primary outline-none hover:bg-bg-page focus:bg-bg-page"
       />
 
@@ -78,7 +78,7 @@ function BackToQuizzesLink() {
   return (
     <Link
       href="/"
-      title="My quizzes"
+      title="My lessons"
       onClick={(e) => {
         const { quiz, savedQuiz } = useEditorStore.getState();
         if (quiz !== savedQuiz && !confirm("You have unsaved changes. Leave without saving?")) e.preventDefault();
@@ -165,7 +165,7 @@ function ImportButtons() {
 
   return (
     <div className="ml-auto flex items-center">
-      <button type="button" onClick={copyFormat} title="Copy the quiz format to paste into Claude" className={textButtonClass}>
+      <button type="button" onClick={copyFormat} title="Copy the lesson format to paste into Claude" className={textButtonClass}>
         {copied ? "Copied!" : "Copy format"}
       </button>
       <button type="button" onClick={pasteFromClipboard} title="Add slides from JSON you copied (e.g. Claude's reply)" className={textButtonClass}>

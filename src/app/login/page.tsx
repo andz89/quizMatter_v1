@@ -31,7 +31,7 @@ export default function LoginPage() {
   return (
     <main className="flex flex-1 items-center justify-center px-4">
       <form onSubmit={logIn} className="w-full max-w-sm rounded-card border border-border-default bg-bg-surface px-5 py-6">
-        <h1 className="mb-5 text-base font-semibold text-text-primary">Log in to Quiz Builder</h1>
+        <h1 className="mb-5 text-base font-semibold text-text-primary">Log in to quizMatter</h1>
 
         <label className="mb-1 block text-[11px] font-bold tracking-[0.05em] text-text-header uppercase">Email</label>
         <input

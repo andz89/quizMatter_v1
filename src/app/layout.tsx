@@ -8,8 +8,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Quiz Builder",
-  description: "A Canva-style editor for building quiz slide decks.",
+  title: "quizMatter",
+  description: "Build lessons with quizzes built in.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

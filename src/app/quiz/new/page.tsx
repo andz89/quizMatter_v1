@@ -27,10 +27,10 @@ export default async function NewQuizFromClaudePage({ searchParams }: PageProps<
         <div className="w-full max-w-sm rounded-card border border-border-default bg-bg-surface px-5 py-6">
           <h1 className="mb-2 text-base font-semibold text-text-primary">This link has expired</h1>
           <p className="mb-5 text-sm text-text-secondary">
-            Quizzes from Claude stay for 24 hours. Ask Claude to send the quiz again.
+            Lessons from Claude stay for 24 hours. Ask Claude to send the lesson again.
           </p>
           <Link href="/" className="text-sm font-semibold text-accent-green">
-            Back to my quizzes
+            Back to my lessons
           </Link>
         </div>
       </main>

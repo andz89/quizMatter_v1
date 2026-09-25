@@ -40,7 +40,7 @@ function createSampleSlide(): Slide {
   };
 }
 
-export function createBlankQuiz(title = "Untitled quiz"): Quiz {
+export function createBlankQuiz(title = "Untitled lesson"): Quiz {
   const now = Date.now();
   return {
     id: createId(),

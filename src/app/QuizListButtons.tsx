@@ -18,7 +18,7 @@ export function NewQuizButton() {
       await saveQuizToDb(quiz);
       router.push(`/quiz/${quiz.id}`);
     } catch {
-      alert("Couldn't create the quiz. Please try again.");
+      alert("Couldn't create the lesson. Please try again.");
       setIsCreating(false);
     }
   };
@@ -30,7 +30,7 @@ export function NewQuizButton() {
       disabled={isCreating}
       className="rounded-button bg-accent-navy px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
     >
-      {isCreating ? "Creating…" : "+ New quiz"}
+      {isCreating ? "Creating…" : "+ New lesson"}
     </button>
   );
 }

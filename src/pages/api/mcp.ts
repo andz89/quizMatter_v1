@@ -7,8 +7,8 @@ import { saveDraft } from "@/lib/drafts";
 
 /**
  * The MCP server Claude chat connects to (added in claude.ai as a custom connector with this URL).
- * Claude writes a quiz, `send_quiz` checks it and stores it as a draft, and Claude hands the user a
- * link that opens the draft in the editor as a new quiz. Nothing here touches the user's saved quizzes, so it
+ * Claude writes a lesson, `send_lesson` checks it and stores it as a draft, and Claude hands the user a
+ * link that opens the draft in the editor as a new lesson. Nothing here touches the user's saved quizzes, so it
  * needs no login — the proxy lets this path through. Instead it asks for a shared secret (below).
  *
  * It's a Pages Router API route (not an App Router route.ts) because the quiz importer imports
@@ -18,24 +18,24 @@ function createServer(appUrl: string) {
   const server = new McpServer({ name: "quizmatter", version: "1.0.0" });
 
   server.registerTool(
-    "get_quiz_format",
+    "get_lesson_format",
     {
-      description: "Returns the JSON format for Quiz Builder slides, with notes and an example. Call this before send_quiz.",
+      description: "Returns the JSON format for quizMatter lesson slides, with notes and an example. Call this before send_lesson.",
       annotations: { readOnlyHint: true },
     },
     async () => ({ content: [{ type: "text", text: getClaudeFormat() }] }),
   );
 
   server.registerTool(
-    "send_quiz",
+    "send_lesson",
     {
       description:
-        "Sends a new quiz to Quiz Builder and returns a link for the user. The link opens it in the editor as a new quiz, " +
-        "which the user checks and saves. `slides` must follow the format from get_quiz_format. " +
+        "Sends a new lesson (teaching slides and/or questions) to quizMatter and returns a link for the user. The link opens it in the editor as a new lesson, " +
+        "which the user checks and saves. `slides` must follow the format from get_lesson_format. " +
         "If something is wrong, the errors come back — fix them and send again.",
       inputSchema: {
-        details: quizDetailsSchema.describe("About the quiz as a whole."),
-        slides: z.array(z.unknown()).describe("The slides array, in the format from get_quiz_format."),
+        details: quizDetailsSchema.describe("About the lesson as a whole."),
+        slides: z.array(z.unknown()).describe("The slides array, in the format from get_lesson_format."),
       },
     },
     async ({ details, slides }) => {
@@ -43,7 +43,7 @@ function createServer(appUrl: string) {
       // (and draws the background patterns, which can't be drawn on Cloudflare).
       const result = buildSlides({ slides }, { drawPatterns: false });
       if ("errors" in result) {
-        return { isError: true, content: [{ type: "text", text: `The quiz has mistakes. Fix them and send again:\n\n${result.errors.join("\n")}` }] };
+        return { isError: true, content: [{ type: "text", text: `The lesson has mistakes. Fix them and send again:\n\n${result.errors.join("\n")}` }] };
       }
       const draftId = await saveDraft({ details, slides });
       const link = `${appUrl}/quiz/new?draft=${draftId}`;
@@ -51,7 +51,7 @@ function createServer(appUrl: string) {
         content: [
           {
             type: "text",
-            text: `Sent ${slides.length} slides. Give the user this link: ${link}\nIt opens "${details.title}" as a new quiz in the editor; nothing is saved until they click Save. The link works for 24 hours.`,
+            text: `Sent ${slides.length} slides. Give the user this link: ${link}\nIt opens "${details.title}" as a new lesson in the editor; nothing is saved until they click Save. The link works for 24 hours.`,
           },
         ],
       };
