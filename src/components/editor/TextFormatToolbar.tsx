@@ -1,14 +1,16 @@
 "use client";
 
+import { useState } from "react";
 import { useEditorState, type Editor } from "@tiptap/react";
-import { useEditorStore } from "@/lib/store";
+import { useEditorStore, type TextTarget } from "@/lib/store";
 import { DEFAULT_TEXT_COLOR } from "@/lib/richText";
-import { SIDE_CONTAINER_ID } from "@/lib/constants";
+import { OPTION_FONT_SIZE, QUESTION_FONT_SIZE, SIDE_CONTAINER_ID, TEXT_BOX_FONT_SIZE } from "@/lib/constants";
+import type { Quiz } from "@/lib/schema";
 import { EraserIcon } from "@/components/icons/EraserIcon";
 
 type Align = "left" | "center" | "right";
 
-/** Bold / italic / underline / align / color bar, shown in the header while typing in a text box. */
+/** Size / bold / italic / underline / align / color bar, shown in the header while typing in a text box. */
 export function TextFormatToolbar({ editor }: { editor: Editor }) {
   const isColorPanelOpen = useEditorStore((s) => s.isColorPanelOpen);
   const toggleColorPanel = useEditorStore((s) => s.toggleColorPanel);
@@ -47,6 +49,10 @@ export function TextFormatToolbar({ editor }: { editor: Editor }) {
       data-keep-container-selection="true"
       className="absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center gap-0.5 rounded-button border border-border-default bg-bg-surface p-1"
     >
+      <FontSizePicker />
+
+      <Divider />
+
       <ToolButton title="Bold (Ctrl+B)" active={state.bold} onClick={() => editor.chain().focus().toggleBold().run()}>
         <span className="font-bold">B</span>
       </ToolButton>
@@ -127,6 +133,77 @@ function ToolButton({
       {children}
     </button>
   );
+}
+
+// Sizes offered in the list; − and + step between them. All within FONT_SIZE_RANGE (see schema.ts).
+const FONT_SIZES = [12, 14, 16, 18, 20, 24, 28, 32, 36, 40, 44, 48, 56, 64, 72, 80, 96];
+
+/**
+ * − / size / + for the text being typed in (the question, one option, or a text box). The size is
+ * the largest the text gets: it still shrinks to fit its box when it's too long.
+ */
+function FontSizePicker() {
+  const target = useEditorStore((s) => s.activeTextTarget);
+  const size = useEditorStore((s) => (s.activeTextTarget ? chosenFontSize(s.quiz, s.activeTextTarget) : null));
+  const setTextFontSize = useEditorStore((s) => s.setTextFontSize);
+  const [isListOpen, setIsListOpen] = useState(false);
+  if (!target || size === null) return null;
+
+  const smaller = FONT_SIZES.findLast((option) => option < size);
+  const bigger = FONT_SIZES.find((option) => option > size);
+  const choose = (next: number | undefined) => {
+    if (next !== undefined) setTextFontSize(target, next);
+    setIsListOpen(false);
+  };
+
+  return (
+    <div className="relative flex items-center">
+      <ToolButton title="Smaller text" active={false} onClick={() => choose(smaller)}>
+        <span className="text-base leading-none">−</span>
+      </ToolButton>
+      <button
+        type="button"
+        onClick={() => setIsListOpen(!isListOpen)}
+        title="Text size (it still shrinks to fit its box)"
+        className="h-8 min-w-10 rounded-dropdown px-1.5 text-sm font-semibold tabular-nums text-text-primary hover:bg-bg-page"
+      >
+        {size}
+      </button>
+      <ToolButton title="Bigger text" active={false} onClick={() => choose(bigger)}>
+        <span className="text-base leading-none">+</span>
+      </ToolButton>
+
+      {isListOpen && (
+        <div className="absolute top-full left-1/2 z-30 mt-2 flex max-h-72 w-20 -translate-x-1/2 flex-col overflow-y-auto rounded-dropdown border border-border-default bg-bg-surface p-1">
+          {FONT_SIZES.map((option) => (
+            <button
+              key={option}
+              type="button"
+              onClick={() => choose(option)}
+              className={`rounded-dropdown py-1.5 text-sm tabular-nums ${
+                option === size ? "bg-accent-navy font-semibold text-white" : "text-text-primary hover:bg-bg-page"
+              }`}
+            >
+              {option}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** The size chosen for a text, or its default when none was chosen. null if the text is gone. */
+function chosenFontSize(quiz: Quiz, target: TextTarget): number | null {
+  const slide = quiz.slides.find((s) => s.id === target.slideId);
+  if (!slide) return null;
+  if (target.kind === "question") return slide.questionFontSize ?? QUESTION_FONT_SIZE.max;
+  if (target.kind === "option") {
+    const option = slide.options.find((o) => o.id === target.optionId);
+    return option ? (option.fontSize ?? OPTION_FONT_SIZE.max) : null;
+  }
+  const element = slide.elements.find((el) => el.id === target.elementId);
+  return element ? (element.text?.fontSize ?? TEXT_BOX_FONT_SIZE.max) : null;
 }
 
 function Divider() {

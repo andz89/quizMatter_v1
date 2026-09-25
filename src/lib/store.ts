@@ -41,6 +41,12 @@ const MAX_HISTORY = 100;
 const HISTORY_GROUP_MS = 500;
 
 /** Applies `updater` to the one slide matching `slideId` and bumps the quiz's updatedAt — the shape every mutation below needs. */
+/** A text on the canvas that can be typed in: the question, one option, or a text box element. */
+export type TextTarget =
+  | { kind: "question"; slideId: string }
+  | { kind: "option"; slideId: string; optionId: string }
+  | { kind: "textBox"; slideId: string; elementId: string };
+
 function updateSlide(quiz: Quiz, slideId: string, updater: (slide: Slide) => Slide): Quiz {
   return {
     ...quiz,
@@ -199,6 +205,9 @@ interface EditorState {
 
   // Title and the other lesson details (grade, subject…), edited in the top bar and the Details panel.
   setLessonDetails: (patch: Partial<LessonDetails>) => void;
+  // Private/published, saved right away (the whole lesson, so others see what the teacher sees).
+  // On failure it switches back. Resolves true if the save worked.
+  setPublished: (isPublished: boolean) => Promise<boolean>;
 
   zoomIn: () => void;
   zoomOut: () => void;
@@ -230,7 +239,11 @@ interface EditorState {
 
   // The text editor the user is typing in right now, so the header can show its format toolbar.
   activeTextEditor: Editor | null;
-  setActiveTextEditor: (editor: Editor | null) => void;
+  // Which text that editor is typing in, so the format toolbar can change its font size.
+  activeTextTarget: TextTarget | null;
+  setActiveTextEditor: (editor: Editor | null, target?: TextTarget | null) => void;
+  // Sets the chosen font size (the largest it auto-fits to) of a question, option or text box.
+  setTextFontSize: (target: TextTarget, fontSize: number) => void;
 
   // `position`, when given, is the exact drop point (in the container's own coordinate space) to
   // center the new element on, instead of the container's center.
@@ -659,6 +672,17 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set({ quiz: { ...quiz, ...patch, updatedAt: Date.now() } });
   },
 
+  setPublished: async (isPublished) => {
+    const { quiz, saveStatus, setLessonDetails, saveQuiz } = get();
+    if (saveStatus === "saving") return false;
+    const wasPublished = quiz.isPublished;
+    setLessonDetails({ isPublished });
+    await saveQuiz();
+    if (get().saveStatus !== "error") return true;
+    setLessonDetails({ isPublished: wasPublished });
+    return false;
+  },
+
   zoomIn: () => set((state) => ({ zoom: Math.min(MAX_ZOOM, +(state.zoom + ZOOM_STEP).toFixed(2)) })),
   zoomOut: () => set((state) => ({ zoom: Math.max(MIN_ZOOM, +(state.zoom - ZOOM_STEP).toFixed(2)) })),
   resetZoom: () => set({ zoom: 1 }),
@@ -747,12 +771,30 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     })),
 
   activeTextEditor: null,
+  activeTextTarget: null,
   // Leaving a text box with no shape selected closes the color panel — nothing is left for it to color.
-  setActiveTextEditor: (editor) =>
+  setActiveTextEditor: (editor, target = null) =>
     set((state) => ({
       activeTextEditor: editor,
+      activeTextTarget: editor ? target : null,
       isColorPanelOpen: editor || state.selectedElementIds.length > 0 ? state.isColorPanelOpen : false,
     })),
+
+  setTextFontSize: (target, fontSize) => {
+    const { quiz } = get();
+    set({
+      quiz: updateSlide(quiz, target.slideId, (s) => {
+        if (target.kind === "question") return { ...s, questionFontSize: fontSize };
+        if (target.kind === "option") {
+          return { ...s, options: s.options.map((o) => (o.id === target.optionId ? { ...o, fontSize } : o)) as typeof s.options };
+        }
+        return {
+          ...s,
+          elements: s.elements.map((el) => (el.id === target.elementId ? { ...el, text: { html: el.text?.html ?? "", fontSize } } : el)),
+        };
+      }),
+    });
+  },
 
   addElement: (slideId, assetId, containerId = null, position) => {
     const { quiz } = get();

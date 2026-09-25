@@ -2,7 +2,7 @@
 
 import { useSortable } from "@dnd-kit/sortable";
 import { useEditorStore, selectedIdsOn } from "@/lib/store";
-import { OPTION_LABELS, getContainerBounds, type BoxLayout } from "@/lib/constants";
+import { autoFitRange, OPTION_FONT_SIZE, OPTION_LABELS, getContainerBounds, type BoxLayout } from "@/lib/constants";
 import { useElementDropTarget } from "@/lib/useElementDropTarget";
 import { EditableText } from "./EditableText";
 import { GripIcon } from "@/components/icons/GripIcon";
@@ -82,7 +82,7 @@ export function OptionCard({ slideId, option, index, isCorrect, elements, box }:
         </div>
       </div>
 
-      {/* The ✓/A button, inside the card's top-left corner, above any pictures in the card. */}
+      {/* The ✓/A button, just outside the card on the left, centered up and down. */}
       <button
         type="button"
         onClick={(e) => {
@@ -90,7 +90,7 @@ export function OptionCard({ slideId, option, index, isCorrect, elements, box }:
           setCorrectOption(slideId, option.id);
         }}
         title="Mark as correct answer"
-        className="absolute left-1.5 top-1.5 z-20 flex h-10 w-10 items-center justify-center rounded-full border-2 bg-white text-lg font-bold transition-colors"
+        className="absolute right-full top-1/2 z-20 mr-2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border-2 bg-white text-lg font-bold transition-colors"
         style={{
           borderColor: isCorrect ? "var(--accent-green)" : "var(--border-default)",
           color: isCorrect ? "var(--accent-green)" : "#000000",
@@ -99,16 +99,15 @@ export function OptionCard({ slideId, option, index, isCorrect, elements, box }:
         {isCorrect ? "✓" : OPTION_LABELS[index]}
       </button>
 
-      {/* pl-7 keeps the text clear of the corner ✓/A button. */}
-      <div className="h-full w-full pl-7">
+      <div className="h-full w-full">
         <EditableText
           text={option.text}
           html={option.html}
           onChange={(text, html) => updateOption(slideId, option.id, text, html)}
           // An option that's just a picture needs no hint, which would only sit behind the picture.
           placeholder={boundElements.length ? "" : `Option ${OPTION_LABELS[index]}`}
-          minFontSize={22}
-          maxFontSize={44}
+          target={{ kind: "option", slideId, optionId: option.id }}
+          {...autoFitRange(OPTION_FONT_SIZE, option.fontSize)}
           className="text-text-primary"
         />
       </div>

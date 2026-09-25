@@ -14,9 +14,20 @@ export const SIDE_CONTAINER_ID = "side";
 // dataTransfer type used to drag an element asset from the Elements panel onto a question/option box.
 export const ELEMENT_DRAG_MIME = "application/x-quizbuilder-element";
 
-// A text box's font grows or shrinks between these sizes (px) to fill the box — the same range as
-// the question box, so they match.
+// Each kind of text shrinks between these font sizes (px) to fit its box. `max` is the size it shows
+// at when the user hasn't chosen one; text boxes match the question box.
+export const QUESTION_FONT_SIZE = { min: 22, max: 40 };
+export const OPTION_FONT_SIZE = { min: 22, max: 44 };
 export const TEXT_BOX_FONT_SIZE = { min: 22, max: 40 };
+
+/**
+ * The auto-fit limits for a text: the size the user chose (if any) is the largest it gets, and the
+ * smallest drops along with a small choice, so picking 16 shrinks from 16 instead of jumping to 22.
+ */
+export function autoFitRange(defaults: { min: number; max: number }, chosen?: number) {
+  const maxFontSize = chosen ?? defaults.max;
+  return { minFontSize: Math.min(defaults.min, maxFontSize), maxFontSize };
+}
 
 // Lowest opacity (percent) an element can be set to, so it never fully disappears.
 export const OPACITY_MIN = 5;

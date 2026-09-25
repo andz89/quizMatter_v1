@@ -1,26 +1,53 @@
 import { createClient } from "@/lib/supabase/server";
-import { DRAFT_LIFETIME_MS, listDrafts, type DraftSummary } from "@/lib/drafts";
+import { listDrafts, type DraftSummary } from "@/lib/drafts";
+import { joinParts, slideCountLabel, timeAgo } from "@/lib/format";
+import { slideSchema, type Slide } from "@/lib/schema";
 import { LogoutButton, NewQuizButton } from "./QuizListButtons";
-import { QuizList, type QuizRow } from "./QuizList";
+import { LessonHome } from "./LessonHome";
+import type { LessonCardData } from "./LessonCard";
 
-export default async function QuizListPage() {
+// How many published lessons from other teachers the home page shows.
+const OTHERS_LIMIT = 20;
+
+// Each lesson's first slide only (for the card's picture), not all of them, to keep the page light.
+const CARD_COLUMNS =
+  "id, title, grade, subject, author, is_published, updated_at, slides(count), first_slide:slides(data, position)";
+
+export default async function HomePage() {
   const supabase = await createClient();
-  const [{ data: quizzes, error }, drafts] = await Promise.all([
+  const { data: claims } = await supabase.auth.getClaims();
+  const myId = claims?.claims.sub ?? "";
+
+  const [mine, others, drafts] = await Promise.all([
     supabase
       .from("quizzes")
-      .select("id, title, grade, subject, is_published, updated_at, slides(count)").order("updated_at", { ascending: false }),
+      .select(CARD_COLUMNS)
+      .eq("owner_id", myId)
+      .order("updated_at", { ascending: false })
+      .order("position", { referencedTable: "first_slide" })
+      .limit(1, { referencedTable: "first_slide" }),
+    supabase
+      .from("quizzes")
+      .select(CARD_COLUMNS)
+      .eq("is_published", true)
+      .neq("owner_id", myId)
+      .order("updated_at", { ascending: false })
+      .order("position", { referencedTable: "first_slide" })
+      .limit(1, { referencedTable: "first_slide" })
+      .limit(OTHERS_LIMIT),
     listDrafts(),
   ]);
-  if (error) throw error;
+  if (mine.error) throw mine.error;
+  if (others.error) throw others.error;
 
-  const rows = buildRows(quizzes, drafts);
+  const { myCards, otherCards } = buildCards(mine.data, others.data, drafts);
 
   return (
-    <main className="mx-auto w-full max-w-4xl px-4 py-10 sm:py-14">
+    <main className="mx-auto w-full max-w-6xl px-4 py-10 sm:py-14">
       <header className="mb-6 flex flex-wrap items-center gap-3">
         <div>
-          <h1 className="text-base font-semibold text-text-primary">My lessons</h1>
-          <p className="mt-0.5 text-sm text-text-secondary">Your saved lessons, and the ones Claude sent you.</p>
+          <h1 className="text-base font-semibold text-text-primary">Lessons</h1>
+          <p className="mt-0.5 text-sm text-text-secondary">Your lessons, and the ones other teachers published.</p>
         </div>
         <div className="ml-auto flex items-center gap-2">
           <LogoutButton />
@@ -28,73 +55,68 @@ export default async function QuizListPage() {
         </div>
       </header>
 
-      <QuizList rows={rows} />
+      <LessonHome myCards={myCards} otherCards={otherCards} />
     </main>
   );
 }
 
-type SavedQuiz = {
+type CardQuiz = {
   id: string;
   title: string;
   grade: string;
   subject: string;
+  author: string;
   is_published: boolean;
   updated_at: string;
   slides: { count: number }[];
+  first_slide: { data: unknown }[];
 };
 
-/** Saved quizzes and Claude's drafts as one list, newest first. */
-function buildRows(quizzes: SavedQuiz[], drafts: DraftSummary[]): QuizRow[] {
+/** My lessons and Claude's drafts (newest first), and other teachers' published lessons, as cards. */
+function buildCards(mine: CardQuiz[], others: CardQuiz[], drafts: DraftSummary[]) {
   const now = Date.now();
-  const savedIds = new Set(quizzes.map((quiz) => quiz.id));
-  return [
-    ...quizzes.map((quiz) => {
-      const updatedAt = Date.parse(quiz.updated_at);
-      return {
-        id: quiz.id,
-        title: quiz.title || "Untitled lesson",
-        meta: joinParts([quiz.grade, quiz.subject, quiz.is_published && "Published"]),
-        status: "saved" as const,
-        slideCount: quiz.slides[0]?.count ?? 0,
-        sortTime: updatedAt,
-        dateLabel: timeAgo(updatedAt, now),
-      };
-    }),
-    // A draft whose quiz is already saved is done (the saved quiz took the draft's id — see /quiz/new).
+  const savedIds = new Set(mine.map((quiz) => quiz.id));
+  const myCards: (LessonCardData & { sortTime: number })[] = [
+    ...mine.map((quiz) => ({
+      ...toCard(quiz, `/quiz/${quiz.id}`, now),
+      badge: quiz.is_published ? ("published" as const) : undefined,
+      sortTime: Date.parse(quiz.updated_at),
+    })),
+    // Claude's drafts that aren't saved yet (see /lessons). Their slides are only a recipe, so no picture.
     ...drafts
       .filter((draft) => !savedIds.has(draft.id))
       .map((draft) => ({
         id: draft.id,
+        href: `/quiz/new?draft=${draft.id}`,
         title: draft.title || "Untitled lesson",
-        meta: joinParts([draft.grade, draft.subject]),
-        status: "draft" as const,
-        slideCount: draft.slideCount,
+        meta: joinParts([draft.grade, draft.subject, slideCountLabel(draft.slideCount), timeAgo(draft.createdAt, now)]),
+        firstSlide: null,
+        badge: "draft" as const,
         sortTime: draft.createdAt,
-        dateLabel: timeAgo(draft.createdAt, now),
-        note: `From Claude · not saved yet · ${expiresIn(draft.createdAt + DRAFT_LIFETIME_MS - now)}`,
       })),
   ].sort((a, b) => b.sortTime - a.sortTime);
+
+  const otherCards = others.map((quiz) => ({
+    ...toCard(quiz, `/lesson/${quiz.id}`, now),
+    byline: quiz.author ? `By ${quiz.author}` : undefined,
+  }));
+
+  return { myCards, otherCards };
 }
 
-/** "Grade 4 · Mathematics", skipping the parts that aren't filled in. */
-function joinParts(parts: (string | false | null)[]): string {
-  return parts.filter(Boolean).join(" · ");
+function toCard(quiz: CardQuiz, href: string, now: number): LessonCardData {
+  const slideCount = quiz.slides[0]?.count ?? 0;
+  return {
+    id: quiz.id,
+    href,
+    title: quiz.title || "Untitled lesson",
+    meta: joinParts([quiz.grade, quiz.subject, slideCountLabel(slideCount), timeAgo(Date.parse(quiz.updated_at), now)]),
+    firstSlide: parseSlide(quiz.first_slide[0]?.data),
+  };
 }
 
-// Worked out here on the server so the page shows the same text before and after it loads in the browser.
-function timeAgo(time: number, now: number): string {
-  const minutes = Math.floor((now - time) / 60_000);
-  if (minutes < 1) return "Just now";
-  if (minutes < 60) return `${minutes} min ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours} hr ago`;
-  const days = Math.floor(hours / 24);
-  if (days === 1) return "Yesterday";
-  if (days < 7) return `${days} days ago`;
-  return new Date(time).toLocaleDateString("en-US", { dateStyle: "medium" });
-}
-
-function expiresIn(ms: number): string {
-  const hours = Math.floor(ms / 3_600_000);
-  return hours >= 1 ? `expires in ${hours} hr` : "expires soon";
+/** The slide, checked against the schema. A slide in an old or broken shape just shows no picture. */
+function parseSlide(data: unknown): Slide | null {
+  const result = slideSchema.safeParse(data);
+  return result.success ? result.data : null;
 }

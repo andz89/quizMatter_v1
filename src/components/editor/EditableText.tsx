@@ -4,6 +4,7 @@ import { useState } from "react";
 import { EditorContent } from "@tiptap/react";
 import { useCanvasTextEditor } from "@/lib/useCanvasTextEditor";
 import { textToHtml } from "@/lib/richText";
+import type { TextTarget } from "@/lib/store";
 
 interface EditableTextProps {
   text: string;
@@ -11,6 +12,7 @@ interface EditableTextProps {
   html: string | undefined;
   onChange: (text: string, html: string) => void;
   placeholder: string;
+  target: TextTarget;
   minFontSize: number;
   maxFontSize: number;
   className?: string;
@@ -21,6 +23,7 @@ export function EditableText({
   html,
   onChange,
   placeholder,
+  target,
   minFontSize,
   maxFontSize,
   className,
@@ -32,6 +35,7 @@ export function EditableText({
   const { editor, ref, fontSize } = useCanvasTextEditor({
     content: html ?? textToHtml(text),
     editStart,
+    target,
     minFontSize,
     maxFontSize,
     editorClass: "h-full",

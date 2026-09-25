@@ -28,6 +28,20 @@ Keep the code:
 
 Validate all input data with zod before saving it to Supabase — from the editor, forms, Claude (the MCP server), or anywhere else. Parse it with the matching zod schema right before the insert/update/rpc call, and don't save anything that fails. Put limits (like maximum text length) in the zod schema, so they're checked in one place.
 
+# Loading Spinner
+
+Whenever the user waits for something (opening a quiz, loading a page, saving, any slow action), show a spinner — always.
+
+The app has exactly ONE spinner component, in `src/components/Spinner.tsx`. Always reuse it. Never add a second spinner, a different spinner style, or an inline copy of its markup. If it needs a new size or color, add an option to that one component instead.
+
+# Top Loading Line
+
+When the user clicks something that opens another page, show a thin line at the very top of the screen that grows from left to right while they wait, like YouTube — and it must show at once, on the click, not after the server answers.
+
+- The app has exactly ONE top line component, in `src/components/TopLoadingBar.tsx` (its animation is `--animate-top-bar` in `globals.css`). Always reuse it. Never build a second one or add a package for it.
+- For links, put `src/components/LinkPending.tsx` inside the `<Link>`. It uses Next.js's `useLinkStatus` to show the top line (and, if asked, the Spinner) the moment the link is clicked.
+- Every page that loads slowly also gets a `loading.tsx` that shows the top line and the Spinner.
+
 # Communication Style
 
 When explaining things to the user (in chat replies, comments, or docs), use plain, simple, basic English — short words and short sentences over technical jargon. If a difficult or technical term is unavoidable, add a simpler synonym right after it and give a concrete example. For instance: "memoize (means: remember a result so it doesn't have to be recalculated) — e.g. caching a math answer instead of redoing the calculation every time."

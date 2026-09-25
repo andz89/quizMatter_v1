@@ -471,9 +471,11 @@ export function SvgElementItem({ slideId, element, allElements, isSelected, boun
         {asset?.isTextBox ? (
           <TextBoxContent
             html={element.text?.html ?? ""}
+            fontSize={element.text?.fontSize}
+            target={{ kind: "textBox", slideId, elementId: element.id }}
             color={element.color}
             editStart={editStart}
-            onChange={(html) => updateElement(slideId, element.id, { text: { html } })}
+            onChange={(html) => updateElement(slideId, element.id, { text: { ...element.text, html } })}
             onStopEditing={() => setEditStart(null)}
           />
         ) : (

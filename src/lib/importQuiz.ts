@@ -37,7 +37,15 @@ import {
   getNumberLineValue,
   CUSTOM_SVG_ID,
 } from "./svgLibrary";
-import { DETAIL_MAX_LENGTH, GRADES, MAX_REFERENCE_LINKS, referenceSchema, type Slide, type SvgElement } from "./schema";
+import {
+  DETAIL_MAX_LENGTH,
+  FONT_SIZE_RANGE,
+  GRADES,
+  MAX_REFERENCE_LINKS,
+  referenceSchema,
+  type Slide,
+  type SvgElement,
+} from "./schema";
 
 type Asset = NonNullable<ReturnType<typeof getElementAsset>>;
 
@@ -166,6 +174,10 @@ const common = {
   design: z.array(decorationRecipe).max(6).default([]).describe("Decorations behind everything."),
 };
 
+// A text's font size (px). The text still shrinks to fit its box, so this is the largest it gets.
+const fontSize = whole(FONT_SIZE_RANGE.min, FONT_SIZE_RANGE.max);
+const fontSizeNote = "Largest font size in px; long text still shrinks to fit. Leave out unless the user asks for bigger or smaller text.";
+
 const slideRecipe = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("choice"),
@@ -177,7 +189,9 @@ const slideRecipe = z.discriminatedUnion("type", [
         "grid = 2×2 options; list = 4 rows; list-side = 4 rows with a tall picture box beside them. Leave out to let the app pick.",
       ),
     question: z.string(),
+    questionFontSize: fontSize.optional().describe(`The question. ${fontSizeNote}`),
     options: z.tuple([z.string(), z.string(), z.string(), z.string()]).describe("Options A, B, C, D in order."),
+    optionFontSize: fontSize.optional().describe(`All 4 options. ${fontSizeNote}`),
     answer: z.enum(OPTION_LABELS).describe("Letter of the correct option."),
     elements,
   }),
@@ -185,6 +199,7 @@ const slideRecipe = z.discriminatedUnion("type", [
     type: z.literal("short-answer"),
     ...common,
     question: z.string(),
+    questionFontSize: fontSize.optional().describe(`The question. ${fontSizeNote}`),
     answer: z.string().describe("The answer the student should give."),
     elements,
   }),
@@ -200,7 +215,9 @@ const slideRecipe = z.discriminatedUnion("type", [
           "title-only = a big centered title with pictures below (no text).",
       ),
     title: z.string().optional().describe("Short heading, shown in bold."),
+    titleFontSize: fontSize.optional().describe(`The title. ${fontSizeNote}`),
     text: z.string().optional().describe("The lesson or instructions. Keep it short: 1–4 sentences. \\n starts a new paragraph."),
+    textFontSize: fontSize.optional().describe(`The text. ${fontSizeNote}`),
     elements,
   }),
 ]);
@@ -267,6 +284,8 @@ Slide types:
   - teach before the questions (explain the idea with a picture),
   - give instructions for a new kind of question,
   - start a class discussion: ask an open question with no right answer ("Which fruit do you like best? Why?", "Where do you see fractions at home?").
+
+Text sizes: every text sizes itself to fit its box, so normally leave the font sizes out. Only set them ("questionFontSize", "optionFontSize", "titleFontSize", "textFontSize", 12 to 96 px) when the user asks for bigger or smaller text, e.g. big text for young learners. Long text still shrinks to fit.
 
 Which layout for a choice slide (leave "layout" out and the app picks with these same rules):
 - Read one tool (clock, thermometer, bar graph, protractor, base-ten blocks) → "list-side", the tool in "side".
@@ -418,13 +437,18 @@ function buildSlide(recipe: SlideRecipe, drawPatterns: boolean, reportError: (me
   }
 
   if (recipe.type === "choice") {
-    const options = blank.options.map((option, i) => ({ ...option, text: recipe.options[i] })) as Slide["options"];
+    const options = blank.options.map((option, i) => ({
+      ...option,
+      text: recipe.options[i],
+      fontSize: recipe.optionFontSize,
+    })) as Slide["options"];
     const layout = recipe.layout ?? pickLayout(recipe.options, recipe.elements);
     slide = {
       ...slide,
       layout,
       question: recipe.question,
       questionHeight: questionHeightFor(recipe.question),
+      questionFontSize: recipe.questionFontSize,
       options,
       correctOptionId: options[OPTION_LABELS.indexOf(recipe.answer)].id,
       // Grid/list slides only show the side box (as a strip) once it's turned on.
@@ -439,6 +463,7 @@ function buildSlide(recipe: SlideRecipe, drawPatterns: boolean, reportError: (me
       ...slide,
       question: recipe.question,
       questionHeight: questionHeightFor(recipe.question),
+      questionFontSize: recipe.questionFontSize,
       correctAnswer: recipe.answer,
     };
   }
@@ -451,9 +476,11 @@ function buildSlide(recipe: SlideRecipe, drawPatterns: boolean, reportError: (me
   const textBoxes: SvgElement[] = [];
   if (recipe.type === "lesson" && lesson?.title) {
     const align = recipe.layout === "title-only" ? "center" : "left";
-    textBoxes.push(textBox(lesson.title, styledHtml(recipe.title!, { bold: true, align })));
+    textBoxes.push(textBox(lesson.title, styledHtml(recipe.title!, { bold: true, align }), recipe.titleFontSize));
   }
-  if (recipe.type === "lesson" && lesson?.text) textBoxes.push(textBox(lesson.text, textToHtml(recipe.text!)));
+  if (recipe.type === "lesson" && lesson?.text) {
+    textBoxes.push(textBox(lesson.text, textToHtml(recipe.text!), recipe.textFontSize));
+  }
 
   // The area a box's pictures are placed in: the lesson's picture area, or the box itself.
   const areaOf = (containerId: string | null): Rect =>
@@ -632,9 +659,9 @@ function lessonAreas(recipe: LessonRecipe): { title: Rect | null; text: Rect | n
   return { title, text, pictures: { x: LESSON_MARGIN, y, width, height: bottom - y } };
 }
 
-function textBox(rect: Rect, html: string): SvgElement {
+function textBox(rect: Rect, html: string, fontSize?: number): SvgElement {
   const asset = ELEMENT_LIBRARY.find((a) => a.isTextBox)!;
-  return { id: createId(), assetId: asset.id, ...rect, color: asset.defaultColor!, containerId: null, text: { html } };
+  return { id: createId(), assetId: asset.id, ...rect, color: asset.defaultColor!, containerId: null, text: { html, fontSize } };
 }
 
 /** Plain text as text-box HTML, optionally bold and/or aligned (titles, callout labels). */

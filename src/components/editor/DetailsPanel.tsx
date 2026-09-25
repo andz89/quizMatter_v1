@@ -1,20 +1,26 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
+import { toast } from "sonner";
 import { useEditorStore } from "@/lib/store";
 import { createClient } from "@/lib/supabase/client";
 import { DETAIL_MAX_LENGTH, GRADES, MAX_REFERENCE_LINKS, isWebLink, referenceSchema, type LessonDetails } from "@/lib/schema";
 import { PanelLabel } from "./PanelControls";
 import { CloseIcon } from "@/components/icons/CloseIcon";
+import { Spinner } from "@/components/Spinner";
 
 /**
  * Sidebar panel for the lesson as a whole: title, description, grade, subject, curriculum,
  * learning competency, author, references, and private/published. All optional. Edits count as unsaved
- * changes until Save, like any other edit.
+ * changes until Save, like any other edit — except private/published, which saves right away.
  */
 export function DetailsPanel() {
   const closeDetailsPanel = useEditorStore((s) => s.closeDetailsPanel);
   const setLessonDetails = useEditorStore((s) => s.setLessonDetails);
+  const setPublished = useEditorStore((s) => s.setPublished);
+  const isSaving = useEditorStore((s) => s.saveStatus === "saving");
+  // Which button was clicked, so only that one shows the spinner.
+  const [pendingVisibility, setPendingVisibility] = useState<boolean | null>(null);
   const quiz = useEditorStore((s) => s.quiz);
   const publishedBy = useLoggedInEmail();
 
@@ -25,6 +31,16 @@ export function DetailsPanel() {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [closeDetailsPanel]);
+
+  const changeVisibility = async (isPublished: boolean) => {
+    if (isPublished === quiz.isPublished) return;
+    setPendingVisibility(isPublished);
+    const saved = await setPublished(isPublished);
+    setPendingVisibility(null);
+    if (!saved) toast.error("Couldn't change it. Please try again.");
+    else if (isPublished) toast.success("Lesson published — other teachers can see it now.");
+    else toast.success("Lesson is private now.");
+  };
 
   const textField = (key: keyof typeof DETAIL_MAX_LENGTH, label: string, placeholder: string, multiline = false) => (
     <Field label={label}>
@@ -100,13 +116,15 @@ export function DetailsPanel() {
             <button
               key={label}
               type="button"
-              onClick={() => setLessonDetails({ isPublished: value })}
-              className={`rounded-dropdown py-1.5 text-sm transition-colors ${
+              onClick={() => changeVisibility(value)}
+              disabled={isSaving}
+              className={`flex items-center justify-center gap-2 rounded-dropdown py-1.5 text-sm transition-colors disabled:cursor-default ${
                 quiz.isPublished === value
                   ? "bg-bg-surface font-semibold text-text-primary shadow-[0_0_0_1px_var(--border-default)]"
                   : "text-text-secondary hover:text-text-primary"
               }`}
             >
+              {pendingVisibility === value && <Spinner size={14} />}
               {label}
             </button>
           ))}

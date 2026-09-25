@@ -1,6 +1,6 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useEditor, type Editor } from "@tiptap/react";
-import { useEditorStore } from "@/lib/store";
+import { useEditorStore, type TextTarget } from "@/lib/store";
 import { useAutoFitText } from "@/lib/useAutoFitText";
 import { TEXT_EXTENSIONS } from "@/lib/richText";
 
@@ -9,6 +9,8 @@ interface CanvasTextEditorOptions {
   content: string;
   // Where the user double-clicked to start typing (screen coordinates); null = not typing.
   editStart: { x: number; y: number } | null;
+  // Which text this is, so the format toolbar can change its font size.
+  target: TextTarget;
   minFontSize: number;
   maxFontSize: number;
   // Extra classes on the editable area itself.
@@ -25,6 +27,7 @@ interface CanvasTextEditorOptions {
 export function useCanvasTextEditor({
   content,
   editStart,
+  target,
   minFontSize,
   maxFontSize,
   editorClass = "",
@@ -33,6 +36,11 @@ export function useCanvasTextEditor({
 }: CanvasTextEditorOptions) {
   const setActiveTextEditor = useEditorStore((s) => s.setActiveTextEditor);
   const { ref, fontSize, remeasure } = useAutoFitText<HTMLDivElement>({ minFontSize, maxFontSize });
+  // Read when the editor gets focus; kept in a ref so that handler always sees the latest one.
+  const targetRef = useRef(target);
+  useEffect(() => {
+    targetRef.current = target;
+  });
 
   const editor = useEditor({
     extensions: TEXT_EXTENSIONS,
@@ -62,7 +70,7 @@ export function useCanvasTextEditor({
       remeasure();
     },
     // The header shows the format toolbar for whichever text has focus.
-    onFocus: ({ editor }) => setActiveTextEditor(editor),
+    onFocus: ({ editor }) => setActiveTextEditor(editor, targetRef.current),
     // Only clear it if it's still this text — when jumping straight into another one, that one may
     // already have claimed it.
     onBlur: ({ editor }) => {

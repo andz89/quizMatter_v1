@@ -2,7 +2,9 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { discardDraft } from "./actions";
+import { LinkPending } from "@/components/LinkPending";
+import { GlobeIcon } from "@/components/icons/GlobeIcon";
+import { discardDraft } from "../actions";
 
 export type QuizRow = {
   id: string;
@@ -11,6 +13,8 @@ export type QuizRow = {
   meta: string;
   // "draft" = sent by Claude, not saved yet (it lives in the drafts database for a day).
   status: "saved" | "draft";
+  // Shown after the meta line as a green "Published" with a globe icon.
+  isPublished?: boolean;
   slideCount: number;
   sortTime: number;
   dateLabel: string;
@@ -32,7 +36,7 @@ export function QuizList({ rows }: { rows: QuizRow[] }) {
 
   const query = search.trim().toLowerCase();
   const shown = rows.filter(
-    (row) => (filter === "all" || row.status === filter) && `${row.title} ${row.meta}`.toLowerCase().includes(query),
+    (row) => (filter === "all" || row.status === filter) && `${row.title} ${row.meta} ${row.isPublished ? "published" : ""}`.toLowerCase().includes(query),
   );
   const countOf = (id: Filter) => (id === "all" ? rows.length : rows.filter((row) => row.status === id).length);
 
@@ -110,9 +114,21 @@ function QuizListRow({ row }: { row: QuizRow }) {
       <div className="min-w-0">
         <Link href={href} className="block truncate text-sm text-text-primary after:absolute after:inset-0">
           {row.title}
+          {/* Over the row's last column (the trash spot), so nothing moves. */}
+          <LinkPending spinnerClassName="absolute top-1/2 right-5 h-7 w-7 -translate-y-1/2 rounded-dropdown bg-bg-page" />
         </Link>
-        {(row.meta || row.note) && (
-          <p className="mt-0.5 truncate text-[13px] text-text-secondary">{[row.meta, row.note].filter(Boolean).join(" · ")}</p>
+        {(row.meta || row.note || row.isPublished) && (
+          <p className="mt-0.5 flex items-center gap-1.5 truncate text-[13px] text-text-secondary">
+            {row.meta}
+            {row.meta && row.isPublished && " ·"}
+            {row.isPublished && (
+              <span className="inline-flex items-center gap-1 font-semibold text-accent-green">
+                <GlobeIcon size={12} />
+                Published
+              </span>
+            )}
+            {row.note && `${row.meta || row.isPublished ? "· " : ""}${row.note}`}
+          </p>
         )}
         {/* On phones the other columns are hidden, so their facts go under the title. */}
         <p className="mt-0.5 text-[13px] text-text-secondary sm:hidden">

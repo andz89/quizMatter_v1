@@ -10,6 +10,9 @@ import {
   hasShapeStrip,
   hasShapeBox,
   ADD_SHAPE_BOX_ROW_HEIGHT,
+  autoFitRange,
+  OPTION_FONT_SIZE,
+  QUESTION_FONT_SIZE,
 } from "@/lib/constants";
 import type { Slide } from "@/lib/schema";
 import { svgDataUrl } from "@/lib/svgLibrary";
@@ -71,8 +74,7 @@ export function SlideStaticView({ slide, number, revealAnswer = false, hideBorde
           <FitText
             text={slide.question || "Untitled question"}
             html={slide.questionHtml}
-            minFontSize={22}
-            maxFontSize={40}
+            {...autoFitRange(QUESTION_FONT_SIZE, slide.questionFontSize)}
             className="font-normal text-text-primary"
           />
           <StaticElementView elements={slide.elements.filter((el) => el.containerId === QUESTION_CONTAINER_ID)} />
@@ -119,9 +121,9 @@ export function SlideStaticView({ slide, number, revealAnswer = false, hideBorde
                   }}
                 >
                   <span
-                    // Inside the card's top-left corner, like the editor, above any pictures in the card.
+                    // Just outside the card on the left, centered up and down.
                     // White fill so the letter stays readable on any slide background.
-                    className="absolute left-1.5 top-1.5 z-20 flex h-10 w-10 items-center justify-center rounded-full border-2 bg-white text-lg font-bold"
+                    className="absolute right-full top-1/2 z-20 mr-2 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full border-2 bg-white text-2xl font-bold"
                     style={{
                       borderColor: isCorrect ? "var(--accent-green)" : lineColor,
                       color: isCorrect ? "var(--accent-green)" : "#000000",
@@ -129,9 +131,13 @@ export function SlideStaticView({ slide, number, revealAnswer = false, hideBorde
                   >
                     {isCorrect ? "✓" : OPTION_LABELS[index]}
                   </span>
-                  {/* pl-7 keeps the text clear of the corner label, like the editor. */}
-                  <div className="h-full w-full pl-7">
-                    <FitText text={option.text} html={option.html} minFontSize={22} maxFontSize={44} className="text-text-primary" />
+                  <div className="h-full w-full">
+                    <FitText
+                      text={option.text}
+                      html={option.html}
+                      {...autoFitRange(OPTION_FONT_SIZE, option.fontSize)}
+                      className="text-text-primary"
+                    />
                   </div>
                   <StaticElementView elements={slide.elements.filter((el) => el.containerId === option.id)} />
                 </div>

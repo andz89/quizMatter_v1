@@ -48,6 +48,17 @@
   --radius-button: 10px;
   --radius-dropdown: 8px;
   --radius-input: 8px;
+
+  /* The top loading line: grows fast at first, then slows down and stops at 90%, like YouTube. */
+  --animate-top-bar: top-bar 8s cubic-bezier(0.1, 0.8, 0.2, 1) forwards;
+  @keyframes top-bar {
+    from {
+      width: 0;
+    }
+    to {
+      width: 90%;
+    }
+  }
 }
 
 /* Font comes from Tailwind's base styles (html uses --font-sans), so body doesn't set it again. */

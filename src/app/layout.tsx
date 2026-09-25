@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
+import { Toaster } from "sonner";
 import "./globals.css";
 
 const inter = Inter({
@@ -15,7 +16,24 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className={`${inter.variable} h-full antialiased`}>
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        {children}
+        {/* Pop-up messages (toast() from "sonner"), styled like the app's cards. */}
+        <Toaster
+          position="bottom-center"
+          toastOptions={{
+            style: {
+              background: "var(--bg-surface)",
+              border: "1px solid var(--border-default)",
+              borderRadius: "var(--radius-card)",
+              color: "var(--text-primary)",
+              fontFamily: "inherit",
+              fontSize: "14px",
+              boxShadow: "none",
+            },
+          }}
+        />
+      </body>
     </html>
   );
 }

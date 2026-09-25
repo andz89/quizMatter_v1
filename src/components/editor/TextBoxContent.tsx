@@ -2,10 +2,14 @@
 
 import { EditorContent } from "@tiptap/react";
 import { useCanvasTextEditor } from "@/lib/useCanvasTextEditor";
-import { TEXT_BOX_FONT_SIZE } from "@/lib/constants";
+import { autoFitRange, TEXT_BOX_FONT_SIZE } from "@/lib/constants";
+import type { TextTarget } from "@/lib/store";
 
 interface TextBoxContentProps {
   html: string;
+  // Chosen font size (the largest it auto-fits to). Missing = the default.
+  fontSize: number | undefined;
+  target: TextTarget;
   // Text color for words that don't have their own color.
   color: string;
   // Where the user double-clicked to start typing (screen coordinates); null = not editing.
@@ -15,12 +19,12 @@ interface TextBoxContentProps {
 }
 
 /** The text inside a text box element on the canvas. Read-only until double-clicked, then typeable. */
-export function TextBoxContent({ html, color, editStart, onChange, onStopEditing }: TextBoxContentProps) {
+export function TextBoxContent({ html, fontSize: chosenFontSize, target, color, editStart, onChange, onStopEditing }: TextBoxContentProps) {
   const { editor, ref, fontSize } = useCanvasTextEditor({
     content: html,
     editStart,
-    minFontSize: TEXT_BOX_FONT_SIZE.min,
-    maxFontSize: TEXT_BOX_FONT_SIZE.max,
+    target,
+    ...autoFitRange(TEXT_BOX_FONT_SIZE, chosenFontSize),
     onUpdate: (editor) => onChange(editor.isEmpty ? "" : editor.getHTML()),
     onStopEditing,
   });

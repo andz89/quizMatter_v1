@@ -1,10 +1,17 @@
 import { z } from "zod";
 
+// The font sizes (px) a user can choose for a text. The chosen size is the largest the text gets;
+// it still shrinks to fit its box when it's too long.
+export const FONT_SIZE_RANGE = { min: 12, max: 96 };
+const fontSizeSchema = z.number().int().min(FONT_SIZE_RANGE.min).max(FONT_SIZE_RANGE.max);
+
 export const optionSchema = z.object({
   id: z.string(),
   text: z.string(),
   // Styled version of `text` (bold, color…), as HTML from the text editor. Missing on older quizzes.
   html: z.string().optional(),
+  // Chosen font size. Missing = OPTION_FONT_SIZE.max.
+  fontSize: fontSizeSchema.optional(),
 });
 
 export const svgElementSchema = z.object({
@@ -47,8 +54,9 @@ export const svgElementSchema = z.object({
   barGraph: z.object({ bars: z.array(z.object({ label: z.string(), value: z.number() })) }).optional(),
   // Only used by the protractor: the angle between its two lines, 0–180°.
   protractor: z.object({ angle: z.number() }).optional(),
-  // Only used by the text box: its styled text, as HTML from the text editor. Empty string = no text.
-  text: z.object({ html: z.string() }).optional(),
+  // Only used by the text box: its styled text, as HTML from the text editor (empty string = no
+  // text), and its chosen font size (missing = TEXT_BOX_FONT_SIZE.max).
+  text: z.object({ html: z.string(), fontSize: fontSizeSchema.optional() }).optional(),
   // Only used by custom drawings (assetId CUSTOM_SVG_ID, e.g. drawn by Claude): the SVG markup. Shown
   // as an image, so nothing inside it can run.
   svg: z.string().optional(),
@@ -66,6 +74,8 @@ export const slideSchema = z.object({
   question: z.string(),
   // Styled version of `question`, as HTML from the text editor. Missing on older quizzes.
   questionHtml: z.string().optional(),
+  // Chosen font size for the question. Missing = QUESTION_FONT_SIZE.max.
+  questionFontSize: fontSizeSchema.optional(),
   // grid = 2x2 options; list = 4 stacked rows; list-side = 4 rows on the left and a box for
   // elements on the right.
   layout: z.enum(["grid", "list", "list-side"]),
@@ -155,7 +165,7 @@ export const quizSchema = z.object({
   author: z.string().max(DETAIL_MAX_LENGTH.author),
   // What the lesson is based on (links, or book / module names), as many as the user adds.
   referenceLinks: z.array(referenceSchema).max(MAX_REFERENCE_LINKS),
-  // Private (only the owner sees it) or published. What publishing shares isn't built yet.
+  // Private (only the owner sees it) or published (other teachers see it on their home page and can copy it).
   isPublished: z.boolean(),
   slides: z.array(slideSchema),
   createdAt: z.number(),

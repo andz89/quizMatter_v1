@@ -1,7 +1,7 @@
 "use client";
 
 import { useEditorStore, selectedIdsOn } from "@/lib/store";
-import { QUESTION_CONTAINER_ID, QUESTION_CONTAINER_WIDTH } from "@/lib/constants";
+import { autoFitRange, QUESTION_CONTAINER_ID, QUESTION_CONTAINER_WIDTH, QUESTION_FONT_SIZE } from "@/lib/constants";
 import { useElementDropTarget } from "@/lib/useElementDropTarget";
 import { EditableText } from "./EditableText";
 import { SvgElementItem } from "./SvgElementItem";
@@ -47,8 +47,8 @@ export function QuestionContainer({ slide }: { slide: Slide }) {
         html={slide.questionHtml}
         onChange={(text, html) => updateQuestion(slide.id, text, html)}
         placeholder="Type your question…"
-        minFontSize={22}
-        maxFontSize={40}
+        target={{ kind: "question", slideId: slide.id }}
+        {...autoFitRange(QUESTION_FONT_SIZE, slide.questionFontSize)}
         className="font-normal text-text-primary"
       />
 
