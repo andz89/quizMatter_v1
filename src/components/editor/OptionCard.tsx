@@ -71,7 +71,7 @@ export function OptionCard({ slideId, option, index, isCorrect, elements, box }:
           slide's margin or the grid's wide column gap. */}
       <div
         onClick={(e) => e.stopPropagation()}
-        className="absolute right-full top-2.5 z-10 flex h-10 items-center pr-12"
+        className="absolute right-full top-4 z-10 flex h-10 items-center pr-12"
       >
         <div
           {...attributes}
@@ -91,7 +91,7 @@ export function OptionCard({ slideId, option, index, isCorrect, elements, box }:
           setCorrectOption(slideId, option.id);
         }}
         title="Mark as correct answer"
-        className="absolute right-full top-2.5 z-20 mr-2 flex h-10 w-10 items-center justify-center rounded-full border-2 bg-white text-lg font-bold transition-colors"
+        className="absolute right-full top-4 z-20 mr-2 flex h-10 w-10 items-center justify-center rounded-full border-2 bg-white text-lg font-bold transition-colors"
         style={{
           borderColor: isCorrect ? "var(--accent-green)" : "var(--border-default)",
           color: isCorrect ? "var(--accent-green)" : "#000000",

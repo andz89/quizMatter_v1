@@ -55,7 +55,8 @@ export function SlideStaticView({ slide, number, revealAnswer = false, fullscree
   const sideElements = slide.elements.filter((el) => el.containerId === SIDE_CONTAINER_ID);
   return (
     <div
-      className="relative flex select-none flex-col gap-6 overflow-hidden rounded-card border bg-bg-surface p-10"
+      // Full-screen trims the top and bottom padding so the content uses more of the screen.
+      className={`relative flex select-none flex-col gap-6 overflow-hidden rounded-card border bg-bg-surface ${fullscreen ? "px-10 py-4" : "p-10"}`}
       style={{ width: CANVAS_WIDTH, height: CANVAS_HEIGHT, borderColor: lineColor, ...getSlideBackgroundStyle(slide) }}
     >
       {slide.type !== "lesson" && (
@@ -121,7 +122,7 @@ export function SlideStaticView({ slide, number, revealAnswer = false, fullscree
                     // Just outside the card on its left, 10px below its top.
                     // Solid fill so the letter stays readable on any slide background. Full screen uses a soft
                     // tint (pale navy, or pale green once revealed) with no ring, so the label stands out gently.
-                    className="absolute right-full top-2.5 z-20 mr-2 flex h-12 w-12 items-center justify-center rounded-full border-2 bg-white text-2xl font-bold"
+                    className="absolute right-full top-4 z-20 mr-2 flex h-12 w-12 items-center justify-center rounded-full border-2 bg-white text-2xl font-bold"
                     style={{
                       borderColor: fullscreen ? "transparent" : isCorrect ? "var(--accent-green)" : lineColor,
                       background: fullscreen ? (isCorrect ? "#E3F2EA" : "#ECEDF3") : undefined,

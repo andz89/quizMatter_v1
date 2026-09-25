@@ -8,8 +8,8 @@ import { AnswerModal } from "@/components/editor/AnswerModal";
 
 // Clicks in the left 25% of the screen go to the previous slide.
 const PREV_ZONE = 0.25;
-// Empty space kept above and below the slide, so the top buttons and the page counter sit fully on the dark background.
-const EDGE_SPACE = 64;
+// The top buttons hide after the mouse has been still this long.
+const HIDE_BUTTONS_AFTER_MS = 3000;
 
 export function PresentationView() {
   const quiz = useEditorStore((s) => s.quiz);
@@ -22,6 +22,7 @@ export function PresentationView() {
   const [scale, setScale] = useState(1);
   // The slide whose answer is showing. Moving to another slide hides it again.
   const [revealedSlideId, setRevealedSlideId] = useState<string | null>(null);
+  const [showButtons, setShowButtons] = useState(true);
 
   const slide = quiz.slides[presentationIndex];
   const isAnswerShown = revealedSlideId === slide?.id;
@@ -33,9 +34,7 @@ export function PresentationView() {
     if (!el) return;
 
     const fit = () => {
-      const availableWidth = el.clientWidth;
-      const availableHeight = el.clientHeight - EDGE_SPACE * 2;
-      setScale(Math.min(availableWidth / CANVAS_WIDTH, availableHeight / CANVAS_HEIGHT));
+      setScale(Math.min(el.clientWidth / CANVAS_WIDTH, el.clientHeight / CANVAS_HEIGHT));
     };
 
     // Watch the container itself: entering fullscreen can finish after this view mounts,
@@ -62,6 +61,21 @@ export function PresentationView() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [nextSlide, prevSlide, exitPresentation]);
 
+  // Show the top buttons while the mouse moves; hide them once it has been still for a while.
+  useEffect(() => {
+    let timer = setTimeout(() => setShowButtons(false), HIDE_BUTTONS_AFTER_MS);
+    const handleMouseMove = () => {
+      setShowButtons(true);
+      clearTimeout(timer);
+      timer = setTimeout(() => setShowButtons(false), HIDE_BUTTONS_AFTER_MS);
+    };
+    window.addEventListener("mousemove", handleMouseMove);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener("mousemove", handleMouseMove);
+    };
+  }, []);
+
   useEffect(() => {
     const handleFullscreenChange = () => {
       if (!document.fullscreenElement) exitPresentation();
@@ -83,6 +97,8 @@ export function PresentationView() {
 
   if (!slide) return null;
 
+  const buttonsClass = `transition-opacity duration-300 ${showButtons ? "opacity-100" : "pointer-events-none opacity-0"}`;
+
   return (
     <div
       ref={containerRef}
@@ -97,7 +113,7 @@ export function PresentationView() {
           handleExit();
         }}
         title="Exit presentation (Esc)"
-        className="absolute right-5 top-5 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-black/30 text-white/80 hover:bg-black/50 hover:text-white"
+        className={`absolute right-5 top-12 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-black/30 text-white/80 hover:bg-black/50 hover:text-white ${buttonsClass}`}
       >
         <CloseIcon />
       </button>
@@ -111,7 +127,7 @@ export function PresentationView() {
             setRevealedSlideId(isChoice && isAnswerShown ? null : slide.id);
           }}
           title={isChoice && isAnswerShown ? "Hide answer" : "Show answer"}
-          className="absolute right-16 top-5 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-black/30 text-white/80 hover:bg-black/50 hover:text-white"
+          className={`absolute right-16 top-12 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-black/30 text-white/80 hover:bg-black/50 hover:text-white ${buttonsClass}`}
         >
           <EyeIcon />
         </button>
