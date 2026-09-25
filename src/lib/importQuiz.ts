@@ -210,7 +210,8 @@ export const quizRecipeSchema = z.object({ slides: z.array(slideRecipe).min(1) }
 /**
  * Details about the quiz as a whole, which Claude fills in when it sends a quiz (see /api/mcp).
  * New details (description, grade, subject, curriculum, learning competency) go here once the
- * quiz can store them.
+ * quiz can store them. The author doesn't: it's the logged-in user who saves the quiz, taken from
+ * the login, not from what Claude writes.
  */
 export const quizDetailsSchema = z.object({
   title: z.string().trim().min(1).max(120).describe('The quiz title, e.g. "Adding Fractions – Grade 4".'),
