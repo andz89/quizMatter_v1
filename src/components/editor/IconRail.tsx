@@ -5,14 +5,20 @@ import { useEditorStore } from "@/lib/store";
 import { ElementsIcon } from "@/components/icons/ElementsIcon";
 import { GridIcon } from "@/components/icons/GridIcon";
 import { BackgroundIcon } from "@/components/icons/BackgroundIcon";
+import { DetailsIcon } from "@/components/icons/DetailsIcon";
 
-/** Canva-style narrow icon bar: "Elements" and "Background" expand their sidebar panels, "Slides" opens the thumbnail modal. */
+/**
+ * Canva-style narrow icon bar: "Elements", "Background" and "Details" expand their sidebar panels,
+ * "Slides" opens the thumbnail modal.
+ */
 export function IconRail() {
   const isElementsPanelOpen = useEditorStore((s) => s.isElementsPanelOpen);
   const toggleElementsPanel = useEditorStore((s) => s.toggleElementsPanel);
   const openGridView = useEditorStore((s) => s.openGridView);
   const isBackgroundPanelOpen = useEditorStore((s) => s.isBackgroundPanelOpen);
   const toggleBackgroundPanel = useEditorStore((s) => s.toggleBackgroundPanel);
+  const isDetailsPanelOpen = useEditorStore((s) => s.isDetailsPanelOpen);
+  const toggleDetailsPanel = useEditorStore((s) => s.toggleDetailsPanel);
   const slideCount = useEditorStore((s) => s.quiz.slides.length);
 
   return (
@@ -25,6 +31,9 @@ export function IconRail() {
       </RailButton>
       <RailButton label="Background" active={isBackgroundPanelOpen} onClick={toggleBackgroundPanel}>
         <BackgroundIcon size={20} />
+      </RailButton>
+      <RailButton label="Details" active={isDetailsPanelOpen} onClick={toggleDetailsPanel}>
+        <DetailsIcon size={20} />
       </RailButton>
     </aside>
   );

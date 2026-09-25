@@ -9,7 +9,9 @@ export default async function QuizPage({ params }: PageProps<"/quiz/[id]">) {
 
   const { data, error } = await supabase
     .from("quizzes")
-    .select("id, title, created_at, updated_at, slides(data, position)")
+    .select(
+      "id, title, description, grade, subject, curriculum, learning_competency, author, is_published, created_at, updated_at, slides(data, position)",
+    )
     .eq("id", id)
     .order("position", { referencedTable: "slides" })
     .maybeSingle();
@@ -21,6 +23,13 @@ export default async function QuizPage({ params }: PageProps<"/quiz/[id]">) {
   const quiz = quizSchema.parse({
     id: data.id,
     title: data.title,
+    description: data.description,
+    grade: data.grade,
+    subject: data.subject,
+    curriculum: data.curriculum,
+    learningCompetency: data.learning_competency,
+    author: data.author,
+    isPublished: data.is_published,
     createdAt: Date.parse(data.created_at),
     updatedAt: Date.parse(data.updated_at),
     slides: data.slides.map((slide: { data: unknown }) => slide.data),

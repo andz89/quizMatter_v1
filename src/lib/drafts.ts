@@ -39,13 +39,14 @@ export async function getDraft(id: string): Promise<Draft | null> {
 }
 
 /** What the quiz list shows of a draft. */
-export type DraftSummary = { id: string; title: string; slideCount: number; createdAt: number };
+export type DraftSummary = { id: string; title: string; grade: string; subject: string; slideCount: number; createdAt: number };
 
 /** Every draft that hasn't expired, newest first. */
 export async function listDrafts(): Promise<DraftSummary[]> {
   const { results } = await getCloudflareContext()
     .env.DRAFTS_DB.prepare(
-      `SELECT id, json_extract(recipe, '$.details.title') AS title, json_array_length(recipe, '$.slides') AS slideCount,
+      `SELECT id, json_extract(recipe, '$.details.title') AS title, json_extract(recipe, '$.details.grade') AS grade,
+         json_extract(recipe, '$.details.subject') AS subject, json_array_length(recipe, '$.slides') AS slideCount,
          created_at AS createdAt
        FROM drafts WHERE created_at >= ? ORDER BY created_at DESC`,
     )

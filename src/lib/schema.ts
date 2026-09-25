@@ -95,9 +95,49 @@ export const slideSchema = z.object({
   questionHeight: z.number(),
 });
 
+// The grade a lesson is for ("" = not chosen).
+export const GRADES = [
+  "Kindergarten",
+  "Grade 1",
+  "Grade 2",
+  "Grade 3",
+  "Grade 4",
+  "Grade 5",
+  "Grade 6",
+  "Grade 7",
+  "Grade 8",
+  "Grade 9",
+  "Grade 10",
+  "Grade 11",
+  "Grade 12",
+  "N/A",
+] as const;
+
+// Longest text each lesson detail may have. The zod schema below checks them before saving; the
+// Details panel's inputs use them too, so users can't type past them.
+export const DETAIL_MAX_LENGTH = {
+  title: 120,
+  description: 1000,
+  subject: 80,
+  curriculum: 80,
+  learningCompetency: 1000,
+  author: 120,
+};
+
 export const quizSchema = z.object({
   id: z.string(),
-  title: z.string(),
+  title: z.string().max(DETAIL_MAX_LENGTH.title),
+  // Lesson details, all optional ("" when not filled in).
+  description: z.string().max(DETAIL_MAX_LENGTH.description),
+  grade: z.union([z.enum(GRADES), z.literal("")]),
+  subject: z.string().max(DETAIL_MAX_LENGTH.subject),
+  curriculum: z.string().max(DETAIL_MAX_LENGTH.curriculum),
+  learningCompetency: z.string().max(DETAIL_MAX_LENGTH.learningCompetency),
+  // Who wrote the content: the teacher, a book, another teacher… Not who published it — that's the
+  // lesson's owner (the logged-in user who saved it).
+  author: z.string().max(DETAIL_MAX_LENGTH.author),
+  // Private (only the owner sees it) or published. What publishing shares isn't built yet.
+  isPublished: z.boolean(),
   slides: z.array(slideSchema),
   createdAt: z.number(),
   updatedAt: z.number(),
@@ -108,3 +148,7 @@ export type SvgElement = z.infer<typeof svgElementSchema>;
 export type Slide = z.infer<typeof slideSchema>;
 export type SlideType = NonNullable<Slide["type"]>;
 export type Quiz = z.infer<typeof quizSchema>;
+export type LessonDetails = Pick<
+  Quiz,
+  "title" | "description" | "grade" | "subject" | "curriculum" | "learningCompetency" | "author" | "isPublished"
+>;

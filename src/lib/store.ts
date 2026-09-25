@@ -18,7 +18,7 @@ import {
 import { fitInBox, getOuterEdges } from "./geometry";
 import { withBackground, type BackgroundPatch } from "./slideBackground";
 import { saveQuizToDb } from "./quizzes";
-import type { Quiz, Slide, SlideType, SvgElement } from "./schema";
+import type { LessonDetails, Quiz, Slide, SlideType, SvgElement } from "./schema";
 
 type ElementPatch = Partial<Omit<SvgElement, "id" | "assetId">>;
 
@@ -197,7 +197,8 @@ interface EditorState {
   // Empties the question, every option's text and all elements; keeps the correct answer and layout.
   clearSlide: (slideId: string) => void;
 
-  setQuizTitle: (title: string) => void;
+  // Title and the other lesson details (grade, subject…), edited in the top bar and the Details panel.
+  setLessonDetails: (patch: Partial<LessonDetails>) => void;
 
   zoomIn: () => void;
   zoomOut: () => void;
@@ -273,6 +274,10 @@ interface EditorState {
   isBackgroundPanelOpen: boolean;
   toggleBackgroundPanel: () => void;
   closeBackgroundPanel: () => void;
+
+  isDetailsPanelOpen: boolean;
+  toggleDetailsPanel: () => void;
+  closeDetailsPanel: () => void;
 
   // Which box a placed element is currently being dragged over, while it's being moved from a
   // different box — drives that box's "drop here" highlight. Not part of quiz data.
@@ -649,9 +654,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     });
   },
 
-  setQuizTitle: (title) => {
+  setLessonDetails: (patch) => {
     const { quiz } = get();
-    set({ quiz: { ...quiz, title, updatedAt: Date.now() } });
+    set({ quiz: { ...quiz, ...patch, updatedAt: Date.now() } });
   },
 
   zoomIn: () => set((state) => ({ zoom: Math.min(MAX_ZOOM, +(state.zoom + ZOOM_STEP).toFixed(2)) })),
@@ -940,6 +945,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         isElementsPanelOpen: next,
         isColorPanelOpen: next ? false : state.isColorPanelOpen,
         isBackgroundPanelOpen: next ? false : state.isBackgroundPanelOpen,
+        isDetailsPanelOpen: next ? false : state.isDetailsPanelOpen,
       };
     }),
   closeElementsPanel: () => set({ isElementsPanelOpen: false }),
@@ -952,6 +958,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         isColorPanelOpen: next,
         isElementsPanelOpen: next ? false : state.isElementsPanelOpen,
         isBackgroundPanelOpen: next ? false : state.isBackgroundPanelOpen,
+        isDetailsPanelOpen: next ? false : state.isDetailsPanelOpen,
       };
     }),
   closeColorPanel: () => set({ isColorPanelOpen: false }),
@@ -964,6 +971,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         isColorPanelOpen: next,
         isElementsPanelOpen: next ? false : state.isElementsPanelOpen,
         isBackgroundPanelOpen: next ? false : state.isBackgroundPanelOpen,
+        isDetailsPanelOpen: next ? false : state.isDetailsPanelOpen,
       };
     }),
 
@@ -975,9 +983,23 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         isBackgroundPanelOpen: next,
         isElementsPanelOpen: next ? false : state.isElementsPanelOpen,
         isColorPanelOpen: next ? false : state.isColorPanelOpen,
+        isDetailsPanelOpen: next ? false : state.isDetailsPanelOpen,
       };
     }),
   closeBackgroundPanel: () => set({ isBackgroundPanelOpen: false }),
+
+  isDetailsPanelOpen: false,
+  toggleDetailsPanel: () =>
+    set((state) => {
+      const next = !state.isDetailsPanelOpen;
+      return {
+        isDetailsPanelOpen: next,
+        isElementsPanelOpen: next ? false : state.isElementsPanelOpen,
+        isColorPanelOpen: next ? false : state.isColorPanelOpen,
+        isBackgroundPanelOpen: next ? false : state.isBackgroundPanelOpen,
+      };
+    }),
+  closeDetailsPanel: () => set({ isDetailsPanelOpen: false }),
 
   dragOverContainerId: null,
   setDragOverContainerId: (containerId) => set({ dragOverContainerId: containerId }),

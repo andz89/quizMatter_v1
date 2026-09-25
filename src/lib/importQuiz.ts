@@ -37,7 +37,7 @@ import {
   getNumberLineValue,
   CUSTOM_SVG_ID,
 } from "./svgLibrary";
-import type { Slide, SvgElement } from "./schema";
+import { DETAIL_MAX_LENGTH, GRADES, type Slide, type SvgElement } from "./schema";
 
 type Asset = NonNullable<ReturnType<typeof getElementAsset>>;
 
@@ -208,13 +208,27 @@ const slideRecipe = z.discriminatedUnion("type", [
 export const quizRecipeSchema = z.object({ slides: z.array(slideRecipe).min(1) });
 
 /**
- * Details about the quiz as a whole, which Claude fills in when it sends a quiz (see /api/mcp).
- * New details (description, grade, subject, curriculum, learning competency) go here once the
- * quiz can store them. The author doesn't: it's the logged-in user who saves the quiz, taken from
- * the login, not from what Claude writes.
+ * Details about the lesson as a whole, which Claude fills in when it sends a lesson (see /api/mcp).
+ * All optional. Who published it isn't here: that's the logged-in user who saves the lesson.
  */
 export const quizDetailsSchema = z.object({
-  title: z.string().trim().min(1).max(120).describe('The lesson title, e.g. "Adding Fractions – Grade 4".'),
+  title: z.string().trim().max(DETAIL_MAX_LENGTH.title).optional().describe('The lesson title, e.g. "Adding Fractions".'),
+  description: z.string().trim().max(DETAIL_MAX_LENGTH.description).optional().describe("What the lesson covers, in 1–3 sentences."),
+  grade: z.enum(GRADES).optional(),
+  subject: z.string().trim().max(DETAIL_MAX_LENGTH.subject).optional().describe('e.g. "Mathematics", "Science", "English".'),
+  curriculum: z.string().trim().max(DETAIL_MAX_LENGTH.curriculum).optional().describe('e.g. "MATATAG", "K to 12".'),
+  learningCompetency: z
+    .string()
+    .trim()
+    .max(DETAIL_MAX_LENGTH.learningCompetency)
+    .optional()
+    .describe("The learning competency the lesson targets, with its code if known."),
+  author: z
+    .string()
+    .trim()
+    .max(DETAIL_MAX_LENGTH.author)
+    .optional()
+    .describe("Who wrote the content (a teacher, a book…). Only if the user says so."),
 });
 
 export type QuizDetails = z.infer<typeof quizDetailsSchema>;

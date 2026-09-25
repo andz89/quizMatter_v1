@@ -37,6 +37,6 @@ export default async function NewQuizFromClaudePage({ searchParams }: PageProps<
     );
   }
 
-  const quiz = { ...createBlankQuiz(draft.details.title), id: draftId };
+  const quiz = { ...createBlankQuiz(draft.details), id: draftId };
   return <QuizEditor quiz={quiz} draft={{ slides: draft.slides }} />;
 }

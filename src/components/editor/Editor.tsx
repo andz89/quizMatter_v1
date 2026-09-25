@@ -11,6 +11,7 @@ import { Workspace } from "./Workspace";
 import { ElementsPanel } from "./ElementsPanel";
 import { ColorPanel } from "./ColorPanel";
 import { BackgroundPanel } from "./BackgroundPanel";
+import { DetailsPanel } from "./DetailsPanel";
 import type { Quiz } from "@/lib/schema";
 
 // Only downloaded the first time they're opened, so the editor itself loads faster.
@@ -32,6 +33,7 @@ export function Editor({ quiz, draft }: { quiz: Quiz; draft?: unknown }) {
   const isElementsPanelOpen = useEditorStore((s) => s.isElementsPanelOpen);
   const isColorPanelOpen = useEditorStore((s) => s.isColorPanelOpen);
   const isBackgroundPanelOpen = useEditorStore((s) => s.isBackgroundPanelOpen);
+  const isDetailsPanelOpen = useEditorStore((s) => s.isDetailsPanelOpen);
   const closeColorPanel = useEditorStore((s) => s.closeColorPanel);
   const selectedElementIds = useEditorStore((s) => s.selectedElementIds);
   const clearElementSelection = useEditorStore((s) => s.clearElementSelection);
@@ -88,6 +90,7 @@ export function Editor({ quiz, draft }: { quiz: Quiz; draft?: unknown }) {
         {isElementsPanelOpen && <ElementsPanel />}
         {isColorPanelOpen && <ColorPanel />}
         {isBackgroundPanelOpen && <BackgroundPanel />}
+        {isDetailsPanelOpen && <DetailsPanel />}
         <Workspace />
       </div>
       {isGridViewOpen && <SlideGridModal />}

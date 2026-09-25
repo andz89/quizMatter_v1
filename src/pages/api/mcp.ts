@@ -51,7 +51,7 @@ function createServer(appUrl: string) {
         content: [
           {
             type: "text",
-            text: `Sent ${slides.length} slides. Give the user this link: ${link}\nIt opens "${details.title}" as a new lesson in the editor; nothing is saved until they click Save. The link works for 24 hours.`,
+            text: `Sent ${slides.length} slides. Give the user this link: ${link}\nIt opens "${details.title || "Untitled lesson"}" as a new lesson in the editor; nothing is saved until they click Save. The link works for 24 hours.`,
           },
         ],
       };

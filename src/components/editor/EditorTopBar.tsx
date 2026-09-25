@@ -4,13 +4,14 @@ import { useRef, useState } from "react";
 import Link from "next/link";
 import { buildSlides, getClaudeFormat } from "@/lib/importQuiz";
 import { useEditorStore } from "@/lib/store";
+import { DETAIL_MAX_LENGTH } from "@/lib/schema";
 import { SelectedElementToolbar } from "./SelectedElementToolbar";
 import { TextFormatToolbar } from "./TextFormatToolbar";
 import { ShapeBoxToolbar } from "./ShapeBoxToolbar";
 
 export function EditorTopBar() {
   const title = useEditorStore((s) => s.quiz.title);
-  const setQuizTitle = useEditorStore((s) => s.setQuizTitle);
+  const setLessonDetails = useEditorStore((s) => s.setLessonDetails);
   const startPresentation = useEditorStore((s) => s.startPresentation);
   const undo = useEditorStore((s) => s.undo);
   const redo = useEditorStore((s) => s.redo);
@@ -34,8 +35,9 @@ export function EditorTopBar() {
 
       <input
         value={title}
-        onChange={(e) => setQuizTitle(e.target.value)}
+        onChange={(e) => setLessonDetails({ title: e.target.value })}
         placeholder="Untitled lesson"
+        maxLength={DETAIL_MAX_LENGTH.title}
         className="rounded-input px-2 py-1 text-[15px] font-semibold text-text-primary outline-none hover:bg-bg-page focus:bg-bg-page"
       />
 

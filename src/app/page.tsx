@@ -6,7 +6,9 @@ import { QuizList, type QuizRow } from "./QuizList";
 export default async function QuizListPage() {
   const supabase = await createClient();
   const [{ data: quizzes, error }, drafts] = await Promise.all([
-    supabase.from("quizzes").select("id, title, updated_at, slides(count)").order("updated_at", { ascending: false }),
+    supabase
+      .from("quizzes")
+      .select("id, title, grade, subject, is_published, updated_at, slides(count)").order("updated_at", { ascending: false }),
     listDrafts(),
   ]);
   if (error) throw error;
@@ -31,7 +33,15 @@ export default async function QuizListPage() {
   );
 }
 
-type SavedQuiz = { id: string; title: string; updated_at: string; slides: { count: number }[] };
+type SavedQuiz = {
+  id: string;
+  title: string;
+  grade: string;
+  subject: string;
+  is_published: boolean;
+  updated_at: string;
+  slides: { count: number }[];
+};
 
 /** Saved quizzes and Claude's drafts as one list, newest first. */
 function buildRows(quizzes: SavedQuiz[], drafts: DraftSummary[]): QuizRow[] {
@@ -43,6 +53,7 @@ function buildRows(quizzes: SavedQuiz[], drafts: DraftSummary[]): QuizRow[] {
       return {
         id: quiz.id,
         title: quiz.title || "Untitled lesson",
+        meta: joinParts([quiz.grade, quiz.subject, quiz.is_published && "Published"]),
         status: "saved" as const,
         slideCount: quiz.slides[0]?.count ?? 0,
         sortTime: updatedAt,
@@ -55,6 +66,7 @@ function buildRows(quizzes: SavedQuiz[], drafts: DraftSummary[]): QuizRow[] {
       .map((draft) => ({
         id: draft.id,
         title: draft.title || "Untitled lesson",
+        meta: joinParts([draft.grade, draft.subject]),
         status: "draft" as const,
         slideCount: draft.slideCount,
         sortTime: draft.createdAt,
@@ -62,6 +74,11 @@ function buildRows(quizzes: SavedQuiz[], drafts: DraftSummary[]): QuizRow[] {
         note: `From Claude · not saved yet · ${expiresIn(draft.createdAt + DRAFT_LIFETIME_MS - now)}`,
       })),
   ].sort((a, b) => b.sortTime - a.sortTime);
+}
+
+/** "Grade 4 · Mathematics", skipping the parts that aren't filled in. */
+function joinParts(parts: (string | false | null)[]): string {
+  return parts.filter(Boolean).join(" · ");
 }
 
 // Worked out here on the server so the page shows the same text before and after it loads in the browser.

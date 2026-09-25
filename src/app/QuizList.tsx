@@ -7,6 +7,8 @@ import { discardDraft } from "./actions";
 export type QuizRow = {
   id: string;
   title: string;
+  // Grade, subject… ("" if none), shown under the title and searched too.
+  meta: string;
   // "draft" = sent by Claude, not saved yet (it lives in the drafts database for a day).
   status: "saved" | "draft";
   slideCount: number;
@@ -30,7 +32,7 @@ export function QuizList({ rows }: { rows: QuizRow[] }) {
 
   const query = search.trim().toLowerCase();
   const shown = rows.filter(
-    (row) => (filter === "all" || row.status === filter) && row.title.toLowerCase().includes(query),
+    (row) => (filter === "all" || row.status === filter) && `${row.title} ${row.meta}`.toLowerCase().includes(query),
   );
   const countOf = (id: Filter) => (id === "all" ? rows.length : rows.filter((row) => row.status === id).length);
 
@@ -109,7 +111,9 @@ function QuizListRow({ row }: { row: QuizRow }) {
         <Link href={href} className="block truncate text-sm text-text-primary after:absolute after:inset-0">
           {row.title}
         </Link>
-        {row.note && <p className="mt-0.5 truncate text-[13px] text-text-secondary">{row.note}</p>}
+        {(row.meta || row.note) && (
+          <p className="mt-0.5 truncate text-[13px] text-text-secondary">{[row.meta, row.note].filter(Boolean).join(" · ")}</p>
+        )}
         {/* On phones the other columns are hidden, so their facts go under the title. */}
         <p className="mt-0.5 text-[13px] text-text-secondary sm:hidden">
           {row.slideCount} {row.slideCount === 1 ? "slide" : "slides"} · {row.dateLabel}
