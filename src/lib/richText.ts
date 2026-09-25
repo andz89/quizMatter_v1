@@ -44,6 +44,41 @@ export function textToHtml(text: string): string {
     .join("");
 }
 
+export interface TextStyle {
+  bold?: boolean;
+  italic?: boolean;
+  underline?: boolean;
+  color?: string;
+  align?: "left" | "center" | "right";
+}
+
+/**
+ * Turns plain text with simple marks (e.g. written by Claude) into editor HTML: **bold** and *italic*
+ * words, plus one style for the whole text. The text is escaped first, so it can't carry its own HTML.
+ */
+export function markupToHtml(text: string, { bold, italic, underline, color, align }: TextStyle = {}): string {
+  const inline = (html: string) =>
+    html.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>").replace(/\*(.+?)\*/g, "<em>$1</em>");
+  const pOpen = align && align !== "left" ? `<p style="text-align: ${align}">` : "<p>";
+  return textToHtml(text)
+    .split("</p>")
+    .filter(Boolean)
+    .map((p) => {
+      let html = inline(p.slice("<p>".length));
+      if (color) html = `<span style="color: ${color}">${html}</span>`;
+      if (underline) html = `<u>${html}</u>`;
+      if (italic) html = `<em>${html}</em>`;
+      if (bold) html = `<strong>${html}</strong>`;
+      return `${pOpen}${html}</p>`;
+    })
+    .join("");
+}
+
+/** The words of `markupToHtml`'s text without the ** and * marks. */
+export function stripMarkup(text: string): string {
+  return text.replace(/\*\*(.+?)\*\*/g, "$1").replace(/\*(.+?)\*/g, "$1");
+}
+
 /**
  * Re-builds saved HTML through the editor's own rules, which drops any tag or style the editor
  * doesn't allow — e.g. a <script> or <img> in the saved data comes out as nothing. Uses the
