@@ -952,21 +952,47 @@ interface Row {
 // Most copies of the same picture in one row, so counting is easy (8 apples = 5 + 3), like a ten frame.
 const MAX_SAME_IN_ROW = 5;
 
+// Math signs. Pictures with one of these are an equation (e.g. [1/2 bar] = [2/4 bar]), which reads
+// wrong when it wraps, so it's kept on one row by shrinking — down to 30% of the starting size.
+// That's lower than it sounds: wide pictures start very big (a "large" fraction bar is ~1200px wide),
+// so two bars and an "=" in one row are still ~500px wide each.
+const MATH_SIGN_IDS = new Set(["symbol-plus", "symbol-minus", "symbol-multiply", "symbol-divide", "symbol-equals"]);
+const MIN_EQUATION_SCALE = 0.3;
+
 /**
  * Places the elements left to right, starting a new row when one is full. The rows as a whole are
  * centered top to bottom; each row is centered, or with "right" kept to the box's right half (the
  * left half is for the box's text). If they don't fit, everything shrinks a little and is tried again.
+ * An equation first tries to stay on one row; only if it would get too small does it wrap like the rest.
  */
 function placeInBox(items: Item[], box: Size, align: "center" | "right"): Rect[] {
+  if (items.some((item) => MATH_SIGN_IDS.has(item.assetId))) {
+    const oneRow = placeInRows(items, box, align, { wrap: false, minScale: MIN_EQUATION_SCALE });
+    if (oneRow) return oneRow;
+  }
+  return placeInRows(items, box, align, { wrap: true, minScale: 0.05 })!;
+}
+
+/**
+ * One placing attempt: shrinks until everything fits, down to `minScale`. Without `wrap` everything
+ * stays on one row, and it gives up (null) if that doesn't fit; with `wrap` it places them anyway.
+ */
+function placeInRows(
+  items: Item[],
+  box: Size,
+  align: "center" | "right",
+  { wrap, minScale }: { wrap: boolean; minScale: number },
+): Rect[] | null {
   const areaWidth = align === "right" ? box.width / 2 - GAP : box.width;
   for (let scale = 1; ; scale *= 0.9) {
     const rows = wrapIntoRows(
       items.map((item) => ({ ...item, width: item.width * scale, height: item.height * scale })),
-      areaWidth,
+      wrap ? areaWidth : Infinity,
     );
     const totalHeight = rows.reduce((sum, row) => sum + row.height, 0) + GAP * (rows.length - 1);
     const fits = totalHeight <= box.height && rows.every((row) => row.width <= areaWidth);
-    if (!fits && scale > 0.05) continue;
+    if (!fits && scale > minScale) continue;
+    if (!fits && !wrap) return null;
 
     const rects: Rect[] = [];
     let y = (box.height - totalHeight) / 2;
