@@ -12,12 +12,14 @@
   // Cloudflare creates the DNS record and HTTPS certificate for this domain on deploy.
   "routes": [{ "pattern": "quizmatter.com", "custom_domain": true }],
   // Short-lived drafts that Claude sends through the MCP server (/api/mcp), picked up in the editor.
+  // "remote": local dev (next dev) uses this live database too, so it sees the drafts Claude sent.
   "d1_databases": [
     {
       "binding": "DRAFTS_DB",
       "database_name": "quizmatter-drafts",
       "database_id": "7873e00d-72bd-4d7d-acaf-cc3f74f8e467",
-      "migrations_dir": "d1/migrations"
+      "migrations_dir": "d1/migrations",
+      "remote": true
     }
   ],
   "observability": { "enabled": true }
