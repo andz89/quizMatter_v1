@@ -23,11 +23,11 @@ export const BACKGROUND_COLORS = [
   "#F5F5F4",
 ];
 
-// Text is dark, so backgrounds must stay light (0 = black, 1 = white).
-const MIN_BACKGROUND_LIGHTNESS = 0.85;
 // How solid a pattern is, in percent: faint by default so the text on top stays easy to read.
 export const DEFAULT_PATTERN_OPACITY = 25;
 export const PATTERN_OPACITY_RANGE = { min: 5, max: 100 };
+// Text is dark, so backgrounds must stay light (0 = black, 1 = white).
+const MIN_BACKGROUND_LIGHTNESS = 0.85;
 // What a pattern sits on when the slide has no color of its own (the plain white surface).
 const PLAIN_SLIDE_COLOR = "#FFFFFF";
 

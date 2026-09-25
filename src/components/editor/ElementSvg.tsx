@@ -1,7 +1,7 @@
 import { useId, useLayoutEffect, useRef, useState } from "react";
 import { getAssetViewBox, getElementAsset, svgDataUrl, type RenderSettings } from "@/lib/svgLibrary";
-import { autoFitRange, TEXT_BOX_FONT_SIZE } from "@/lib/constants";
-import { FitText } from "./FitText";
+import { TEXT_BOX_FONT_SIZE } from "@/lib/constants";
+import { SlideText } from "./SlideText";
 
 interface ElementSvgProps {
   assetId: string;
@@ -93,7 +93,7 @@ export function ElementSvg({ assetId, color, settings = {}, onMeasure }: Element
   if (asset.isTextBox && settings.text) {
     return (
       <div className="h-full w-full" style={{ color }}>
-        <FitText text="" html={settings.text.html} {...autoFitRange(TEXT_BOX_FONT_SIZE, settings.text.fontSize)} />
+        <SlideText text="" html={settings.text.html} fontSize={settings.text.fontSize ?? TEXT_BOX_FONT_SIZE} />
       </div>
     );
   }

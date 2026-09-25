@@ -1,13 +1,15 @@
 "use client";
 
+import { useState } from "react";
 import { useEditorStore, selectedIdsOn } from "@/lib/store";
-import { autoFitRange, QUESTION_CONTAINER_ID, QUESTION_CONTAINER_WIDTH, QUESTION_FONT_SIZE } from "@/lib/constants";
+import { QUESTION_CONTAINER_ID, QUESTION_CONTAINER_WIDTH, QUESTION_FONT_SIZE } from "@/lib/constants";
 import { useElementDropTarget } from "@/lib/useElementDropTarget";
 import { EditableText } from "./EditableText";
 import { SvgElementItem } from "./SvgElementItem";
 import { GroupSelectionOverlay } from "./GroupSelectionOverlay";
 import { SnapGuides } from "./SnapGuides";
 import { ResizeHandle } from "./ResizeHandle";
+import { TextOverflowMark } from "./TextOverflowMark";
 import type { Slide } from "@/lib/schema";
 
 export function QuestionContainer({ slide }: { slide: Slide }) {
@@ -17,7 +19,7 @@ export function QuestionContainer({ slide }: { slide: Slide }) {
   // Every slide's question box shares the same id, so also check this is the slide being edited.
   // Only yes/no values, so a click elsewhere doesn't redraw this box.
   const isContainerSelected = useEditorStore(
-    (s) => s.selectedSlideId === slide.id && s.selectedContainerId === QUESTION_CONTAINER_ID
+    (s) => s.selectedSlideId === slide.id && s.selectedContainerIds.includes(QUESTION_CONTAINER_ID)
   );
   const isElementDragOver = useEditorStore(
     (s) => s.selectedSlideId === slide.id && s.dragOverContainerId === QUESTION_CONTAINER_ID
@@ -25,6 +27,7 @@ export function QuestionContainer({ slide }: { slide: Slide }) {
   const selectContainer = useEditorStore((s) => s.selectContainer);
 
   const { isDragOver, dropHandlers } = useElementDropTarget(slide.id, QUESTION_CONTAINER_ID);
+  const [textOverflows, setTextOverflows] = useState(false);
 
   const isSelected = isContainerSelected || isDragOver || isElementDragOver;
   const boundElements = slide.elements.filter((el) => el.containerId === QUESTION_CONTAINER_ID);
@@ -33,12 +36,13 @@ export function QuestionContainer({ slide }: { slide: Slide }) {
   return (
     <div
       data-container-id={QUESTION_CONTAINER_ID}
-      onClick={() => selectContainer(QUESTION_CONTAINER_ID, slide.id)}
+      // Shift+click selects more boxes, to change their text together.
+      onClick={(e) => selectContainer(QUESTION_CONTAINER_ID, slide.id, e.shiftKey)}
       {...dropHandlers}
       className="group/box relative shrink-0 rounded-button border p-4 transition-colors"
       style={{
         height: slide.questionHeight,
-        borderColor: isSelected ? "var(--accent-navy)" : "var(--border-default)",
+        borderColor: isSelected ? "var(--accent-navy)" : "transparent",
         background: isDragOver || isElementDragOver ? "rgba(25, 26, 44, 0.05)" : undefined,
       }}
     >
@@ -48,7 +52,9 @@ export function QuestionContainer({ slide }: { slide: Slide }) {
         onChange={(text, html) => updateQuestion(slide.id, text, html)}
         placeholder="Type your question…"
         target={{ kind: "question", slideId: slide.id }}
-        {...autoFitRange(QUESTION_FONT_SIZE, slide.questionFontSize)}
+        fontSize={slide.questionFontSize ?? QUESTION_FONT_SIZE}
+        onOverflowChange={setTextOverflows}
+        isSelected={isContainerSelected}
         className="font-normal text-text-primary"
       />
 
@@ -67,6 +73,7 @@ export function QuestionContainer({ slide }: { slide: Slide }) {
         <SnapGuides slideId={slide.id} containerId={QUESTION_CONTAINER_ID} />
       </div>
 
+      {textOverflows && <TextOverflowMark />}
       <ResizeHandle height={slide.questionHeight} onResize={(height) => setQuestionHeight(slide.id, height)} />
     </div>
   );

@@ -17,33 +17,25 @@ export const ELEMENT_DRAG_MIME = "application/x-quizbuilder-element";
 // dataTransfer type used to drag a slide (as JSON) from the Lessons panel onto the workspace.
 export const SLIDE_DRAG_MIME = "application/x-quizbuilder-slide";
 
-// Each kind of text shrinks between these font sizes (px) to fit its box. `max` is the size it shows
-// at when the user hasn't chosen one; text boxes match the question box.
-export const QUESTION_FONT_SIZE = { min: 22, max: 40 };
-export const OPTION_FONT_SIZE = { min: 22, max: 44 };
-export const TEXT_BOX_FONT_SIZE = { min: 22, max: 40 };
-
-/**
- * The auto-fit limits for a text: the size the user chose (if any) is the largest it gets, and the
- * smallest drops along with a small choice, so picking 16 shrinks from 16 instead of jumping to 22.
- */
-export function autoFitRange(defaults: { min: number; max: number }, chosen?: number) {
-  const maxFontSize = chosen ?? defaults.max;
-  return { minFontSize: Math.min(defaults.min, maxFontSize), maxFontSize };
-}
+// The font size (px) each kind of text shows at when the user hasn't chosen one. Text never
+// shrinks to fit: too-long text is cut off at its box's edge (the editor marks it in red).
+// Text boxes match the question box.
+export const QUESTION_FONT_SIZE = 40;
+export const OPTION_FONT_SIZE = 44;
+export const TEXT_BOX_FONT_SIZE = 40;
 
 // Lowest opacity (percent) an element can be set to, so it never fully disappears.
 export const OPACITY_MIN = 5;
 
 // The question box and each option card are fixed-size within the fixed CANVAS_WIDTH/HEIGHT layout
 // (p-10 canvas padding, gap-6 between the question, the optional shape strip and the options — or,
-// in grid/list without a strip, the "add shape box" row in place of that gap — gap-x-15 / gap-y-5
-// within the 2x2 options grid (the wider column gap fits the right-hand options' ✓/A + tools column) or gap-3 between the 4 rows of the list; list-side puts the rows and
+// in grid/list without a strip, the "add shape box" row in place of that gap — gap-x-24 / gap-y-5
+// within the 2x2 options grid (the wider column gap fits the right-hand options' grip + ✓/A column) or gap-3 between the 4 rows of the list; list-side puts the rows and
 // the side box in two gap-5 columns) — these mirror that layout so container-bound elements can be
 // positioned relative to their own box.
 const CARD_PADDING = 40;
 const SECTION_GAP = 24;
-const GRID_COLUMN_GAP = 60;
+const GRID_COLUMN_GAP = 96;
 const GRID_ROW_GAP = 20;
 const LIST_GAP = 12;
 const CONTENT_HEIGHT = CANVAS_HEIGHT - CARD_PADDING * 2;
@@ -55,7 +47,7 @@ export type BoxLayout = Pick<Slide, "questionHeight" | "layout" | "hasShapeBox" 
 // Tailwind classes for the options area in each layout (the canvas, thumbnails and presentation
 // all use these, so they can't drift apart). list-side puts this area and the side box in a row.
 export const OPTIONS_GRID_CLASSES: Record<SlideLayout, string> = {
-  grid: "grid-cols-2 grid-rows-2 gap-x-15 gap-y-5",
+  grid: "grid-cols-2 grid-rows-2 gap-x-24 gap-y-5",
   list: "grid-rows-4 gap-3",
   "list-side": "grid-rows-4 gap-3",
 };
@@ -65,9 +57,9 @@ export const QUESTION_CONTAINER_WIDTH = CANVAS_WIDTH - CARD_PADDING * 2;
 export const DEFAULT_QUESTION_HEIGHT = 160;
 export const MIN_QUESTION_HEIGHT = 56;
 
-// The options area is indented from the left (Tailwind pl-5 on OPTIONS_AREA_CLASSES) so each
-// option's ✓/A column, which sits outside the card, doesn't touch the slide's edge.
-const OPTIONS_INDENT = 20;
+// The options area is indented from the left (Tailwind pl-13 on OPTIONS_AREA_CLASSES) so each
+// option's grip + ✓/A label, which sit outside the card, fit inside the slide.
+const OPTIONS_INDENT = 52;
 // Gap between the rows and the side box in the list-side layout (Tailwind gap-5).
 const SIDE_BOX_GAP = 20;
 const OPTIONS_WIDTH = QUESTION_CONTAINER_WIDTH - OPTIONS_INDENT;
@@ -76,7 +68,7 @@ const GRID_OPTION_WIDTH = (OPTIONS_WIDTH - GRID_COLUMN_GAP) / 2;
 const LIST_SIDE_HALF_WIDTH = (OPTIONS_WIDTH - SIDE_BOX_GAP) / 2;
 
 // The row holding the options (and the list-side box). Used by the canvas, thumbnails and presentation.
-export const OPTIONS_AREA_CLASSES = "flex min-h-0 flex-1 gap-5 pl-5";
+export const OPTIONS_AREA_CLASSES = "flex min-h-0 flex-1 gap-5 pl-13";
 // Height of the shape box when it sits as a strip between the question and the options. The teacher
 // can drag it taller or shorter, like the question box; slides without their own height use the default.
 export const DEFAULT_SHAPE_STRIP_HEIGHT = 120;

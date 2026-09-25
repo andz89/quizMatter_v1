@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import Link from "next/link";
 import { buildSlides, getClaudeFormat } from "@/lib/importQuiz";
 import { useEditorStore } from "@/lib/store";
+import { useFormatTexts } from "@/lib/useFormatTexts";
 import { DETAIL_MAX_LENGTH } from "@/lib/schema";
 import { SelectedElementToolbar } from "./SelectedElementToolbar";
 import { TextFormatToolbar } from "./TextFormatToolbar";
@@ -17,7 +18,7 @@ export function EditorTopBar() {
   const redo = useEditorStore((s) => s.redo);
   const canUndo = useEditorStore((s) => s.past.length > 0);
   const canRedo = useEditorStore((s) => s.future.length > 0);
-  const activeTextEditor = useEditorStore((s) => s.activeTextEditor);
+  const formatTexts = useFormatTexts();
   const hasSelectedElements = useEditorStore((s) => s.selectedElementIds.length > 0);
 
   const handlePresent = async () => {
@@ -50,8 +51,8 @@ export function EditorTopBar() {
         </button>
       </div>
 
-      {activeTextEditor ? (
-        <TextFormatToolbar editor={activeTextEditor} />
+      {formatTexts.length > 0 ? (
+        <TextFormatToolbar texts={formatTexts} />
       ) : hasSelectedElements ? (
         <SelectedElementToolbar />
       ) : (

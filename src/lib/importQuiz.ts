@@ -11,9 +11,12 @@ import {
   getContainerBounds,
   getMaxShapeStripHeight,
   OPACITY_MIN,
+  OPTION_FONT_SIZE,
   OPTION_LABELS,
   QUESTION_CONTAINER_WIDTH,
+  QUESTION_FONT_SIZE,
   SIDE_CONTAINER_ID,
+  TEXT_BOX_FONT_SIZE,
 } from "./constants";
 import { textToHtml } from "./richText";
 import { BACKGROUND_PATTERN_IDS, lighten, withBackground } from "./slideBackground";
@@ -154,7 +157,7 @@ const decorationRecipe = z
     svg: svgMarkup.optional().describe("Your own drawing instead of an asset (square viewBox, e.g. 0 0 100 100)."),
     spot: z
       .enum(["top-left", "top-right", "bottom-left", "bottom-right", "bottom-strip"])
-      .describe("Where it goes. bottom-strip (a row of small copies along the bottom) is for lesson slides only."),
+      .describe("Where it goes: a corner, or bottom-strip (a row of small copies along the bottom)."),
     color: hexColor.optional().describe("Leave out to use the picture's own color. Not used by svg."),
     opacity: whole(OPACITY_MIN, 100).optional().describe("How solid it is, in percent. Leave out for the default."),
   })
@@ -163,10 +166,18 @@ const decorationRecipe = z
 // Every slide type shares these.
 const common = {
   name: z.string().optional().describe('Optional slide name, e.g. "Fractions".'),
-  background: hexColor.optional().describe("Soft, light background color for the slide, e.g. #FEF3C7."),
+};
+
+// Question slides are kept plain: only a soft background color, no decorations or artwork.
+const questionBackground = {
+  background: hexColor.optional().describe("Soft, light background color for the slide, e.g. #FEF3C7. Leave out for white."),
+};
+
+// Lesson slides are always white, with decorations and artwork.
+const lessonDesign = {
   backgroundSvg: svgMarkup
     .optional()
-    .describe('Your own full-slide artwork (viewBox="0 0 1280 720"), drawn over the background color, behind everything. Always shown at 20% opacity.'),
+    .describe('Your own full-slide artwork (viewBox="0 0 1280 720"), drawn over the white slide, behind everything. Always shown at 20% opacity.'),
   backgroundPattern: z
     .enum(BACKGROUND_PATTERN_IDS)
     .optional()
@@ -174,14 +185,15 @@ const common = {
   design: z.array(decorationRecipe).max(6).default([]).describe("Decorations behind everything."),
 };
 
-// A text's font size (px). The text still shrinks to fit its box, so this is the largest it gets.
+// A text's font size (px). Text never shrinks to fit, so long text needs a smaller size.
 const fontSize = whole(FONT_SIZE_RANGE.min, FONT_SIZE_RANGE.max);
-const fontSizeNote = "Largest font size in px; long text still shrinks to fit. Leave out unless the user asks for bigger or smaller text.";
+const fontSizeNote = "Font size in px. Text does not shrink to fit: set a smaller size when the text is long.";
 
 const slideRecipe = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("choice"),
     ...common,
+    ...questionBackground,
     layout: z
       .enum(["grid", "list", "list-side"])
       .optional()
@@ -198,6 +210,7 @@ const slideRecipe = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("short-answer"),
     ...common,
+    ...questionBackground,
     question: z.string(),
     questionFontSize: fontSize.optional().describe(`The question. ${fontSizeNote}`),
     answer: z.string().describe("The answer the student should give."),
@@ -206,6 +219,7 @@ const slideRecipe = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("lesson"),
     ...common,
+    ...lessonDesign,
     layout: z
       .enum(["text-top", "text-left", "title-only"])
       .default("text-top")
@@ -272,27 +286,29 @@ const BOXES: Record<"choice" | "short-answer", BoxName[]> = {
 
 // Tools you read a value from. They get the tall side box (list-side) and start large.
 const READING_TOOLS = new Set(["clock", "digital-clock", "thermometer", "bar-graph", "protractor", "base-ten-blocks", "fraction-circle"]);
-// Option text longer than this (characters) needs a full-width row (list) instead of a grid cell.
-const LONG_OPTION_CHARS = 25;
 
 const CLAUDE_NOTES = `Write a lesson for my app (quizMatter) as JSON. A lesson is a set of slides: lesson slides that teach, and question slides. Reply with only the JSON. It must match the JSON Schema at the end.
 
 Slide types:
 - "choice": a question with 4 options (A–D). "answer" is the letter of the correct option.
 - "short-answer": a question with no options. "answer" is the expected answer.
+- Never number the questions: write "Which change forms no new substance?", not "1. Which change…" or "Q1: Which change…". The app adds the numbers itself.
 - "lesson": a blank slide with a title, a short text and pictures. Use it to:
   - teach before the questions (explain the idea with a picture),
   - give instructions for a new kind of question,
   - start a class discussion: ask an open question with no right answer ("Which fruit do you like best? Why?", "Where do you see fractions at home?").
 
-Text sizes: every text sizes itself to fit its box, so normally leave the font sizes out. Only set them ("questionFontSize", "optionFontSize", "titleFontSize", "textFontSize", 12 to 96 px) when the user asks for bigger or smaller text, e.g. big text for young learners. Long text still shrinks to fit.
+Text sizes: text does NOT shrink to fit its box. It shows at its font size, and text that doesn't fit is cut off. Defaults: question ${QUESTION_FONT_SIZE}px, options ${OPTION_FONT_SIZE}px, lesson title and text ${TEXT_BOX_FONT_SIZE}px.
+- Keep text short: a question in 1–2 lines (about 100 characters), an option in 1 line (about 40 characters in a list row, 20 in a grid cell), a lesson text in 1–4 sentences.
+- When text is longer, set a smaller size ("questionFontSize", "optionFontSize", "titleFontSize", "textFontSize", 12 to 96 px), e.g. 32 or 28.
+- A "list" slide with pictures in "side" has short rows: set "optionFontSize": 32.
+- Also set sizes when the user asks for bigger or smaller text, e.g. big text for young learners.
+- If a text is still too long, send_lesson tells you which one: shorten it or make its font smaller.
 
 Which layout for a choice slide (leave "layout" out and the app picks with these same rules):
 - Read one tool (clock, thermometer, bar graph, protractor, base-ten blocks) → "list-side", the tool in "side".
-- Count things ("How many apples?") → "grid", the things in "side".
-- The answers are pictures ("Which shows 3/4?") → "grid", one picture per option, option text "".
-- The answers are long (over 25 characters) → "list".
-- Short text answers → "grid".
+- The answers are pictures ("Which shows 3/4?") or have pictures → "grid", one picture per option, option text "" or 1–3 words.
+- Text-only answers, short or long → "list" (4 rows). Pictures for the question (e.g. the apples to count) go in "side".
 - Calculate or type an answer, no choices → use a "short-answer" slide instead.
 
 Where pictures go ("in", default "side"):
@@ -321,19 +337,22 @@ Arrows that point at part of a picture ("callouts", lesson slides only):
 - Give the picture "size": "large" so the arrows and labels have room.
 - On "text-top" lessons the room below the text is wide but not tall, so bring arrows from the left and right. An arrow from the top or bottom takes height and makes the picture smaller.
 
-Design — make every slide colorful and friendly:
-- "background": give every slide a soft, light color (e.g. #FEF3C7, #E0F2FE, #DCFCE7, #FCE7F3, #EDE9FE). Use one color family for the whole lesson and change the shade per slide or per topic. Dark colors are lightened automatically, because the text is dark.
-- "design": decorations drawn behind everything, placed at a "spot". Pick ones that match the topic (leaves and trees for nature, sparkle and confetti for celebrations, planets for space, clouds for weather, shapes like circle, star or wave for anything) in 2–3 colors that go well with the background.
-  - Lesson slides: the 4 corners (big, about 180px; see-through where they sit under text) and "bottom-strip" (a row of small copies along the bottom). Use 2–4 decorations.
-  - Question slides: only the 4 corners (small, about 32px, in the slide's edge). Use at most 2.
+Question slides — keep them plain:
+- No decorations, no pattern, no artwork: question slides don't have "design", "backgroundPattern" or "backgroundSvg".
+- "background": you may give a soft, light color (e.g. #FEF3C7, #E0F2FE, #DCFCE7, #FCE7F3, #EDE9FE), or leave it out for white. Use one color family for the whole lesson. Dark colors are lightened automatically, because the text is dark.
 
-Background artwork — each slide can have one of these (or none, just the "background" color):
-- Option 1, "backgroundPattern": a ready-made pattern from the app: ${BACKGROUND_PATTERN_IDS.join(", ")}. It shows as a soft frame around the slide's edges, always at 25% opacity; the middle stays plain in the "background" color. It replaces "design": a slide with a pattern gets no decorations.
-- Option 2, "backgroundSvg": your own full-slide artwork, drawn over "background", behind everything — even behind the question and option cards, so on question slides it shows around them. Use viewBox="0 0 1280 720". Good ideas: soft waves along the bottom, blobs in the corners, a sunburst, a frame. Keep the middle mostly empty so the text stays easy to read.
+Lesson slides — always white, made friendly with design:
+- There is no background color to set on lesson slides.
+- "design": decorations drawn behind everything, placed at a "spot". Pick ones that match the topic (leaves and trees for nature, sparkle and confetti for celebrations, planets for space, clouds for weather, shapes like circle, star or wave for anything) in 2–3 colors that go well together.
+  - The 4 corners (big, about 180px; see-through where they sit under text) and "bottom-strip" (a row of small copies along the bottom). Use 2–4 decorations.
+
+Background artwork (lesson slides only) — each lesson slide can have one of these (or none, just plain white):
+- Option 1, "backgroundPattern": a ready-made pattern from the app: ${BACKGROUND_PATTERN_IDS.join(", ")}. It shows as a soft frame around the slide's edges, always at 25% opacity; the middle stays plain white. It replaces "design": a slide with a pattern gets no decorations.
+- Option 2, "backgroundSvg": your own full-slide artwork, drawn over the white slide, behind everything. Use viewBox="0 0 1280 720". Good ideas: soft waves along the bottom, blobs in the corners, a sunburst, a frame. Keep the middle mostly empty so the text stays easy to read.
   - Always 20% opacity: the app shows your artwork at 20%, so draw it in full, bright colors and let the app soften it.
 - Mix them across the lesson: patterns on some slides, your own artwork or decorations on others.
 
-Your own drawings (SVG) — for design only:
+Your own drawings (SVG) — for lesson design only:
 - In "design", give "svg" instead of "asset" to draw your own decoration for a spot (square viewBox, e.g. "0 0 100 100").
 - Rules: one <svg>…</svg>, under 20,000 characters. Use shapes, paths and gradients (path, circle, ellipse, rect, polygon, line, g, defs, linearGradient, radialGradient, stop). No images, scripts or links — they won't show.
 - Teaching pictures (the ones in "elements") always come from "asset", never your own drawings.
@@ -344,7 +363,6 @@ Example:
     {
       "type": "lesson",
       "layout": "text-top",
-      "background": "#FEF3C7",
       "design": [
         { "asset": "circle", "spot": "top-right", "color": "#FDBA74", "opacity": 40 },
         { "asset": "sparkle", "spot": "bottom-left", "color": "#F59E0B" }
@@ -365,7 +383,6 @@ Example:
     },
     {
       "type": "lesson",
-      "background": "#DCFCE7",
       "design": [{ "asset": "leaf-maple", "spot": "bottom-strip", "color": "#16A34A" }],
       "title": "Let's talk!",
       "text": "Which fruit do you like best? Why?",
@@ -374,7 +391,6 @@ Example:
     {
       "type": "choice",
       "background": "#E0F2FE",
-      "design": [{ "asset": "star", "spot": "top-right", "color": "#FACC15" }],
       "question": "What time does the clock show?",
       "options": ["3:00", "4:30", "6:15", "9:45"],
       "answer": "C",
@@ -423,17 +439,15 @@ export function buildSlides(data: unknown, { drawPatterns = true } = {}): { slid
 
 function buildSlide(recipe: SlideRecipe, drawPatterns: boolean, reportError: (message: string) => void): Slide {
   const blank = createBlankSlide(recipe.type);
-  if (recipe.backgroundPattern && recipe.backgroundSvg) reportError('give "backgroundPattern" or "backgroundSvg", not both.');
-  let slide: Slide = {
-    ...blank,
-    name: recipe.name,
-    background: recipe.background && lighten(recipe.background),
-    backgroundSvg: recipe.backgroundSvg && softened(withSvgNamespace(recipe.backgroundSvg)),
-  };
-  if (recipe.backgroundPattern && drawPatterns) {
-    // No color given: the pattern's own color, lightened, so the slide isn't plain white.
-    const background = lighten(recipe.background ?? getElementAsset(recipe.backgroundPattern)!.defaultColor!);
-    slide = withBackground(slide, { background, backgroundPattern: recipe.backgroundPattern });
+  let slide: Slide = { ...blank, name: recipe.name };
+  if (recipe.type === "lesson") {
+    if (recipe.backgroundPattern && recipe.backgroundSvg) reportError('give "backgroundPattern" or "backgroundSvg", not both.');
+    slide.backgroundSvg = recipe.backgroundSvg && softened(withSvgNamespace(recipe.backgroundSvg));
+    // The pattern sits on the plain white slide.
+    if (recipe.backgroundPattern && drawPatterns) slide = withBackground(slide, { backgroundPattern: recipe.backgroundPattern });
+  } else {
+    // Dark colors are lightened, because the text is dark.
+    slide.background = recipe.background && lighten(recipe.background);
   }
 
   if (recipe.type === "choice") {
@@ -447,7 +461,7 @@ function buildSlide(recipe: SlideRecipe, drawPatterns: boolean, reportError: (me
       ...slide,
       layout,
       question: recipe.question,
-      questionHeight: questionHeightFor(recipe.question),
+      questionHeight: questionHeightFor(recipe.question, recipe.questionFontSize),
       questionFontSize: recipe.questionFontSize,
       options,
       correctOptionId: options[OPTION_LABELS.indexOf(recipe.answer)].id,
@@ -462,7 +476,7 @@ function buildSlide(recipe: SlideRecipe, drawPatterns: boolean, reportError: (me
     slide = {
       ...slide,
       question: recipe.question,
-      questionHeight: questionHeightFor(recipe.question),
+      questionHeight: questionHeightFor(recipe.question, recipe.questionFontSize),
       questionFontSize: recipe.questionFontSize,
       correctAnswer: recipe.answer,
     };
@@ -479,6 +493,10 @@ function buildSlide(recipe: SlideRecipe, drawPatterns: boolean, reportError: (me
     textBoxes.push(textBox(lesson.title, styledHtml(recipe.title!, { bold: true, align }), recipe.titleFontSize));
   }
   if (recipe.type === "lesson" && lesson?.text) {
+    const size = recipe.textFontSize ?? TEXT_BOX_FONT_SIZE;
+    if (textHeightFor(recipe.text!, lesson.text.width, size) > lesson.text.height) {
+      reportError(`the lesson text is too long for its box at ${size}px. Shorten it or set a smaller "textFontSize".`);
+    }
     textBoxes.push(textBox(lesson.text, textToHtml(recipe.text!), recipe.textFontSize));
   }
 
@@ -570,22 +588,20 @@ function buildSlide(recipe: SlideRecipe, drawPatterns: boolean, reportError: (me
 
   // Drawn first, so they sit behind everything. Where one would sit under text, it's made see-through.
   const textRects = textBoxes.map((box) => ({ x: box.x, y: box.y, width: box.width, height: box.height }));
-  // A pattern background is already the slide's decoration, so other decorations would only crowd it.
-  const design = recipe.backgroundPattern ? [] : recipe.design;
+  // Only lesson slides have decorations. A pattern background is already the slide's decoration,
+  // so other decorations would only crowd it.
+  const design = recipe.type !== "lesson" || recipe.backgroundPattern ? [] : recipe.design;
   const decorations = design.flatMap((item, i) => {
-    const where = `decoration ${i + 1}${item.asset ? ` (${item.asset})` : ""}`;
     if (!item.asset === !item.svg) {
-      reportError(`${where}: give "asset" or "svg" (one of them).`);
+      reportError(`decoration ${i + 1}${item.asset ? ` (${item.asset})` : ""}: give "asset" or "svg" (one of them).`);
       return [];
     }
-    if (item.spot === "bottom-strip" && recipe.type !== "lesson") {
-      reportError(`${where}: "bottom-strip" is for lesson slides only. Use a corner.`);
-      return [];
-    }
-    return decorationElements(item, recipe.type === "lesson", textRects);
+    return decorationElements(item, textRects);
   });
 
-  return { ...slide, elements: [...decorations, ...textBoxes, ...pictures, ...calloutParts] };
+  const built = { ...slide, elements: [...decorations, ...textBoxes, ...pictures, ...calloutParts] };
+  if (recipe.type !== "lesson") checkTextFits(built, reportError);
+  return built;
 }
 
 type SizeName = NonNullable<ElementRecipe["size"]>;
@@ -607,8 +623,9 @@ function pickLayout(options: string[], elements: ElementRecipe[]): Slide["layout
     options.every((text) => text.trim() === "") && elements.some((el) => el.in !== undefined && el.in !== "side");
   if (optionsArePictures) return "grid";
   if (elements.some((el) => (el.in ?? "side") === "side" && READING_TOOLS.has(el.asset))) return "list-side";
-  if (options.some((text) => text.length > LONG_OPTION_CHARS)) return "list";
-  return "grid";
+  // Pictures inside the options need the taller grid cells; text-only options read best as rows.
+  const optionsHavePictures = elements.some((el) => el.in !== undefined && el.in !== "side");
+  return optionsHavePictures ? "grid" : "list";
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -653,7 +670,8 @@ function lessonAreas(recipe: LessonRecipe): { title: Rect | null; text: Rect | n
     y += height + LESSON_GAP;
   }
   if (hasText) {
-    text = { x: LESSON_MARGIN, y, width, height: Math.min(LESSON_MAX_TEXT_HEIGHT, textHeightFor(recipe.text!, width)) };
+    const height = textHeightFor(recipe.text!, width, recipe.textFontSize ?? TEXT_BOX_FONT_SIZE);
+    text = { x: LESSON_MARGIN, y, width, height: Math.min(LESSON_MAX_TEXT_HEIGHT, height) };
     y += text.height + LESSON_GAP;
   }
   return { title, text, pictures: { x: LESSON_MARGIN, y, width, height: bottom - y } };
@@ -688,7 +706,8 @@ interface Pad {
 const CALLOUT_GAP = 6; // between the arrow's tip and the picture
 const CALLOUT_ARROW = 56; // arrow length
 const CALLOUT_THICKNESS = 14; // the arrow element's height (its line and head scale with it)
-const CALLOUT_LABEL_HEIGHT = 40; // fits one line of bold text at the text box's smallest size
+const CALLOUT_LABEL_HEIGHT = 40; // fits one line of bold text at CALLOUT_LABEL_FONT_SIZE
+const CALLOUT_LABEL_FONT_SIZE = 24;
 // A label is as wide as its text: about this much per letter, plus a little room, within these limits.
 const CALLOUT_LETTER_WIDTH = 14;
 const CALLOUT_LABEL_PADDING = 16;
@@ -787,7 +806,7 @@ function calloutElements(picture: Rect, callouts: Callout[]): SvgElement[] {
       containerId: null,
       ...(rotation && { rotation }),
     };
-    return [arrow, textBox(labelRect, styledHtml(label, { bold: true, align }))];
+    return [arrow, textBox(labelRect, styledHtml(label, { bold: true, align }), CALLOUT_LABEL_FONT_SIZE)];
   });
 }
 
@@ -797,23 +816,20 @@ function calloutElements(picture: Rect, callouts: Callout[]): SvgElement[] {
 
 type Decoration = z.infer<typeof decorationRecipe>;
 
-// Corner decorations: big on lesson slides; small on question slides, where they must fit in the
-// slide's 40px edge (anything free-placed there is drawn on top of the question and option cards).
-const LESSON_CORNER_SIZE = 180;
-const QUESTION_CORNER_SIZE = 32;
-const QUESTION_CORNER_INSET = 4;
+// Decorations (lesson slides only): big in the corners, small along the bottom strip.
+const CORNER_SIZE = 180;
 const STRIP_ITEM_SIZE = 40;
-// Lesson decorations are a little see-through by default, and at most this solid under text.
-const LESSON_DECORATION_OPACITY = 60;
+// Decorations are a little see-through by default, and at most this solid under text.
+const DECORATION_OPACITY = 60;
 const UNDER_TEXT_OPACITY = 25;
 
-function decorationElements(item: Decoration, isLesson: boolean, textRects: Rect[]): SvgElement[] {
+function decorationElements(item: Decoration, textRects: Rect[]): SvgElement[] {
   // A library picture, or Claude's own drawing.
   const look = item.svg
     ? { assetId: CUSTOM_SVG_ID, color: DEFAULT_ELEMENT_COLOR, svg: withSvgNamespace(item.svg) }
     : { assetId: item.asset!, color: item.color ?? getElementAsset(item.asset!)?.defaultColor ?? DEFAULT_ELEMENT_COLOR };
-  return decorationRects(item.spot, isLesson).map((rect) => {
-    let opacity = item.opacity ?? (isLesson ? LESSON_DECORATION_OPACITY : 100);
+  return decorationRects(item.spot).map((rect) => {
+    let opacity = item.opacity ?? DECORATION_OPACITY;
     if (textRects.some((text) => overlaps(text, rect))) opacity = Math.min(opacity, UNDER_TEXT_OPACITY);
     return { id: createId(), ...look, ...rect, containerId: null, ...(opacity < 100 && { opacity }) };
   });
@@ -833,7 +849,7 @@ function withSvgNamespace(markup: string): string {
   return /<svg[^>]*\sxmlns=/i.test(trimmed) ? trimmed : trimmed.replace(/<svg/i, '<svg xmlns="http://www.w3.org/2000/svg"');
 }
 
-function decorationRects(spot: Decoration["spot"], isLesson: boolean): Rect[] {
+function decorationRects(spot: Decoration["spot"]): Rect[] {
   if (spot === "bottom-strip") {
     // Small copies in a centered row along the bottom edge.
     const count = Math.floor((CANVAS_WIDTH + GAP) / (STRIP_ITEM_SIZE + GAP));
@@ -846,14 +862,12 @@ function decorationRects(spot: Decoration["spot"], isLesson: boolean): Rect[] {
       height: STRIP_ITEM_SIZE,
     }));
   }
-  const size = isLesson ? LESSON_CORNER_SIZE : QUESTION_CORNER_SIZE;
-  const inset = isLesson ? 0 : QUESTION_CORNER_INSET;
   return [
     {
-      x: spot.endsWith("left") ? inset : CANVAS_WIDTH - inset - size,
-      y: spot.startsWith("top") ? inset : CANVAS_HEIGHT - inset - size,
-      width: size,
-      height: size,
+      x: spot.endsWith("left") ? 0 : CANVAS_WIDTH - CORNER_SIZE,
+      y: spot.startsWith("top") ? 0 : CANVAS_HEIGHT - CORNER_SIZE,
+      width: CORNER_SIZE,
+      height: CORNER_SIZE,
     },
   ];
 }
@@ -865,23 +879,51 @@ function overlaps(a: Rect, b: Rect): boolean {
 // Tallest strip an import makes (px), so the options never shrink more than they need to.
 const MAX_IMPORT_STRIP_HEIGHT = 240;
 
-// At the biggest font (40px), a character is about this wide and a line this tall (px).
-const CHAR_WIDTH = 21;
-const LINE_HEIGHT = 50;
-// The question box's top + bottom padding (px).
-const QUESTION_PADDING = 32;
+// For each px of font size, a character is about this wide and a line this tall (px).
+const CHAR_WIDTH_PER_PX = 0.525;
+const LINE_HEIGHT_PER_PX = 1.25;
+// The room the question box's edges take (px), top + bottom (and left + right): p-4 plus its 1px border.
+const QUESTION_PADDING = 34;
+// The room an option card's edges take (px), left + right and top + bottom: px-6 py-3 in list rows,
+// p-6 in grid cells, plus the 1px border.
+const OPTION_PADDING = { list: { x: 50, y: 26 }, grid: { x: 50, y: 50 } };
 
-/** Roughly how tall `text` is at the biggest font in a box `width` wide. Each \n starts a new line. */
-function textHeightFor(text: string, width: number): number {
-  const charsPerLine = Math.floor(width / CHAR_WIDTH);
+/** Roughly how tall `text` is at `fontSize` in a box `width` wide. Each \n starts a new line. */
+function textHeightFor(text: string, width: number, fontSize: number): number {
+  const charsPerLine = Math.max(1, Math.floor(width / (fontSize * CHAR_WIDTH_PER_PX)));
   const lines = text.split("\n").reduce((sum, line) => sum + Math.max(1, Math.ceil(line.length / charsPerLine)), 0);
-  return lines * LINE_HEIGHT;
+  return lines * fontSize * LINE_HEIGHT_PER_PX;
 }
 
 /** A question box just tall enough for its text — short questions get a shorter box. Never taller than the default. */
-function questionHeightFor(question: string): number {
-  const height = textHeightFor(question, QUESTION_CONTAINER_WIDTH - QUESTION_PADDING) + QUESTION_PADDING;
+function questionHeightFor(question: string, fontSize = QUESTION_FONT_SIZE): number {
+  const height = textHeightFor(question, QUESTION_CONTAINER_WIDTH - QUESTION_PADDING, fontSize) + QUESTION_PADDING;
   return Math.min(DEFAULT_QUESTION_HEIGHT, height);
+}
+
+/**
+ * Text never shrinks to fit, so text that's too long for its box would be cut off. This reports it
+ * (while Claude can still fix it) for the question and each option.
+ */
+function checkTextFits(slide: Slide, reportError: (message: string) => void) {
+  const questionSize = slide.questionFontSize ?? QUESTION_FONT_SIZE;
+  const questionRoom = slide.questionHeight - QUESTION_PADDING;
+  if (textHeightFor(slide.question, QUESTION_CONTAINER_WIDTH - QUESTION_PADDING, questionSize) > questionRoom) {
+    reportError(`the question is too long for its box at ${questionSize}px. Shorten it or set a smaller "questionFontSize".`);
+  }
+  if (slide.type !== "choice") return;
+  const padding = OPTION_PADDING[slide.layout === "grid" ? "grid" : "list"];
+  slide.options.forEach((option, i) => {
+    if (!option.text) return;
+    const size = option.fontSize ?? OPTION_FONT_SIZE;
+    const box = getContainerBounds(option.id, slide);
+    // An option with pictures keeps only its left half for the text.
+    const hasPictures = slide.elements.some((el) => el.containerId === option.id);
+    const width = (box.width - padding.x) / (hasPictures ? 2 : 1);
+    if (textHeightFor(option.text, width, size) > box.height - padding.y) {
+      reportError(`option ${OPTION_LABELS[i]} doesn't fit in its box at ${size}px. Shorten it or set a smaller "optionFontSize".`);
+    }
+  });
 }
 
 function toContainerId(box: BoxName, slide: Slide): string | null {

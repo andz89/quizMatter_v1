@@ -1,4 +1,4 @@
-import { generateHTML, generateJSON } from "@tiptap/core";
+import { generateHTML, generateJSON, type Editor } from "@tiptap/core";
 import Document from "@tiptap/extension-document";
 import Paragraph from "@tiptap/extension-paragraph";
 import Text from "@tiptap/extension-text";
@@ -22,6 +22,14 @@ export const TEXT_EXTENSIONS = [
   Color,
   TextAlign.configure({ types: ["paragraph"] }),
 ];
+
+/**
+ * Where a format button (bold, align, color…) applies: the selected words while typing, or all the
+ * text when the box is only selected (one click, not typing).
+ */
+export function formatChain(editor: Editor) {
+  return editor.isEditable ? editor.chain().focus() : editor.chain().selectAll();
+}
 
 /** Text color when none is set — matches --text-primary. */
 export const DEFAULT_TEXT_COLOR = "#1F1F1F";

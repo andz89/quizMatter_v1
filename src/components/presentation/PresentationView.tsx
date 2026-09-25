@@ -130,7 +130,7 @@ export function PresentationView() {
             slide={slide}
             number={getSlideNumbers(quiz.slides).get(slide.id)}
             revealAnswer={isChoice && isAnswerShown}
-            hideBorders
+            fullscreen
           />
         </div>
       </div>

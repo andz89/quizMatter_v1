@@ -3,7 +3,8 @@
 import { useEffect } from "react";
 import { useEditorState } from "@tiptap/react";
 import { useEditorStore } from "@/lib/store";
-import { DEFAULT_TEXT_COLOR } from "@/lib/richText";
+import { useFormatTexts } from "@/lib/useFormatTexts";
+import { DEFAULT_TEXT_COLOR, formatChain } from "@/lib/richText";
 import { getElementAsset } from "@/lib/svgLibrary";
 import { GRADIENT_PREFIX, toCssBackground } from "./ElementSvg";
 import { SIDE_CONTAINER_ID } from "@/lib/constants";
@@ -75,8 +76,10 @@ export function ColorPanel() {
   const shapeBoxColorTarget = useEditorStore((s) => s.shapeBoxColorTarget);
   const setShapeBoxColors = useEditorStore((s) => s.setShapeBoxColors);
   const closeColorPanel = useEditorStore((s) => s.closeColorPanel);
-  // While typing in a text box, the panel colors the selected words instead of the selected shapes.
-  const textEditor = useEditorStore((s) => s.activeTextEditor);
+  // While typing, the panel colors the selected words instead of the selected shapes — or all the
+  // text of the selected question/option boxes.
+  const texts = useFormatTexts();
+  const textEditor = texts[0]?.editor ?? null;
   const textColor = useEditorState({
     editor: textEditor,
     selector: ({ editor }) => (editor?.getAttributes("textStyle").color as string | undefined) ?? DEFAULT_TEXT_COLOR,
@@ -106,7 +109,7 @@ export function ColorPanel() {
 
   // undefined = none (shape box only).
   const handleColor = (color: string | undefined) => {
-    if (textEditor) textEditor.chain().focus().setColor(color ?? DEFAULT_TEXT_COLOR).run();
+    if (textEditor) texts.forEach(({ editor }) => formatChain(editor).setColor(color ?? DEFAULT_TEXT_COLOR).run());
     else if (boxTarget === "fill") setShapeBoxColors(selectedSlideId, { shapeBoxFill: color });
     else if (boxTarget === "border") setShapeBoxColors(selectedSlideId, { shapeBoxBorder: color });
     else if (color) updateElements(selectedSlideId, Object.fromEntries(elements.map((el) => [el.id, { color }])));

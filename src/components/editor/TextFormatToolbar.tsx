@@ -1,25 +1,26 @@
 "use client";
 
 import { useState } from "react";
-import { useEditorState, type Editor } from "@tiptap/react";
-import { useEditorStore, type TextTarget } from "@/lib/store";
-import { DEFAULT_TEXT_COLOR } from "@/lib/richText";
-import { OPTION_FONT_SIZE, QUESTION_FONT_SIZE, SIDE_CONTAINER_ID, TEXT_BOX_FONT_SIZE } from "@/lib/constants";
+import { useEditorState, type ChainedCommands } from "@tiptap/react";
+import { useEditorStore, type TextEditorEntry, type TextTarget } from "@/lib/store";
+import { DEFAULT_TEXT_COLOR, formatChain } from "@/lib/richText";
+import { OPTION_FONT_SIZE, QUESTION_CONTAINER_ID, QUESTION_FONT_SIZE, TEXT_BOX_FONT_SIZE } from "@/lib/constants";
 import type { Quiz } from "@/lib/schema";
 import { EraserIcon } from "@/components/icons/EraserIcon";
 
 type Align = "left" | "center" | "right";
 
-/** Size / bold / italic / underline / align / color bar, shown in the header while typing in a text box. */
-export function TextFormatToolbar({ editor }: { editor: Editor }) {
+/**
+ * Size / bold / italic / underline / align / color bar, shown in the header while typing in a text,
+ * or when question/option boxes are selected (then each button changes all their text). The buttons
+ * show the style of the first text.
+ */
+export function TextFormatToolbar({ texts }: { texts: TextEditorEntry[] }) {
   const isColorPanelOpen = useEditorStore((s) => s.isColorPanelOpen);
   const toggleColorPanel = useEditorStore((s) => s.toggleColorPanel);
-  const selectedSlideId = useEditorStore((s) => s.selectedSlideId);
-  const selectedContainerId = useEditorStore((s) => s.selectedContainerId);
-  const hasSelectedElements = useEditorStore((s) => s.selectedElementIds.length > 0);
   const clearContainerElements = useEditorStore((s) => s.clearContainerElements);
   const state = useEditorState({
-    editor,
+    editor: texts[0].editor,
     selector: ({ editor }) => ({
       bold: editor.isActive("bold"),
       italic: editor.isActive("italic"),
@@ -29,16 +30,18 @@ export function TextFormatToolbar({ editor }: { editor: Editor }) {
     }),
   });
 
-  // Typing in the question or an option box (not in a text box element, which gets selected while
-  // edited). The side box has no text, so it never has a focused editor.
-  const clearableContainerId =
-    !hasSelectedElements && selectedContainerId !== SIDE_CONTAINER_ID ? selectedContainerId : null;
+  const applyToAll = (command: (chain: ChainedCommands) => ChainedCommands) =>
+    texts.forEach(({ editor }) => command(formatChain(editor)).run());
+
+  // The question and option boxes (not text box elements) can be cleared of text and pictures.
+  const boxes = texts.filter(({ target }) => target.kind !== "textBox");
 
   const handleClearAll = () => {
-    if (!selectedSlideId || !clearableContainerId) return;
-    // Emits an update, so the box's own onChange saves the empty text.
-    editor.chain().focus().clearContent().run();
-    clearContainerElements(selectedSlideId, clearableContainerId);
+    boxes.forEach(({ editor, target }) => {
+      // Emits an update, so the box's own onChange saves the empty text.
+      formatChain(editor).clearContent().run();
+      clearContainerElements(target.slideId, target.kind === "option" ? target.optionId : QUESTION_CONTAINER_ID);
+    });
   };
 
   return (
@@ -49,20 +52,29 @@ export function TextFormatToolbar({ editor }: { editor: Editor }) {
       data-keep-container-selection="true"
       className="absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center gap-0.5 rounded-button border border-border-default bg-bg-surface p-1"
     >
-      <FontSizePicker />
+      <FontSizePicker targets={texts.map((text) => text.target)} />
 
       <Divider />
 
-      <ToolButton title="Bold (Ctrl+B)" active={state.bold} onClick={() => editor.chain().focus().toggleBold().run()}>
+      {/* Set or unset (not toggle), so boxes that started different all end up the same. */}
+      <ToolButton
+        title="Bold (Ctrl+B)"
+        active={state.bold}
+        onClick={() => applyToAll((c) => (state.bold ? c.unsetBold() : c.setBold()))}
+      >
         <span className="font-bold">B</span>
       </ToolButton>
-      <ToolButton title="Italic (Ctrl+I)" active={state.italic} onClick={() => editor.chain().focus().toggleItalic().run()}>
+      <ToolButton
+        title="Italic (Ctrl+I)"
+        active={state.italic}
+        onClick={() => applyToAll((c) => (state.italic ? c.unsetItalic() : c.setItalic()))}
+      >
         <span className="font-serif italic">I</span>
       </ToolButton>
       <ToolButton
         title="Underline (Ctrl+U)"
         active={state.underline}
-        onClick={() => editor.chain().focus().toggleUnderline().run()}
+        onClick={() => applyToAll((c) => (state.underline ? c.unsetUnderline() : c.setUnderline()))}
       >
         <span className="underline">U</span>
       </ToolButton>
@@ -74,7 +86,7 @@ export function TextFormatToolbar({ editor }: { editor: Editor }) {
           key={align}
           title={`Align ${align}`}
           active={state.align === align}
-          onClick={() => editor.chain().focus().setTextAlign(align).run()}
+          onClick={() => applyToAll((c) => c.setTextAlign(align))}
         >
           <AlignIcon align={align} />
         </ToolButton>
@@ -98,7 +110,7 @@ export function TextFormatToolbar({ editor }: { editor: Editor }) {
         />
       </button>
 
-      {clearableContainerId && (
+      {boxes.length > 0 && (
         <>
           <Divider />
           <ToolButton title="Clear all" active={false} onClick={handleClearAll}>
@@ -139,20 +151,20 @@ function ToolButton({
 const FONT_SIZES = [12, 14, 16, 18, 20, 24, 28, 32, 36, 40, 44, 48, 56, 64, 72, 80, 96];
 
 /**
- * − / size / + for the text being typed in (the question, one option, or a text box). The size is
- * the largest the text gets: it still shrinks to fit its box when it's too long.
+ * − / size / + for the texts being changed (the question, options, or a text box) — they all get the
+ * same size, stepping from the first one's. The text always shows at this size; if it's too long for
+ * its box, the box turns red.
  */
-function FontSizePicker() {
-  const target = useEditorStore((s) => s.activeTextTarget);
-  const size = useEditorStore((s) => (s.activeTextTarget ? chosenFontSize(s.quiz, s.activeTextTarget) : null));
-  const setTextFontSize = useEditorStore((s) => s.setTextFontSize);
+function FontSizePicker({ targets }: { targets: TextTarget[] }) {
+  const size = useEditorStore((s) => chosenFontSize(s.quiz, targets[0]));
+  const setTextFontSizes = useEditorStore((s) => s.setTextFontSizes);
   const [isListOpen, setIsListOpen] = useState(false);
-  if (!target || size === null) return null;
+  if (size === null) return null;
 
   const smaller = FONT_SIZES.findLast((option) => option < size);
   const bigger = FONT_SIZES.find((option) => option > size);
   const choose = (next: number | undefined) => {
-    if (next !== undefined) setTextFontSize(target, next);
+    if (next !== undefined) setTextFontSizes(targets, next);
     setIsListOpen(false);
   };
 
@@ -164,7 +176,7 @@ function FontSizePicker() {
       <button
         type="button"
         onClick={() => setIsListOpen(!isListOpen)}
-        title="Text size (it still shrinks to fit its box)"
+        title="Text size"
         className="h-8 min-w-10 rounded-dropdown px-1.5 text-sm font-semibold tabular-nums text-text-primary hover:bg-bg-page"
       >
         {size}
@@ -197,13 +209,13 @@ function FontSizePicker() {
 function chosenFontSize(quiz: Quiz, target: TextTarget): number | null {
   const slide = quiz.slides.find((s) => s.id === target.slideId);
   if (!slide) return null;
-  if (target.kind === "question") return slide.questionFontSize ?? QUESTION_FONT_SIZE.max;
+  if (target.kind === "question") return slide.questionFontSize ?? QUESTION_FONT_SIZE;
   if (target.kind === "option") {
     const option = slide.options.find((o) => o.id === target.optionId);
-    return option ? (option.fontSize ?? OPTION_FONT_SIZE.max) : null;
+    return option ? (option.fontSize ?? OPTION_FONT_SIZE) : null;
   }
   const element = slide.elements.find((el) => el.id === target.elementId);
-  return element ? (element.text?.fontSize ?? TEXT_BOX_FONT_SIZE.max) : null;
+  return element ? (element.text?.fontSize ?? TEXT_BOX_FONT_SIZE) : null;
 }
 
 function Divider() {

@@ -1,7 +1,7 @@
 import { z } from "zod";
 
-// The font sizes (px) a user can choose for a text. The chosen size is the largest the text gets;
-// it still shrinks to fit its box when it's too long.
+// The font sizes (px) a user can choose for a text. The text always shows at the chosen
+// size; too-long text is cut off at its box's edge.
 export const FONT_SIZE_RANGE = { min: 12, max: 96 };
 const fontSizeSchema = z.number().int().min(FONT_SIZE_RANGE.min).max(FONT_SIZE_RANGE.max);
 
@@ -10,7 +10,7 @@ export const optionSchema = z.object({
   text: z.string(),
   // Styled version of `text` (bold, color…), as HTML from the text editor. Missing on older quizzes.
   html: z.string().optional(),
-  // Chosen font size. Missing = OPTION_FONT_SIZE.max.
+  // Chosen font size. Missing = OPTION_FONT_SIZE.
   fontSize: fontSizeSchema.optional(),
 });
 
@@ -55,7 +55,7 @@ export const svgElementSchema = z.object({
   // Only used by the protractor: the angle between its two lines, 0–180°.
   protractor: z.object({ angle: z.number() }).optional(),
   // Only used by the text box: its styled text, as HTML from the text editor (empty string = no
-  // text), and its chosen font size (missing = TEXT_BOX_FONT_SIZE.max).
+  // text), and its chosen font size (missing = TEXT_BOX_FONT_SIZE).
   text: z.object({ html: z.string(), fontSize: fontSizeSchema.optional() }).optional(),
   // Only used by custom drawings (assetId CUSTOM_SVG_ID, e.g. drawn by Claude): the SVG markup. Shown
   // as an image, so nothing inside it can run.
@@ -74,7 +74,7 @@ export const slideSchema = z.object({
   question: z.string(),
   // Styled version of `question`, as HTML from the text editor. Missing on older quizzes.
   questionHtml: z.string().optional(),
-  // Chosen font size for the question. Missing = QUESTION_FONT_SIZE.max.
+  // Chosen font size for the question. Missing = QUESTION_FONT_SIZE.
   questionFontSize: fontSizeSchema.optional(),
   // grid = 2x2 options; list = 4 stacked rows; list-side = 4 rows on the left and a box for
   // elements on the right.

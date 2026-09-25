@@ -10,13 +10,12 @@ import {
   hasShapeStrip,
   hasShapeBox,
   ADD_SHAPE_BOX_ROW_HEIGHT,
-  autoFitRange,
   OPTION_FONT_SIZE,
   QUESTION_FONT_SIZE,
 } from "@/lib/constants";
 import type { Slide } from "@/lib/schema";
 import { svgDataUrl } from "@/lib/svgLibrary";
-import { FitText } from "@/components/editor/FitText";
+import { SlideText } from "@/components/editor/SlideText";
 import { StaticElementView } from "@/components/editor/StaticElementView";
 import { toCssBackground } from "@/components/editor/ElementSvg";
 
@@ -45,15 +44,14 @@ interface SlideStaticViewProps {
   number?: number;
   /** When true, the correct option is colored green. */
   revealAnswer?: boolean;
-  /** When true, the slide, question and option borders are hidden (full-screen presentation). */
-  hideBorders?: boolean;
+  /** Full-screen presentation: hides the slide border and gives the option labels a soft tint. */
+  fullscreen?: boolean;
 }
 
 /** Read-only, full-size rendering of a slide — used in presentation mode. */
-export function SlideStaticView({ slide, number, revealAnswer = false, hideBorders = false }: SlideStaticViewProps) {
+export function SlideStaticView({ slide, number, revealAnswer = false, fullscreen = false }: SlideStaticViewProps) {
   // Borders turn see-through instead of going away, so nothing on the slide shifts.
-  const lineColor = hideBorders ? "transparent" : "var(--border-default)";
-  const isList = slide.layout !== "grid";
+  const lineColor = fullscreen ? "transparent" : "var(--border-default)";
   const sideElements = slide.elements.filter((el) => el.containerId === SIDE_CONTAINER_ID);
   return (
     <div
@@ -62,21 +60,23 @@ export function SlideStaticView({ slide, number, revealAnswer = false, hideBorde
     >
       {slide.type !== "lesson" && (
         <div
-          className="relative shrink-0 rounded-button border p-4"
-          style={{ height: slide.questionHeight, borderColor: lineColor }}
+          className="relative flex shrink-0 gap-4 rounded-button border border-transparent p-4"
+          style={{ height: slide.questionHeight }}
         >
           {number !== undefined && (
-            // Sits on the box's top border, like a small tab.
-            <span className="absolute -top-4 left-4 rounded-dropdown bg-accent-navy px-3 py-1.5 text-[20px] font-semibold leading-none text-white">
+            // Before the question, lined up with its first line (mt-2).
+            <span className="mt-2 shrink-0 self-start rounded-dropdown bg-accent-navy px-3 py-1.5 text-[20px] font-semibold leading-none text-white">
               Q{number}
             </span>
           )}
-          <FitText
-            text={slide.question || "Untitled question"}
-            html={slide.questionHtml}
-            {...autoFitRange(QUESTION_FONT_SIZE, slide.questionFontSize)}
-            className="font-normal text-text-primary"
-          />
+          <div className="h-full min-w-0 flex-1">
+            <SlideText
+              text={slide.question || "Untitled question"}
+              html={slide.questionHtml}
+              fontSize={slide.questionFontSize ?? QUESTION_FONT_SIZE}
+              className="font-normal text-text-primary"
+            />
+          </div>
           <StaticElementView elements={slide.elements.filter((el) => el.containerId === QUESTION_CONTAINER_ID)} />
         </div>
       )}
@@ -111,31 +111,30 @@ export function SlideStaticView({ slide, number, revealAnswer = false, hideBorde
             <div className={`grid min-h-0 flex-1 ${OPTIONS_GRID_CLASSES[slide.layout]}`}>
               {slide.options.map((option, index) => {
                 const isCorrect = revealAnswer && option.id === slide.correctOptionId;
+                const textColor = isCorrect ? "var(--accent-green)" : fullscreen ? "var(--accent-navy)" : "#000000";
                 return (
                 <div
                   key={option.id}
-                  className={`relative rounded-button border ${isList ? "px-6 py-3" : "p-6"}`}
-                  style={{
-                    borderColor: isCorrect ? "var(--accent-green)" : lineColor,
-                    background: isCorrect ? "rgba(30, 142, 79, 0.12)" : "var(--bg-page)",
-                  }}
+                  className="relative rounded-button border border-transparent p-[5px]"
                 >
                   <span
-                    // Just outside the card on the left, centered up and down.
-                    // White fill so the letter stays readable on any slide background.
-                    className="absolute right-full top-1/2 z-20 mr-2 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full border-2 bg-white text-2xl font-bold"
+                    // Just outside the card on its left, 10px below its top.
+                    // Solid fill so the letter stays readable on any slide background. Full screen uses a soft
+                    // tint (pale navy, or pale green once revealed) with no ring, so the label stands out gently.
+                    className="absolute right-full top-2.5 z-20 mr-2 flex h-12 w-12 items-center justify-center rounded-full border-2 bg-white text-2xl font-bold"
                     style={{
-                      borderColor: isCorrect ? "var(--accent-green)" : lineColor,
-                      color: isCorrect ? "var(--accent-green)" : "#000000",
+                      borderColor: fullscreen ? "transparent" : isCorrect ? "var(--accent-green)" : lineColor,
+                      background: fullscreen ? (isCorrect ? "#E3F2EA" : "#ECEDF3") : undefined,
+                      color: textColor,
                     }}
                   >
                     {isCorrect ? "✓" : OPTION_LABELS[index]}
                   </span>
                   <div className="h-full w-full">
-                    <FitText
+                    <SlideText
                       text={option.text}
                       html={option.html}
-                      {...autoFitRange(OPTION_FONT_SIZE, option.fontSize)}
+                      fontSize={option.fontSize ?? OPTION_FONT_SIZE}
                       className="text-text-primary"
                     />
                   </div>

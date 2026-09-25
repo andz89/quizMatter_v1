@@ -1,7 +1,7 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 import { useEditor, type Editor } from "@tiptap/react";
 import { useEditorStore, type TextTarget } from "@/lib/store";
-import { useAutoFitText } from "@/lib/useAutoFitText";
+import { useTextOverflow } from "@/lib/useTextOverflow";
 import { TEXT_EXTENSIONS } from "@/lib/richText";
 
 interface CanvasTextEditorOptions {
@@ -11,8 +11,9 @@ interface CanvasTextEditorOptions {
   editStart: { x: number; y: number } | null;
   // Which text this is, so the format toolbar can change its font size.
   target: TextTarget;
-  minFontSize: number;
-  maxFontSize: number;
+  fontSize: number;
+  // Selected with one click (not typing): the header's format toolbar changes all of this text.
+  isSelected?: boolean;
   // Extra classes on the editable area itself.
   editorClass?: string;
   onUpdate: (editor: Editor) => void;
@@ -21,21 +22,21 @@ interface CanvasTextEditorOptions {
 
 /**
  * The typing setup shared by every text on the canvas (question, options, text boxes): read-only
- * until double-clicked, plain-text paste, Escape to stop, the header's format toolbar, and text
- * that shrinks to fit its box.
+ * until double-clicked, plain-text paste, Escape to stop, the header's format toolbar, and a check
+ * for text that's too long for its box.
  */
 export function useCanvasTextEditor({
   content,
   editStart,
   target,
-  minFontSize,
-  maxFontSize,
+  fontSize,
+  isSelected = false,
   editorClass = "",
   onUpdate,
   onStopEditing,
 }: CanvasTextEditorOptions) {
   const setActiveTextEditor = useEditorStore((s) => s.setActiveTextEditor);
-  const { ref, fontSize, remeasure } = useAutoFitText<HTMLDivElement>({ minFontSize, maxFontSize });
+  const { ref, overflows, check } = useTextOverflow<HTMLDivElement>();
   // Read when the editor gets focus; kept in a ref so that handler always sees the latest one.
   const targetRef = useRef(target);
   useEffect(() => {
@@ -67,7 +68,7 @@ export function useCanvasTextEditor({
     },
     onUpdate: ({ editor }) => {
       onUpdate(editor);
-      remeasure();
+      check();
     },
     // The header shows the format toolbar for whichever text has focus.
     onFocus: ({ editor }) => setActiveTextEditor(editor, targetRef.current),
@@ -89,6 +90,19 @@ export function useCanvasTextEditor({
     }
   }, [editor, editStart]);
 
+  // Selected but not typing: join the texts the format toolbar changes as a whole. All of it is
+  // selected, so the toolbar shows (and changes) the style of the whole text. Typing takes over
+  // through onFocus/onBlur.
+  const isSelectedNotTyping = isSelected && editStart === null;
+  const addSelectedTextEditor = useEditorStore((s) => s.addSelectedTextEditor);
+  const removeSelectedTextEditor = useEditorStore((s) => s.removeSelectedTextEditor);
+  useEffect(() => {
+    if (!editor || !isSelectedNotTyping) return;
+    editor.commands.selectAll();
+    addSelectedTextEditor({ editor, target: targetRef.current });
+    return () => removeSelectedTextEditor(editor);
+  }, [editor, isSelectedNotTyping, addSelectedTextEditor, removeSelectedTextEditor]);
+
   // Removed while being edited (e.g. deleted, or its slide was): drop it from the header too.
   useEffect(() => {
     return () => {
@@ -107,8 +121,11 @@ export function useCanvasTextEditor({
       // put the cursor back at the end.
       if (editor.isFocused) editor.commands.focus("end");
     }
-    remeasure();
-  }, [editor, content, remeasure]);
+    check();
+  }, [editor, content, check]);
 
-  return { editor, ref, fontSize };
+  // A new font size makes the text bigger or smaller without resizing the box.
+  useLayoutEffect(check, [fontSize, check]);
+
+  return { editor, ref, overflows };
 }

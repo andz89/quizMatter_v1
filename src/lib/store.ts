@@ -47,6 +47,9 @@ export type TextTarget =
   | { kind: "option"; slideId: string; optionId: string }
   | { kind: "textBox"; slideId: string; elementId: string };
 
+/** A text's editor together with which text it is. */
+export type TextEditorEntry = { editor: Editor; target: TextTarget };
+
 /** Where copied slides go: right after the slide, or right before it when `before` is set. */
 export type SlideInsertTarget = { slideId: string; before?: boolean };
 
@@ -250,16 +253,24 @@ interface EditorState {
   groupSelectedElements: () => void;
   ungroupSelectedElements: () => void;
 
+  // The last box clicked. With Shift+click, more boxes can be selected with it (question and
+  // options only, on one slide) — selectedContainerIds holds all of them, this one included.
   selectedContainerId: string | null;
-  selectContainer: (containerId: string | null, slideId?: string) => void;
+  selectedContainerIds: string[];
+  selectContainer: (containerId: string | null, slideId?: string, additive?: boolean) => void;
+  // The editors of the selected boxes that aren't being typed in, in the order they were selected.
+  // The format toolbar changes all of their text at once.
+  selectedTextEditors: TextEditorEntry[];
+  addSelectedTextEditor: (entry: TextEditorEntry) => void;
+  removeSelectedTextEditor: (editor: Editor) => void;
 
   // The text editor the user is typing in right now, so the header can show its format toolbar.
   activeTextEditor: Editor | null;
   // Which text that editor is typing in, so the format toolbar can change its font size.
   activeTextTarget: TextTarget | null;
   setActiveTextEditor: (editor: Editor | null, target?: TextTarget | null) => void;
-  // Sets the chosen font size (the largest it auto-fits to) of a question, option or text box.
-  setTextFontSize: (target: TextTarget, fontSize: number) => void;
+  // Sets the chosen font size of questions, options or text boxes (all to the same size).
+  setTextFontSizes: (targets: TextTarget[], fontSize: number) => void;
 
   // `position`, when given, is the exact drop point (in the container's own coordinate space) to
   // center the new element on, instead of the container's center.
@@ -360,6 +371,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         selectedSlideId: quiz.slides[0].id,
         selectedElementIds: [],
         selectedContainerId: null,
+        selectedContainerIds: [],
         isPresenting: false,
       })
     ),
@@ -399,7 +411,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   recentElementAssetIds: [],
 
   selectSlide: (slideId) =>
-    set({ selectedSlideId: slideId, selectedElementIds: [], selectedContainerId: null }),
+    set({ selectedSlideId: slideId, selectedElementIds: [], selectedContainerId: null, selectedContainerIds: [] }),
 
   addSlide: (afterSlideId, type) => {
     const slide = createBlankSlide(type);
@@ -420,6 +432,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       selectedSlideId: slides[0].id,
       selectedElementIds: [],
       selectedContainerId: null,
+      selectedContainerIds: [],
     })),
 
   deleteSlide: (slideId) => {
@@ -467,6 +480,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         selectedSlideId: copies[0].id,
         selectedElementIds: [],
         selectedContainerId: null,
+        selectedContainerIds: [],
       };
     });
   },
@@ -485,7 +499,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   setLayout: (slideId, layout) => {
-    const { quiz, selectedContainerId } = get();
+    const { quiz, selectedContainerId, selectedContainerIds } = get();
     const slide = quiz.slides.find((s) => s.id === slideId);
     if (!slide || slide.layout === layout) return;
 
@@ -507,7 +521,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         elements: fitElementsToBoxes(s.elements, s, next),
       })),
       // A clicked shape box that no longer exists would send new elements nowhere.
-      selectedContainerId: selectedContainerId === SIDE_CONTAINER_ID && !hasShapeBox(next) ? null : selectedContainerId,
+      ...(selectedContainerId === SIDE_CONTAINER_ID && !hasShapeBox(next)
+        ? { selectedContainerId: null, selectedContainerIds: [] }
+        : { selectedContainerId, selectedContainerIds }),
     });
   },
 
@@ -533,12 +549,13 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       // Select the new strip, so the next inserted element goes straight into it.
       selectedSlideId: slideId,
       selectedContainerId: SIDE_CONTAINER_ID,
+      selectedContainerIds: [SIDE_CONTAINER_ID],
       selectedElementIds: [],
     });
   },
 
   removeShapeBox: (slideId) => {
-    const { quiz, selectedContainerId, selectedElementIds } = get();
+    const { quiz, selectedContainerId, selectedContainerIds, selectedElementIds } = get();
     const slide = quiz.slides.find((s) => s.id === slideId);
     if (!slide) return;
 
@@ -554,7 +571,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
           { ...s, hasShapeBox: false }
         ),
       })),
-      selectedContainerId: selectedContainerId === SIDE_CONTAINER_ID ? null : selectedContainerId,
+      ...(selectedContainerId === SIDE_CONTAINER_ID
+        ? { selectedContainerId: null, selectedContainerIds: [] }
+        : { selectedContainerId, selectedContainerIds }),
       selectedElementIds: selectedElementIds.filter((id) => !removedIds.includes(id)),
     });
   },
@@ -798,15 +817,38 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   selectedContainerId: null,
+  selectedContainerIds: [],
   // With every slide visible at once (scrollable workspace), selecting a container on any slide
   // must also make that slide the "current" one — otherwise toolbars/inserts would act on a
   // different, merely-scrolled-past slide.
-  selectContainer: (containerId, slideId) =>
-    set((state) => ({
-      selectedContainerId: containerId,
-      selectedElementIds: [],
-      selectedSlideId: slideId ?? state.selectedSlideId,
-    })),
+  // Shift+click (`additive`) adds the box to the selection, or takes it out if it's already in.
+  // The side box has no text, so it's never selected together with others.
+  selectContainer: (containerId, slideId, additive = false) =>
+    set((state) => {
+      const selectedSlideId = slideId ?? state.selectedSlideId;
+      const canJoin =
+        additive &&
+        containerId !== null &&
+        containerId !== SIDE_CONTAINER_ID &&
+        state.selectedContainerId !== SIDE_CONTAINER_ID &&
+        selectedSlideId === state.selectedSlideId;
+      const ids = !canJoin
+        ? containerId ? [containerId] : []
+        : state.selectedContainerIds.includes(containerId)
+          ? state.selectedContainerIds.filter((id) => id !== containerId)
+          : [...state.selectedContainerIds, containerId];
+      return {
+        selectedContainerId: ids.at(-1) ?? null,
+        selectedContainerIds: ids,
+        selectedElementIds: [],
+        selectedSlideId,
+      };
+    }),
+
+  selectedTextEditors: [],
+  addSelectedTextEditor: (entry) => set((state) => ({ selectedTextEditors: [...state.selectedTextEditors, entry] })),
+  removeSelectedTextEditor: (editor) =>
+    set((state) => ({ selectedTextEditors: state.selectedTextEditors.filter((entry) => entry.editor !== editor) })),
 
   activeTextEditor: null,
   activeTextTarget: null,
@@ -818,20 +860,22 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       isColorPanelOpen: editor || state.selectedElementIds.length > 0 ? state.isColorPanelOpen : false,
     })),
 
-  setTextFontSize: (target, fontSize) => {
-    const { quiz } = get();
-    set({
-      quiz: updateSlide(quiz, target.slideId, (s) => {
-        if (target.kind === "question") return { ...s, questionFontSize: fontSize };
-        if (target.kind === "option") {
-          return { ...s, options: s.options.map((o) => (o.id === target.optionId ? { ...o, fontSize } : o)) as typeof s.options };
-        }
-        return {
-          ...s,
-          elements: s.elements.map((el) => (el.id === target.elementId ? { ...el, text: { html: el.text?.html ?? "", fontSize } } : el)),
-        };
-      }),
-    });
+  setTextFontSizes: (targets, fontSize) => {
+    const quiz = targets.reduce(
+      (quiz, target) =>
+        updateSlide(quiz, target.slideId, (s) => {
+          if (target.kind === "question") return { ...s, questionFontSize: fontSize };
+          if (target.kind === "option") {
+            return { ...s, options: s.options.map((o) => (o.id === target.optionId ? { ...o, fontSize } : o)) as typeof s.options };
+          }
+          return {
+            ...s,
+            elements: s.elements.map((el) => (el.id === target.elementId ? { ...el, text: { html: el.text?.html ?? "", fontSize } } : el)),
+          };
+        }),
+      get().quiz
+    );
+    set({ quiz });
   },
 
   addElement: (slideId, assetId, containerId = null, position) => {
@@ -857,13 +901,15 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       containerId,
       ...(asset?.isTextBox && { text: { html: "<p>Type here</p>" } }),
     };
-    const { recentElementAssetIds, selectedSlideId, selectedContainerId } = get();
+    const { recentElementAssetIds, selectedSlideId, selectedContainerId, selectedContainerIds } = get();
     set({
       quiz: updateSlide(quiz, slideId, (s) => ({ ...s, elements: [...s.elements, element] })),
       // The drop may land on a slide other than the current one — make it current so the toolbar
       // and shortcuts act on the new element. A box picked on the old slide doesn't carry over.
       selectedSlideId: slideId,
-      selectedContainerId: slideId === selectedSlideId ? selectedContainerId : null,
+      ...(slideId === selectedSlideId
+        ? { selectedContainerId, selectedContainerIds }
+        : { selectedContainerId: null, selectedContainerIds: [] }),
       selectedElementIds: [element.id],
       recentElementAssetIds: [assetId, ...recentElementAssetIds.filter((id) => id !== assetId)].slice(0, 8),
     });
@@ -975,7 +1021,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
     // Forget any previously clicked box, so a plain Ctrl+V puts each element back in the box it
     // was copied from — clicking a box after copying still aims the paste there.
-    set({ clipboard: elements, selectedContainerId: null });
+    set({ clipboard: elements, selectedContainerId: null, selectedContainerIds: [] });
   },
 
   clearClipboard: () => set({ clipboard: null }),
