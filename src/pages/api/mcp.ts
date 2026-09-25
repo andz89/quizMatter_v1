@@ -1,5 +1,5 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { z } from "zod";
 import { buildSlides, getClaudeFormat } from "@/lib/importQuiz";
@@ -70,10 +70,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return;
   }
 
-  const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true });
   const host = req.headers.host!;
-  await createServer(`${host.startsWith("localhost") ? "http" : "https"}://${host}`).connect(transport);
-  await transport.handleRequest(req, res, req.body);
+  const appUrl = `${host.startsWith("localhost") ? "http" : "https"}://${host}`;
+  const transport = new WebStandardStreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true });
+  await createServer(appUrl).connect(transport);
+
+  // The SDK's Node adapter reads req.rawHeaders, which is empty on Cloudflare (OpenNext), so the
+  // request is rebuilt as a standard web Request from the headers Next already parsed.
+  const headers = new Headers();
+  for (const [name, value] of Object.entries(req.headers)) if (value !== undefined) headers.set(name, String(value));
+  const response = await transport.handleRequest(new Request(`${appUrl}/api/mcp`, { method: req.method, headers }), {
+    parsedBody: req.body,
+  });
+
+  res.status(response.status);
+  response.headers.forEach((value, name) => res.setHeader(name, value));
+  res.send(await response.text());
 }
 
 // A quiz with drawn backgrounds can be bigger than the 1 MB default.
