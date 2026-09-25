@@ -2,6 +2,18 @@
 
 Whenever a requested feature or adjustment would change the structure or behavior of the app (new data flow, new component/module, schema change, new dependency, altered logic), do NOT write code first. First reply with a plan: describe the structure/architecture you intend to build, walk through the logic in detail, and explicitly call out any external or internal library you plan to use. Wait for the user to review and approve the plan before implementing.
 
+# Installing Packages (npm version)
+
+The app deploys on Cloudflare Workers Builds, which runs `npm ci` with **npm 10.9.2**. The user's machine has npm 11, which writes a `package-lock.json` that npm 10's `npm ci` rejects ("package.json and package-lock.json are not in sync") and the deploy fails.
+
+So whenever you add, remove, or update a package, always use npm 10.9.2 instead of plain `npm`:
+
+- Add: `npx -y npm@10.9.2 install <package>` (dev: `npx -y npm@10.9.2 install -D <package>`)
+- Remove: `npx -y npm@10.9.2 uninstall <package>`
+- Any other change to `package.json` dependencies: run `npx -y npm@10.9.2 install` afterwards to rewrite the lock file
+
+Do this yourself — don't ask the user to run it. Commit `package-lock.json` together with `package.json`.
+
 # Code Style
 
 Keep the code:

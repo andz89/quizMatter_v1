@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import dynamic from "next/dynamic";
 import { useEditorStore } from "@/lib/store";
+import { buildSlides } from "@/lib/importQuiz";
 import { useEditorShortcuts } from "@/lib/useEditorShortcuts";
 import { EditorTopBar } from "./EditorTopBar";
 import { IconRail } from "./IconRail";
@@ -18,7 +19,11 @@ const PresentationView = dynamic(() =>
   import("@/components/presentation/PresentationView").then((mod) => mod.PresentationView)
 );
 
-export function Editor({ quiz }: { quiz: Quiz }) {
+/**
+ * `draft` is a quiz Claude sent through the MCP server (see /api/mcp): its slides replace the quiz's
+ * slides, unsaved, like the Paste button does. null means the draft link had expired.
+ */
+export function Editor({ quiz, draft }: { quiz: Quiz; draft?: unknown }) {
   // Until the quiz below is in the store, the store still holds the placeholder (or the last quiz opened).
   const isLoaded = useEditorStore((s) => s.quiz.id === quiz.id);
   const hasUnsavedChanges = useEditorStore((s) => s.quiz !== s.savedQuiz);
@@ -36,8 +41,20 @@ export function Editor({ quiz }: { quiz: Quiz }) {
   useEditorShortcuts();
 
   useEffect(() => {
-    useEditorStore.getState().loadQuiz(quiz);
-  }, [quiz]);
+    const store = useEditorStore.getState();
+    store.loadQuiz(quiz);
+    if (draft === undefined) return;
+
+    // Drop ?draft from the address, so a reload after saving doesn't load the draft again.
+    window.history.replaceState(null, "", window.location.pathname);
+    if (draft === null) {
+      alert("This link from Claude has expired (links last 24 hours). Ask Claude to send the quiz again.");
+      return;
+    }
+    const result = buildSlides(draft);
+    if ("errors" in result) alert(`Couldn't load the slides from Claude:\n\n${result.errors.join("\n")}`);
+    else store.importSlides(result.slides);
+  }, [quiz, draft]);
 
   // Closing or reloading the tab with unsaved changes makes the browser ask "Leave page?" first.
   useEffect(() => {

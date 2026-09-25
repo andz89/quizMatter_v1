@@ -22,7 +22,9 @@ export default function LoginPage() {
       setIsLoggingIn(false);
       return;
     }
-    router.push("/");
+    // Back to the page the proxy sent us from (only paths on this site, never another domain).
+    const next = new URLSearchParams(window.location.search).get("next");
+    router.push(next?.startsWith("/") && !next.startsWith("//") ? next : "/");
     router.refresh();
   };
 

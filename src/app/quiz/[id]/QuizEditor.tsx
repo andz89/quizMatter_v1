@@ -9,6 +9,6 @@ import type { Quiz } from "@/lib/schema";
 // match the live React state. Skipping SSR avoids the mismatch entirely.
 const Editor = dynamic(() => import("@/components/editor/Editor").then((mod) => mod.Editor), { ssr: false });
 
-export function QuizEditor({ quiz }: { quiz: Quiz }) {
-  return <Editor quiz={quiz} />;
+export function QuizEditor({ quiz, draft }: { quiz: Quiz; draft?: unknown }) {
+  return <Editor quiz={quiz} draft={draft} />;
 }

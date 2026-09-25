@@ -23,7 +23,9 @@ Status: **test version built.**
 - **Claude's own SVG, design only:** `backgroundSvg` (full-slide artwork behind the cards) and `svg` decorations. Always shown as an **image** (`<img>` / CSS background), so nothing inside can run. Max 20,000 characters. Teaching pictures stay library-only.
 - **Claude's own background (`backgroundSvg`)** is always shown at 20% opacity: the importer wraps it in a see-through layer.
 - **Library backgrounds:** `backgroundPattern` picks one of the app's patterned backgrounds (`background-dots`, …). The importer draws it into `backgroundSvg` at half size, as a soft (25%) frame around the edges with a plain middle, in the `background` color: 40px on every slide. It drops the slide's `design` decorations. Give it or `backgroundSvg`, not both.
-- **Not in the test:** saving, styled text beyond the bold title.
+- **Saving:** imported slides are saved like any other edit (Supabase, via `saveQuizToDb` in `src/lib/quizzes.ts`).
+- **Option letter button:** the A/B/C/D button sits in each option card's top-left corner. Option pictures stay clear of it: they are centered, or on the right half when the option has text.
+- **Not in the test:** styled text beyond the bold title.
 - Sample file: `docs/sample-import.json`.
 
 The sections below are the original plan. Where they differ from the test version, the test version wins.
@@ -169,7 +171,7 @@ If we build an MCP server later (with `@modelcontextprotocol/sdk`), its `create_
 - **Mixed elements in one box:** if a box has 2 apples *and* 3 bananas (two entries), how are they placed together? One shared row? Apples on top, bananas below?
 - **Paste or upload:** paste JSON into a text box (easiest from a chat) or upload a `.json` file?
 - **Where it goes:** add slides to the current quiz, or make a new quiz?
-- **Saving:** the quiz only lives in browser memory right now, so a refresh loses imported slides.
+- ~~**Saving:** the quiz only lives in browser memory right now.~~ Done: quizzes are saved to Supabase.
 - **Error messages:** show which slide and which field is wrong, e.g. "Slide 3: minutes must be 0–59".
 - **Exact sizes** for `small` / `medium` / `large`.
 

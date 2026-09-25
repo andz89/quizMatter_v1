@@ -195,8 +195,9 @@ const slideRecipe = z.discriminatedUnion("type", [
       .enum(["text-top", "text-left", "title-only"])
       .default("text-top")
       .describe(
-        "text-top = title and text across the top, pictures below; text-left = title and text on the left half, " +
-          "pictures on the right half; title-only = a big centered title with pictures below (no text).",
+        "text-top (the default and best choice) = title and text across the full width at the top, pictures big below; " +
+          "text-left = title and text on the left half, pictures squeezed into the right half — only for a small, simple picture with no callouts; " +
+          "title-only = a big centered title with pictures below (no text).",
       ),
     title: z.string().optional().describe("Short heading, shown in bold."),
     text: z.string().optional().describe("The lesson or instructions. Keep it short: 1–4 sentences. \\n starts a new paragraph."),
@@ -251,6 +252,7 @@ Where pictures go ("in", default "side"):
   - When an option has a picture, keep its text short (1–3 words).
   - An option can be just a picture: leave its text empty ("").
 - Lesson slides: leave "in" out. Pictures fill the room the title and text leave.
+  - Use layout "text-top" for lessons with a picture: the text runs across the full width and the picture gets the wide area below, so it's shown big. Don't use "text-left" when the picture has callouts — the half-width box makes the picture tiny.
 
 Pictures:
 - The app places, centers and sizes the pictures itself, so never give positions.
@@ -265,6 +267,7 @@ Arrows that point at part of a picture ("callouts", lesson slides only):
 - "from" = where the arrow comes from: left, right, top or bottom. "at" = which part it points at: top, middle or bottom for arrows from the left or right; left, middle or right for arrows from the top or bottom.
 - Up to 3 from the left and 3 from the right; at most 1 from the top and 1 from the bottom.
 - Give the picture "size": "large" so the arrows and labels have room.
+- On "text-top" lessons the room below the text is wide but not tall, so bring arrows from the left and right. An arrow from the top or bottom takes height and makes the picture smaller.
 
 Design — make every slide colorful and friendly:
 - "background": give every slide a soft, light color (e.g. #FEF3C7, #E0F2FE, #DCFCE7, #FCE7F3, #EDE9FE). Use one color family for the whole quiz and change the shade per slide or per topic. Dark colors are lightened automatically, because the text is dark.
@@ -288,7 +291,7 @@ Example:
   "slides": [
     {
       "type": "lesson",
-      "layout": "text-left",
+      "layout": "text-top",
       "background": "#FEF3C7",
       "design": [
         { "asset": "circle", "spot": "top-right", "color": "#FDBA74", "opacity": 40 },
@@ -453,7 +456,7 @@ function buildSlide(recipe: SlideRecipe, reportError: (message: string) => void)
     const list = byBox.get(containerId) ?? [];
     const callouts = el.callouts ?? [];
     for (let copy = 0; copy < el.count; copy++) {
-      const pictureSize = startSize(asset, settings, size, areaOf(containerId));
+      const pictureSize = fitAroundCallouts(startSize(asset, settings, size, areaOf(containerId)), callouts, areaOf(containerId));
       list.push({
         base: {
           id: createId(),
@@ -549,7 +552,8 @@ function pickLayout(options: string[], elements: ElementRecipe[]): Slide["layout
 // ---------------------------------------------------------------------------------------------
 
 // Space around the slide's edge and between the text and the pictures (px).
-const LESSON_MARGIN = 40;
+// The margin is wider than a pattern background's 40px frame, so text never sits on the pattern.
+const LESSON_MARGIN = 56;
 const LESSON_GAP = 24;
 const LESSON_TITLE_HEIGHT = 72;
 const LESSON_BIG_TITLE_HEIGHT = 140;
@@ -615,12 +619,16 @@ interface Pad {
   bottom: number;
 }
 
-// Callout sizes, as a share of the picture's height, so they shrink along with it.
-const CALLOUT_GAP = 0.04; // between the arrow's tip and the picture
-const CALLOUT_ARROW = 0.45; // arrow length
-const CALLOUT_LABEL_WIDTH = 1.1;
-const CALLOUT_LABEL_HEIGHT = 0.22;
-const CALLOUT_THICKNESS = 0.12; // the arrow element's height (its line and head scale with it)
+// Callout sizes in px. They stay the same whatever the picture's size, so a big picture doesn't get
+// giant labels, and labels don't take room the picture could use.
+const CALLOUT_GAP = 6; // between the arrow's tip and the picture
+const CALLOUT_ARROW = 56; // arrow length
+const CALLOUT_THICKNESS = 14; // the arrow element's height (its line and head scale with it)
+const CALLOUT_LABEL_HEIGHT = 40; // fits one line of bold text at the text box's smallest size
+// A label is as wide as its text: about this much per letter, plus a little room, within these limits.
+const CALLOUT_LETTER_WIDTH = 14;
+const CALLOUT_LABEL_PADDING = 16;
+const CALLOUT_LABEL_WIDTH = { min: 60, max: 300 };
 // How far along the picture each "at" points: a quarter, half or three quarters of the way.
 const CALLOUT_AT = { top: 0.25, left: 0.25, middle: 0.5, bottom: 0.75, right: 0.75 };
 // Most callouts from each side. Labels above or below would sit on top of each other, so just one there.
@@ -641,33 +649,49 @@ function checkCallouts(callouts: Callout[], slideType: SlideRecipe["type"]): str
   return null;
 }
 
+function labelWidth(label: string): number {
+  const width = label.length * CALLOUT_LETTER_WIDTH + CALLOUT_LABEL_PADDING;
+  return Math.min(CALLOUT_LABEL_WIDTH.max, Math.max(CALLOUT_LABEL_WIDTH.min, width));
+}
+
 /** The room a picture's callouts need on each side of it. */
 function calloutPad(callouts: Callout[], picture: Size): Pad {
-  const h = picture.height;
-  const has = (side: Callout["from"]) => callouts.some((c) => c.from === side);
-  const sideways = (CALLOUT_GAP + CALLOUT_ARROW + CALLOUT_LABEL_WIDTH) * h;
-  const upDown = (CALLOUT_GAP + CALLOUT_ARROW + CALLOUT_LABEL_HEIGHT) * h;
-  // A label above or below is wider than a narrow picture, so it also needs a little room at the sides.
-  const overhang = has("top") || has("bottom") ? Math.max(0, (CALLOUT_LABEL_WIDTH * h - picture.width) / 2) : 0;
+  const on = (side: Callout["from"]) => callouts.filter((c) => c.from === side);
+  const widest = (side: Callout["from"]) => Math.max(0, ...on(side).map((c) => labelWidth(c.label)));
+  const sideways = (side: Callout["from"]) => (on(side).length ? CALLOUT_GAP + CALLOUT_ARROW + widest(side) : 0);
+  const upDown = (side: Callout["from"]) => (on(side).length ? CALLOUT_GAP + CALLOUT_ARROW + CALLOUT_LABEL_HEIGHT : 0);
+  // A label above or below can be wider than a narrow picture, so it also needs a little room at the sides.
+  const overhang = Math.max(0, (Math.max(widest("top"), widest("bottom")) - picture.width) / 2);
   return {
-    left: has("left") ? sideways : overhang,
-    right: has("right") ? sideways : overhang,
-    top: has("top") ? upDown : 0,
-    bottom: has("bottom") ? upDown : 0,
+    left: Math.max(sideways("left"), overhang),
+    right: Math.max(sideways("right"), overhang),
+    top: upDown("top"),
+    bottom: upDown("bottom"),
   };
+}
+
+/** The picture shrunk (keeping its shape) just enough that it and its callouts fit in the area. */
+function fitAroundCallouts(picture: Size, callouts: Callout[], area: Size): Size {
+  if (!callouts.length) return picture;
+  const pad = calloutPad(callouts, picture);
+  const scale = Math.min(
+    1,
+    (area.width - pad.left - pad.right) / picture.width,
+    (area.height - pad.top - pad.bottom) / picture.height,
+  );
+  return { width: picture.width * scale, height: picture.height * scale };
 }
 
 /** Each callout's arrow (a turned "line-arrow") and its label, around the placed picture. */
 function calloutElements(picture: Rect, callouts: Callout[]): SvgElement[] {
   const arrowAsset = getElementAsset("line-arrow")!;
-  const h = picture.height;
-  const gap = CALLOUT_GAP * h;
-  const length = CALLOUT_ARROW * h;
-  const thickness = Math.max(MIN_ELEMENT_SIZE, CALLOUT_THICKNESS * h);
-  const labelWidth = CALLOUT_LABEL_WIDTH * h;
-  const labelHeight = CALLOUT_LABEL_HEIGHT * h;
+  const gap = CALLOUT_GAP;
+  const length = CALLOUT_ARROW;
+  const thickness = Math.max(MIN_ELEMENT_SIZE, CALLOUT_THICKNESS);
+  const labelHeight = CALLOUT_LABEL_HEIGHT;
 
   return callouts.flatMap(({ from, at, label, color }) => {
+    const width = labelWidth(label);
     let tip: { x: number; y: number };
     let labelRect: Rect;
     let align: "left" | "center" | "right" = "center";
@@ -677,13 +701,13 @@ function calloutElements(picture: Rect, callouts: Callout[]): SvgElement[] {
       const y = picture.y + CALLOUT_AT[at] * picture.height;
       tip = { x: from === "left" ? picture.x - gap : picture.x + picture.width + gap, y };
       const tailX = from === "left" ? tip.x - length : tip.x + length;
-      labelRect = { x: from === "left" ? tailX - labelWidth : tailX, y: y - labelHeight / 2, width: labelWidth, height: labelHeight };
+      labelRect = { x: from === "left" ? tailX - width : tailX, y: y - labelHeight / 2, width, height: labelHeight };
       align = from === "left" ? "right" : "left";
     } else {
       const x = picture.x + CALLOUT_AT[at] * picture.width;
       tip = { x, y: from === "top" ? picture.y - gap : picture.y + picture.height + gap };
       const tailY = from === "top" ? tip.y - length : tip.y + length;
-      labelRect = { x: x - labelWidth / 2, y: from === "top" ? tailY - labelHeight : tailY, width: labelWidth, height: labelHeight };
+      labelRect = { x: x - width / 2, y: from === "top" ? tailY - labelHeight : tailY, width, height: labelHeight };
     }
     // The arrow's middle is half its length back from the tip, toward where it comes from.
     const back = { left: [-1, 0], right: [1, 0], top: [0, -1], bottom: [0, 1] }[from];

@@ -42,21 +42,25 @@ interface SlideStaticViewProps {
   number?: number;
   /** When true, the correct option is colored green. */
   revealAnswer?: boolean;
+  /** When true, the slide, question and option borders are hidden (full-screen presentation). */
+  hideBorders?: boolean;
 }
 
 /** Read-only, full-size rendering of a slide — used in presentation mode. */
-export function SlideStaticView({ slide, number, revealAnswer = false }: SlideStaticViewProps) {
+export function SlideStaticView({ slide, number, revealAnswer = false, hideBorders = false }: SlideStaticViewProps) {
+  // Borders turn see-through instead of going away, so nothing on the slide shifts.
+  const lineColor = hideBorders ? "transparent" : "var(--border-default)";
   const isList = slide.layout !== "grid";
   const sideElements = slide.elements.filter((el) => el.containerId === SIDE_CONTAINER_ID);
   return (
     <div
-      className="relative flex select-none flex-col gap-6 overflow-hidden rounded-card border border-border-default bg-bg-surface p-10"
-      style={{ width: CANVAS_WIDTH, height: CANVAS_HEIGHT, ...getSlideBackgroundStyle(slide) }}
+      className="relative flex select-none flex-col gap-6 overflow-hidden rounded-card border bg-bg-surface p-10"
+      style={{ width: CANVAS_WIDTH, height: CANVAS_HEIGHT, borderColor: lineColor, ...getSlideBackgroundStyle(slide) }}
     >
       {slide.type !== "lesson" && (
         <div
-          className="relative shrink-0 rounded-button border border-border-default p-4"
-          style={{ height: slide.questionHeight }}
+          className="relative shrink-0 rounded-button border p-4"
+          style={{ height: slide.questionHeight, borderColor: lineColor }}
         >
           {number !== undefined && (
             // Sits on the box's top border, like a small tab.
@@ -110,22 +114,23 @@ export function SlideStaticView({ slide, number, revealAnswer = false }: SlideSt
                   key={option.id}
                   className={`relative rounded-button border ${isList ? "px-6 py-3" : "p-6"}`}
                   style={{
-                    borderColor: isCorrect ? "var(--accent-green)" : "var(--border-default)",
+                    borderColor: isCorrect ? "var(--accent-green)" : lineColor,
                     background: isCorrect ? "rgba(30, 142, 79, 0.12)" : "var(--bg-page)",
                   }}
                 >
                   <span
-                    // Outside the card on its left, like the editor.
-                    className={`absolute right-full top-1/2 mr-1 flex h-9 w-9 -translate-y-1/2 shrink-0 items-center justify-center rounded-full border-2 text-sm font-semibold`}
+                    // Inside the card's top-left corner, like the editor, above any pictures in the card.
+                    // White fill so the letter stays readable on any slide background.
+                    className="absolute left-1.5 top-1.5 z-20 flex h-10 w-10 items-center justify-center rounded-full border-2 bg-white text-lg font-bold"
                     style={{
-                      borderColor: isCorrect ? "var(--accent-green)" : "var(--border-default)",
-                      color: isCorrect ? "var(--accent-green)" : "var(--text-secondary)",
-                      background: isCorrect ? "rgba(30, 142, 79, 0.12)" : undefined,
+                      borderColor: isCorrect ? "var(--accent-green)" : lineColor,
+                      color: isCorrect ? "var(--accent-green)" : "#000000",
                     }}
                   >
                     {isCorrect ? "✓" : OPTION_LABELS[index]}
                   </span>
-                  <div className="h-full w-full">
+                  {/* pl-7 keeps the text clear of the corner label, like the editor. */}
+                  <div className="h-full w-full pl-7">
                     <FitText text={option.text} html={option.html} minFontSize={22} maxFontSize={44} className="text-text-primary" />
                   </div>
                   <StaticElementView elements={slide.elements.filter((el) => el.containerId === option.id)} />

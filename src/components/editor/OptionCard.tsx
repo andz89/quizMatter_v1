@@ -65,41 +65,42 @@ export function OptionCard({ slideId, option, index, isCorrect, elements, box }:
         opacity: isDragging ? 0.5 : 1,
       }}
     >
-      {/* Outside the card on its left: the drag handle at the top, and the ✓/A button centered on the
-          card's height (the handle is absolute, so it doesn't push the button off center). Reaches the
-          card's edge (pr-3 is padding, not a gap), so moving the mouse onto it keeps the card hovered.
-          It sits in the slide's margin, or the grid's wider column gap for right-hand options. */}
+      {/* Outside the card on its left, at the top: the drag handle. Reaches the card's edge (pr-3 is
+          padding, not a gap), so moving the mouse onto it keeps the card hovered. It sits in the
+          slide's margin, or the grid's wider column gap for right-hand options. */}
       <div
         onClick={(e) => e.stopPropagation()}
-        className="absolute inset-y-0 right-full z-10 flex items-center pr-3"
+        className="absolute right-full top-0 z-10 pr-3"
       >
         <div
           {...attributes}
           {...listeners}
           title="Drag to reorder"
-          className="absolute left-0 top-0 flex h-7 w-9 cursor-grab items-center justify-center rounded-dropdown text-text-primary opacity-0 transition-opacity hover:bg-bg-surface group-hover/box:opacity-100 active:cursor-grabbing"
+          className="flex h-7 w-9 cursor-grab items-center justify-center rounded-dropdown text-text-primary opacity-0 transition-opacity hover:bg-bg-surface group-hover/box:opacity-100 active:cursor-grabbing"
         >
           <GripIcon size={14} />
         </div>
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            setCorrectOption(slideId, option.id);
-          }}
-          title="Mark as correct answer"
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 text-sm font-semibold transition-colors"
-          style={{
-            borderColor: isCorrect ? "var(--accent-green)" : "var(--border-default)",
-            color: isCorrect ? "var(--accent-green)" : "var(--text-secondary)",
-            background: isCorrect ? "rgba(30, 142, 79, 0.12)" : "var(--bg-surface)",
-          }}
-        >
-          {isCorrect ? "✓" : OPTION_LABELS[index]}
-        </button>
       </div>
 
-      <div className="h-full w-full">
+      {/* The ✓/A button, inside the card's top-left corner, above any pictures in the card. */}
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          setCorrectOption(slideId, option.id);
+        }}
+        title="Mark as correct answer"
+        className="absolute left-1.5 top-1.5 z-20 flex h-10 w-10 items-center justify-center rounded-full border-2 bg-white text-lg font-bold transition-colors"
+        style={{
+          borderColor: isCorrect ? "var(--accent-green)" : "var(--border-default)",
+          color: isCorrect ? "var(--accent-green)" : "#000000",
+        }}
+      >
+        {isCorrect ? "✓" : OPTION_LABELS[index]}
+      </button>
+
+      {/* pl-7 keeps the text clear of the corner ✓/A button. */}
+      <div className="h-full w-full pl-7">
         <EditableText
           text={option.text}
           html={option.html}

@@ -25,12 +25,17 @@ export async function proxy(request: NextRequest) {
   const isLoggedIn = Boolean(data?.claims);
   const isLoginPage = request.nextUrl.pathname === "/login";
 
-  if (!isLoggedIn && !isLoginPage) return NextResponse.redirect(new URL("/login", request.url));
+  if (!isLoggedIn && !isLoginPage) {
+    // Remember the page (e.g. a draft link from Claude) so login can come back to it.
+    const loginUrl = new URL("/login", request.url);
+    loginUrl.searchParams.set("next", request.nextUrl.pathname + request.nextUrl.search);
+    return NextResponse.redirect(loginUrl);
+  }
   if (isLoggedIn && isLoginPage) return NextResponse.redirect(new URL("/", request.url));
   return response;
 }
 
 export const config = {
-  // Every page, but not Next's own files or images.
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
+  // Every page, but not Next's own files, images, or the MCP server (Claude calls it without a login).
+  matcher: ["/((?!api/mcp|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
 };
