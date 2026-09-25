@@ -11,8 +11,8 @@ import { saveDraft } from "@/lib/drafts";
  * link that opens the draft in the editor. Nothing here touches the user's saved quizzes, so it
  * needs no login — the proxy lets this path through. Instead it asks for a shared secret (below).
  *
- * It's a Pages Router API route (not an App Router route.ts) because checking the quiz draws the
- * background patterns with react-dom/server, which the App Router doesn't allow on the server.
+ * It's a Pages Router API route (not an App Router route.ts) because the quiz importer imports
+ * react-dom/server (for drawing background patterns), which the App Router doesn't allow on the server.
  */
 function createServer(appUrl: string) {
   const server = new McpServer({ name: "quizmatter", version: "1.0.0" });
@@ -37,8 +37,9 @@ function createServer(appUrl: string) {
     },
     async ({ slides }) => {
       const recipe = { slides };
-      // Built here only to catch mistakes while Claude can still fix them; the editor builds the slides again.
-      const result = buildSlides(recipe);
+      // Built here only to catch mistakes while Claude can still fix them; the editor builds the slides again
+      // (and draws the background patterns, which can't be drawn on Cloudflare).
+      const result = buildSlides(recipe, { drawPatterns: false });
       if ("errors" in result) {
         return { isError: true, content: [{ type: "text", text: `The quiz has mistakes. Fix them and send again:\n\n${result.errors.join("\n")}` }] };
       }

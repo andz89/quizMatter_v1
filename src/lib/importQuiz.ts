@@ -354,18 +354,22 @@ export function getClaudeFormat(): string {
 // Recipe → slides
 // ---------------------------------------------------------------------------------------------
 
-export function buildSlides(data: unknown): { slides: Slide[] } | { errors: string[] } {
+/**
+ * `drawPatterns: false` skips drawing background patterns (they need react-dom/server, which
+ * Cloudflare Workers don't have) — for the MCP server, which only wants the errors.
+ */
+export function buildSlides(data: unknown, { drawPatterns = true } = {}): { slides: Slide[] } | { errors: string[] } {
   const parsed = quizRecipeSchema.safeParse(data);
   if (!parsed.success) return { errors: [z.prettifyError(parsed.error)] };
 
   const errors: string[] = [];
   const slides = parsed.data.slides.map((recipe, i) =>
-    buildSlide(recipe, (message) => errors.push(`Slide ${i + 1}: ${message}`)),
+    buildSlide(recipe, drawPatterns, (message) => errors.push(`Slide ${i + 1}: ${message}`)),
   );
   return errors.length ? { errors } : { slides };
 }
 
-function buildSlide(recipe: SlideRecipe, reportError: (message: string) => void): Slide {
+function buildSlide(recipe: SlideRecipe, drawPatterns: boolean, reportError: (message: string) => void): Slide {
   const blank = createBlankSlide(recipe.type);
   if (recipe.backgroundPattern && recipe.backgroundSvg) reportError('give "backgroundPattern" or "backgroundSvg", not both.');
   let slide: Slide = {
@@ -374,7 +378,7 @@ function buildSlide(recipe: SlideRecipe, reportError: (message: string) => void)
     background: recipe.background && lighten(recipe.background),
     backgroundSvg: recipe.backgroundSvg && softened(withSvgNamespace(recipe.backgroundSvg)),
   };
-  if (recipe.backgroundPattern) {
+  if (recipe.backgroundPattern && drawPatterns) {
     // No color given: the pattern's own color, lightened, so the slide isn't plain white.
     const background = lighten(recipe.background ?? getElementAsset(recipe.backgroundPattern)!.defaultColor!);
     slide = withBackground(slide, { background, backgroundPattern: recipe.backgroundPattern });
