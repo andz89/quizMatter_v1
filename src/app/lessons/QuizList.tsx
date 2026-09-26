@@ -14,6 +14,8 @@ export type QuizRow = {
   meta: string;
   // "draft" = sent by Claude, not saved yet (it lives in the drafts database for a day).
   status: "saved" | "draft";
+  // A draft Claude is still checking: shown as "Checking…" and not openable until the final version comes.
+  checking?: boolean;
   // Shown after the meta line as a green "Published" with a globe icon.
   isPublished?: boolean;
   slideCount: number;
@@ -191,6 +193,7 @@ function QuizListRow({
   const [isRemoving, startRemoving] = useTransition();
   const isDraft = row.status === "draft";
   const href = isDraft ? `/quiz/new?draft=${row.id}` : `/quiz/${row.id}`;
+  const titleClass = "block truncate text-sm";
 
   const remove = () => {
     const question = isDraft ? `Discard "${row.title}"? Claude's draft will be deleted.` : `Delete "${row.title}"? This can't be undone.`;
@@ -204,9 +207,9 @@ function QuizListRow({
     // The link stretches over the whole row (its ::after), so the row clicks through to the quiz while
     // the Discard button, sitting above it, stays its own button.
     <div
-      className={`relative grid min-h-14 ${COLUMNS} items-center gap-x-4 border-b border-border-default px-5 py-3 transition-colors last:border-b-0 hover:bg-bg-page ${
-        isRemoving || isBeingDeleted ? "opacity-50" : ""
-      }`}
+      className={`relative grid min-h-14 ${COLUMNS} items-center gap-x-4 border-b border-border-default px-5 py-3 transition-colors last:border-b-0 ${
+        row.checking ? "" : "hover:bg-bg-page"
+      } ${isRemoving || isBeingDeleted ? "opacity-50" : ""}`}
     >
       {/* z-10 keeps it above the row link's ::after, so checking doesn't open the lesson. */}
       <input
@@ -218,11 +221,15 @@ function QuizListRow({
         className="relative z-10 h-4 w-4 accent-accent-navy"
       />
       <div className="min-w-0">
-        <Link href={href} className="block truncate text-sm text-text-primary after:absolute after:inset-0">
-          {row.title}
-          {/* Over the row's last column (the trash spot), so nothing moves. */}
-          <LinkPending spinnerClassName="absolute top-1/2 right-5 h-7 w-7 -translate-y-1/2 rounded-dropdown bg-bg-page" />
-        </Link>
+        {row.checking ? (
+          <span className={`${titleClass} text-text-secondary`}>{row.title}</span>
+        ) : (
+          <Link href={href} className={`${titleClass} text-text-primary after:absolute after:inset-0`}>
+            {row.title}
+            {/* Over the row's last column (the trash spot), so nothing moves. */}
+            <LinkPending spinnerClassName="absolute top-1/2 right-5 h-7 w-7 -translate-y-1/2 rounded-dropdown bg-bg-page" />
+          </Link>
+        )}
         {(row.meta || row.note || row.isPublished) && (
           <p className="mt-0.5 flex items-center gap-1.5 truncate text-[13px] text-text-secondary">
             {row.meta}
@@ -243,7 +250,7 @@ function QuizListRow({
       </div>
 
       <div className="flex items-center gap-2 sm:contents">
-        <StatusPill status={row.status} />
+        {row.checking ? <CheckingPill /> : <StatusPill status={row.status} />}
         <span className="hidden text-sm text-text-primary sm:block">{row.slideCount}</span>
         <span className="hidden text-sm text-text-secondary sm:block">{row.dateLabel}</span>
         <span className="relative flex justify-end">
@@ -276,6 +283,16 @@ function StatusPill({ status }: { status: QuizRow["status"] }) {
       }`}
     >
       {status === "saved" ? "Saved" : "Draft"}
+    </span>
+  );
+}
+
+/** Claude is still checking this draft. */
+function CheckingPill() {
+  return (
+    <span className="inline-flex w-fit items-center gap-1.5 rounded-dropdown border border-border-default bg-bg-page px-2.5 py-1 text-[13px] leading-none font-semibold text-text-secondary">
+      <Spinner size={12} />
+      Checking…
     </span>
   );
 }

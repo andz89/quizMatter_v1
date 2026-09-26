@@ -81,7 +81,12 @@ function buildRows(quizzes: SavedQuiz[], drafts: DraftSummary[]): QuizRow[] {
         slideCount: draft.slideCount,
         sortTime: draft.createdAt,
         dateLabel: timeAgo(draft.createdAt, now),
-        note: `From Claude · not saved yet · ${expiresIn(draft.createdAt + DRAFT_LIFETIME_MS - now)}`,
+        checking: draft.state === "checking",
+        note: {
+          ready: `From Claude · not saved yet · ${expiresIn(draft.createdAt + DRAFT_LIFETIME_MS - now)}`,
+          checking: "From Claude · checking the layout",
+          unfinished: `From Claude · Not finished: Claude didn't send the final version · ${expiresIn(draft.createdAt + DRAFT_LIFETIME_MS - now)}`,
+        }[draft.state],
       })),
   ].sort((a, b) => b.sortTime - a.sortTime);
 }

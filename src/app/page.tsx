@@ -91,7 +91,7 @@ function buildCards(mine: CardQuiz[], others: CardQuiz[], drafts: DraftSummary[]
         title: draft.title || "Untitled lesson",
         meta: joinParts([draft.grade, draft.subject, slideCountLabel(draft.slideCount), timeAgo(draft.createdAt, now)]),
         firstSlide: null,
-        badge: "draft" as const,
+        badge: ({ ready: "draft", checking: "checking", unfinished: "unfinished" } as const)[draft.state],
         sortTime: draft.createdAt,
       })),
   ].sort((a, b) => b.sortTime - a.sortTime);

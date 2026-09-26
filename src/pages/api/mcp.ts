@@ -35,18 +35,24 @@ function createServer(appUrl: string) {
       name,
       {
         description:
-          "Sends a new lesson (teaching slides and/or questions) to quizMatter and returns a link for the user. The link opens it in the editor as a new lesson, " +
-          "which the user checks and saves. `slides` must follow the format from get_lesson_format. " +
-          "If something is wrong, the errors come back — fix them and send again. " +
-          "Otherwise it returns a layout report: where every box, text and picture landed. Check it, and if anything is off, " +
-          "send the fixed lesson again with `draftId` — that replaces the draft and keeps the same link.",
+          "Sends a lesson (teaching slides and/or questions) to quizMatter. `slides` must follow the format from get_lesson_format. " +
+          "If something is wrong, the errors come back — fix them and send again. Otherwise it returns a layout report: " +
+          "where every box, text and picture landed. " +
+          'Send it first with final: false to check: the user sees it as "Checking…" and can\'t open it yet, and you get the report and a draftId. ' +
+          "Fix anything that's off (you can check again), then send the final version with final: true and that draftId. " +
+          "The final send returns the link for the user, which opens the lesson in the editor; nothing is saved until they click Save.",
         inputSchema: {
           details: quizDetailsSchema.optional().describe("About the lesson as a whole."),
           slides: z.array(z.unknown()).describe("The slides array, in the format from get_lesson_format."),
-          draftId: z.uuid().optional().describe("The draft id from an earlier send_lesson, to replace that draft with this fixed version."),
+          // Chats that started before checking existed don't send it, so they still get a finished lesson.
+          final: z
+            .boolean()
+            .default(true)
+            .describe("false = a version to check (no link for the user yet); true = the finished lesson, with a link for the user."),
+          draftId: z.uuid().optional().describe("The draftId from your earlier send of this lesson. Your new version replaces that draft."),
         },
       },
-      async ({ details = {}, slides, draftId }) => {
+      async ({ details = {}, slides, final, draftId }) => {
         // Built here to catch mistakes while Claude can still fix them, and for the layout report. The editor builds
         // the slides again from the same recipe (same positions), and also draws the background patterns, which can't
         // be drawn on Cloudflare.
@@ -55,19 +61,29 @@ function createServer(appUrl: string) {
           const text = `The lesson has mistakes. Fix them and send again:\n\n${result.errors.join("\n")}`;
           return { isError: true, content: [{ type: "text", text }] };
         }
-        const draft = { details, slides };
-        // A fixed version replaces its draft; if that draft is gone (expired), it's saved as a new one.
+        // A checking version is marked, so the lesson lists show it as "Checking…" and don't open it.
+        const draft = final ? { details, slides } : { details, slides, checking: true };
+        // A new version replaces its earlier draft (a checking one turns into the final one); if that draft
+        // is gone (expired), it's saved as a new one.
         const replaced = draftId !== undefined && (await replaceDraft(draftId, draft));
         const id = replaced ? draftId : await saveDraft(draft);
-        const link = `${appUrl}/quiz/new?draft=${id}`;
+        const title = details.title || "Untitled lesson";
+        const intro = final
+          ? [
+              `Sent the final version of "${title}" (${slides.length} slides). Give the user this link: ${appUrl}/quiz/new?draft=${id}`,
+              "It opens the lesson in the editor; nothing is saved until they click Save. The link works for 24 hours.",
+            ]
+          : [
+              `Sent "${title}" (${slides.length} slides) for checking. The user sees it as "Checking…" and can't open it yet; there's no link for them.`,
+              'Check the report below. Fix anything that isn\'t how you meant it (e.g. with "position", sizes or shorter text), then call send_lesson',
+              `with final: true and draftId "${id}". If you don't within 10 minutes, the user sees it as "Not finished" and can open this version.`,
+            ];
         const text = [
-          `${replaced ? "Replaced the draft with" : "Sent"} ${slides.length} slides. Give the user this link: ${link}`,
-          `It opens "${details.title || "Untitled lesson"}" as a new lesson in the editor; nothing is saved until they click Save. The link works for 24 hours.`,
+          ...intro,
           `Draft id: ${id}`,
           "",
           "Layout report: what the editor will show. Sizes are px; x,y is the top-left corner inside its box",
           '(on lesson slides, on the 1280×720 slide). Lines starting with "!" are things to check.',
-          'If anything isn\'t how you meant it, fix the lesson (e.g. with "position", sizes or shorter text) and call send_lesson again with this draftId.',
           "",
           result.report,
         ].join("\n");

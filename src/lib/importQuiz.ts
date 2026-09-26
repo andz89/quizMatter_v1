@@ -445,9 +445,10 @@ Placing them yourself:
 - Anything past its box's edge is pulled back in.
 - "textBoxes" (lesson slides) are placed the same way, and sit on top of pictures — good for labels on a picture.
 
-After you send (the layout report):
+Checking before the final version (the layout report):
 - send_lesson replies with a layout report: every box's size, and where each text and picture landed, in the same px as "position". Lines starting with "!" point out things to check: pictures that wrapped to more rows or shrank a lot, pictures on top of text, text that will probably shrink.
-- Check it against what you meant. To fix something, change the lesson (e.g. give "position" with the numbers you want) and call send_lesson again with the "draftId" it gave you. That replaces the draft and keeps the same link.
+- Send the lesson first with "final": false. The user sees it as "Checking…" and can't open it yet. Check the report against what you meant, and fix anything that's off (e.g. give "position" with the numbers you want). You can check again the same way.
+- Then send it with "final": true and the "draftId" you got. That turns the checking version into the finished lesson and gives you the link for the user.
 
 Arrows that point at part of a picture ("callouts", lesson slides only):
 - Use them to show where something is: the numerator and the denominator of a fraction, the hour hand of a clock, the tallest bar of a graph.

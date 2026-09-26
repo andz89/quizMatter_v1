@@ -13,9 +13,15 @@ declare global {
 }
 
 export const DRAFT_LIFETIME_MS = 24 * 60 * 60 * 1000;
+// A draft Claude is still checking shows as "Checking…" (not openable) until the final version replaces
+// it. After this long without one, Claude has likely stopped, so it shows as "Not finished" and opens.
+export const CHECK_TIMEOUT_MS = 10 * 60 * 1000;
 
-/** What Claude sent: the quiz's details, and the slides as a recipe for buildSlides. */
-export type Draft = { details: QuizDetails; slides: unknown[] };
+/**
+ * What Claude sent: the quiz's details, and the slides as a recipe for buildSlides. `checking` = a first
+ * version Claude sent to see the layout report, before its final one.
+ */
+export type Draft = { details: QuizDetails; slides: unknown[]; checking?: boolean };
 
 /** Stores the draft and returns its id. Also clears out expired drafts. */
 export async function saveDraft(draft: Draft): Promise<string> {
@@ -51,21 +57,36 @@ export async function getDraft(id: string): Promise<Draft | null> {
   return row ? JSON.parse(row.recipe) : null;
 }
 
-/** What the quiz list shows of a draft. */
-export type DraftSummary = { id: string; title: string; grade: string; subject: string; slideCount: number; createdAt: number };
+/**
+ * What the quiz list shows of a draft. `state`: "ready" = Claude's final version; "checking" = Claude is
+ * still checking it (not openable yet); "unfinished" = checked, but no final version came within CHECK_TIMEOUT_MS.
+ */
+export type DraftSummary = {
+  id: string;
+  title: string;
+  grade: string;
+  subject: string;
+  slideCount: number;
+  createdAt: number;
+  state: "ready" | "checking" | "unfinished";
+};
 
 /** Every draft that hasn't expired, newest first. */
 export async function listDrafts(): Promise<DraftSummary[]> {
+  const now = Date.now();
   const { results } = await getCloudflareContext()
     .env.DRAFTS_DB.prepare(
       `SELECT id, json_extract(recipe, '$.details.title') AS title, json_extract(recipe, '$.details.grade') AS grade,
          json_extract(recipe, '$.details.subject') AS subject, json_array_length(recipe, '$.slides') AS slideCount,
-         created_at AS createdAt
+         created_at AS createdAt, json_extract(recipe, '$.checking') AS checking
        FROM drafts WHERE created_at >= ? ORDER BY created_at DESC`,
     )
-    .bind(Date.now() - DRAFT_LIFETIME_MS)
-    .all<DraftSummary>();
-  return results;
+    .bind(now - DRAFT_LIFETIME_MS)
+    .all<Omit<DraftSummary, "state"> & { checking: number | null }>();
+  return results.map(({ checking, ...draft }) => ({
+    ...draft,
+    state: !checking ? "ready" : now - draft.createdAt < CHECK_TIMEOUT_MS ? "checking" : "unfinished",
+  }));
 }
 
 /** Deletes these drafts in one trip to the database. */
