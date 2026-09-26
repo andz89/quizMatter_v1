@@ -1,9 +1,9 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, rectSortingStrategy } from "@dnd-kit/sortable";
-import { useEditorStore, withGroupMembers, selectedIdsOn } from "@/lib/store";
+import { useEditorStore, selectedIdsOn } from "@/lib/store";
 import {
   CANVAS_WIDTH,
   CANVAS_HEIGHT,
@@ -15,6 +15,7 @@ import {
 } from "@/lib/constants";
 import { getElementAsset } from "@/lib/svgLibrary";
 import { useElementDropTarget } from "@/lib/useElementDropTarget";
+import { useMarqueeSelection } from "@/lib/useMarqueeSelection";
 import { QuestionContainer } from "./QuestionContainer";
 import { OptionCard } from "./OptionCard";
 import { SideContainer } from "./SideContainer";
@@ -42,9 +43,7 @@ export function SlideCanvas({ slide }: SlideCanvasProps) {
   const pasteClipboard = useEditorStore((s) => s.pasteClipboard);
   const fitElementsToContainer = useEditorStore((s) => s.fitElementsToContainer);
 
-  const selectElements = useEditorStore((s) => s.selectElements);
   const addShapeBox = useEditorStore((s) => s.addShapeBox);
-  const zoom = useEditorStore((s) => s.zoom);
 
   // Lesson slides have no boxes, so the slide itself takes elements dropped from the Elements panel.
   const isLesson = slide.type === "lesson";
@@ -53,99 +52,8 @@ export function SlideCanvas({ slide }: SlideCanvasProps) {
 
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; containerId: string | null; canPaste: boolean } | null>(null);
 
-  // Rectangle selection: dragging anywhere on the slide that isn't a shape, button or handle (empty
-  // space, or a question/option box that isn't being typed in) draws a rectangle, and every element
-  // it touches gets selected. Shift+drag adds to the current selection. All points are screen
-  // (client) pixels.
-  const rootRef = useRef<HTMLDivElement>(null);
-  // A press that hasn't moved far enough to count as a drag yet. Until it does, nothing is captured,
-  // so plain clicks and double-clicks still reach the box under the mouse.
-  const pressStart = useRef<{ x: number; y: number; keptIds: string[] } | null>(null);
-  // originX/Y = the canvas's top-left on screen when the drag began, for drawing the rectangle.
-  const [marquee, setMarquee] = useState<{
-    originX: number;
-    originY: number;
-    startX: number;
-    startY: number;
-    x: number;
-    y: number;
-    keptIds: string[];
-  } | null>(null);
-
-  // A rectangle drag ends with a click on the slide, which would clear the new selection — skip that one click.
-  const skipNextClick = useRef(false);
-
-  const handleMarqueePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    // A drag that ended off the slide never gets its click, so don't carry the skip over.
-    skipNextClick.current = false;
-    if (e.button !== 0) return;
-    // Buttons, grip handles and text being typed in keep their own mouse behavior.
-    // (Shapes and their handles stop the event themselves.)
-    if ((e.target as HTMLElement).closest("button, [role='button'], [contenteditable='true']")) return;
-    // Read the store now: the editor's "click outside deselects" runs right after this.
-    const state = useEditorStore.getState();
-    const keptIds = e.shiftKey && state.selectedSlideId === slide.id ? state.selectedElementIds : [];
-    pressStart.current = { x: e.clientX, y: e.clientY, keptIds };
-  };
-
-  const handleMarqueePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (marquee) {
-      setMarquee({ ...marquee, x: e.clientX, y: e.clientY });
-      return;
-    }
-    const start = pressStart.current;
-    // The button may have been let go outside the slide, where we never heard about it.
-    if (!start || (e.buttons & 1) === 0) {
-      pressStart.current = null;
-      return;
-    }
-    // A tiny wiggle is still just a click.
-    if (Math.abs(e.clientX - start.x) < 4 && Math.abs(e.clientY - start.y) < 4) return;
-    e.currentTarget.setPointerCapture(e.pointerId);
-    const origin = e.currentTarget.getBoundingClientRect();
-    setMarquee({
-      originX: origin.left,
-      originY: origin.top,
-      startX: start.x,
-      startY: start.y,
-      x: e.clientX,
-      y: e.clientY,
-      keptIds: start.keptIds,
-    });
-  };
-
-  const handleMarqueePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
-    pressStart.current = null;
-    if (!marquee || !rootRef.current) return;
-    setMarquee(null);
-    const left = Math.min(marquee.startX, e.clientX);
-    const right = Math.max(marquee.startX, e.clientX);
-    const top = Math.min(marquee.startY, e.clientY);
-    const bottom = Math.max(marquee.startY, e.clientY);
-    skipNextClick.current = true;
-
-    // Compare on-screen boxes, so this works at any zoom and inside any box (question, option, canvas).
-    const touchedIds = Array.from(rootRef.current.querySelectorAll<HTMLElement>("[data-element-id]"))
-      .filter((el) => {
-        const r = el.getBoundingClientRect();
-        return r.left < right && r.right > left && r.top < bottom && r.bottom > top;
-      })
-      .map((el) => el.dataset.elementId!);
-
-    selectContainer(null, slide.id);
-    // Touching any part of a group selects the whole group.
-    selectElements(withGroupMembers(slide.elements, [...new Set([...marquee.keptIds, ...touchedIds])]));
-  };
-
-  // The rectangle in the canvas's own (unzoomed) coordinates, for drawing it.
-  const marqueeBox = marquee
-    ? {
-        left: (Math.min(marquee.startX, marquee.x) - marquee.originX) / zoom,
-        top: (Math.min(marquee.startY, marquee.y) - marquee.originY) / zoom,
-        width: Math.abs(marquee.x - marquee.startX) / zoom,
-        height: Math.abs(marquee.y - marquee.startY) / zoom,
-      }
-    : null;
+  // Drag on empty space to select elements with a rectangle.
+  const { rootRef, pointerHandlers, marqueeBox, takeSkippedClick } = useMarqueeSelection(slide.id, null);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
@@ -186,14 +94,9 @@ export function SlideCanvas({ slide }: SlideCanvasProps) {
         borderColor: isCanvasDragOver ? "var(--accent-navy)" : "var(--border-default)",
       }}
       {...(isLesson ? canvasDropHandlers : {})}
-      onPointerDown={handleMarqueePointerDown}
-      onPointerMove={handleMarqueePointerMove}
-      onPointerUp={handleMarqueePointerUp}
+      {...pointerHandlers}
       onClick={(e) => {
-        if (skipNextClick.current) {
-          skipNextClick.current = false;
-          return;
-        }
+        if (takeSkippedClick()) return;
         if (e.target === e.currentTarget) {
           clearElementSelection();
           selectContainer(null, slide.id);

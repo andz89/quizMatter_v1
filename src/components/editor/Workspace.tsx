@@ -5,10 +5,11 @@ import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, type D
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { restrictToVerticalAxis } from "@dnd-kit/modifiers";
 import { useEditorStore, MIN_ZOOM, type SlideInsertTarget } from "@/lib/store";
-import { CANVAS_WIDTH, CANVAS_HEIGHT, SLIDE_DRAG_MIME, getSlideNumbers } from "@/lib/constants";
+import { CANVAS_WIDTH, CANVAS_HEIGHT, SLIDE_DRAG_MIME, getSlideNumbers, canHaveAnswer } from "@/lib/constants";
 import { slideSchema } from "@/lib/schema";
 import { SlideWorkspaceItem } from "./SlideWorkspaceItem";
 import { ZoomControls } from "./ZoomControls";
+import { AnswerArea } from "./AnswerArea";
 
 const WORKSPACE_PADDING = 96;
 // Space between one slide and the next slide's toolbar (the toolbar is part of each slide item).
@@ -24,6 +25,8 @@ export function Workspace() {
   const addSlide = useEditorStore((s) => s.addSlide);
   const reorderSlides = useEditorStore((s) => s.reorderSlides);
   const insertSlides = useEditorStore((s) => s.insertSlides);
+  const answerSlideId = useEditorStore((s) => s.answerSlideId);
+  const closeAnswer = useEditorStore((s) => s.closeAnswer);
   // Where a slide dragged from the Lessons panel will go (a line shows the spot while dragging).
   const [dropTarget, setDropTarget] = useState<SlideInsertTarget | null>(null);
 
@@ -222,6 +225,8 @@ export function Workspace() {
   }, []);
 
   const slideNumbers = getSlideNumbers(quiz.slides);
+  // Gone if the slide was deleted (or undone away) while its answer was open.
+  const answerSlide = quiz.slides.find((s) => s.id === answerSlideId && canHaveAnswer(s));
   // Below the needed width the add row shrinks as a whole (CSS zoom keeps it sharp) instead of wrapping.
   const addRowScale = Math.min(1, (CANVAS_WIDTH * zoom) / ADD_ROW_WIDTH);
 
@@ -284,6 +289,7 @@ export function Workspace() {
         </div>
       </div>
       <ZoomControls />
+      {answerSlide && <AnswerArea slide={answerSlide} onClose={closeAnswer} />}
     </div>
   );
 }

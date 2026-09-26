@@ -2,7 +2,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useEditorStore } from "@/lib/store";
-import { CANVAS_WIDTH, CANVAS_HEIGHT, getSlideNumbers } from "@/lib/constants";
+import { CANVAS_WIDTH, CANVAS_HEIGHT, getSlideNumbers, hasAnswerContent } from "@/lib/constants";
 import { SlideStaticView } from "./SlideStaticView";
 import { AnswerModal } from "@/components/editor/AnswerModal";
 
@@ -27,7 +27,11 @@ export function PresentationView() {
   const slide = quiz.slides[presentationIndex];
   const isAnswerShown = revealedSlideId === slide?.id;
   const isChoice = (slide?.type ?? "choice") === "choice";
-  const canReveal = slide?.type === "short-answer" || (isChoice && !!slide?.correctOptionId);
+  // Blank slides are often just for teaching, so they only get the button once an answer is typed.
+  const canReveal =
+    slide?.type === "short-answer" ||
+    (slide?.type === "lesson" && hasAnswerContent(slide)) ||
+    (isChoice && !!slide?.correctOptionId);
 
   useLayoutEffect(() => {
     const el = containerRef.current;
@@ -123,10 +127,10 @@ export function PresentationView() {
           type="button"
           onClick={(e) => {
             e.stopPropagation();
-            // Choice slides toggle the green highlight; short-answer slides open the answer popup.
+            // Choice slides toggle the green highlight; short-answer and blank slides open the answer popup.
             setRevealedSlideId(isChoice && isAnswerShown ? null : slide.id);
           }}
-          title={isChoice && isAnswerShown ? "Hide answer" : "Show answer"}
+          title={slide.type === "lesson" ? "Reveal" : isChoice && isAnswerShown ? "Hide answer" : "Show answer"}
           className={`absolute right-16 top-12 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-black/30 text-white/80 hover:bg-black/50 hover:text-white ${buttonsClass}`}
         >
           <EyeIcon />
@@ -152,7 +156,7 @@ export function PresentationView() {
       </div>
 
 
-      {isAnswerShown && slide.type === "short-answer" && <AnswerModal answer={slide.correctAnswer ?? ""} onClose={() => setRevealedSlideId(null)} />}
+      {isAnswerShown && !isChoice &&<AnswerModal slide={slide} onClose={() => setRevealedSlideId(null)} />}
 
       <div className="absolute bottom-5 left-1/2 -translate-x-1/2 rounded-dropdown bg-black/30 px-3 py-1 text-xs font-medium text-white/80">
         {presentationIndex + 1} / {quiz.slides.length}

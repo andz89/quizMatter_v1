@@ -14,6 +14,8 @@ import {
   MIN_SHAPE_STRIP_HEIGHT,
   QUESTION_CONTAINER_ID,
   SIDE_CONTAINER_ID,
+  ANSWER_CONTAINER_ID,
+  canHaveAnswer,
 } from "./constants";
 import { fitInBox, getOuterEdges } from "./geometry";
 import { withBackground, type BackgroundPatch } from "./slideBackground";
@@ -54,13 +56,13 @@ export type TextEditorEntry = { editor: Editor; target: TextTarget };
 export type SlideInsertTarget = { slideId: string; before?: boolean };
 
 /**
- * True for an Escape press a side panel should act on. Not while the slide grid or the presentation
- * is open, or while typing in a canvas text — those use Escape to close or stop themselves first.
+ * True for an Escape press a side panel should act on. Not while the slide grid, the presentation or
+ * an answer modal is open, or while typing in a canvas text — those use Escape to close or stop themselves first.
  */
 export function isPanelEscape(e: KeyboardEvent) {
   if (e.key !== "Escape") return false;
-  const { isGridViewOpen, isPresenting } = useEditorStore.getState();
-  return !isGridViewOpen && !isPresenting && !(e.target as HTMLElement | null)?.isContentEditable;
+  const { isGridViewOpen, isPresenting, answerSlideId } = useEditorStore.getState();
+  return !isGridViewOpen && !isPresenting && !answerSlideId && !(e.target as HTMLElement | null)?.isContentEditable;
 }
 
 function updateSlide(quiz: Quiz, slideId: string, updater: (slide: Slide) => Slide): Quiz {
@@ -216,10 +218,12 @@ interface EditorState {
   updateOption: (slideId: string, optionId: string, text: string, html: string) => void;
   setCorrectOption: (slideId: string, optionId: string) => void;
   updateCorrectAnswer: (slideId: string, answer: string) => void;
+  // Picks which answer a short-answer or blank slide shows: the typed text or the answer canvas.
+  setAnswerType: (slideId: string, answerType: NonNullable<Slide["answerType"]>) => void;
   renameSlide: (slideId: string, name: string) => void;
   reorderOptions: (slideId: string, fromOptionId: string, toOptionId: string) => void;
   shuffleOptions: (slideId: string) => void;
-  // Empties the question, every option's text and all elements; keeps the correct answer and layout.
+  // Empties the question, every option's text and all slide elements; keeps the answer (text and canvas) and layout.
   clearSlide: (slideId: string) => void;
 
   // Title and the other lesson details (grade, subject…), edited in the top bar and the Details panel.
@@ -243,6 +247,11 @@ interface EditorState {
   isGridViewOpen: boolean;
   openGridView: () => void;
   closeGridView: () => void;
+
+  // The slide whose answer modal is open (short-answer and blank slides), or null.
+  answerSlideId: string | null;
+  openAnswer: (slideId: string) => void;
+  closeAnswer: () => void;
 
   selectedElementIds: string[];
   // Clicking a grouped element selects its whole group.
@@ -373,6 +382,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         selectedContainerId: null,
         selectedContainerIds: [],
         isPresenting: false,
+        answerSlideId: null,
       })
     ),
 
@@ -668,6 +678,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set({ quiz: updateSlide(quiz, slideId, (s) => ({ ...s, correctAnswer: answer })) });
   },
 
+  setAnswerType: (slideId, answerType) => {
+    set((state) => ({ quiz: updateSlide(state.quiz, slideId, (s) => ({ ...s, answerType })) }));
+  },
+
   renameSlide: (slideId, name) => {
     const { quiz } = get();
     // An empty name means "no name", so the slide falls back to its default label.
@@ -718,9 +732,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         question: "",
         questionHtml: "",
         options: s.options.map((o) => ({ ...o, text: "", html: "" })) as typeof s.options,
-        elements: [],
+        elements: s.elements.filter((el) => el.containerId === ANSWER_CONTAINER_ID),
       })),
-      selectedElementIds: selectedElementIds.filter((id) => !slide.elements.some((el) => el.id === id)),
+      selectedElementIds: selectedElementIds.filter(
+        (id) => !slide.elements.some((el) => el.id === id && el.containerId !== ANSWER_CONTAINER_ID)
+      ),
     });
   },
 
@@ -767,6 +783,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   isGridViewOpen: false,
   openGridView: () => set({ isGridViewOpen: true }),
   closeGridView: () => set({ isGridViewOpen: false }),
+
+  answerSlideId: null,
+  openAnswer: (slideId) => set({ answerSlideId: slideId }),
+  closeAnswer: () => set({ answerSlideId: null }),
 
   selectedElementIds: [],
 
@@ -822,7 +842,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   // must also make that slide the "current" one — otherwise toolbars/inserts would act on a
   // different, merely-scrolled-past slide.
   // Shift+click (`additive`) adds the box to the selection, or takes it out if it's already in.
-  // The side box has no text, so it's never selected together with others.
+  // The side box and the answer canvas have no text, so they're never selected together with others.
   selectContainer: (containerId, slideId, additive = false) =>
     set((state) => {
       const selectedSlideId = slideId ?? state.selectedSlideId;
@@ -830,7 +850,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         additive &&
         containerId !== null &&
         containerId !== SIDE_CONTAINER_ID &&
+        containerId !== ANSWER_CONTAINER_ID &&
         state.selectedContainerId !== SIDE_CONTAINER_ID &&
+        state.selectedContainerId !== ANSWER_CONTAINER_ID &&
         selectedSlideId === state.selectedSlideId;
       const ids = !canJoin
         ? containerId ? [containerId] : []
@@ -887,7 +909,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     // 3D solids are drawn smaller inside their square (so they still fit when rotated), so they
     // start 30% bigger to look the same size as flat elements.
     const boxSize = asset?.is3d ? 124 : 95;
-    const square = containerId === null ? DEFAULT_ELEMENT_SIZE : boxSize;
+    // The open slide and the (slide-sized) answer canvas get the bigger default size.
+    const square = containerId === null || containerId === ANSWER_CONTAINER_ID ? DEFAULT_ELEMENT_SIZE : boxSize;
     // Wide assets (number lines) start at their own size; everything else starts square.
     const wanted = asset?.defaultSize ?? { width: square, height: square };
     // Centered on the drop point (or the box's center), shrunk evenly if it doesn't fit.
@@ -1035,6 +1058,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     // An element copied from an option on another slide goes into the option in the same spot
     // here — that other slide's option id doesn't exist on this slide, so the element would vanish.
     const resolveContainer = (id: string | null) => {
+      // A slide without an answer canvas (multiple choice) takes answer elements on the open slide.
+      if (id === ANSWER_CONTAINER_ID) return canHaveAnswer(slide) ? id : null;
       // Lesson slides have no boxes at all, so everything lands on the open slide.
       if (slide.type === "lesson") return null;
       if (id === null || id === QUESTION_CONTAINER_ID) return id;

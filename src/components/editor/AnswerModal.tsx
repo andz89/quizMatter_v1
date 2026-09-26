@@ -3,22 +3,20 @@
 import { useEffect } from "react";
 import { createPortal } from "react-dom";
 import { CloseIcon } from "@/components/icons/CloseIcon";
-
-const MAX_ANSWER_LENGTH = 300;
+import { ANSWER_CONTAINER_ID } from "@/lib/constants";
+import { FluidCanvas } from "@/components/presentation/FluidSlidePreview";
+import { StaticElementView } from "./StaticElementView";
+import type { Slide } from "@/lib/schema";
 
 interface AnswerModalProps {
-  answer: string;
-  // Given in the editor (the teacher types the answer); left out in presentation (answer is only shown).
-  onChange?: (answer: string) => void;
+  slide: Slide;
   onClose: () => void;
 }
 
-/** Centered modal with a short-answer slide's correct answer — a text area in the editor, read-only when presenting. */
-export function AnswerModal({ answer, onChange, onClose }: AnswerModalProps) {
-  // Caught on the way down (capture) and stopped here, so the page's own shortcuts (Escape leaves
-  // the presentation, arrows change slides, Ctrl+V pastes an element…) don't fire behind the modal.
-  // Typing still works: stopping a key event doesn't stop the letter reaching the text area.
-  // Only Escape closes it — Enter makes a new line in the answer.
+/** Centered modal with a short-answer or blank slide's correct answer, shown when presenting: its text or its answer canvas. */
+export function AnswerModal({ slide, onClose }: AnswerModalProps) {
+  // Caught on the way down (capture) and stopped here, so the presentation's own shortcuts
+  // (Escape leaves it, arrows change slides) don't fire behind the modal. Escape closes the modal.
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       e.stopPropagation();
@@ -28,11 +26,14 @@ export function AnswerModal({ answer, onChange, onClose }: AnswerModalProps) {
     return () => window.removeEventListener("keydown", handleKeyDown, true);
   }, [onClose]);
 
-  // Portal into <body>: the toolbar sits inside the slide's wrapper, which gets a `transform`
-  // while being dragged — that would shift a `position: fixed` box rendered in place.
+  const isCanvas = slide.answerType === "canvas";
+  const answer = slide.correctAnswer ?? "";
+  // A blank slide's answer is content shown during the discussion, not a correct answer.
+  const isReveal = slide.type === "lesson";
+
+  // Portal into <body>, so no parent's `transform` shifts this `position: fixed` box.
   return createPortal(
     <div
-      data-keep-container-selection="true"
       className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40"
       onClick={(e) => {
         // React sends portal clicks up to the presentation screen, which would change the slide.
@@ -40,9 +41,16 @@ export function AnswerModal({ answer, onChange, onClose }: AnswerModalProps) {
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="flex max-h-[calc(100vh-32px)] w-[640px] max-w-[calc(100vw-32px)] flex-col gap-4 rounded-card bg-bg-surface px-6 py-5">
+      <div
+        className={`flex max-h-[calc(100vh-32px)] max-w-[calc(100vw-32px)] flex-col gap-4 rounded-card bg-bg-surface px-6 py-5 ${
+          // The canvas is as wide as fits while its 16:9 box (plus the header) still fits the screen height.
+          isCanvas ? "w-[min(1100px,calc((100vh-120px)*16/9))]" : "w-[640px]"
+        }`}
+      >
         <div className="flex items-center justify-between">
-          <span className="text-xs font-semibold uppercase tracking-[0.05em] text-accent-green">Correct answer</span>
+          <span className={`text-xs font-semibold uppercase tracking-[0.05em] ${isReveal ? "text-accent-navy" : "text-accent-green"}`}>
+            {isReveal ? "Reveal" : "Correct answer"}
+          </span>
           <button
             type="button"
             onClick={onClose}
@@ -53,22 +61,13 @@ export function AnswerModal({ answer, onChange, onClose }: AnswerModalProps) {
           </button>
         </div>
 
-        {onChange ? (
-          <div className="flex flex-col gap-1.5">
-            <textarea
-              autoFocus
-              rows={5}
-              maxLength={MAX_ANSWER_LENGTH}
-              value={answer}
-              onChange={(e) => onChange(e.target.value)}
-              placeholder="Type the correct answer…"
-              // Google Forms look: light gray fill, a single bottom line, which gets thicker on focus.
-              // The line is an inset shadow so the thicker one doesn't push the text.
-              className="resize-none rounded-t-[4px] bg-[#F8F9FA] px-4 py-3 text-base font-normal text-[#202124] shadow-[inset_0_-1px_0_#80868B] outline-none placeholder:text-[#70757A] focus:shadow-[inset_0_-2px_0_var(--accent-navy)]"
-            />
-            <span className="self-end text-xs text-text-secondary tabular-nums">
-              {answer.length} / {MAX_ANSWER_LENGTH}
-            </span>
+        {isCanvas ? (
+          <div className="relative aspect-video w-full overflow-hidden rounded-button">
+            <FluidCanvas>
+              <div className="relative h-full w-full">
+                <StaticElementView elements={slide.elements.filter((el) => el.containerId === ANSWER_CONTAINER_ID)} />
+              </div>
+            </FluidCanvas>
           </div>
         ) : answer ? (
           // pre-wrap keeps the line breaks the teacher typed.
@@ -76,7 +75,7 @@ export function AnswerModal({ answer, onChange, onClose }: AnswerModalProps) {
             {answer}
           </p>
         ) : (
-          <p className="text-base text-text-secondary">No answer was added for this slide.</p>
+          <p className="text-base text-text-secondary">{isReveal ? "Nothing was added to reveal." : "No answer was added for this slide."}</p>
         )}
       </div>
     </div>,

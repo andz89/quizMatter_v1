@@ -10,6 +10,9 @@ export const QUESTION_CONTAINER_ID = "question";
 // Sentinel containerId for elements bound to the shape box: beside the rows in the "list-side"
 // layout, or a strip under the question in the other layouts.
 export const SIDE_CONTAINER_ID = "side";
+// Sentinel containerId for elements on a slide's answer canvas (short-answer and blank slides): a
+// slide-sized area of its own, shown under the slide in the editor and in the answer popup when presenting.
+export const ANSWER_CONTAINER_ID = "answer";
 
 // dataTransfer type used to drag an element asset from the Elements panel onto a question/option box.
 export const ELEMENT_DRAG_MIME = "application/x-quizbuilder-element";
@@ -106,6 +109,18 @@ export function getSlideNumbers(slides: Slide[]): Map<string, number> {
   return numbers;
 }
 
+/** Short-answer and blank slides can have an answer (text, or a canvas of elements); choice slides mark an option instead. */
+export function canHaveAnswer(slide: Pick<Slide, "type">): boolean {
+  return slide.type === "short-answer" || slide.type === "lesson";
+}
+
+/** Whether the slide's chosen kind of answer has anything in it. */
+export function hasAnswerContent(slide: Pick<Slide, "answerType" | "correctAnswer" | "elements">): boolean {
+  return slide.answerType === "canvas"
+    ? slide.elements.some((el) => el.containerId === ANSWER_CONTAINER_ID)
+    : !!slide.correctAnswer?.trim();
+}
+
 /** Grid and list show the shape box as a strip under the question, once the slide has one. */
 export function hasShapeStrip(box: Omit<BoxLayout, "questionHeight">): boolean {
   return box.type !== "short-answer" && box.layout !== "list-side" && !!box.hasShapeBox;
@@ -148,7 +163,7 @@ function getOptionsAreaHeight(box: BoxLayout): number {
 
 /** The coordinate space an element's x/y/width/height are relative to. */
 export function getContainerBounds(containerId: string | null, box: BoxLayout): { width: number; height: number } {
-  if (containerId === null) return { width: CANVAS_WIDTH, height: CANVAS_HEIGHT };
+  if (containerId === null || containerId === ANSWER_CONTAINER_ID) return { width: CANVAS_WIDTH, height: CANVAS_HEIGHT };
   if (containerId === QUESTION_CONTAINER_ID) return { width: QUESTION_CONTAINER_WIDTH, height: box.questionHeight };
   if (containerId === SIDE_CONTAINER_ID) {
     if (box.type === "short-answer") {

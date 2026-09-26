@@ -6,10 +6,10 @@ import { useEditorStore } from "@/lib/store";
 import { GripIcon } from "@/components/icons/GripIcon";
 import { EraserIcon } from "@/components/icons/EraserIcon";
 import type { Slide, SlideType } from "@/lib/schema";
+import { ANSWER_CONTAINER_ID, canHaveAnswer, hasAnswerContent } from "@/lib/constants";
 import { DuplicateIcon } from "@/components/icons/DuplicateIcon";
 import { TrashIcon } from "@/components/icons/TrashIcon";
 import { ToolPanelButton, PanelLabel } from "./PanelControls";
-import { AnswerModal } from "./AnswerModal";
 
 const LAYOUTS: { value: Slide["layout"]; label: string; icon: ReactNode }[] = [
   { value: "grid", label: "Grid", icon: <GridLayoutIcon /> },
@@ -45,9 +45,8 @@ export function SlideToolbar({ slide, slideNumber, isFirst, isLast, canDelete, o
   const deleteSlide = useEditorStore((s) => s.deleteSlide);
   const clearSlide = useEditorStore((s) => s.clearSlide);
   const setLayout = useEditorStore((s) => s.setLayout);
-  const updateCorrectAnswer = useEditorStore((s) => s.updateCorrectAnswer);
   const renameSlide = useEditorStore((s) => s.renameSlide);
-  const [isAnswerOpen, setIsAnswerOpen] = useState(false);
+  const openAnswer = useEditorStore((s) => s.openAnswer);
   const [isRenaming, setIsRenaming] = useState(false);
 
   const isBlank = slide.type === "lesson";
@@ -56,10 +55,13 @@ export function SlideToolbar({ slide, slideNumber, isFirst, isLast, canDelete, o
   const defaultName = isBlank ? `Slide ${slideNumber}` : "";
   const label = isBlank ? slide.name || defaultName : slide.name ? `${prefix} · ${slide.name}` : prefix;
 
-  const isShortAnswer = slide.type === "short-answer";
   const isChoice = (slide.type ?? "choice") === "choice";
   // Short-answer and lesson slides have no options to fill in, so their (always empty) options pass this check.
-  const isEmpty = slide.question === "" && slide.options.every((o) => o.text === "") && slide.elements.length === 0;
+  // The answer canvas isn't cleared with the slide, so its elements don't count.
+  const isEmpty =
+    slide.question === "" &&
+    slide.options.every((o) => o.text === "") &&
+    slide.elements.every((el) => el.containerId === ANSWER_CONTAINER_ID);
 
   return (
     <div className="mb-3 flex items-center justify-between gap-2">
@@ -109,21 +111,24 @@ export function SlideToolbar({ slide, slideNumber, isFirst, isLast, canDelete, o
       </div>
 
       <div className="flex shrink-0 items-center gap-2">
-        {isShortAnswer && (
-          // Its own pale-green pill, so the answer stands apart from the slide tools.
+        {canHaveAnswer(slide) && (
+          // Its own pale pill, so the answer stands apart from the slide tools. Green (= correct) for a
+          // short-answer slide's answer; navy for a blank slide's "Reveal", which isn't an answer.
           <div
             className="flex items-center rounded-dropdown px-1.5 py-1.5 shadow-[0_1px_3px_rgba(0,0,0,0.08)]"
-            style={{ background: "rgba(30, 142, 79, 0.1)" }}
+            style={{ background: isBlank ? "rgba(25, 26, 44, 0.06)" : "rgba(30, 142, 79, 0.1)" }}
           >
             <button
               type="button"
-              onClick={() => setIsAnswerOpen(true)}
-              title="Correct answer"
-              className="flex h-8 items-center gap-2 rounded-dropdown px-2.5 text-sm font-semibold text-accent-green hover:bg-[rgba(30,142,79,0.1)]"
+              onClick={() => openAnswer(slide.id)}
+              title={isBlank ? "Content to reveal during the lesson" : "Correct answer"}
+              className={`flex h-8 items-center gap-2 rounded-dropdown px-2.5 text-sm font-semibold ${
+                isBlank ? "text-accent-navy hover:bg-[rgba(25,26,44,0.06)]" : "text-accent-green hover:bg-[rgba(30,142,79,0.1)]"
+              }`}
             >
               <AnswerIcon />
-              {/* "Add answer" until one is typed, so slides still missing one stand out. */}
-              {slide.correctAnswer ? "Answer" : "Add answer"}
+              {/* "Add …" until it has something in it, so slides still missing one stand out. */}
+              {isBlank ? (hasAnswerContent(slide) ? "Reveal" : "Add reveal") : hasAnswerContent(slide) ? "Answer" : "Add answer"}
             </button>
           </div>
         )}
@@ -182,13 +187,6 @@ export function SlideToolbar({ slide, slideNumber, isFirst, isLast, canDelete, o
                 </div>
               </ToolPanelButton>
             </>
-          )}
-          {isAnswerOpen && (
-            <AnswerModal
-              answer={slide.correctAnswer ?? ""}
-              onChange={(answer) => updateCorrectAnswer(slide.id, answer)}
-              onClose={() => setIsAnswerOpen(false)}
-            />
           )}
           <button
             type="button"

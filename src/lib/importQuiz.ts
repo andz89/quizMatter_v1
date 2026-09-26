@@ -20,6 +20,7 @@ import {
   QUESTION_CONTAINER_WIDTH,
   QUESTION_FONT_SIZE,
   SIDE_CONTAINER_ID,
+  ANSWER_CONTAINER_ID,
   TEXT_BOX_FONT_SIZE,
 } from "./constants";
 import { markupToHtml, stripMarkup } from "./richText";
@@ -49,6 +50,7 @@ import {
   DETAIL_MAX_LENGTH,
   FONT_SIZE_RANGE,
   GRADES,
+  MAX_ANSWER_LENGTH,
   MAX_REFERENCE_LINKS,
   referenceSchema,
   type Slide,
@@ -235,6 +237,53 @@ const lessonDesign = {
 const fontSize = whole(FONT_SIZE_RANGE.min, FONT_SIZE_RANGE.max);
 const fontSizeNote = "Largest font size in px; long text still shrinks to fit. Leave out unless the user asks for bigger or smaller text.";
 
+// What's on a lesson slide (besides its design). The answer canvas uses the same fields.
+const lessonContent = {
+  layout: z
+    .enum(["text-top", "text-left", "title-only"])
+    .default("text-top")
+    .describe(
+      "text-top (default) = title and text across the full width at the top, pictures below; " +
+        "text-left = title and text on the left half, pictures in the right half; " +
+        "title-only = a big centered title with pictures below (no text).",
+    ),
+  title: z.string().optional().describe("Short heading, shown in bold. **word** / *word* work here too."),
+  titleFontSize: fontSize.optional().describe(`The title. ${fontSizeNote}`),
+  titleStyle: textStyle.optional().describe("Look of the title (it's always bold)."),
+  text: z
+    .string()
+    .optional()
+    .describe("The lesson or instructions. \\n starts a new paragraph. **word** makes a word bold, *word* italic."),
+  textFontSize: fontSize.optional().describe(`The text. ${fontSizeNote}`),
+  textStyle: textStyle.optional().describe("Look of the text."),
+  textBoxes: z
+    .array(
+      z.object({
+        text: z.string().describe("**word** makes a word bold, *word* italic. \\n starts a new paragraph."),
+        position: rect.describe("Where the box goes, in px on the 1280×720 slide."),
+        fontSize: fontSize.optional().describe(fontSizeNote),
+        style: textStyle.optional(),
+      }),
+    )
+    .max(6)
+    .default([])
+    .describe("Extra text boxes you place yourself: labels, a speech bubble's words, a second paragraph."),
+  elements,
+};
+
+// The answer shown as a picture instead of a typed text: a white 1280×720 canvas, built exactly like
+// a lesson slide (no design). The teacher reveals it when presenting. On lesson slides it's the "Reveal":
+// content shown during the discussion (an activity, an example, a hint), not only an answer.
+const answerCanvas = z
+  .object(lessonContent)
+  .optional()
+  .describe(
+    'The answer as a picture: a 1280×720 canvas with a title, text, text boxes and pictures, laid out like a lesson slide. ' +
+      'Use it when the answer is best shown (the worked solution, the shape with its parts labeled…). The teacher sees this instead of "answer". ' +
+      'On a lesson slide it is the "Reveal": what the teacher shows during the discussion (an activity, an example, a hint, or the answer).',
+  )
+  .meta({ id: "answerCanvas" });
+
 const slideRecipe = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("choice"),
@@ -265,46 +314,26 @@ const slideRecipe = z.discriminatedUnion("type", [
     ...questionBackground,
     ...questionBoxes,
     questionFontSize: fontSize.optional().describe(`The question. ${fontSizeNote}`),
-    answer: z.string().describe("The answer the student should give."),
+    answer: z.string().max(MAX_ANSWER_LENGTH).describe("The answer the student should give."),
+    answerCanvas,
     elements,
   }),
   z.object({
     type: z.literal("lesson"),
     ...common,
     ...lessonDesign,
-    layout: z
-      .enum(["text-top", "text-left", "title-only"])
-      .default("text-top")
-      .describe(
-        "text-top (the default and best choice) = title and text across the full width at the top, pictures big below; " +
-          "text-left = title and text on the left half, pictures squeezed into the right half — only for a small, simple picture with no callouts; " +
-          "title-only = a big centered title with pictures below (no text).",
-      ),
     patternOpacity: whole(PATTERN_OPACITY_RANGE.min, PATTERN_OPACITY_RANGE.max)
       .optional()
       .describe('How solid "backgroundPattern" is, in percent. Leave out for 25.'),
-    title: z.string().optional().describe("Short heading, shown in bold. **word** / *word* work here too."),
-    titleFontSize: fontSize.optional().describe(`The title. ${fontSizeNote}`),
-    titleStyle: textStyle.optional().describe("Look of the title (it's always bold)."),
-    text: z
+    ...lessonContent,
+    answer: z
       .string()
+      .max(MAX_ANSWER_LENGTH)
       .optional()
-      .describe("The lesson or instructions. Keep it short: 1–4 sentences. \\n starts a new paragraph. **word** makes a word bold, *word* italic."),
-    textFontSize: fontSize.optional().describe(`The text. ${fontSizeNote}`),
-    textStyle: textStyle.optional().describe("Look of the text."),
-    textBoxes: z
-      .array(
-        z.object({
-          text: z.string().describe("**word** makes a word bold, *word* italic. \\n starts a new paragraph."),
-          position: rect.describe("Where the box goes, in px on the 1280×720 slide."),
-          fontSize: fontSize.optional().describe(fontSizeNote),
-          style: textStyle.optional(),
-        }),
-      )
-      .max(6)
-      .default([])
-      .describe("Extra text boxes you place yourself: labels, a speech bubble's words, a second paragraph."),
-    elements,
+      .describe(
+        'The "Reveal" as a short text: what the teacher shows during the discussion (an activity, a hint, or the answer to a practice problem).',
+      ),
+    answerCanvas,
   }),
 ]);
 
@@ -361,7 +390,7 @@ const READING_TOOLS = new Set(["clock", "digital-clock", "thermometer", "bar-gra
 
 const CLAUDE_NOTES = `Write a lesson for my app (quizMatter) as JSON. A lesson is a set of slides: lesson slides that teach, and question slides. Reply with only the JSON. It must match the JSON Schema at the end.
 
-The app makes every slide look good on its own: it sizes the boxes, places and sizes the pictures and picks the layout. Leave a setting out and the app decides. Every setting below is there for when you want something different — use them freely when they make a slide clearer or nicer, but you don't have to.
+Leave a setting out and the app decides it. The layout report you get back (see "Checking before the final version") shows where everything landed.
 
 Never number the questions: write "Which change forms no new substance?", not "1. Which change…" or "Q1: Which change…". The app adds the numbers itself.
 
@@ -373,7 +402,7 @@ The slide is 1280 × 720 px.
    - Question box (top, full width): "question", "questionStyle", "questionFontSize", "questionHeight".
    - Picture box "side": for pictures that belong to the question. Where it sits depends on "layout":
      - "list" (4 rows) and "grid" (2×2): a wide strip between the question and the options. It only shows when you put pictures in "side". "stripHeight" sets its height.
-     - "list-side": a tall box beside the 4 rows. Best for one big picture like a clock or a thermometer.
+     - "list-side": a tall box beside the 4 rows.
    - 4 option boxes "A", "B", "C", "D": "options" (the texts), "optionStyle", "optionFontSize". Each can also hold pictures.
    - "pictureBox": fill and border colors of the picture box.
    - "background": the slide's color.
@@ -381,6 +410,7 @@ The slide is 1280 × 720 px.
    - Question box (top, full width): "question", "questionStyle", "questionFontSize", "questionHeight".
    - Picture box "side": the big area under the question. Put the pictures for the question here (the apples to count, the shape to measure…). "pictureBox" colors it.
    - "background": the slide's color.
+   - "answerCanvas": optional, the answer shown as a picture (see Answers below).
 3. "lesson" — a white slide for teaching. Use it to:
    - teach before the questions (explain the idea with a picture),
    - give instructions for a new kind of question,
@@ -389,6 +419,7 @@ The slide is 1280 × 720 px.
    - "textBoxes": extra text boxes you place yourself anywhere (labels, a speech bubble's words, a second paragraph).
    - Pictures can be placed by the app (default) or by you ("position").
    - "design", "backgroundPattern" or "backgroundSvg" make it friendly (see Design below).
+   - "answer" / "answerCanvas": optional "Reveal" — hidden content the teacher shows during the discussion, like an activity (see Answers and Reveal below).
 
 The question box never holds pictures. Pictures always go in a picture box or an option.
 
@@ -398,8 +429,6 @@ The question box never holds pictures. Pictures always go in a picture box or an
 - Style for a whole text ("questionStyle", "optionStyle", "titleStyle", "textStyle", a text box's "style"): "color", "align" (left, center, right), "bold", "italic", "underline". Keep colors dark enough to read.
 - "\\n" starts a new line (a new paragraph).
 - Font sizes: every text shrinks to fit its box, so the font size is the largest a text gets. Defaults: question ${QUESTION_FONT_SIZE}px, options ${OPTION_FONT_SIZE}px, lesson title and text ${TEXT_BOX_FONT_SIZE}px. You can set ${FONT_SIZE_RANGE.min}–${FONT_SIZE_RANGE.max}px, e.g. bigger text for young learners.
-- Keep text short so it stays big and easy to read: a question in 1–2 lines (about 100 characters), an option in 1 line (about 40 characters in a list row, 20 in a grid cell), a lesson text in 1–4 sentences.
-
 === Box sizes (question slides) ===
 
 The question box, the strip and the options share the slide's height, so giving one more room takes it from the others.
@@ -410,24 +439,21 @@ The question box, the strip and the options share the slide's height, so giving 
   - "short-answer": ${getMaxQuestionHeight({ type: "short-answer", layout: "list" })}.
 - "stripHeight" (px, at least ${MIN_SHAPE_STRIP_HEIGHT}; "grid" and "list" with pictures in "side"): leave it out and the app gives it the room the options can spare. A taller strip means shorter options. If a height is too big, the error says the most allowed.
 
-=== Which layout for a choice slide ===
+=== Layouts ===
 
-Leave "layout" out and the app picks with these same rules:
-- Read one tool (clock, thermometer, bar graph, protractor, base-ten blocks) → "list-side", the tool in "side".
-- The answers are pictures ("Which shows 3/4?") or have pictures → "grid", one picture per option, option text "" or 1–3 words.
-- Text-only answers, short or long → "list" (4 rows). Pictures for the question (e.g. the apples to count) go in "side".
-- Calculate or type an answer, no choices → use a "short-answer" slide instead.
+Choice slides: "list" (4 rows), "grid" (2×2) or "list-side" (4 rows with a tall picture box beside them). Left out, the app picks, in this order: "grid" when the options are only pictures (empty texts); "list-side" when "side" has a clock, thermometer, bar graph, protractor, base-ten blocks or fraction circle; "grid" when the options have pictures; otherwise "list".
+- To calculate or type an answer, with no choices, use a "short-answer" slide instead.
 
-Lesson layouts:
-- "text-top" (default, best): title and text across the full width, pictures big below. Use it for lessons with a picture, always when the picture has callouts.
-- "text-left": title and text on the left half, pictures in the right half — only for a small, simple picture.
+Lesson slides:
+- "text-top" (default): title and text across the full width, pictures below.
+- "text-left": title and text on the left half, pictures in the right half.
 - "title-only": a big centered title, pictures below, no text.
 
 === Pictures ("elements") ===
 
 Where they go ("in", default "side"; lesson slides leave "in" out):
 - "side": the question's picture box (see above).
-- "A", "B", "C", "D": an option box. If the option has text, its pictures sit on the right half, beside the text. Keep that text short (1–3 words). An option can be just a picture: leave its text empty ("").
+- "A", "B", "C", "D": an option box. If the option has text, its pictures sit on the right half, beside the text. An option can be just a picture: leave its text empty ("").
 
 How they look:
 - "size" (small, medium, large) is compared to the box. On "grid" and "list" slides, small is shown as medium.
@@ -440,7 +466,7 @@ How they look:
 
 Placing them yourself:
 - The app places, centers and sizes pictures itself. To choose the spot yourself, give "position": { x, y, width, height } in px (x, y = top-left corner). Only with count 1.
-  - Lesson slides: on the 1280 × 720 slide. Keep placed pictures off the title and text.
+  - Lesson slides: on the 1280 × 720 slide.
   - Question slides: inside the picture's box ("side" or an option), from the box's top-left corner. The box sizes are in the layout report.
 - Anything past its box's edge is pulled back in.
 - "textBoxes" (lesson slides) are placed the same way, and sit on top of pictures — good for labels on a picture.
@@ -450,13 +476,25 @@ Checking before the final version (the layout report):
 - Send the lesson first with "final": false. The user sees it as "Checking…" and can't open it yet. Check the report against what you meant, and fix anything that's off (e.g. give "position" with the numbers you want). You can check again the same way.
 - Then send it with "final": true and the "draftId" you got. That turns the checking version into the finished lesson and gives you the link for the user.
 
+=== Answers and Reveal (short-answer and lesson slides) ===
+
+When presenting, the teacher clicks a button to show hidden content in a popup. On short-answer slides it's the correct answer. On lesson slides the app calls it "Reveal" (see below). There are two kinds:
+- "answer": a short typed text (at most ${MAX_ANSWER_LENGTH} characters), e.g. "12 apples". Short-answer slides always need one.
+- "answerCanvas": the answer as a picture — a white 1280 × 720 canvas, built exactly like a lesson slide: "layout", "title", "text", "textBoxes", "elements" (with "position" and "callouts"), and the same style and font size settings. No design, pattern or background. When you give it, the teacher sees the canvas instead of the text.
+- Use "answerCanvas" when the answer is best shown, not just said: a worked solution step by step, the counted pictures with the total, a shape with its parts labeled, the clock showing the right time. Keep it clear: a title like "Answer: 12", a short explanation, and the pictures that prove it.
+- A short-answer slide with "answerCanvas" still needs "answer" (a short text version).
+- Lesson slides ("Reveal"): not a correct answer, but content kept hidden until the teacher shows it during the discussion. Use it for:
+  - an activity for the class after the talk ("Draw your favorite fruit and tell a partner why."),
+  - a worked example or the next step after the slide's idea,
+  - a hint, or the answer to a practice problem or riddle the slide asks ("What comes next?").
+  Most often give "answerCanvas" with a title like "Activity" or "Let's try!", short instructions and a picture. Leave both out on plain teaching slides that have nothing to reveal.
+- Choice slides never have these: their answer is the letter in "answer".
+- The layout report shows the answer canvas (a lesson slide's Reveal too) under its slide, as "Answer canvas".
+
 Arrows that point at part of a picture ("callouts", lesson slides only):
 - Use them to show where something is: the numerator and the denominator of a fraction, the hour hand of a clock, the tallest bar of a graph.
 - "from" = where the arrow comes from: left, right, top or bottom. "at" = which part it points at: top, middle or bottom for arrows from the left or right; left, middle or right for arrows from the top or bottom.
 - Up to 3 from the left and 3 from the right; at most 1 from the top and 1 from the bottom.
-- Give the picture "size": "large" so the arrows and labels have room.
-- On "text-top" lessons the room below the text is wide but not tall, so bring arrows from the left and right. An arrow from the top or bottom takes height and makes the picture smaller.
-- On a picture with "position", leave room around it for the arrows and labels (about 60px for the arrow plus the label's width).
 
 === Design ===
 
@@ -510,7 +548,13 @@ Example:
       "design": [{ "asset": "leaf-maple", "spot": "bottom-strip", "color": "#16A34A" }],
       "title": "Let's talk!",
       "text": "Which fruit do you like **best**? Why?",
-      "elements": [{ "asset": "apple" }, { "asset": "banana" }, { "asset": "grapes" }]
+      "elements": [{ "asset": "apple" }, { "asset": "banana" }, { "asset": "grapes" }],
+      "answerCanvas": {
+        "title": "Activity",
+        "text": "Draw your favorite fruit.
+Tell a partner **why** you like it.",
+        "elements": [{ "asset": "apple" }, { "asset": "banana" }]
+      }
     },
     {
       "type": "choice",
@@ -520,6 +564,21 @@ Example:
       "options": ["3:00", "4:30", "6:15", "9:45"],
       "answer": "C",
       "elements": [{ "asset": "clock", "clockTime": { "hours": 6, "minutes": 15 } }]
+    },
+    {
+      "type": "short-answer",
+      "question": "How many apples are there in all?",
+      "answer": "5 apples",
+      "elements": [
+        { "asset": "apple", "count": 3 },
+        { "asset": "symbol-plus" },
+        { "asset": "apple", "count": 2 }
+      ],
+      "answerCanvas": {
+        "title": "Answer: 5 apples",
+        "text": "3 apples and 2 more apples make **5** apples.",
+        "elements": [{ "asset": "apple", "count": 5 }]
+      }
     },
     {
       "type": "choice",
@@ -801,7 +860,22 @@ function buildSlide(
   });
 
   slide = { ...slide, elements: [...decorations, ...textBoxes, ...pictures, ...placedText, ...calloutParts] };
-  return { slide, report: describeSlide(slide, texts, pictures, notes) };
+  const report = describeSlide(slide, texts, pictures, notes);
+
+  // The answer (short-answer and lesson slides): a typed text, and/or a canvas built like a lesson slide
+  // with no design, whose elements then move into the answer box.
+  if (recipe.type === "lesson" && recipe.answer !== undefined) slide.correctAnswer = recipe.answer;
+  if (recipe.type !== "choice" && recipe.answerCanvas) {
+    const canvas = buildSlide({ type: "lesson", design: [], ...recipe.answerCanvas }, drawPatterns, (message) =>
+      reportError(`answer canvas: ${message}`),
+    );
+    slide.answerType = "canvas";
+    slide.elements.push(...canvas.slide.elements.map((el) => ({ ...el, containerId: ANSWER_CONTAINER_ID })));
+    // Its pictures sit on the canvas, which its own report calls "slide".
+    const lines = canvas.report.map((line) => `  ${line.replaceAll('"slide"', '"answer canvas"')}`);
+    report.push(`Answer canvas (${recipe.answerCanvas.layout}):`, ...lines);
+  }
+  return { slide, report };
 }
 
 // ---------------------------------------------------------------------------------------------

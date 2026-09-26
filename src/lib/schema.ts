@@ -62,6 +62,9 @@ export const svgElementSchema = z.object({
   svg: z.string().optional(),
 });
 
+// Longest typed answer (short-answer and blank slides), in the editor and from Claude.
+export const MAX_ANSWER_LENGTH = 300;
+
 export const slideSchema = z.object({
   id: z.string(),
   // choice = 4 options to pick from; short-answer = no options, the teacher types the correct answer;
@@ -99,8 +102,12 @@ export const slideSchema = z.object({
   backgroundOpacity: z.number().optional(),
   options: z.tuple([optionSchema, optionSchema, optionSchema, optionSchema]),
   correctOptionId: z.string().nullable(),
-  // Short-answer slides only: the answer the teacher expects. (Their options stay empty and aren't shown.)
+  // Short-answer and blank slides only: the answer the teacher expects. (Their options stay empty and aren't shown.)
   correctAnswer: z.string().optional(),
+  // Short-answer and blank slides only: which answer is shown — the typed `correctAnswer`, or a canvas
+  // of elements (those with containerId ANSWER_CONTAINER_ID). Both are kept, so switching loses nothing.
+  // Missing = "text".
+  answerType: z.enum(["text", "canvas"]).optional(),
   elements: z.array(svgElementSchema),
   questionHeight: z.number(),
 });
