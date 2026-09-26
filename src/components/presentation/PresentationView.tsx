@@ -5,6 +5,8 @@ import { useEditorStore } from "@/lib/store";
 import { CANVAS_WIDTH, CANVAS_HEIGHT, hasAnswerContent } from "@/lib/constants";
 import { SlideStaticView } from "./SlideStaticView";
 import { AnswerModal } from "@/components/editor/AnswerModal";
+import { SlideThumbnailPreview } from "@/components/editor/SlideThumbnailPreview";
+import { GridIcon } from "@/components/icons/GridIcon";
 
 // Clicks in the left 25% of the screen go to the previous slide.
 const PREV_ZONE = 0.25;
@@ -17,12 +19,15 @@ export function PresentationView() {
   const exitPresentation = useEditorStore((s) => s.exitPresentation);
   const nextSlide = useEditorStore((s) => s.nextPresentationSlide);
   const prevSlide = useEditorStore((s) => s.prevPresentationSlide);
+  const goToSlide = useEditorStore((s) => s.goToPresentationSlide);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
   // The slide whose answer is showing. Moving to another slide hides it again.
   const [revealedSlideId, setRevealedSlideId] = useState<string | null>(null);
   const [showButtons, setShowButtons] = useState(true);
+  const [showAllSlides, setShowAllSlides] = useState(false);
+  const currentThumbRef = useRef<HTMLButtonElement>(null);
 
   const slide = quiz.slides[presentationIndex];
   const isAnswerShown = revealedSlideId === slide?.id;
@@ -51,6 +56,11 @@ export function PresentationView() {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // While all slides are showing, Esc only closes that grid and the arrows do nothing.
+      if (showAllSlides) {
+        if (e.key === "Escape") setShowAllSlides(false);
+        return;
+      }
       if (e.key === "ArrowRight" || e.key === "ArrowDown" || e.key === " ") {
         e.preventDefault();
         nextSlide();
@@ -63,7 +73,12 @@ export function PresentationView() {
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [nextSlide, prevSlide, exitPresentation]);
+  }, [nextSlide, prevSlide, exitPresentation, showAllSlides]);
+
+  // Opening the grid scrolls to the slide being shown, so the teacher finds their place.
+  useEffect(() => {
+    if (showAllSlides) currentThumbRef.current?.scrollIntoView({ block: "center" });
+  }, [showAllSlides]);
 
   // Show the top buttons while the mouse moves; hide them once it has been still for a while.
   useEffect(() => {
@@ -101,6 +116,9 @@ export function PresentationView() {
 
   if (!slide) return null;
 
+  const roundButtonClass =
+    // The shadow keeps the buttons easy to see when the slide behind them is white.
+    "flex h-9 w-9 items-center justify-center rounded-full bg-black/30 text-white/80 shadow-[0_1px_6px_rgba(0,0,0,0.35)] hover:bg-black/50 hover:text-white";
   const buttonsClass = `transition-opacity duration-300 ${showButtons ? "opacity-100" : "pointer-events-none opacity-0"}`;
 
   return (
@@ -110,32 +128,47 @@ export function PresentationView() {
       style={{ background: "var(--text-primary)" }}
       onClick={handleScreenClick}
     >
-      <button
-        type="button"
-        onClick={(e) => {
-          e.stopPropagation();
-          handleExit();
-        }}
-        title="Exit presentation (Esc)"
-        className={`absolute right-5 top-12 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-black/30 text-white/80 hover:bg-black/50 hover:text-white ${buttonsClass}`}
-      >
-        <CloseIcon />
-      </button>
-
-      {canReveal && (
+      {/* Right to left: Exit, All slides, Reveal. */}
+      <div className={`absolute right-5 top-12 z-10 flex flex-row-reverse gap-2 ${buttonsClass}`}>
         <button
           type="button"
           onClick={(e) => {
             e.stopPropagation();
-            // Choice slides toggle the green highlight; short-answer and blank slides open the answer popup.
-            setRevealedSlideId(isChoice && isAnswerShown ? null : slide.id);
+            handleExit();
           }}
-          title={slide.type === "lesson" ? "Reveal" : isChoice && isAnswerShown ? "Hide answer" : "Show answer"}
-          className={`absolute right-16 top-12 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-black/30 text-white/80 hover:bg-black/50 hover:text-white ${buttonsClass}`}
+          title="Exit presentation (Esc)"
+          className={roundButtonClass}
         >
-          <EyeIcon />
+          <CloseIcon />
         </button>
-      )}
+
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            setShowAllSlides((v) => !v);
+          }}
+          title={showAllSlides ? "Hide all slides" : "Show all slides"}
+          className={roundButtonClass}
+        >
+          <GridIcon size={18} />
+        </button>
+
+        {canReveal && !showAllSlides && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              // Choice slides toggle the green highlight; short-answer and blank slides open the answer popup.
+              setRevealedSlideId(isChoice && isAnswerShown ? null : slide.id);
+            }}
+            title={slide.type === "lesson" ? "Reveal" : isChoice && isAnswerShown ? "Hide answer" : "Show answer"}
+            className={roundButtonClass}
+          >
+            <EyeIcon />
+          </button>
+        )}
+      </div>
 
       <div style={{ width: CANVAS_WIDTH * scale, height: CANVAS_HEIGHT * scale }}>
         <div
@@ -154,8 +187,46 @@ export function PresentationView() {
         </div>
       </div>
 
+      {isAnswerShown && !isChoice && <AnswerModal slide={slide} onClose={() => setRevealedSlideId(null)} />}
 
-      {isAnswerShown && !isChoice &&<AnswerModal slide={slide} onClose={() => setRevealedSlideId(null)} />}
+      {showAllSlides && (
+        // Clicking the empty dark area closes the grid; clicks here never move to the next slide.
+        <div
+          className="absolute inset-0 z-[5] overflow-y-auto bg-black/85 px-10 pb-10 pt-24"
+          onClick={(e) => {
+            e.stopPropagation();
+            setShowAllSlides(false);
+          }}
+        >
+          <div className="mx-auto grid max-w-6xl grid-cols-[repeat(auto-fill,200px)] justify-center gap-6">
+            {quiz.slides.map((s, i) => {
+              const isCurrent = i === presentationIndex;
+              return (
+                <button
+                  key={s.id}
+                  ref={isCurrent ? currentThumbRef : undefined}
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    goToSlide(i);
+                    setShowAllSlides(false);
+                  }}
+                  className="flex flex-col items-center gap-2 text-sm text-white/70 hover:text-white"
+                >
+                  <div
+                    className={`rounded-dropdown ring-offset-2 ring-offset-black transition-shadow ${
+                      isCurrent ? "ring-2 ring-white" : "hover:ring-2 hover:ring-white/40"
+                    }`}
+                  >
+                    <SlideThumbnailPreview slide={s} revealAnswer={false} />
+                  </div>
+                  {i + 1}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

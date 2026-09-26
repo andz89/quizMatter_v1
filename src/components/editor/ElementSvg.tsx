@@ -24,7 +24,39 @@ export function toCssBackground(color: string) {
   return color.startsWith(GRADIENT_PREFIX) ? `linear-gradient(135deg, ${color.slice(GRADIENT_PREFIX.length)})` : color;
 }
 
-export function ElementSvg({ assetId, color, settings = {}, onMeasure }: ElementSvgProps) {
+export function ElementSvg(props: ElementSvgProps) {
+  const { crop, flipX, flipY } = props.settings ?? {};
+  const drawing = crop ? <CroppedDrawing {...props} crop={crop} /> : <ElementDrawing {...props} />;
+  if (!flipX && !flipY) return drawing;
+
+  // Flipped: the picture (after cropping) is mirrored inside its box.
+  return (
+    <div className="h-full w-full" style={{ transform: `scale(${flipX ? -1 : 1}, ${flipY ? -1 : 1})` }}>
+      {drawing}
+    </div>
+  );
+}
+
+// Cropped: the whole picture is drawn bigger than the box and shifted, and the box hides what's outside it.
+function CroppedDrawing({ crop, ...props }: ElementSvgProps & { crop: NonNullable<RenderSettings["crop"]> }) {
+  return (
+    <div className="relative h-full w-full overflow-hidden">
+      <div
+        className="absolute"
+        style={{
+          left: `${(-crop.x / crop.width) * 100}%`,
+          top: `${(-crop.y / crop.height) * 100}%`,
+          width: `${100 / crop.width}%`,
+          height: `${100 / crop.height}%`,
+        }}
+      >
+        <ElementDrawing {...props} />
+      </div>
+    </div>
+  );
+}
+
+function ElementDrawing({ assetId, color, settings = {}, onMeasure }: ElementSvgProps) {
   // Strip anything that isn't safe inside url(#...), since useId output can contain ":" or "«»".
   const gradientId = `grad-${useId().replace(/[^a-zA-Z0-9_-]/g, "")}`;
   const asset = getElementAsset(assetId);

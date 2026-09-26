@@ -2,8 +2,9 @@ import type { ReactNode } from "react";
 import { renderSolid, SOLIDS } from "./solids";
 import type { SvgElement } from "./schema";
 import { DEFAULT_TEXT_COLOR } from "./richText";
+import { KIDS, KID_VIEWBOX } from "./kids";
 
-export type ElementCategory = "shape" | "line" | "arrow" | "solid" | "icon" | "time" | "math" | "decorative" | "cloud" | "number" | "letter" | "symbol" | "emoji" | "music" | "fruit" | "kitchen" | "vehicle" | "animal" | "space" | "sport" | "tree" | "leaf" | "background" | "text";
+export type ElementCategory = "shape" | "line" | "arrow" | "solid" | "icon" | "time" | "math" | "decorative" | "cloud" | "number" | "letter" | "symbol" | "emoji" | "music" | "fruit" | "kitchen" | "vehicle" | "person" | "animal" | "space" | "sport" | "tree" | "leaf" | "background" | "text";
 
 // The per-element settings some assets draw from (3D angle, clock time, number line numbers).
 // A whole SvgElement fits here, so callers can just pass the element.
@@ -20,6 +21,9 @@ export type RenderSettings = Partial<Pick<
   | "protractor"
   | "text"
   | "svg"
+  | "crop"
+  | "flipX"
+  | "flipY"
   | "width"
   | "height"
 >>;
@@ -1000,6 +1004,48 @@ const ASSETS: ElementAsset[] = [
     render: (color) => <polygon points="50,10 90,88 10,88" fill={color} />,
   },
   {
+    id: "triangle-equilateral",
+    category: "shape",
+    label: "Equilateral Triangle",
+    defaultColor: "#16A34A",
+    render: (color) => <polygon points="50,10.2 96,89.8 4,89.8" fill={color} />,
+  },
+  {
+    id: "triangle-isosceles",
+    category: "shape",
+    label: "Isosceles Triangle",
+    defaultColor: "#65A30D",
+    render: (color) => <polygon points="50,4 76,96 24,96" fill={color} />,
+  },
+  {
+    id: "triangle-scalene",
+    category: "shape",
+    label: "Scalene Triangle",
+    defaultColor: "#059669",
+    render: (color) => <polygon points="28,10 94,90 6,74" fill={color} />,
+  },
+  {
+    id: "triangle-right",
+    category: "shape",
+    label: "Right Triangle",
+    defaultColor: "#0D9488",
+    render: (color) => <polygon points="10,8 10,92 92,92" fill={color} />,
+  },
+  {
+    id: "triangle-acute",
+    category: "shape",
+    label: "Acute Triangle",
+    defaultColor: "#15803D",
+    render: (color) => <polygon points="40,10 90,88 10,88" fill={color} />,
+  },
+  {
+    id: "triangle-obtuse",
+    category: "shape",
+    label: "Obtuse Triangle",
+    defaultColor: "#4D7C0F",
+    render: (color) => <polygon points="96,22 60,78 4,78" fill={color} />,
+  },
+  {
     id: "diamond",
     category: "shape",
     label: "Diamond",
@@ -1094,6 +1140,41 @@ const ASSETS: ElementAsset[] = [
     label: "Trapezoid",
     defaultColor: "#0EA5E9",
     render: (color) => <polygon points="26,18 74,18 92,82 8,82" fill={color} />,
+  },
+  {
+    id: "trapezoid-right",
+    category: "shape",
+    label: "Right Trapezoid",
+    defaultColor: "#0284C7",
+    render: (color) => <polygon points="8,18 60,18 92,82 8,82" fill={color} />,
+  },
+  {
+    id: "rhombus",
+    category: "shape",
+    label: "Rhombus",
+    defaultColor: "#7C3AED",
+    render: (color) => <polygon points="50,4 80,50 50,96 20,50" fill={color} />,
+  },
+  {
+    id: "kite",
+    category: "shape",
+    label: "Kite",
+    defaultColor: "#C026D3",
+    render: (color) => <polygon points="50,4 80,34 50,96 20,34" fill={color} />,
+  },
+  {
+    id: "dart",
+    category: "shape",
+    label: "Dart",
+    defaultColor: "#9333EA",
+    render: (color) => <polygon points="50,6 92,92 50,66 8,92" fill={color} />,
+  },
+  {
+    id: "quadrilateral",
+    category: "shape",
+    label: "Irregular Quadrilateral",
+    defaultColor: "#4F46E5",
+    render: (color) => <polygon points="14,22 78,8 94,78 26,90" fill={color} />,
   },
   {
     id: "cross",
@@ -1347,6 +1428,15 @@ const ASSETS: ElementAsset[] = [
     { id: "sphere", defaultColor: "#A855F7", label: "Sphere" },
     { id: "pyramid", defaultColor: "#F59E0B", label: "Pyramid" },
     { id: "triangular-prism", defaultColor: "#22C55E", label: "Triangular Prism" },
+    { id: "pentagonal-prism", defaultColor: "#6366F1", label: "Pentagonal Prism" },
+    { id: "hexagonal-prism", defaultColor: "#0EA5E9", label: "Hexagonal Prism" },
+    { id: "triangular-pyramid", defaultColor: "#EAB308", label: "Triangular Pyramid" },
+    { id: "pentagonal-pyramid", defaultColor: "#F43F5E", label: "Pentagonal Pyramid" },
+    { id: "hexagonal-pyramid", defaultColor: "#D946EF", label: "Hexagonal Pyramid" },
+    { id: "frustum", defaultColor: "#10B981", label: "Frustum" },
+    { id: "hemisphere", defaultColor: "#8B5CF6", label: "Hemisphere" },
+    { id: "octahedron", defaultColor: "#06B6D4", label: "Octahedron" },
+    { id: "icosahedron", defaultColor: "#E11D48", label: "Icosahedron" },
   ].map(({ id, label, defaultColor }) => ({
     id,
     category: "solid" as const,
@@ -3756,6 +3846,17 @@ const ASSETS: ElementAsset[] = [
     ),
   },
 
+  // People — cartoon students (see kids.tsx); `color` goes on the shirt or dress.
+  ...KIDS.map(({ id, label, defaultColor, render }) => ({
+    id,
+    category: "person" as const,
+    label,
+    defaultColor,
+    viewBox: KID_VIEWBOX,
+    defaultSize: { width: 100, height: 175 },
+    render,
+  })),
+
   // Trees — the leaves use `color`; trunks, fruit, and flowers keep fixed colors.
   {
     id: "tree-round",
@@ -4570,6 +4671,27 @@ export function getAssetViewBox(asset: ElementAsset, settings: RenderSettings) {
   return typeof asset.viewBox === "function" ? asset.viewBox(settings) : (asset.viewBox ?? "0 0 100 100");
 }
 
+/**
+ * Whether an element can be cropped: pictures only. Not text boxes, lines and stretchable shapes (they
+ * just get resized), nor elements whose shape changes with their settings (3D shapes, clocks, math tools),
+ * where a crop would slip.
+ */
+export function canCrop(element: Pick<SvgElement, "assetId" | "svg">) {
+  if (element.svg) return true;
+  const asset = getElementAsset(element.assetId);
+  return (
+    !!asset &&
+    !asset.isTextBox &&
+    !asset.isLine &&
+    !asset.stretchX &&
+    !asset.is3d &&
+    !asset.isClock &&
+    !asset.numberLine &&
+    !asset.mathTool &&
+    typeof asset.viewBox !== "function"
+  );
+}
+
 // Looked up on every render of every element, so use a map instead of scanning the whole list.
 const ASSETS_BY_ID = new Map(ELEMENT_LIBRARY.map((asset) => [asset.id, asset]));
 
@@ -4595,6 +4717,7 @@ export const ELEMENT_CATEGORY_LABELS: Record<ElementCategory, string> = {
   fruit: "Fruits",
   kitchen: "Kitchen",
   vehicle: "Vehicles",
+  person: "People",
   animal: "Animals",
   space: "Solar System",
   sport: "Sports",

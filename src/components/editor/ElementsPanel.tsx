@@ -8,7 +8,7 @@ import { ElementSvg } from "./ElementSvg";
 import { CloseIcon } from "@/components/icons/CloseIcon";
 import { BackIcon } from "@/components/icons/BackIcon";
 
-const CATEGORIES: ElementCategory[] = ["shape", "line", "arrow", "solid", "icon", "time", "math", "decorative", "cloud", "number", "letter", "symbol", "emoji", "music", "fruit", "kitchen", "vehicle", "animal", "space", "sport", "tree", "leaf"];
+const CATEGORIES: ElementCategory[] = ["shape", "line", "arrow", "solid", "icon", "time", "math", "decorative", "cloud", "number", "letter", "symbol", "emoji", "music", "fruit", "kitchen", "vehicle", "person", "animal", "space", "sport", "tree", "leaf"];
 
 export function ElementsPanel() {
   const closeElementsPanel = useEditorStore((s) => s.closeElementsPanel);

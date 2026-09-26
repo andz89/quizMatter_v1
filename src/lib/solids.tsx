@@ -75,6 +75,37 @@ function sphere(rings: number, segments: number): SolidModel {
   return { vertices, faces };
 }
 
+/** Top half of a sphere with a flat round base, moved down so it sits centered on the origin. */
+function hemisphere(rings: number, segments: number): SolidModel {
+  const vertices: Vec3[] = [[0, 0.5, 0]];
+  for (let r = 1; r <= rings; r++) {
+    const lat = (r / rings) * (Math.PI / 2);
+    for (const [x, z] of circle(Math.sin(lat), segments)) vertices.push([x, Math.cos(lat) - 0.5, z]);
+  }
+  const at = (r: number, j: number) => 1 + (r - 1) * segments + (j % segments);
+
+  const faces: number[][] = [range(segments).map((j) => at(rings, j))];
+  for (let j = 0; j < segments; j++) {
+    faces.push([0, at(1, j), at(1, j + 1)]);
+    for (let r = 1; r < rings; r++) faces.push([at(r, j), at(r, j + 1), at(r + 1, j + 1), at(r + 1, j)]);
+  }
+  return { vertices, faces };
+}
+
+/** Solids made only of equal triangles (octahedron, icosahedron): every 3 corners that are all
+ * one edge apart form a face. */
+function triangleSolid(vertices: Vec3[], edge: number): SolidModel {
+  const isEdge = (a: number, b: number) => Math.abs(Math.hypot(...sub(vertices[a], vertices[b])) - edge) < 1e-6;
+  const faces: number[][] = [];
+  for (let a = 0; a < vertices.length; a++)
+    for (let b = a + 1; b < vertices.length; b++)
+      for (let c = b + 1; c < vertices.length; c++)
+        if (isEdge(a, b) && isEdge(b, c) && isEdge(a, c)) faces.push([a, b, c]);
+  return { vertices, faces };
+}
+
+const PHI = (1 + Math.sqrt(5)) / 2;
+
 // Adjacent faces bending more than this count as a real edge (cube corner, cylinder rim) and get a
 // line; smaller bends are the tiny facets of a round surface and stay line-free so it looks smooth.
 const SHARP_EDGE_COS = Math.cos((30 * Math.PI) / 180);
@@ -122,6 +153,23 @@ export const SOLIDS: Record<string, PreparedSolid> = {
   pyramid: prepare(toApex([[-0.9, -0.9], [0.9, -0.9], [0.9, 0.9], [-0.9, 0.9]], -0.6, 0.9)),
   // Lying on its side, with the triangle ends facing left and right.
   "triangular-prism": prepare(extrude([[-0.9, -0.7], [0.9, -0.7], [0, 0.9]], ([z, y], x) => [x * 1.2, y, z])),
+  "pentagonal-prism": prepare(extrude(circle(0.9, 5), ([x, z], y) => [x, y * 0.8, z])),
+  "hexagonal-prism": prepare(extrude(circle(0.9, 6), ([x, z], y) => [x, y * 0.8, z])),
+  "triangular-pyramid": prepare(toApex(circle(1, 3), -0.6, 0.9)),
+  "pentagonal-pyramid": prepare(toApex(circle(0.95, 5), -0.6, 0.9)),
+  "hexagonal-pyramid": prepare(toApex(circle(0.95, 6), -0.6, 0.9)),
+  // A cone with its tip cut off: the top circle is smaller than the bottom one.
+  frustum: prepare(extrude(circle(0.9, 64), ([x, z], end) => (end > 0 ? [x * 0.55, 0.7, z * 0.55] : [x, -0.7, z]))),
+  hemisphere: prepare(hemisphere(12, 48)),
+  octahedron: prepare(
+    triangleSolid([[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]], Math.SQRT2),
+  ),
+  icosahedron: prepare(
+    triangleSolid(
+      [-1, 1].flatMap((a) => [-PHI, PHI].flatMap((b): Vec3[] => [[0, a, b], [a, b, 0], [b, 0, a]])),
+      2,
+    ),
+  ),
 };
 
 // Light comes from the top-left, slightly in front.

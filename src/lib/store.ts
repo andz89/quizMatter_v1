@@ -243,6 +243,7 @@ interface EditorState {
   exitPresentation: () => void;
   nextPresentationSlide: () => void;
   prevPresentationSlide: () => void;
+  goToPresentationSlide: (index: number) => void;
 
   isGridViewOpen: boolean;
   openGridView: () => void;
@@ -258,6 +259,9 @@ interface EditorState {
   selectElement: (slideId: string, elementId: string, additive?: boolean) => void;
   selectElements: (elementIds: string[]) => void;
   clearElementSelection: () => void;
+  // The element being cropped (its crop handles show), or null. Only while it's the one selected element.
+  croppingElementId: string | null;
+  setCroppingElementId: (elementId: string | null) => void;
   // Group needs 2+ selected elements in the same box. Both act on the current slide's selection.
   groupSelectedElements: () => void;
   ungroupSelectedElements: () => void;
@@ -779,6 +783,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const { presentationIndex } = get();
     set({ presentationIndex: Math.max(0, presentationIndex - 1) });
   },
+  goToPresentationSlide: (index) => {
+    const { quiz } = get();
+    set({ presentationIndex: Math.min(quiz.slides.length - 1, Math.max(0, index)) });
+  },
 
   isGridViewOpen: false,
   openGridView: () => set({ isGridViewOpen: true }),
@@ -807,6 +815,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
   selectElements: (elementIds) => set({ selectedElementIds: elementIds }),
   clearElementSelection: () => set({ selectedElementIds: [] }),
+  croppingElementId: null,
+  setCroppingElementId: (elementId) => set({ croppingElementId: elementId }),
 
   groupSelectedElements: () => {
     const { quiz, selectedSlideId, selectedElementIds } = get();

@@ -21,6 +21,7 @@ const ARROW_DIRECTIONS: Record<string, { x: number; y: number }> = {
  * - Ctrl/Cmd+Z undoes; Ctrl+Y or Ctrl/Cmd+Shift+Z redoes (also while typing, so there's only one undo history)
  * - Ctrl/Cmd+C copies and Ctrl/Cmd+V pastes the selected element(s)
  * - Ctrl/Cmd+G groups, Ctrl/Cmd+Shift+G ungroups
+ * - Escape or Enter stops cropping
  * - Delete/Backspace removes the selected element(s), Escape deselects
  * - Arrow keys move the selected element(s) 1px (10px with Shift), kept inside their box
  */
@@ -78,6 +79,10 @@ export function useEditorShortcuts() {
         e.preventDefault();
         if (e.shiftKey) state.ungroupSelectedElements();
         else state.groupSelectedElements();
+      } else if (state.croppingElementId && (e.key === "Escape" || e.key === "Enter")) {
+        // Also stops Enter from clicking a focused button (like Crop, which would start cropping again).
+        e.preventDefault();
+        state.setCroppingElementId(null);
       } else if (selectedElementIds.length > 0 && (e.key === "Delete" || e.key === "Backspace")) {
         e.preventDefault();
         state.deleteElements(selectedSlideId, selectedElementIds);

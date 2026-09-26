@@ -1,11 +1,12 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useEditorStore, withoutHistory } from "@/lib/store";
-import { getElementAsset } from "@/lib/svgLibrary";
+import { canCrop, getElementAsset } from "@/lib/svgLibrary";
 import { ElementSvg, TRIM_PADDING } from "./ElementSvg";
 import { TextBoxContent } from "./TextBoxContent";
-import { findSnap, fitInBox, getOuterEdges, maxScaleFor, MIN_ELEMENT_SIZE, type Snap } from "@/lib/geometry";
+import { clamp, findSnap, fitInBox, getOuterEdges, maxScaleFor, MIN_ELEMENT_SIZE, type Rect, type Snap } from "@/lib/geometry";
+import { boxForShownPart, getCropFrame, toCrop, type CropFrame } from "@/lib/crop";
 import type { SvgElement } from "@/lib/schema";
 
 const ROTATE_SNAP = 15;
@@ -38,6 +39,33 @@ export const CORNERS: Corner[] = [
   { sx: -1, sy: 1, className: "-bottom-2 -left-2 cursor-nesw-resize" },
   { sx: 1, sy: 1, className: "-bottom-2 -right-2 cursor-nwse-resize" },
 ];
+
+/** A crop handle: sx/sy say which sides it moves (-1 = left/top, 1 = right/bottom, 0 = neither). */
+interface CropHandle {
+  sx: -1 | 0 | 1;
+  sy: -1 | 0 | 1;
+  className: string;
+}
+
+// The corners move two sides, the edge handles one. They sit where the resize handles do.
+const CROP_HANDLES: CropHandle[] = [
+  ...CORNERS.map((corner) => ({ sx: corner.sx, sy: corner.sy, className: `h-4 w-4 ${corner.className}` })),
+  ...EDGE_HANDLES.map((handle): CropHandle => ({
+    sx: handle.axis === "x" ? handle.dir : 0,
+    sy: handle.axis === "y" ? handle.dir : 0,
+    className: handle.className,
+  })),
+];
+
+/** How far a (maybe turned) box sticks out past the bounds on its worst side, 0 = fully inside. */
+function overflowAmount(box: Rect, angle: number, bounds: { width: number; height: number }) {
+  const rad = (angle * Math.PI) / 180;
+  const halfX = (box.width * Math.abs(Math.cos(rad)) + box.height * Math.abs(Math.sin(rad))) / 2;
+  const halfY = (box.width * Math.abs(Math.sin(rad)) + box.height * Math.abs(Math.cos(rad))) / 2;
+  const centerX = box.x + box.width / 2;
+  const centerY = box.y + box.height / 2;
+  return Math.max(0, halfX - centerX, centerX + halfX - bounds.width, halfY - centerY, centerY + halfY - bounds.height);
+}
 
 interface SvgElementItemProps {
   slideId: string;
@@ -94,6 +122,14 @@ export function SvgElementItem({ slideId, element, allElements, isSelected, boun
     { pointerX: number; pointerY: number; x: number; y: number; w: number; h: number; handle: EdgeHandle } | null
   >(null);
   const isRotating = useRef(false);
+  // While cropping: where a drag started. handle null = dragging the picture inside the box.
+  const cropState = useRef<{
+    pointerX: number;
+    pointerY: number;
+    start: SvgElement;
+    frame: CropFrame;
+    handle: CropHandle | null;
+  } | null>(null);
   const boxRef = useRef<HTMLDivElement>(null);
   // Text boxes only: where the user double-clicked to start typing; null = not typing.
   const [editStart, setEditStart] = useState<{ x: number; y: number } | null>(null);
@@ -103,11 +139,25 @@ export function SvgElementItem({ slideId, element, allElements, isSelected, boun
   const canRotate = !asset?.is3d;
   const angle = element.rotation ?? 0;
   const isOnlySelected = isSelected && isSingleSelection;
+  const setCroppingElementId = useEditorStore((s) => s.setCroppingElementId);
+  const isCropTarget = useEditorStore((s) => s.croppingElementId === element.id);
+  const isCropping = isCropTarget && isOnlySelected;
+
+  // Cropping ends once this isn't the one selected element anymore (e.g. after a click elsewhere).
+  useEffect(() => {
+    if (isCropTarget && !isOnlySelected) setCroppingElementId(null);
+  }, [isCropTarget, isOnlySelected, setCroppingElementId]);
 
   const handleBodyPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     e.stopPropagation();
     // While typing, clicks and drags place the cursor or select words instead of moving the box.
     if (editStart) return;
+
+    // While cropping, dragging slides the picture inside its box instead of moving the element.
+    if (isCropping) {
+      startCropDrag(e, null);
+      return;
+    }
 
     if (e.shiftKey) {
       selectElement(slideId, element.id, true);
@@ -139,6 +189,10 @@ export function SvgElementItem({ slideId, element, allElements, isSelected, boun
   };
 
   const handleBodyPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (cropState.current) {
+      handleCropPointerMove(e);
+      return;
+    }
     if (!dragState.current) return;
     const state = dragState.current;
     const { x, y, items } = state;
@@ -230,6 +284,7 @@ export function SvgElementItem({ slideId, element, allElements, isSelected, boun
   };
 
   const stopDrag = (e: React.PointerEvent<HTMLDivElement>) => {
+    cropState.current = null;
     const state = dragState.current;
     dragState.current = null;
     if (!state) return;
@@ -388,6 +443,59 @@ export function SvgElementItem({ slideId, element, allElements, isSelected, boun
     });
   };
 
+  const startCropDrag = (e: React.PointerEvent<HTMLDivElement>, handle: CropHandle | null) => {
+    e.stopPropagation();
+    cropState.current = { pointerX: e.clientX, pointerY: e.clientY, start: element, frame: getCropFrame(element), handle };
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+
+  // The whole picture stays put on the slide. A handle moves the box's sides over it (showing more or
+  // less of it); dragging the body slides the picture under the box instead.
+  const handleCropPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const state = cropState.current;
+    if (!state) return;
+    const { start, frame, handle } = state;
+    // On a turned element, the mouse movement is turned back first so it lines up with the element's own sides.
+    const rad = (angle * Math.PI) / 180;
+    const cos = Math.cos(rad);
+    const sin = Math.sin(rad);
+    const screenDx = (e.clientX - state.pointerX) / zoom;
+    const screenDy = (e.clientY - state.pointerY) / zoom;
+    const dx = screenDx * cos + screenDy * sin;
+    const dy = -screenDx * sin + screenDy * cos;
+
+    if (!handle) {
+      const shown = {
+        x: clamp(frame.left - dx, 0, frame.width - start.width),
+        y: clamp(frame.top - dy, 0, frame.height - start.height),
+        width: start.width,
+        height: start.height,
+      };
+      updateElement(slideId, element.id, { crop: toCrop(shown, frame, start) });
+      return;
+    }
+
+    // The shown part's sides, in px inside the whole picture. Each stays inside the picture and at
+    // least MIN_ELEMENT_SIZE away from the opposite side.
+    let left = frame.left;
+    let top = frame.top;
+    let right = frame.left + start.width;
+    let bottom = frame.top + start.height;
+    if (handle.sx < 0) left = clamp(left + dx, 0, right - MIN_ELEMENT_SIZE);
+    if (handle.sx > 0) right = clamp(right + dx, left + MIN_ELEMENT_SIZE, frame.width);
+    if (handle.sy < 0) top = clamp(top + dy, 0, bottom - MIN_ELEMENT_SIZE);
+    if (handle.sy > 0) bottom = clamp(bottom + dy, top + MIN_ELEMENT_SIZE, frame.height);
+    const shown = { x: left, y: top, width: right - left, height: bottom - top };
+    const box = boxForShownPart(start, frame, shown);
+    // Showing more must not push the box out of its bounds (any further than it already was).
+    if (overflowAmount(box, angle, bounds) > overflowAmount(start, angle, bounds) + 0.5) return;
+    updateElement(slideId, element.id, { ...box, crop: toCrop(shown, frame, start) });
+  };
+
+  const stopCropDrag = () => {
+    cropState.current = null;
+  };
+
   const handleRotatePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     e.stopPropagation();
     isRotating.current = true;
@@ -435,6 +543,8 @@ export function SvgElementItem({ slideId, element, allElements, isSelected, boun
     isRotating.current = false;
   };
 
+  const cropFrame = getCropFrame(element);
+
   return (
     <div
       ref={boxRef}
@@ -452,6 +562,22 @@ export function SvgElementItem({ slideId, element, allElements, isSelected, boun
         outlineOffset: 3,
       }}
     >
+      {/* While cropping, the whole picture shows faded, so the hidden part can be seen and dragged back in. */}
+      {isCropping && (
+        <div
+          className="pointer-events-none absolute"
+          style={{
+            left: -cropFrame.left,
+            top: -cropFrame.top,
+            width: cropFrame.width,
+            height: cropFrame.height,
+            opacity: 0.35,
+            outline: "1px solid var(--accent-gray)",
+          }}
+        >
+          <ElementSvg assetId={element.assetId} color={element.color} settings={{ ...element, crop: undefined }} />
+        </div>
+      )}
       <div
         onPointerDown={handleBodyPointerDown}
         onPointerMove={handleBodyPointerMove}
@@ -461,11 +587,14 @@ export function SvgElementItem({ slideId, element, allElements, isSelected, boun
         // Double-click picks just this one element out of its group, to edit it on its own.
         // On a text box it also starts typing.
         onDoubleClick={(e) => {
-          if (element.groupId) selectElements([element.id]);
+          if (element.groupId && !isOnlySelected) selectElements([element.id]);
+          // On a picture that's already selected on its own, it starts cropping.
+          else if (canCrop(element)) setCroppingElementId(element.id);
           // Already typing: leave it be, so a double-click selects a word instead of moving the cursor.
           if (asset?.isTextBox) setEditStart((current) => current ?? { x: e.clientX, y: e.clientY });
         }}
-        className={`h-full w-full ${editStart ? "cursor-text" : "cursor-move"}`}
+        // relative: stays above the faded crop picture drawn before it.
+        className={`relative h-full w-full ${editStart ? "cursor-text" : "cursor-move"}`}
         style={{ opacity: (element.opacity ?? 100) / 100 }}
       >
         {asset?.isTextBox ? (
@@ -479,11 +608,17 @@ export function SvgElementItem({ slideId, element, allElements, isSelected, boun
             onStopEditing={() => setEditStart(null)}
           />
         ) : (
-          <ElementSvg assetId={element.assetId} color={element.color} settings={element} onMeasure={fitBoxToDrawing} />
+          // A cropped box is the shown part, not the drawing's shape, so it isn't fitted to the drawing.
+          <ElementSvg
+            assetId={element.assetId}
+            color={element.color}
+            settings={element}
+            onMeasure={element.crop || isCropping ? undefined : fitBoxToDrawing}
+          />
         )}
       </div>
 
-      {isOnlySelected && canRotate && (
+      {isOnlySelected && canRotate && !isCropping && (
         <div
           onPointerDown={handleRotatePointerDown}
           onPointerMove={handleRotatePointerMove}
@@ -498,6 +633,7 @@ export function SvgElementItem({ slideId, element, allElements, isSelected, boun
       )}
 
       {isOnlySelected &&
+        !isCropping &&
         CORNERS.map((corner) => (
           <div
             key={corner.className}
@@ -513,6 +649,7 @@ export function SvgElementItem({ slideId, element, allElements, isSelected, boun
         ))}
 
       {isOnlySelected &&
+        !isCropping &&
         (asset?.isTextBox || asset?.isLine || asset?.stretchX) &&
         // Lines, squares and rectangles only get the left/right handles (lines grow longer, never thicker).
         EDGE_HANDLES.filter((handle) => asset.isTextBox || handle.axis === "x").map((handle) => (
@@ -526,6 +663,21 @@ export function SvgElementItem({ slideId, element, allElements, isSelected, boun
             title={handle.axis === "x" ? "Change width" : "Change height"}
             className={`absolute rounded-full border-2 border-white shadow-sm ${handle.className}`}
             style={{ background: "var(--accent-navy)" }}
+          />
+        ))}
+
+      {isCropping &&
+        CROP_HANDLES.map((handle) => (
+          <div
+            key={handle.className}
+            onPointerDown={(e) => startCropDrag(e, handle)}
+            onPointerMove={handleCropPointerMove}
+            onPointerUp={stopCropDrag}
+            onPointerLeave={stopCropDrag}
+            onClick={(e) => e.stopPropagation()}
+            title="Crop"
+            className={`absolute rounded-full border-2 bg-white shadow-sm ${handle.className}`}
+            style={{ borderColor: "var(--accent-navy)" }}
           />
         ))}
     </div>

@@ -1,8 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
 import Link from "next/link";
-import { buildSlides, getClaudeFormat } from "@/lib/importQuiz";
 import { useEditorStore } from "@/lib/store";
 import { useFormatTexts } from "@/lib/useFormatTexts";
 import { DETAIL_MAX_LENGTH } from "@/lib/schema";
@@ -59,8 +57,6 @@ export function EditorTopBar() {
         <ShapeBoxToolbar />
       )}
 
-      <ImportButtons />
-
       <SaveButton />
 
       <button
@@ -108,7 +104,7 @@ function SaveButton() {
       onClick={saveQuiz}
       disabled={saveStatus === "saving" || !hasUnsavedChanges}
       title="Save (Ctrl+S)"
-      className="flex items-center gap-2 rounded-button border border-border-default px-4 py-2 text-sm font-semibold text-text-primary transition-colors hover:bg-bg-page disabled:hover:bg-transparent"
+      className="ml-auto flex items-center gap-2 rounded-button border border-border-default px-4 py-2 text-sm font-semibold text-text-primary transition-colors hover:bg-bg-page disabled:hover:bg-transparent"
     >
       {hasUnsavedChanges && saveStatus !== "saving" && (
         <span className={`h-2 w-2 rounded-full ${saveStatus === "error" ? "bg-red-600" : "bg-accent-orange"}`} />
@@ -117,84 +113,6 @@ function SaveButton() {
     </button>
   );
 }
-
-/**
- * "Copy format" puts the notes + JSON Schema for Claude on the clipboard. "Paste" (from the
- * clipboard) and "Import" (from a file) read the JSON Claude wrote and replace all slides with its slides.
- */
-function ImportButtons() {
-  const importSlides = useEditorStore((s) => s.importSlides);
-  const fileInput = useRef<HTMLInputElement>(null);
-  const [copied, setCopied] = useState(false);
-
-  const copyFormat = async () => {
-    try {
-      await navigator.clipboard.writeText(getClaudeFormat());
-    } catch {
-      // No clipboard on plain HTTP (e.g. testing from a phone on the LAN), or the browser said no.
-      alert("The browser didn't allow copying to the clipboard.");
-      return;
-    }
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
-  };
-
-  const importText = (text: string) => {
-    // Only the part from the first { to the last }, so a whole copied reply works too — Claude
-    // usually wraps the JSON in ```json fences, sometimes with a sentence around it.
-    const json = text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1);
-    let data: unknown;
-    try {
-      data = JSON.parse(json);
-    } catch {
-      alert("That isn't valid JSON.");
-      return;
-    }
-    const result = buildSlides(data);
-    if ("errors" in result) alert(`Couldn't import:\n\n${result.errors.join("\n")}`);
-    else importSlides(result.slides);
-  };
-
-  const pasteFromClipboard = async () => {
-    let text: string;
-    try {
-      text = await navigator.clipboard.readText();
-    } catch {
-      alert("The browser didn't allow reading the clipboard. Allow it in the address bar, or use Import.");
-      return;
-    }
-    importText(text);
-  };
-
-  return (
-    <div className="ml-auto flex items-center">
-      <button type="button" onClick={copyFormat} title="Copy the lesson format to paste into Claude" className={textButtonClass}>
-        {copied ? "Copied!" : "Copy format"}
-      </button>
-      <button type="button" onClick={pasteFromClipboard} title="Add slides from JSON you copied (e.g. Claude's reply)" className={textButtonClass}>
-        Paste
-      </button>
-      <button type="button" onClick={() => fileInput.current?.click()} title="Add slides from a JSON file" className={textButtonClass}>
-        Import
-      </button>
-      <input
-        ref={fileInput}
-        type="file"
-        accept=".json,application/json"
-        hidden
-        onChange={(e) => {
-          const file = e.target.files?.[0];
-          // Cleared so picking the same file again still triggers a change.
-          e.target.value = "";
-          if (file) file.text().then(importText);
-        }}
-      />
-    </div>
-  );
-}
-
-const textButtonClass =
-  "rounded-button px-3 py-2 text-sm font-semibold text-text-primary transition-colors hover:bg-bg-page";
 
 const historyButtonClass =
   "flex h-9 w-9 items-center justify-center rounded-button text-text-primary transition-colors hover:bg-bg-page disabled:opacity-30 disabled:hover:bg-transparent";

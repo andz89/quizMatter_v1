@@ -60,6 +60,21 @@ export const svgElementSchema = z.object({
   // Only used by custom drawings (assetId CUSTOM_SVG_ID, e.g. drawn by Claude): the SVG markup. Shown
   // as an image, so nothing inside it can run.
   svg: z.string().optional(),
+  // Mirrored left to right (flipX) or top to bottom (flipY). Only the picture is mirrored, not the box.
+  // Missing = not flipped. Text boxes are never flipped.
+  flipX: z.boolean().optional(),
+  flipY: z.boolean().optional(),
+  // Which part of the picture shows, as parts (0–1) of the whole picture: x/y = where the shown part
+  // starts, width/height = how much of it shows. The rest is only hidden, so it can be shown again.
+  // The element's box (x, y, width, height above) is the shown part. Missing = the whole picture.
+  crop: z
+    .object({
+      x: z.number().min(0).max(1),
+      y: z.number().min(0).max(1),
+      width: z.number().positive().max(1),
+      height: z.number().positive().max(1),
+    })
+    .optional(),
 });
 
 // Longest typed answer (short-answer and blank slides), in the editor and from Claude.

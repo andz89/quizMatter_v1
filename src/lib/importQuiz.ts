@@ -41,6 +41,7 @@ import {
   TEN_FRAME_SIDE_MAX,
   THERMOMETER_MAX,
   THERMOMETER_MIN,
+  canCrop,
   getAssetViewBox,
   getElementAsset,
   getNumberLineValue,
@@ -76,6 +77,11 @@ const svgMarkup = z
   .string()
   .max(MAX_SVG_LENGTH, `must be under ${MAX_SVG_LENGTH} characters`)
   .regex(/^\s*<svg[\s>][\s\S]*<\/svg>\s*$/i, "must be one <svg>…</svg>");
+
+// Opacity (percent) when Claude leaves it out: decorations are a little see-through, and its own
+// background artwork stays calm behind the text.
+const DECORATION_OPACITY = 60;
+const BACKGROUND_SVG_OPACITY = 20;
 
 // A spot on the 1280×720 slide, in px. Anything reaching past the edge is pulled back in.
 const rect = z.object({
@@ -176,6 +182,14 @@ const elementRecipe = z.object({
   tilt: whole(-90, 90).optional().describe(`Only for 3D solids: tilt toward you, in degrees. Leave out for ${DEFAULT_ROTATION_3D.x}.`),
   turn: whole(-180, 180).optional().describe(`Only for 3D solids: turn left/right, in degrees. Leave out for ${DEFAULT_ROTATION_3D.y}.`),
   opacity: whole(OPACITY_MIN, 100).optional().describe("How solid it is, in percent. Leave out for 100."),
+  flipX: z.boolean().optional().describe("Mirror the picture left to right, e.g. to make a kid face the other way."),
+  flipY: z.boolean().optional().describe("Mirror the picture top to bottom."),
+  crop: z
+    .object({ x: whole(0, 99), y: whole(0, 99), width: whole(1, 100), height: whole(1, 100) })
+    .optional()
+    .describe(
+      "Show only part of the picture, in percent of the whole picture: x, y = where the shown part starts (from the top-left), width, height = how much shows. E.g. { x: 0, y: 0, width: 100, height: 50 } shows the top half. Flat pictures only (not text, lines, 3D solids, clocks or math tools).",
+    ),
   position: rect
     .optional()
     .describe(
@@ -194,7 +208,9 @@ const decorationRecipe = z
       .enum(["top-left", "top-right", "bottom-left", "bottom-right", "bottom-strip"])
       .describe("Where it goes: a corner, or bottom-strip (a row of small copies along the bottom)."),
     color: hexColor.optional().describe("Leave out to use the picture's own color. Not used by svg."),
-    opacity: whole(OPACITY_MIN, 100).optional().describe("How solid it is, in percent. Leave out for the default."),
+    opacity: whole(OPACITY_MIN, 100).optional().describe(`How solid it is, in percent. Leave out for ${DECORATION_OPACITY}.`),
+    flipX: z.boolean().optional().describe("Mirror it left to right."),
+    flipY: z.boolean().optional().describe("Mirror it top to bottom."),
   })
   .meta({ id: "decoration" });
 
@@ -225,7 +241,7 @@ const questionBoxes = {
 const lessonDesign = {
   backgroundSvg: svgMarkup
     .optional()
-    .describe('Your own full-slide artwork (viewBox="0 0 1280 720"), drawn over the white slide, behind everything. Always shown at 20% opacity.'),
+    .describe('Your own full-slide artwork (viewBox="0 0 1280 720"), drawn over the white slide, behind everything. "backgroundSvgOpacity" sets how solid it is.'),
   backgroundPattern: z
     .enum(BACKGROUND_PATTERN_IDS)
     .optional()
@@ -325,6 +341,9 @@ const slideRecipe = z.discriminatedUnion("type", [
     patternOpacity: whole(PATTERN_OPACITY_RANGE.min, PATTERN_OPACITY_RANGE.max)
       .optional()
       .describe('How solid "backgroundPattern" is, in percent. Leave out for 25.'),
+    backgroundSvgOpacity: whole(OPACITY_MIN, 100)
+      .optional()
+      .describe(`How solid "backgroundSvg" is, in percent. Leave out for ${BACKGROUND_SVG_OPACITY}.`),
     ...lessonContent,
     answer: z
       .string()
@@ -470,6 +489,10 @@ How they look:
 - For a picture sum, list the pieces in order: 2 apples, "symbol-plus", 3 apples. Numbers and symbols take the size of the pictures next to them.
 - "color" recolors a picture. "opacity" (${OPACITY_MIN}–100%) makes it see-through.
 - "rotation" (0–359°) turns a flat picture. 3D solids (cube, cone…) use "tilt" (−90 to 90°) and "turn" (−180 to 180°) instead, to show them from another side.
+- "flipX" mirrors a picture left to right (e.g. two kids facing each other), "flipY" top to bottom. Decorations in "design" can be flipped too.
+- "crop" shows only part of a flat picture, in percent of the whole picture: { x, y, width, height }. E.g. { x: 0, y: 0, width: 100, height: 50 } = the top half; a kid's head and shoulders is about the top 45%. The picture's box takes the shape of the part that shows.
+- The picture list has people: cartoon kids ("kid-…": standing, "kid-cheer-…" cheering, "kid-think-…" thinking), Filipino students in school uniform ("ph-student-…") and teachers ("ph-teacher-…"). Their "color" is the shirt, dress or uniform. Use them to make lessons friendly: a kid asking a question, a teacher explaining, a kid cheering on a summary slide.
+- Shapes include every kind of triangle (equilateral, isosceles, scalene, right, acute, obtuse) and four-sided shape (square, rectangle, trapezoid, right trapezoid, rhombus, kite, parallelogram…). 3D solids include prisms and pyramids with 3–6 sided bases, frustum, hemisphere, octahedron and icosahedron.
 - Settings like "clockTime", "fraction", "numberLine", "tenFrame", "baseTen", "thermometer", "barGraph" and "protractor" only work on the pictures named in their description.
 - Keep "elements" useful: they should help answer the question or explain the lesson. Decoration goes in "design".
 
@@ -516,13 +539,15 @@ Question slides — keep them plain:
 Lesson slides — always white, made friendly with design:
 - There is no background color to set on lesson slides.
 - "design": decorations drawn behind everything, placed at a "spot". Pick ones that match the topic (leaves and trees for nature, sparkle and confetti for celebrations, planets for space, clouds for weather, shapes like circle, star or wave for anything) in 2–3 colors that go well together.
-  - The 4 corners (big, about 180px; see-through where they sit under text) and "bottom-strip" (a row of small copies along the bottom). Use 2–4 decorations. "opacity" sets how solid each one is.
+  - The 4 corners (big, about 180px) and "bottom-strip" (a row of small copies along the bottom). Use 2–4 decorations. "opacity" sets how solid each one is (${DECORATION_OPACITY}% if left out).
 
 Background artwork (lesson slides only) — each lesson slide can have one of these (or none, just plain white):
 - Option 1, "backgroundPattern": a ready-made pattern from the app: ${BACKGROUND_PATTERN_IDS.join(", ")}. It shows as a soft frame around the slide's edges, at 25% opacity unless you set "patternOpacity"; the middle stays plain white. It replaces "design": a slide with a pattern gets no decorations.
 - Option 2, "backgroundSvg": your own full-slide artwork, drawn over the white slide, behind everything. Use viewBox="0 0 1280 720". Good ideas: soft waves along the bottom, blobs in the corners, a sunburst, a frame. Keep the middle mostly empty so the text stays easy to read.
-  - Always 20% opacity: the app shows your artwork at 20%, so draw it in full, bright colors and let the app soften it.
+  - "backgroundSvgOpacity" sets how solid it is (${BACKGROUND_SVG_OPACITY}% if left out). Draw it in full colors and use this to soften it.
 - Mix them across the lesson: patterns on some slides, your own artwork or decorations on others.
+
+Opacity: you choose how solid decorations, patterns, background artwork and pictures are. Keep anything behind text light enough that the text stays easy to read.
 
 Your own drawings (SVG) — for lesson design only:
 - In "design", give "svg" instead of "asset" to draw your own decoration for a spot (square viewBox, e.g. "0 0 100 100").
@@ -666,7 +691,9 @@ function buildSlide(
   let slide: Slide = { ...blank, name: recipe.name };
   if (recipe.type === "lesson") {
     if (recipe.backgroundPattern && recipe.backgroundSvg) reportError('give "backgroundPattern" or "backgroundSvg", not both.');
-    slide.backgroundSvg = recipe.backgroundSvg && softened(withSvgNamespace(recipe.backgroundSvg));
+    slide.backgroundSvg =
+      recipe.backgroundSvg && softened(withSvgNamespace(recipe.backgroundSvg), recipe.backgroundSvgOpacity ?? BACKGROUND_SVG_OPACITY);
+    if (recipe.backgroundSvgOpacity !== undefined && !recipe.backgroundSvg) reportError('"backgroundSvgOpacity" needs a "backgroundSvg".');
     // The pattern sits on the plain white slide.
     if (recipe.patternOpacity !== undefined && !recipe.backgroundPattern) reportError('"patternOpacity" needs a "backgroundPattern".');
     if (recipe.backgroundPattern && drawPatterns) {
@@ -855,9 +882,7 @@ function buildSlide(
     });
   }
 
-  // Drawn first, so they sit behind everything. Where one would sit under text, it's made see-through.
-  const textRects = [...textBoxes, ...placedText].map((box) => ({ x: box.x, y: box.y, width: box.width, height: box.height }));
-  // Only lesson slides have decorations. A pattern background is already the slide's decoration,
+  // Drawn first, so they sit behind everything. Only lesson slides have decorations. A pattern background is already the slide's decoration,
   // so other decorations would only crowd it.
   const design = recipe.type !== "lesson" || recipe.backgroundPattern ? [] : recipe.design;
   const decorations = design.flatMap((item, i) => {
@@ -865,7 +890,7 @@ function buildSlide(
       reportError(`decoration ${i + 1}${item.asset ? ` (${item.asset})` : ""}: give "asset" or "svg" (one of them).`);
       return [];
     }
-    return decorationElements(item, textRects);
+    return decorationElements(item);
   });
 
   slide = { ...slide, elements: [...decorations, ...textBoxes, ...pictures, ...placedText, ...calloutParts] };
@@ -1180,28 +1205,21 @@ type Decoration = z.infer<typeof decorationRecipe>;
 // Decorations (lesson slides only): big in the corners, small along the bottom strip.
 const CORNER_SIZE = 180;
 const STRIP_ITEM_SIZE = 40;
-// Decorations are a little see-through by default, and at most this solid under text.
-const DECORATION_OPACITY = 60;
-const UNDER_TEXT_OPACITY = 25;
-
-function decorationElements(item: Decoration, textRects: Rect[]): SvgElement[] {
+function decorationElements(item: Decoration): SvgElement[] {
   // A library picture, or Claude's own drawing.
   const look = item.svg
     ? { assetId: CUSTOM_SVG_ID, color: DEFAULT_ELEMENT_COLOR, svg: withSvgNamespace(item.svg) }
     : { assetId: item.asset!, color: item.color ?? getElementAsset(item.asset!)?.defaultColor ?? DEFAULT_ELEMENT_COLOR };
   return decorationRects(item.spot).map((rect) => {
-    let opacity = item.opacity ?? DECORATION_OPACITY;
-    if (textRects.some((text) => overlaps(text, rect))) opacity = Math.min(opacity, UNDER_TEXT_OPACITY);
-    return { id: createId(), ...look, ...rect, containerId: null, ...(opacity < 100 && { opacity }) };
+    const opacity = item.opacity ?? DECORATION_OPACITY;
+    const flip = { ...(item.flipX && { flipX: true }), ...(item.flipY && { flipY: true }) };
+    return { id: createId(), ...look, ...rect, containerId: null, ...flip, ...(opacity < 100 && { opacity }) };
   });
 }
 
-// Claude's own background artwork is always shown this solid (0–1), so it stays calm behind the text.
-const BACKGROUND_SVG_OPACITY = 0.2;
-
 /** Claude's artwork wrapped in a see-through layer; the inner <svg> keeps its own viewBox and fills the slide. */
-function softened(markup: string): string {
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" preserveAspectRatio="none"><g opacity="${BACKGROUND_SVG_OPACITY}">${markup}</g></svg>`;
+function softened(markup: string, opacity: number): string {
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" preserveAspectRatio="none"><g opacity="${opacity / 100}">${markup}</g></svg>`;
 }
 
 /** An SVG only shows as an image when it names the SVG namespace, so add it if Claude left it out. */
@@ -1321,6 +1339,16 @@ function buildSettings(el: ElementRecipe, asset: Asset): Partial<SvgElement> | s
     settings.rotation3d = { x: el.tilt ?? DEFAULT_ROTATION_3D.x, y: el.turn ?? DEFAULT_ROTATION_3D.y };
   }
   if (el.opacity !== undefined && el.opacity < 100) settings.opacity = el.opacity;
+  if (el.flipX) settings.flipX = true;
+  if (el.flipY) settings.flipY = true;
+
+  if (el.crop) {
+    const { x, y, width, height } = el.crop;
+    if (!canCrop({ assetId: el.asset })) return `"crop" doesn't work on ${el.asset}.`;
+    if (x + width > 100 || y + height > 100) return "crop: x + width and y + height can't be more than 100.";
+    // The app keeps crops as parts (0–1) of the whole picture; the whole picture is left as no crop.
+    if (width < 100 || height < 100) settings.crop = { x: x / 100, y: y / 100, width: width / 100, height: height / 100 };
+  }
 
   return settings;
 }
@@ -1343,8 +1371,11 @@ function startSize(asset: Asset, settings: Partial<SvgElement>, size: SizeName, 
   // Assets whose shape depends on their settings (counting frame, base-ten blocks) take it from the
   // drawing area; the rest from their default size (e.g. wide number lines), or a square.
   const [, , viewWidth, viewHeight] = getAssetViewBox(asset, settings).split(" ").map(Number);
-  const shape =
+  const full =
     typeof asset.viewBox === "function" ? { width: viewWidth, height: viewHeight } : (asset.defaultSize ?? { width: 1, height: 1 });
+  // A cropped picture's box is only the shown part, so it takes that part's shape.
+  const crop = settings.crop ?? { width: 1, height: 1 };
+  const shape = { width: full.width * crop.width, height: full.height * crop.height };
   // 3D solids are drawn smaller inside their box, so they start 30% bigger (like in the editor).
   const height = Math.max(box.height, MIN_SIZE_BASE) * SIZE_SHARE[size] * (asset.is3d ? 1.3 : 1);
   return { width: (height * shape.width) / shape.height, height };

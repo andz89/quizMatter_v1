@@ -1,9 +1,11 @@
 "use client";
 
 import { useEditorStore } from "@/lib/store";
-import { getElementAsset, DEFAULT_CLOCK_TIME } from "@/lib/svgLibrary";
+import { canCrop, getElementAsset, DEFAULT_CLOCK_TIME } from "@/lib/svgLibrary";
 import { DEFAULT_ROTATION_3D } from "@/lib/solids";
-import { OPACITY_MIN } from "@/lib/constants";
+import { getContainerBounds, OPACITY_MIN } from "@/lib/constants";
+import { boxForShownPart, getCropFrame } from "@/lib/crop";
+import { fitInBox } from "@/lib/geometry";
 import { toCssBackground } from "./ElementSvg";
 import { RotateIcon } from "./SvgElementItem";
 import { ArrangePanel } from "./ArrangePanel";
@@ -32,6 +34,8 @@ export function SelectedElementToolbar() {
   const updateElement = useEditorStore((s) => s.updateElement);
   const updateElements = useEditorStore((s) => s.updateElements);
   const fitElementsToContainer = useEditorStore((s) => s.fitElementsToContainer);
+  const croppingElementId = useEditorStore((s) => s.croppingElementId);
+  const setCroppingElementId = useEditorStore((s) => s.setCroppingElementId);
 
   const elements = slide?.elements.filter((el) => selectedElementIds.includes(el.id)) ?? [];
   if (elements.length === 0) return null;
@@ -58,6 +62,31 @@ export function SelectedElementToolbar() {
     const clamped = Math.min(100, Math.max(OPACITY_MIN, value));
     updateElements(selectedSlideId, Object.fromEntries(elements.map((el) => [el.id, { opacity: clamped }])));
   };
+
+  // Crop is offered when exactly one picture is selected.
+  const croppable = elements.length === 1 && canCrop(elements[0]) ? elements[0] : null;
+  const isCropping = !!croppable && croppingElementId === croppable.id;
+
+  // Shows the whole picture again: the box grows to the picture, which stays where it is (shrunk if
+  // it no longer fits its box).
+  const resetCrop = () => {
+    if (!croppable || !slide) return;
+    const frame = getCropFrame(croppable);
+    const box = boxForShownPart(croppable, frame, { x: 0, y: 0, width: frame.width, height: frame.height });
+    const bounds = getContainerBounds(croppable.containerId, slide);
+    updateElement(selectedSlideId, croppable.id, { ...fitInBox(box, bounds, true), crop: undefined });
+  };
+
+  // Flip mirrors what you see, so a turned element's angle is mirrored too (30° becomes -30°).
+  // Each element flips in its own place. Text boxes are never flipped: mirrored text can't be read.
+  const flippable = elements.filter((el) => !getElementAsset(el.assetId)?.isTextBox);
+  const flip = (axis: "flipX" | "flipY") =>
+    updateElements(
+      selectedSlideId,
+      Object.fromEntries(
+        flippable.map((el) => [el.id, { [axis]: !el[axis] || undefined, ...(el.rotation && { rotation: -el.rotation }) }])
+      )
+    );
 
   const commonColor = elements.every((el) => el.color === elements[0].color) ? elements[0].color : null;
 
@@ -125,6 +154,26 @@ export function SelectedElementToolbar() {
           <FitToBoxIcon />
         </button>
       )}
+      {croppable && (
+        <button
+          type="button"
+          title={isCropping ? "Done cropping (Enter)" : "Crop (or double-click the picture)"}
+          onClick={() => setCroppingElementId(isCropping ? null : croppable.id)}
+          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-dropdown text-text-primary hover:bg-bg-page ${isCropping ? "bg-bg-page" : ""}`}
+        >
+          <CropIcon />
+        </button>
+      )}
+      {croppable?.crop && (
+        <button
+          type="button"
+          title="Show the whole picture again"
+          onClick={resetCrop}
+          className="shrink-0 rounded-dropdown px-2 py-1 text-xs font-medium text-text-primary hover:bg-bg-page"
+        >
+          Reset crop
+        </button>
+      )}
       <div className="h-5 w-px bg-border-default" />
 
       <button
@@ -173,6 +222,23 @@ export function SelectedElementToolbar() {
       )}
       {elements.length === 1 && slide && (
         <MathToolControls element={elements[0]} slideId={selectedSlideId} box={slide} />
+      )}
+      {flippable.length > 0 && (
+        <ToolPanelButton title="Flip" icon={<FlipIcon />} panelWidthClassName="w-48">
+          {(["flipX", "flipY"] as const).map((axis) => (
+            <button
+              key={axis}
+              type="button"
+              onClick={() => flip(axis)}
+              className="flex items-center gap-3 rounded-dropdown px-2 py-1.5 text-sm text-text-primary hover:bg-bg-page"
+            >
+              <span className={axis === "flipY" ? "rotate-90" : ""}>
+                <FlipIcon />
+              </span>
+              {axis === "flipX" ? "Flip horizontal" : "Flip vertical"}
+            </button>
+          ))}
+        </ToolPanelButton>
       )}
       {flat && (
         <ToolPanelButton title="Rotate" icon={<RotateIcon />}>
@@ -248,6 +314,25 @@ function ArrangeIcon() {
       <path d="M2 1.5v13" />
       <rect x="4.5" y="3" width="9" height="3.5" rx="1" />
       <rect x="4.5" y="9.5" width="6" height="3.5" rx="1" />
+    </svg>
+  );
+}
+
+function FlipIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round">
+      <path d="M8 1.5v13" strokeDasharray="1.5 1.5" strokeLinecap="round" />
+      <path d="M6 3.5 1.5 12.5H6Z" />
+      <path d="M10 3.5l4.5 9H10Z" fill="currentColor" />
+    </svg>
+  );
+}
+
+function CropIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 1.5V11a1 1 0 0 0 1 1h9.5" />
+      <path d="M1.5 4H11a1 1 0 0 1 1 1v9.5" />
     </svg>
   );
 }
