@@ -49,13 +49,12 @@ export function EditorTopBar() {
         </button>
       </div>
 
-      {formatTexts.length > 0 ? (
-        <TextFormatToolbar texts={formatTexts} />
-      ) : hasSelectedElements ? (
-        <SelectedElementToolbar />
-      ) : (
-        <ShapeBoxToolbar />
-      )}
+      {/* A selected text box gets both bars: its text formatting and the element controls. */}
+      <div className="absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center gap-2">
+        {formatTexts.length > 0 && <TextFormatToolbar texts={formatTexts} />}
+        {hasSelectedElements && <SelectedElementToolbar showColor={formatTexts.length === 0} />}
+        {formatTexts.length === 0 && !hasSelectedElements && <ShapeBoxToolbar />}
+      </div>
 
       <SaveButton />
 

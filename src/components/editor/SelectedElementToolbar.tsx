@@ -19,8 +19,11 @@ const ANGLE_PRESETS = [-90, -45, 0, 45, 90, 180];
 
 const MIXED_COLOR_SWATCH = "conic-gradient(#191A2C, #1E8E4F, #F2A93B, #A8A6A1, #1F1F1F, #191A2C)";
 
-/** Centered header container for the selected SVG element(s)' color, duplicate, and delete controls. */
-export function SelectedElementToolbar() {
+/**
+ * Header container for the selected SVG element(s)' color, duplicate, and delete controls.
+ * `showColor` is off next to the text toolbar, which has its own color button.
+ */
+export function SelectedElementToolbar({ showColor = true }: { showColor?: boolean }) {
   const selectedSlideId = useEditorStore((s) => s.selectedSlideId);
   const selectedElementIds = useEditorStore((s) => s.selectedElementIds);
   const slide = useEditorStore((s) => s.quiz.slides.find((sl) => sl.id === s.selectedSlideId));
@@ -110,7 +113,7 @@ export function SelectedElementToolbar() {
   return (
     <div
       data-element-toolbar="true"
-      className="absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center gap-2 rounded-button border border-border-default bg-bg-surface px-3 py-1.5"
+      className="flex items-center gap-2 rounded-button border border-border-default bg-bg-surface px-3 py-1.5"
     >
       {elements.length > 1 && (
         <>
@@ -176,18 +179,22 @@ export function SelectedElementToolbar() {
       )}
       <div className="h-5 w-px bg-border-default" />
 
-      <button
-        type="button"
-        title="Color"
-        onClick={toggleColorPanel}
-        className="h-6 w-6 shrink-0 rounded-full"
-        style={{
-          background: commonColor ? toCssBackground(commonColor) : MIXED_COLOR_SWATCH,
-          outline: isColorPanelOpen ? "2px solid var(--accent-navy)" : "2px solid transparent",
-          outlineOffset: 2,
-        }}
-      />
-      <div className="mx-1 h-5 w-px bg-border-default" />
+      {showColor && (
+        <>
+          <button
+            type="button"
+            title="Color"
+            onClick={toggleColorPanel}
+            className="h-6 w-6 shrink-0 rounded-full"
+            style={{
+              background: commonColor ? toCssBackground(commonColor) : MIXED_COLOR_SWATCH,
+              outline: isColorPanelOpen ? "2px solid var(--accent-navy)" : "2px solid transparent",
+              outlineOffset: 2,
+            }}
+          />
+          <div className="mx-1 h-5 w-px bg-border-default" />
+        </>
+      )}
       <ToolPanelButton title="Opacity" icon={<OpacityIcon />}>
         <PanelSlider label="Opacity" value={opacity} min={OPACITY_MIN} max={100} unit="%" onChange={setOpacity} />
         <ResetButton onClick={() => setOpacity(100)} />

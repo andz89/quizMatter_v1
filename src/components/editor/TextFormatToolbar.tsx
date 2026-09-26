@@ -50,7 +50,7 @@ export function TextFormatToolbar({ texts }: { texts: TextEditorEntry[] }) {
       onMouseDown={(e) => e.preventDefault()}
       // Clicking here shouldn't un-highlight the box being edited.
       data-keep-container-selection="true"
-      className="absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center gap-0.5 rounded-button border border-border-default bg-bg-surface p-1"
+      className="flex items-center gap-0.5 rounded-button border border-border-default bg-bg-surface p-1"
     >
       <FontSizePicker targets={texts.map((text) => text.target)} />
 

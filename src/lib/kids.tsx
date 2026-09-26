@@ -26,8 +26,9 @@ interface KidLook {
   glasses?: boolean;
   book?: string; // cover color of a book held against the chest (left arm)
   // "wave" = right arm raised, waving; "cheer" = both arms up, shouting hooray; "think" = finger
-  // on the chin, other arm folded, eyes looking up. Missing = arms down.
-  pose?: "wave" | "cheer" | "think";
+  // on the chin, other arm folded, eyes looking up. "read" = both hands hold an open book (cover
+  // color = `book`) in front, eyes looking down at it. Missing = arms down.
+  pose?: "wave" | "cheer" | "think" | "read";
   mouth?: "open" | "cheer" | "hmm"; // missing = closed smile
   happyEyes?: boolean; // closed, curved-up eyes, like laughing
   question?: string; // color of a "?" floating by the head
@@ -158,10 +159,10 @@ function renderFrontHair({ hair, hairStyle, accent }: KidLook) {
 
 function renderFace(look: KidLook) {
   const { eyes, girl, mouth, happyEyes, pose } = look;
-  // A thinking kid looks up and to the side, with one eyebrow raised.
+  // A thinking kid looks up and to the side, with one eyebrow raised; a reading kid looks down.
   const thinking = pose === "think";
-  const lookX = thinking ? 1.8 : 0.6;
-  const lookY = thinking ? -1.8 : 0;
+  const lookX = thinking ? 1.8 : pose === "read" ? 0 : 0.6;
+  const lookY = thinking ? -1.8 : pose === "read" ? 1.8 : 0;
   return (
     <>
       {[48, 72].map((x) => (
@@ -307,6 +308,16 @@ function renderKid(look: KidLook) {
           {limb([[42, 98], [37, 117], [82, 125]], skin, 8)}
           <ellipse cx="88" cy="125" rx="5.4" ry="4.6" fill={skin} />
           {limb([[44, 97], [39, 109]], shirt, 12)}
+        </g>
+      );
+    }
+    if (pose === "read") {
+      // Elbows out, hands in front of the tummy; the book and the hands holding it are drawn later.
+      const at = (points: [number, number][]) => points.map(([px, py]) => [side < 0 ? px : flip(px), py] as [number, number]);
+      return (
+        <g key={side}>
+          {limb(at([[42, 98], [30, 114], [36, 118]]), skin, 8)}
+          {sleeve(at([[42, 98], [30, 114], [36, 118]]), at([[44, 97], [38, 108]]))}
         </g>
       );
     }
@@ -456,6 +467,19 @@ function renderKid(look: KidLook) {
       {/* Right arm first, so a folded left arm's hand can sit on the right elbow */}
       {arm(1)}
       {arm(-1)}
+      {pose === "read" && (
+        // The open book, seen from the back: pages peek over the top, the two covers meet at the
+        // spine in the middle, and a hand holds each side.
+        <>
+          <path d="M37 101Q48 95 60 100Q72 95 83 101V106H37Z" fill="#FFFFFF" stroke="#000" strokeOpacity="0.12" strokeWidth="0.8" />
+          <path d="M34 102Q47 99 60 104V131Q47 126 34 129Z" fill={look.book} />
+          <path d="M86 102Q73 99 60 104V131Q73 126 86 129Z" fill={look.book} />
+          {shadow(<path d="M86 102Q73 99 60 104V131Q73 126 86 129Z" />)}
+          {[35, flip(35)].map((x) => (
+            <ellipse key={x} cx={x} cy="117" rx="4.6" ry="5.4" fill={skin} />
+          ))}
+        </>
+      )}
 
       {backpack &&
         [48, flip(48)].map((x) => (
@@ -655,6 +679,22 @@ export const KIDS: { id: string; label: string; defaultColor: string; render: (c
     defaultColor: "#22C55E",
     render: (color) =>
       renderKid({ skin: SKIN.peach, hair: HAIR.chestnut, hairStyle: "bob", eyes: EYES.green, topStyle: "pinafore", top: color, under: "#FDE2E4", shoes: "#E0457B", accent: "#F59E0B", girl: true, pose: "think", mouth: "hmm", question: "#F59E0B" }),
+  },
+
+  // Reading kids: holding an open book in front, eyes down on the page.
+  {
+    id: "kid-read-boy",
+    label: "Reading Boy",
+    defaultColor: "#F59E0B",
+    render: (color) =>
+      renderKid({ skin: SKIN.tan, hair: HAIR.black, hairStyle: "swoop", eyes: EYES.brown, topStyle: "tee", top: color, bottom: "shorts", bottomColor: "#2F5DA8", shoes: "#3A2A24", pose: "read", book: "#3B82F6" }),
+  },
+  {
+    id: "kid-read-girl",
+    label: "Reading Girl",
+    defaultColor: "#A855F7",
+    render: (color) =>
+      renderKid({ skin: SKIN.peach, hair: HAIR.darkBrown, hairStyle: "pigtails", eyes: EYES.brown, topStyle: "blouse", top: color, bottom: "skirt", bottomColor: "#1E3A8A", shoes: "#8A4A2A", accent: "#F472B6", girl: true, pose: "read", book: "#EF4444" }),
   },
 
   // Filipino students in school uniform: white polo or blouse, with `color` on the shorts, pants, or

@@ -618,6 +618,7 @@ export const SvgElementItem = memo(function SvgElementItem({ slideId, element, i
             target={{ kind: "textBox", slideId, elementId: element.id }}
             color={element.color}
             editStart={editStart}
+            isSelected={isOnlySelected}
             onChange={(html) => updateElement(slideId, element.id, { text: { ...element.text, html } })}
             onStopEditing={() => setEditStart(null)}
           />

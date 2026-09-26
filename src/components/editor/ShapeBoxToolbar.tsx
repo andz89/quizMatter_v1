@@ -25,7 +25,7 @@ export function ShapeBoxToolbar() {
     <div
       // Clicking here shouldn't un-select the box being styled.
       data-keep-container-selection="true"
-      className="absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center gap-3 rounded-button border border-border-default bg-bg-surface px-3 py-1.5"
+      className="flex items-center gap-3 rounded-button border border-border-default bg-bg-surface px-3 py-1.5"
     >
       <span className="pl-1 text-xs font-medium text-text-secondary">Shape box</span>
       <div className="h-5 w-px bg-border-default" />

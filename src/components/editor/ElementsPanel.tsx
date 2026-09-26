@@ -2,21 +2,50 @@
 
 import { useEffect, useState } from "react";
 import { useEditorStore, isPanelEscape } from "@/lib/store";
-import { ELEMENT_LIBRARY, ELEMENT_CATEGORY_LABELS, getElementAsset, type ElementCategory } from "@/lib/svgLibrary";
+import { ELEMENT_LIBRARY, ELEMENT_CATEGORY_LABELS, ELEMENT_PANEL_CATEGORIES, getElementAsset, type ElementCategory } from "@/lib/svgLibrary";
+import { loadFavoriteCategories, saveFavoriteCategories } from "@/lib/userSettings";
 import { ELEMENT_DRAG_MIME } from "@/lib/constants";
 import { ElementSvg } from "./ElementSvg";
 import { CloseIcon } from "@/components/icons/CloseIcon";
 import { BackIcon } from "@/components/icons/BackIcon";
-
-const CATEGORIES: ElementCategory[] = ["shape", "line", "arrow", "solid", "icon", "time", "math", "decorative", "cloud", "number", "letter", "symbol", "emoji", "music", "fruit", "kitchen", "vehicle", "person", "animal", "space", "sport", "tree", "leaf"];
+import { StarIcon } from "@/components/icons/StarIcon";
+import { Spinner } from "@/components/Spinner";
 
 export function ElementsPanel() {
   const closeElementsPanel = useEditorStore((s) => s.closeElementsPanel);
   const recentElementAssetIds = useEditorStore((s) => s.recentElementAssetIds);
+  const favoriteCategories = useEditorStore((s) => s.favoriteElementCategories);
+  const setFavoriteCategories = useEditorStore((s) => s.setFavoriteElementCategories);
+  const [isSavingFavorite, setIsSavingFavorite] = useState(false);
 
   // Which category's items are showing; null means the top-level category grid. Escape steps back
   // one level at a time (out of a category first, then closes the panel), matching the back arrow.
   const [openCategory, setOpenCategory] = useState<ElementCategory | null>(null);
+
+  // Favorites are loaded once per editor visit (the store keeps them while the panel closes and reopens).
+  useEffect(() => {
+    if (favoriteCategories !== null) return;
+    loadFavoriteCategories()
+      .then(setFavoriteCategories)
+      .catch(() => setFavoriteCategories([]));
+  }, [favoriteCategories, setFavoriteCategories]);
+
+  // Stars or un-stars a category. The star changes at once; if saving fails, it flips back.
+  const toggleFavorite = async (category: ElementCategory) => {
+    const previous = favoriteCategories ?? [];
+    const next = previous.includes(category)
+      ? previous.filter((c) => c !== category)
+      : ELEMENT_PANEL_CATEGORIES.filter((c) => c === category || previous.includes(c));
+    setFavoriteCategories(next);
+    setIsSavingFavorite(true);
+    try {
+      await saveFavoriteCategories(next);
+    } catch {
+      setFavoriteCategories(previous);
+    } finally {
+      setIsSavingFavorite(false);
+    }
+  };
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -68,6 +97,17 @@ export function ElementsPanel() {
           <h2 className="text-[15px] font-semibold text-text-primary">
             {openCategory ? ELEMENT_CATEGORY_LABELS[openCategory] : "Elements"}
           </h2>
+          {openCategory && favoriteCategories !== null && (
+            <button
+              type="button"
+              onClick={() => toggleFavorite(openCategory)}
+              disabled={isSavingFavorite}
+              title={favoriteCategories.includes(openCategory) ? "Remove from favorites" : "Add to favorites"}
+              className="flex h-8 w-8 items-center justify-center rounded-dropdown text-text-primary hover:bg-bg-page"
+            >
+              {isSavingFavorite ? <Spinner size={14} /> : <StarIcon filled={favoriteCategories.includes(openCategory)} />}
+            </button>
+          )}
         </div>
         <button
           type="button"
@@ -96,6 +136,23 @@ export function ElementsPanel() {
             Text box
           </button>
 
+          {favoriteCategories === null ? (
+            <div className="mb-5 flex justify-center">
+              <Spinner size={18} />
+            </div>
+          ) : (
+            favoriteCategories.length > 0 && (
+              <div className="mb-5">
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-header">Favorites</p>
+                <div className="grid grid-cols-3 gap-4">
+                  {favoriteCategories.map((category) => (
+                    <CategoryTile key={category} category={category} onOpen={setOpenCategory} />
+                  ))}
+                </div>
+              </div>
+            )
+          )}
+
           {recentElementAssetIds.length > 0 && (
             <div className="mb-5">
               <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-header">Recently used</p>
@@ -111,22 +168,9 @@ export function ElementsPanel() {
           )}
 
           <div className="grid grid-cols-3 gap-4">
-            {CATEGORIES.map((category) => {
-              const previewAsset = ELEMENT_LIBRARY.find((asset) => asset.category === category);
-              return (
-                <button
-                  key={category}
-                  type="button"
-                  onClick={() => setOpenCategory(category)}
-                  className="flex flex-col items-center gap-2"
-                >
-                  <span className="flex h-14 w-14 items-center justify-center rounded-card border border-border-default bg-bg-page p-3 text-text-primary transition-colors hover:border-accent-navy">
-                    {previewAsset && <ElementSvg assetId={previewAsset.id} color={previewAsset.defaultColor ?? "currentColor"} />}
-                  </span>
-                  <span className="text-xs font-medium text-text-primary">{ELEMENT_CATEGORY_LABELS[category]}</span>
-                </button>
-              );
-            })}
+            {ELEMENT_PANEL_CATEGORIES.map((category) => (
+              <CategoryTile key={category} category={category} onOpen={setOpenCategory} />
+            ))}
           </div>
         </>
       ) : (
@@ -137,6 +181,18 @@ export function ElementsPanel() {
         </div>
       )}
     </div>
+  );
+}
+
+function CategoryTile({ category, onOpen }: { category: ElementCategory; onOpen: (category: ElementCategory) => void }) {
+  const previewAsset = ELEMENT_LIBRARY.find((asset) => asset.category === category);
+  return (
+    <button type="button" onClick={() => onOpen(category)} className="flex flex-col items-center gap-2">
+      <span className="flex h-14 w-14 items-center justify-center rounded-card border border-border-default bg-bg-page p-3 text-text-primary transition-colors hover:border-accent-navy">
+        {previewAsset && <ElementSvg assetId={previewAsset.id} color={previewAsset.defaultColor ?? "currentColor"} />}
+      </span>
+      <span className="text-xs font-medium text-text-primary">{ELEMENT_CATEGORY_LABELS[category]}</span>
+    </button>
   );
 }
 

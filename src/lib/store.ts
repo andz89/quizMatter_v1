@@ -2,7 +2,7 @@ import { create } from "zustand";
 import type { Editor } from "@tiptap/react";
 import { createBlankQuiz, createBlankSlide, duplicateSlide as cloneSlide } from "./factories";
 import { createId } from "./id";
-import { DEFAULT_ELEMENT_COLOR, DEFAULT_ELEMENT_SIZE, getElementAsset, type RenderSettings } from "./svgLibrary";
+import { DEFAULT_ELEMENT_COLOR, DEFAULT_ELEMENT_SIZE, getElementAsset, type ElementCategory, type RenderSettings } from "./svgLibrary";
 import {
   getContainerBounds,
   getMaxQuestionHeight,
@@ -313,6 +313,9 @@ interface EditorState {
   isElementsPanelOpen: boolean;
   toggleElementsPanel: () => void;
   closeElementsPanel: () => void;
+  // The Elements panel categories the user starred, saved to their account. null until loaded.
+  favoriteElementCategories: ElementCategory[] | null;
+  setFavoriteElementCategories: (categories: ElementCategory[]) => void;
 
   // Only one of the Elements/Color/Background sidebar panels is shown at a time.
   isColorPanelOpen: boolean;
@@ -1111,6 +1114,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       };
     }),
   closeElementsPanel: () => set({ isElementsPanelOpen: false }),
+  favoriteElementCategories: null,
+  setFavoriteElementCategories: (categories) => set({ favoriteElementCategories: categories }),
 
   isColorPanelOpen: false,
   toggleColorPanel: () =>

@@ -4,7 +4,7 @@ import type { SvgElement } from "./schema";
 import { DEFAULT_TEXT_COLOR } from "./richText";
 import { KIDS, KID_VIEWBOX } from "./kids";
 
-export type ElementCategory = "shape" | "line" | "arrow" | "solid" | "icon" | "time" | "math" | "decorative" | "cloud" | "number" | "letter" | "symbol" | "emoji" | "music" | "fruit" | "kitchen" | "vehicle" | "person" | "animal" | "space" | "sport" | "tree" | "leaf" | "background" | "text";
+export type ElementCategory = "shape" | "line" | "arrow" | "solid" | "icon" | "time" | "math" | "decorative" | "cloud" | "number" | "letter" | "symbol" | "emoji" | "music" | "fruit" | "kitchen" | "book" | "vehicle" | "person" | "animal" | "space" | "sport" | "tree" | "leaf" | "background" | "text";
 
 // The per-element settings some assets draw from (3D angle, clock time, number line numbers).
 // A whole SvgElement fits here, so callers can just pass the element.
@@ -878,6 +878,84 @@ const LEAF_GREEN = "#22C55E";
 const STEM_BROWN = "#6D4C41";
 // Water in the kitchen glass and pitcher; stays blue after a recolor.
 const WATER_BLUE = "#38BDF8";
+
+// Fixed colors for book parts, plus the other books in the stack and on the shelf.
+const PAGE_WHITE = "#FFFFFF";
+const PAGE_EDGE = "#CBD5E1";
+const RING_METAL = "#94A3B8";
+const BOOKMARK_RED = "#EF4444";
+const SHELF_WOOD = "#A16207";
+const BOOK_COLORS = ["#3B82F6", "#22C55E", "#F59E0B", "#A855F7"];
+const STORY_GOLD = "#FDE68A";
+const SKY_BLUE = "#BAE6FD";
+const SPINE_TAPE = "#111827";
+// White spots on a composition notebook's marbled cover: [cx, cy, rx, ry, turn].
+const MARBLE_SPOTS: [number, number, number, number, number][] = [
+  [36, 18, 5, 3, 20], [52, 15, 4, 2.5, -30], [66, 20, 6, 3, 40], [42, 50, 3, 2, 10], [70, 34, 4, 2.5, -20],
+  [38, 44, 5, 3, -40], [62, 56, 5, 3, 30], [46, 64, 4, 2.5, -10], [72, 62, 3, 2, 50], [38, 72, 5, 3, 20],
+  [56, 76, 6, 3, -30], [70, 82, 4, 2.5, 10], [42, 84, 4, 2, -20], [54, 48, 3, 2, 60], [72, 48, 3, 2, -50],
+];
+
+// A book seen from the front: pages peek out behind the cover and a darker spine on the left.
+// `cover` = what's on the cover (centered around x = 52); missing = a plain title label.
+function closedBook(color: string, cover?: ReactNode) {
+  return (
+    <>
+      <rect x="26" y="14" width="52" height="76" rx="3" fill={PAGE_WHITE} stroke={PAGE_EDGE} strokeWidth="1.5" />
+      <rect x="20" y="10" width="54" height="76" rx="4" fill={color} />
+      <path d="M24 10H30V86H24A4 4 0 0 1 20 82V14A4 4 0 0 1 24 10Z" fill="#000" fillOpacity="0.2" />
+      {cover ?? <rect x="38" y="24" width="28" height="14" rx="2" fill={PAGE_WHITE} fillOpacity="0.85" />}
+    </>
+  );
+}
+
+// Big white letters on a book cover, e.g. "ABC".
+function coverTitle(text: string) {
+  return (
+    <text x="52" y="48" textAnchor="middle" dominantBaseline="central" fontSize="17" fontWeight="700" fill={PAGE_WHITE}>
+      {text}
+    </text>
+  );
+}
+
+// Curved text lines on the left and right page of an open book.
+const LEFT_PAGE_LINES = "M16 40Q30 36 44 40M16 48Q30 44 44 48M16 56Q30 52 44 56M16 64Q30 60 38 63";
+const RIGHT_PAGE_LINES = "M56 40Q70 36 84 40M56 48Q70 44 84 48M56 56Q70 52 84 56M56 64Q70 60 78 63";
+
+// A book lying open, pages curving up from the middle. `leftPage` replaces the text on the left page.
+function openBook(color: string, leftPage?: ReactNode) {
+  return (
+    <>
+      <path d="M50 34Q32 26 6 32V82Q32 76 50 84Q68 76 94 82V32Q68 26 50 34Z" fill={color} />
+      <path d="M50 30Q34 22 10 28V76Q34 70 50 78Z" fill={PAGE_WHITE} stroke={PAGE_EDGE} strokeWidth="1.5" strokeLinejoin="round" />
+      <path d="M50 30Q66 22 90 28V76Q66 70 50 78Z" fill={PAGE_WHITE} stroke={PAGE_EDGE} strokeWidth="1.5" strokeLinejoin="round" />
+      <path d={leftPage ? RIGHT_PAGE_LINES : `${LEFT_PAGE_LINES}${RIGHT_PAGE_LINES}`} fill="none" stroke={PAGE_EDGE} strokeWidth="2.5" strokeLinecap="round" />
+      {leftPage}
+    </>
+  );
+}
+
+// A book lying flat, seen from the side: 14 tall, pages showing at the right end, tilted `turn` degrees.
+function lyingBook(x: number, y: number, width: number, color: string, turn = 0) {
+  return (
+    <g transform={`rotate(${turn} ${x + width / 2} ${y + 7})`}>
+      <rect x={x} y={y} width={width} height="14" rx="3" fill={color} />
+      <rect x={x + width - 10} y={y + 3} width="7" height="8" rx="1" fill={PAGE_WHITE} />
+      <rect x={x + 8} y={y} width="3" height="14" fill="#000" fillOpacity="0.18" />
+    </g>
+  );
+}
+
+// A book standing on the shelf (bottom at y = 80), spine out, with two bands across the spine.
+function standingBook(x: number, top: number, width: number, color: string) {
+  return (
+    <>
+      <rect x={x} y={top} width={width} height={80 - top} rx="2" fill={color} />
+      <rect x={x} y={top + 6} width={width} height="3" fill="#000" fillOpacity="0.2" />
+      <rect x={x} y={71} width={width} height="3" fill="#000" fillOpacity="0.2" />
+    </>
+  );
+}
 
 // Bright colors handed out to assets that don't set their own defaultColor.
 const FUN_COLORS = ["#EF4444", "#F97316", "#F59E0B", "#22C55E", "#14B8A6", "#3B82F6", "#6366F1", "#A855F7", "#EC4899"];
@@ -2675,6 +2753,235 @@ const ASSETS: ElementAsset[] = [
         <rect x="64" y="51" width="32" height="10" rx="5" fill="#1F2937" />
         <circle cx="38" cy="56" r="32" fill={color} />
         <circle cx="38" cy="56" r="25" fill="#000" fillOpacity="0.2" />
+      </>
+    ),
+  },
+
+  // Books — the cover uses `color`; pages stay white. The stack and shelf use `color` for one book
+  // and fixed colors for the rest, so they still look like different books.
+  {
+    id: "book-closed",
+    category: "book",
+    label: "Closed Book",
+    defaultColor: "#3B82F6",
+    render: (color) => closedBook(color),
+  },
+  {
+    id: "book-open",
+    category: "book",
+    label: "Open Book",
+    defaultColor: "#8B5CF6",
+    render: (color) => openBook(color),
+  },
+  {
+    id: "book-stack",
+    category: "book",
+    label: "Stack of Books",
+    defaultColor: "#EF4444",
+    render: (color) => (
+      <>
+        {lyingBook(14, 70, 72, color)}
+        {lyingBook(20, 56, 62, BOOK_COLORS[0], -3)}
+        {lyingBook(16, 42, 66, BOOK_COLORS[1], 2)}
+        {lyingBook(24, 28, 54, BOOK_COLORS[2], -2)}
+      </>
+    ),
+  },
+  {
+    id: "book-shelf",
+    category: "book",
+    label: "Books on a Shelf",
+    defaultColor: "#EF4444",
+    render: (color) => (
+      <>
+        {standingBook(12, 22, 14, color)}
+        {standingBook(28, 30, 12, BOOK_COLORS[0])}
+        {standingBook(42, 18, 16, BOOK_COLORS[1])}
+        {standingBook(60, 26, 12, BOOK_COLORS[2])}
+        {/* Leans left on the book next to it. */}
+        <g transform="rotate(-8 78 80)">{standingBook(78, 32, 12, BOOK_COLORS[3])}</g>
+        <rect x="6" y="80" width="88" height="7" rx="2" fill={SHELF_WOOD} />
+      </>
+    ),
+  },
+  {
+    id: "book-notebook",
+    category: "book",
+    label: "Notebook",
+    defaultColor: "#22C55E",
+    render: (color) => (
+      <>
+        <rect x="20" y="16" width="60" height="76" rx="5" fill={color} />
+        <rect x="30" y="40" width="40" height="22" rx="2" fill={PAGE_WHITE} />
+        <path d="M34 47H66M34 55H66" stroke={PAGE_EDGE} strokeWidth="2" strokeLinecap="round" />
+        {[28, 37, 46, 55, 64, 73].map((x) => (
+          <g key={x}>
+            <circle cx={x} cy="22" r="2" fill="#000" fillOpacity="0.3" />
+            <rect x={x - 2} y="10" width="4" height="13" rx="2" fill={RING_METAL} />
+          </g>
+        ))}
+      </>
+    ),
+  },
+  {
+    id: "book-bookmark",
+    category: "book",
+    label: "Book with Bookmark",
+    defaultColor: "#1E3A8A",
+    render: (color) => (
+      <>
+        <path d="M54 82V100L59.5 95L65 100V82Z" fill={BOOKMARK_RED} />
+        {closedBook(color)}
+      </>
+    ),
+  },
+  {
+    id: "book-reading",
+    category: "book",
+    label: "Reading Book",
+    defaultColor: "#EF4444",
+    render: (color) => closedBook(color, coverTitle("ABC")),
+  },
+  {
+    id: "book-math",
+    category: "book",
+    label: "Math Book",
+    defaultColor: "#0EA5E9",
+    render: (color) => closedBook(color, coverTitle("123")),
+  },
+  {
+    id: "book-story",
+    category: "book",
+    label: "Storybook",
+    defaultColor: "#312E81",
+    render: (color) =>
+      closedBook(
+        color,
+        <>
+          {/* Crescent moon: a yellow circle with a cover-colored circle over part of it */}
+          <circle cx="48" cy="42" r="12" fill={STORY_GOLD} />
+          <circle cx="54" cy="38" r="10" fill={color} />
+          <polygon points={starPoints(64, 56, 5, 2.2)} fill={STORY_GOLD} />
+          <polygon points={starPoints(40, 66, 4, 1.8)} fill={STORY_GOLD} />
+          <polygon points={starPoints(63, 27, 3, 1.3)} fill={STORY_GOLD} />
+        </>,
+      ),
+  },
+  {
+    id: "book-dictionary",
+    category: "book",
+    label: "Dictionary",
+    defaultColor: "#7F1D1D",
+    render: (color) => (
+      <>
+        {/* Letter tabs sticking out of the pages */}
+        {[BOOKMARK_RED, ...BOOK_COLORS].map((tab, i) => (
+          <rect key={tab} x="82" y={20 + i * 13} width="8" height="9" rx="2" fill={tab} />
+        ))}
+        <rect x="24" y="14" width="60" height="76" rx="3" fill={PAGE_WHITE} stroke={PAGE_EDGE} strokeWidth="1.5" />
+        <path d="M79 17V87M82 17V87" stroke={PAGE_EDGE} strokeWidth="1" />
+        <rect x="14" y="10" width="64" height="76" rx="4" fill={color} />
+        <path d="M18 10H26V86H18A4 4 0 0 1 14 82V14A4 4 0 0 1 18 10Z" fill="#000" fillOpacity="0.2" />
+        <text x="52" y="44" textAnchor="middle" dominantBaseline="central" fontSize="18" fontWeight="700" fill={PAGE_WHITE}>
+          A–Z
+        </text>
+      </>
+    ),
+  },
+  {
+    id: "book-open-picture",
+    category: "book",
+    label: "Open Book with Picture",
+    defaultColor: "#F59E0B",
+    render: (color) =>
+      openBook(
+        color,
+        <>
+          <rect x="16" y="36" width="28" height="22" rx="2" fill={SKY_BLUE} />
+          <path d="M16 58L25 45L32 53L36 49L44 58Z" fill={LEAF_GREEN} />
+          <circle cx="37" cy="41" r="3.5" fill={STORY_GOLD} />
+          <path d="M16 65Q30 61 44 65" fill="none" stroke={PAGE_EDGE} strokeWidth="2.5" strokeLinecap="round" />
+        </>,
+      ),
+  },
+  {
+    id: "book-stand",
+    category: "book",
+    label: "Book on a Stand",
+    defaultColor: "#8B5CF6",
+    render: (color) => (
+      <>
+        <path d="M30 82L20 96M70 82L80 96" stroke={SHELF_WOOD} strokeWidth="5" strokeLinecap="round" />
+        <g transform="translate(7.5 7) scale(0.85)">{openBook(color)}</g>
+        <rect x="10" y="76" width="80" height="7" rx="2" fill={SHELF_WOOD} />
+      </>
+    ),
+  },
+  {
+    id: "book-bookmark-only",
+    category: "book",
+    label: "Bookmark",
+    defaultColor: "#EC4899",
+    render: (color) => (
+      <>
+        <path d="M34 8H66V94L50 80L34 94Z" fill={color} strokeLinejoin="round" />
+        <circle cx="50" cy="18" r="3.5" fill={PAGE_WHITE} />
+        <polygon points={starPoints(50, 46, 11, 4.5)} fill={PAGE_WHITE} fillOpacity="0.85" />
+        <rect x="34" y="64" width="32" height="3" fill={PAGE_WHITE} fillOpacity="0.5" />
+      </>
+    ),
+  },
+  {
+    id: "book-school-bag",
+    category: "book",
+    label: "School Bag with Books",
+    defaultColor: "#2563EB",
+    render: (color) => (
+      <>
+        <rect x="30" y="14" width="12" height="30" rx="2" fill={BOOK_COLORS[1]} />
+        <rect x="43" y="10" width="11" height="34" rx="2" fill={BOOK_COLORS[2]} />
+        <rect x="56" y="18" width="14" height="26" rx="2" fill={BOOKMARK_RED} />
+        <rect x="20" y="32" width="60" height="60" rx="14" fill={color} />
+        <path d="M20 46Q20 32 34 32H66Q80 32 80 46V50H20Z" fill="#000" fillOpacity="0.15" />
+        <rect x="30" y="60" width="40" height="24" rx="7" fill="#FFF" fillOpacity="0.25" />
+        <path d="M34 67H66" stroke="#000" strokeOpacity="0.25" strokeWidth="2" strokeLinecap="round" />
+        <rect x="58" y="66" width="4" height="8" rx="1" fill={RING_METAL} />
+      </>
+    ),
+  },
+  {
+    id: "book-composition",
+    category: "book",
+    label: "Composition Notebook",
+    defaultColor: "#1F1F1F",
+    render: (color) => (
+      <>
+        <rect x="22" y="10" width="56" height="80" rx="4" fill={color} />
+        {MARBLE_SPOTS.map(([cx, cy, rx, ry, turn]) => (
+          <ellipse key={`${cx}-${cy}`} cx={cx} cy={cy} rx={rx} ry={ry} fill={PAGE_WHITE} fillOpacity="0.85" transform={`rotate(${turn} ${cx} ${cy})`} />
+        ))}
+        <path d="M26 10H32V90H26A4 4 0 0 1 22 86V14A4 4 0 0 1 26 10Z" fill={SPINE_TAPE} />
+        <rect x="42" y="24" width="28" height="18" rx="2" fill={PAGE_WHITE} />
+        <path d="M46 31H66M46 36H66" stroke={PAGE_EDGE} strokeWidth="1.5" strokeLinecap="round" />
+      </>
+    ),
+  },
+  {
+    id: "book-glasses",
+    category: "book",
+    label: "Book with Glasses",
+    defaultColor: "#0F766E",
+    render: (color) => (
+      <>
+        <rect x="10" y="60" width="80" height="22" rx="4" fill={color} />
+        <rect x="76" y="64" width="11" height="14" rx="1.5" fill={PAGE_WHITE} />
+        <path d="M77 68.5H86M77 73.5H86" stroke={PAGE_EDGE} strokeWidth="1" />
+        <rect x="20" y="60" width="4" height="22" fill="#000" fillOpacity="0.18" />
+        <g fill="none" stroke={OUTLINE} strokeWidth="3" strokeLinecap="round">
+          <path d="M26 47L17 58M74 47L83 58M48 46Q50 42 52 46" />
+          <circle cx="37" cy="47" r="11" fill="#FFF" fillOpacity="0.35" strokeWidth="3.5" />
+          <circle cx="63" cy="47" r="11" fill="#FFF" fillOpacity="0.35" strokeWidth="3.5" />
+        </g>
       </>
     ),
   },
@@ -4699,6 +5006,9 @@ export function getElementAsset(assetId: string): ElementAsset | undefined {
   return ASSETS_BY_ID.get(assetId);
 }
 
+// The categories shown in the Elements panel, in order (background and text live elsewhere).
+export const ELEMENT_PANEL_CATEGORIES = ["shape", "line", "arrow", "solid", "icon", "time", "math", "decorative", "cloud", "number", "letter", "symbol", "emoji", "music", "fruit", "kitchen", "book", "vehicle", "person", "animal", "space", "sport", "tree", "leaf"] as const satisfies readonly ElementCategory[];
+
 export const ELEMENT_CATEGORY_LABELS: Record<ElementCategory, string> = {
   shape: "Shapes",
   line: "Lines",
@@ -4716,6 +5026,7 @@ export const ELEMENT_CATEGORY_LABELS: Record<ElementCategory, string> = {
   music: "Music",
   fruit: "Fruits",
   kitchen: "Kitchen",
+  book: "Books",
   vehicle: "Vehicles",
   person: "People",
   animal: "Animals",

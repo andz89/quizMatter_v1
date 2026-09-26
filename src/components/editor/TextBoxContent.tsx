@@ -14,15 +14,18 @@ interface TextBoxContentProps {
   color: string;
   // Where the user double-clicked to start typing (screen coordinates); null = not editing.
   editStart: { x: number; y: number } | null;
+  // Selected on its own with one click: the header's format toolbar changes all of its text.
+  isSelected: boolean;
   onChange: (html: string) => void;
   onStopEditing: () => void;
 }
 
 /** The text inside a text box element on the canvas. Read-only until double-clicked, then typeable. */
-export function TextBoxContent({ html, fontSize: chosenFontSize = TEXT_BOX_FONT_SIZE, target, color, editStart, onChange, onStopEditing }: TextBoxContentProps) {
+export function TextBoxContent({ html, fontSize: chosenFontSize = TEXT_BOX_FONT_SIZE, target, color, editStart, isSelected, onChange, onStopEditing }: TextBoxContentProps) {
   const { editor, ref, fontSize } = useCanvasTextEditor({
     content: html,
     editStart,
+    isSelected,
     target,
     fontSize: chosenFontSize,
     onUpdate: (editor) => onChange(editor.isEmpty ? "" : editor.getHTML()),
