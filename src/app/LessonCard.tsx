@@ -5,6 +5,7 @@ import { LinkPending } from "@/components/LinkPending";
 import { Spinner } from "@/components/Spinner";
 import { FluidSlidePreview } from "@/components/presentation/FluidSlidePreview";
 import type { Slide } from "@/lib/schema";
+import { LessonCardMenu } from "./LessonCardMenu";
 
 export type LessonCardData = {
   id: string;
@@ -20,8 +21,11 @@ export type LessonCardData = {
   byline?: string;
 };
 
-/** A lesson as a card: a picture of its first slide, then the title and a gray line of details. */
-export function LessonCard({ card }: { card: LessonCardData }) {
+/**
+ * A lesson as a card: a picture of its first slide, then the title and a gray line of details.
+ * `showMenu` adds the "⋮" menu (Edit, Present, Delete) — only for my own lessons.
+ */
+export function LessonCard({ card, showMenu = false }: { card: LessonCardData; showMenu?: boolean }) {
   const isChecking = card.badge === "checking";
   const body = (
     <>
@@ -54,13 +58,19 @@ export function LessonCard({ card }: { card: LessonCardData }) {
     </>
   );
 
-  // A draft Claude is still checking can't be opened yet.
-  return isChecking ? (
-    <div className="block min-w-0">{body}</div>
-  ) : (
-    <Link href={card.href} className="group block min-w-0">
-      {body}
-    </Link>
+  // The menu sits next to the link, not in it (a button can't go inside a link), placed over the picture.
+  return (
+    <div className="relative min-w-0">
+      {/* A draft Claude is still checking can't be opened yet. */}
+      {isChecking ? (
+        <div className="block">{body}</div>
+      ) : (
+        <Link href={card.href} className="group block">
+          {body}
+        </Link>
+      )}
+      {showMenu && <LessonCardMenu card={card} />}
+    </div>
   );
 }
 

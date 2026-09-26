@@ -1,8 +1,15 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
+import { useEditorStore } from "@/lib/store";
 import { LessonCard, type LessonCardData } from "./LessonCard";
+
+// Only downloaded when the teacher clicks Present on a card.
+const PresentationView = dynamic(() =>
+  import("@/components/presentation/PresentationView").then((mod) => mod.PresentationView)
+);
 
 // How many of my lessons the first row shows ("See all" opens the rest).
 const MY_ROW_SIZE = 5;
@@ -13,6 +20,7 @@ const MY_ROW_SIZE = 5;
  */
 export function LessonHome({ myCards, otherCards }: { myCards: LessonCardData[]; otherCards: LessonCardData[] }) {
   const [search, setSearch] = useState("");
+  const isPresenting = useEditorStore((s) => s.isPresenting);
 
   const query = search.trim().toLowerCase();
   const matches = (card: LessonCardData) => `${card.title} ${card.meta} ${card.byline ?? ""}`.toLowerCase().includes(query);
@@ -54,7 +62,7 @@ export function LessonHome({ myCards, otherCards }: { myCards: LessonCardData[];
           <div className="-mx-4 flex snap-x gap-4 overflow-x-auto px-4 pb-2 sm:mx-0 sm:grid sm:grid-cols-3 sm:overflow-visible sm:px-0 lg:grid-cols-5">
             {mine.map((card) => (
               <div key={card.id} className="w-44 shrink-0 snap-start sm:w-auto">
-                <LessonCard card={card} />
+                <LessonCard card={card} showMenu />
               </div>
             ))}
           </div>
@@ -72,6 +80,8 @@ export function LessonHome({ myCards, otherCards }: { myCards: LessonCardData[];
           </div>
         )}
       </Section>
+
+      {isPresenting && <PresentationView />}
     </>
   );
 }

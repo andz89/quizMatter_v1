@@ -2,7 +2,9 @@
 
 import { refresh } from "next/cache";
 import { z } from "zod";
-import { deleteDrafts } from "@/lib/drafts";
+import { deleteDrafts, getDraft, type Draft } from "@/lib/drafts";
+import { fetchQuiz } from "@/lib/fetchQuiz";
+import type { Quiz } from "@/lib/schema";
 import { createClient } from "@/lib/supabase/server";
 
 const idsSchema = z.array(z.string().min(1).max(100)).max(200);
@@ -30,4 +32,27 @@ export async function removeLessons(lessonIds: string[], draftIds: string[]): Pr
     refresh();
   }
   return true;
+}
+
+/** A whole saved lesson with its slides, so the home page can present it. null if it can't be read. */
+export async function getLesson(id: string): Promise<Quiz | null> {
+  if (!z.string().min(1).max(100).safeParse(id).success) return null;
+  try {
+    return (await fetchQuiz(id))?.quiz ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Claude's draft (details + slides recipe), so the home page can present it. The slides are built in
+ * the browser, like the editor does (building them needs react-dom/server, which server code can't use).
+ */
+export async function getDraftLesson(id: string): Promise<Draft | null> {
+  if (!z.string().min(1).max(100).safeParse(id).success) return null;
+  try {
+    return await getDraft(id);
+  } catch {
+    return null;
+  }
 }
