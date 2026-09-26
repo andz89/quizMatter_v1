@@ -176,7 +176,9 @@ const elementRecipe = z.object({
   opacity: whole(OPACITY_MIN, 100).optional().describe("How solid it is, in percent. Leave out for 100."),
   position: rect
     .optional()
-    .describe("Lesson slides only: place the picture yourself (px on the 1280×720 slide) instead of letting the app place it. Only with count 1."),
+    .describe(
+      "Place the picture yourself instead of letting the app place it, in px: on a lesson slide on the 1280×720 slide, on a question slide inside its box. Only with count 1.",
+    ),
   // The id makes the JSON Schema write these rules once (as "element") instead of once per slide type.
 }).meta({ id: "element" });
 
@@ -436,10 +438,16 @@ How they look:
 - Settings like "clockTime", "fraction", "numberLine", "tenFrame", "baseTen", "thermometer", "barGraph" and "protractor" only work on the pictures named in their description.
 - Keep "elements" useful: they should help answer the question or explain the lesson. Decoration goes in "design".
 
-Placing them yourself (lesson slides only):
-- The app places, centers and sizes pictures itself. To choose the spot yourself, give "position": { x, y, width, height } in px on the 1280 × 720 slide (x, y = top-left corner). Only with count 1.
-- Keep placed pictures off the title and text. Anything past the slide's edge is pulled back in.
-- "textBoxes" are placed the same way, and sit on top of pictures — good for labels on a picture.
+Placing them yourself:
+- The app places, centers and sizes pictures itself. To choose the spot yourself, give "position": { x, y, width, height } in px (x, y = top-left corner). Only with count 1.
+  - Lesson slides: on the 1280 × 720 slide. Keep placed pictures off the title and text.
+  - Question slides: inside the picture's box ("side" or an option), from the box's top-left corner. The box sizes are in the layout report.
+- Anything past its box's edge is pulled back in.
+- "textBoxes" (lesson slides) are placed the same way, and sit on top of pictures — good for labels on a picture.
+
+After you send (the layout report):
+- send_lesson replies with a layout report: every box's size, and where each text and picture landed, in the same px as "position". Lines starting with "!" point out things to check: pictures that wrapped to more rows or shrank a lot, pictures on top of text, text that will probably shrink.
+- Check it against what you meant. To fix something, change the lesson (e.g. give "position" with the numbers you want) and call send_lesson again with the "draftId" it gave you. That replaces the draft and keeps the same link.
 
 Arrows that point at part of a picture ("callouts", lesson slides only):
 - Use them to show where something is: the numerator and the denominator of a fraction, the hour hand of a clock, the tallest bar of a graph.
@@ -542,15 +550,27 @@ export function getClaudeFormat(): string {
  * `drawPatterns: false` skips drawing background patterns (they need react-dom/server, which
  * Cloudflare Workers don't have) — for the MCP server, which only wants the errors.
  */
-export function buildSlides(data: unknown, { drawPatterns = true } = {}): { slides: Slide[] } | { errors: string[] } {
+export function buildSlides(
+  data: unknown,
+  { drawPatterns = true } = {},
+): { slides: Slide[]; report: string } | { errors: string[] } {
   const parsed = quizRecipeSchema.safeParse(data);
   if (!parsed.success) return { errors: [z.prettifyError(parsed.error)] };
 
   const errors: string[] = [];
-  const slides = parsed.data.slides.map((recipe, i) =>
+  const built = parsed.data.slides.map((recipe, i) =>
     buildSlide(recipe, drawPatterns, (message) => errors.push(`Slide ${i + 1}: ${message}`)),
   );
-  return errors.length ? { errors } : { slides };
+  if (errors.length) return { errors };
+  const report = built
+    .map(({ slide, report }, i) => {
+      const recipe = parsed.data.slides[i];
+      // Short-answer slides have no layout to pick.
+      const layout = recipe.type === "lesson" ? `, ${recipe.layout}` : recipe.type === "choice" ? `, ${slide.layout}` : "";
+      return [`Slide ${i + 1} (${slide.type}${layout})`, ...report].join("\n  ");
+    })
+    .join("\n\n");
+  return { slides: built.map(({ slide }) => slide), report };
 }
 
 const CANVAS: Size = { width: CANVAS_WIDTH, height: CANVAS_HEIGHT };
@@ -568,7 +588,11 @@ function questionFields(recipe: QuestionRecipe) {
   };
 }
 
-function buildSlide(recipe: SlideRecipe, drawPatterns: boolean, reportError: (message: string) => void): Slide {
+function buildSlide(
+  recipe: SlideRecipe,
+  drawPatterns: boolean,
+  reportError: (message: string) => void,
+): { slide: Slide; report: string[] } {
   const blank = createBlankSlide(recipe.type);
   let slide: Slide = { ...blank, name: recipe.name };
   if (recipe.type === "lesson") {
@@ -631,18 +655,26 @@ function buildSlide(recipe: SlideRecipe, drawPatterns: boolean, reportError: (me
   if (recipe.type === "lesson" && recipe.layout === "title-only" && recipe.text) {
     reportError('a "title-only" lesson has no text. Use "text-top" or "text-left", or leave "text" out.');
   }
+  // Every lesson text box, with a name and its words, for the report.
+  const texts: LessonText[] = [];
   const textBoxes: SvgElement[] = [];
   if (recipe.type === "lesson" && lesson?.title) {
     const align = recipe.layout === "title-only" ? "center" : "left";
     textBoxes.push(textBox(lesson.title, markupToHtml(recipe.title!, { align, ...recipe.titleStyle, bold: true }), recipe.titleFontSize));
+    texts.push({ label: "title", box: textBoxes.at(-1)!, words: stripMarkup(recipe.title!) });
   }
   if (recipe.type === "lesson" && lesson?.text) {
     textBoxes.push(textBox(lesson.text, markupToHtml(recipe.text!, recipe.textStyle), recipe.textFontSize));
+    texts.push({ label: "text", box: textBoxes.at(-1)!, words: stripMarkup(recipe.text!) });
   }
   // Text boxes Claude placed itself. They sit on top of the pictures, so a label can go on one.
   const placedText =
     recipe.type === "lesson"
-      ? recipe.textBoxes.map((box) => textBox(fitInBox(box.position, CANVAS), markupToHtml(box.text, box.style), box.fontSize))
+      ? recipe.textBoxes.map((box, i) => {
+          const element = textBox(fitInBox(box.position, CANVAS), markupToHtml(box.text, box.style), box.fontSize);
+          texts.push({ label: `text box ${i + 1}`, box: element, words: stripMarkup(box.text) });
+          return element;
+        })
       : [];
 
   // The area a box's pictures are placed in: the lesson's picture area, or the box itself.
@@ -661,6 +693,8 @@ function buildSlide(recipe: SlideRecipe, drawPatterns: boolean, reportError: (me
 
   const pictures: SvgElement[] = [];
   const calloutParts: SvgElement[] = [];
+  // Things Claude may want to fix, for the report.
+  const notes: string[] = [];
 
   // Build every element's settings first, grouped by the box it goes in (keeping the recipe's order).
   const byBox = new Map<string | null, { base: Omit<SvgElement, keyof Rect>; size: Size; callouts: Callout[]; pad: Pad }[]>();
@@ -680,17 +714,20 @@ function buildSlide(recipe: SlideRecipe, drawPatterns: boolean, reportError: (me
     }
 
     const color = el.color ?? asset.defaultColor ?? DEFAULT_ELEMENT_COLOR;
-    // A picture Claude placed itself skips the app's placing.
+    const containerId = toContainerId(boxName, slide);
+    // A picture Claude placed itself skips the app's placing. Its position is inside its box (on a
+    // lesson slide, the whole slide).
     if (el.position) {
-      if (recipe.type !== "lesson") return reportError(`${where}: "position" only works on lesson slides.`);
       if (el.count > 1) return reportError(`${where}: "position" places one picture, so leave "count" out.`);
-      const picture = fitInBox(el.position, CANVAS);
-      pictures.push({ id: createId(), assetId: el.asset, color, containerId: null, ...settings, ...picture });
+      const picture = fitInBox(el.position, boundsOf(containerId, slide));
+      if (formatRect(picture) !== formatRect(el.position)) {
+        notes.push(`${where} didn't fit in "${boxLabel(containerId, slide)}" where you put it, so it was moved or shrunk to ${formatRect(picture)}.`);
+      }
+      pictures.push({ id: createId(), assetId: el.asset, color, containerId, ...settings, ...picture });
       calloutParts.push(...calloutElements(picture, el.callouts ?? []));
       return;
     }
 
-    const containerId = toContainerId(boxName, slide);
     let size = isGlyph(el.asset) ? (pictureSize.get(boxName) ?? sizeOf(el)) : sizeOf(el);
     // Grid/list boxes are short (the strip, the option rows), so small pictures there look too tiny.
     if (recipe.type === "choice" && slide.layout !== "list-side" && size === "small") size = "medium";
@@ -729,6 +766,12 @@ function buildSlide(recipe: SlideRecipe, drawPatterns: boolean, reportError: (me
       area,
       hasText ? "right" : "center",
     );
+    const label = boxLabel(containerId, slide);
+    // Pictures in one row are centered on the same line, so each distinct middle is one row.
+    const rows = new Set(slots.map((slot) => Math.round(slot.y + slot.height / 2))).size;
+    if (rows > 1) notes.push(`the ${items.length} pictures in "${label}" didn't fit in one row, so they wrapped to ${rows} rows.`);
+    const scale = Math.min(...items.map(({ size, pad }, i) => slots[i].width / (size.width + pad.left + pad.right)));
+    if (scale < 0.7) notes.push(`the pictures in "${label}" shrank to ${Math.round(scale * 100)}% of their size to fit.`);
     items.forEach(({ base, size, pad, callouts }, i) => {
       // Shrinking to fit scales the slot evenly, so the picture and its padding shrink by the same amount.
       const scale = slots[i].width / (size.width + pad.left + pad.right);
@@ -756,7 +799,93 @@ function buildSlide(recipe: SlideRecipe, drawPatterns: boolean, reportError: (me
     return decorationElements(item, textRects);
   });
 
-  return { ...slide, elements: [...decorations, ...textBoxes, ...pictures, ...placedText, ...calloutParts] };
+  slide = { ...slide, elements: [...decorations, ...textBoxes, ...pictures, ...placedText, ...calloutParts] };
+  return { slide, report: describeSlide(slide, texts, pictures, notes) };
+}
+
+// ---------------------------------------------------------------------------------------------
+// The layout report: where everything landed, sent back to Claude so it can check and fix it.
+// ---------------------------------------------------------------------------------------------
+
+interface LessonText {
+  label: string;
+  box: SvgElement;
+  words: string;
+}
+
+// Room an option's text keeps from its box's edges (px, both sides together), about.
+const OPTION_TEXT_PADDING = 16;
+
+function boundsOf(containerId: string | null, slide: Slide): Size {
+  return containerId === null ? CANVAS : getContainerBounds(containerId, slide);
+}
+
+function boxLabel(containerId: string | null, slide: Slide): string {
+  if (containerId === null) return "slide";
+  if (containerId === SIDE_CONTAINER_ID) return "side";
+  return OPTION_LABELS[slide.options.findIndex((option) => option.id === containerId)];
+}
+
+const formatSize = ({ width, height }: Size) => `${Math.round(width)}×${Math.round(height)}`;
+const formatRect = (rect: Rect) => `${Math.round(rect.x)},${Math.round(rect.y)} ${formatSize(rect)}`;
+
+/** Whether text probably needs more room than the box has at this font size (then it shrinks). A guess: the browser does the real fitting. */
+function tooLong(words: string, box: Size, fontSize: number): boolean {
+  if (words.trim() === "") return false;
+  // One line always counts as fitting: a short option in a short list row is fine.
+  const lineHeight = fontSize * LINE_HEIGHT_PER_PX;
+  const lines = textHeightFor(words, Math.max(1, box.width), fontSize) / lineHeight;
+  return lines > Math.max(1, Math.floor(box.height / lineHeight));
+}
+
+/** The slide's boxes, text and pictures (x,y = top-left corner, inside its box), and anything to check. */
+function describeSlide(slide: Slide, texts: LessonText[], pictures: SvgElement[], notes: string[]): string[] {
+  const lines: string[] = [];
+  const warnings = [...notes];
+
+  if (slide.type === "lesson") {
+    if (texts.length) lines.push(`Text: ${texts.map(({ label, box }) => `${label} ${formatRect(box)}`).join(" · ")}`);
+    for (const { label, box, words } of texts) {
+      const fontSize = box.text?.fontSize ?? TEXT_BOX_FONT_SIZE;
+      if (tooLong(words, box, fontSize)) warnings.push(`the ${label} is probably too long for its box at ${fontSize}px, so it will shrink.`);
+      for (const picture of pictures) {
+        if (overlaps(picture, box)) warnings.push(`${picture.assetId} (${formatRect(picture)}) overlaps the ${label}.`);
+      }
+    }
+  } else {
+    const questionFont = slide.questionFontSize ?? QUESTION_FONT_SIZE;
+    const questionRoom = { width: QUESTION_CONTAINER_WIDTH - QUESTION_PADDING, height: slide.questionHeight - QUESTION_PADDING };
+    const boxes = [`question ${QUESTION_CONTAINER_WIDTH}×${Math.round(slide.questionHeight)}`];
+    if (hasShapeBox(slide)) boxes.push(`side ${formatSize(getContainerBounds(SIDE_CONTAINER_ID, slide))}`);
+    if (slide.type === "choice") boxes.push(`A–D ${formatSize(getContainerBounds(slide.options[0].id, slide))} each`);
+    lines.push(`Boxes: ${boxes.join(" · ")}`);
+    if (tooLong(slide.question, questionRoom, questionFont)) {
+      warnings.push(`the question is probably too long for its box at ${questionFont}px, so it will shrink.`);
+    }
+    if (slide.type === "choice") {
+      slide.options.forEach((option, i) => {
+        const box = getContainerBounds(option.id, slide);
+        // Pictures in an option sit on its right half, so its text should fit in the left half.
+        const hasPictures = pictures.some((picture) => picture.containerId === option.id);
+        const room = { width: box.width / (hasPictures ? 2 : 1) - OPTION_TEXT_PADDING, height: box.height - OPTION_TEXT_PADDING };
+        const fontSize = option.fontSize ?? OPTION_FONT_SIZE;
+        if (tooLong(option.text, room, fontSize)) {
+          const where = hasPictures ? "the left half of its box" : "its box";
+          warnings.push(`option ${OPTION_LABELS[i]} is probably too long for ${where} at ${fontSize}px, so it will shrink.`);
+        }
+      });
+    }
+  }
+
+  const byBox = new Map<string, SvgElement[]>();
+  for (const picture of pictures) {
+    const label = boxLabel(picture.containerId, slide);
+    byBox.set(label, [...(byBox.get(label) ?? []), picture]);
+  }
+  for (const [label, list] of byBox) {
+    lines.push(`Pictures in "${label}": ${list.map((picture) => `${picture.assetId} ${formatRect(picture)}`).join(" · ")}`);
+  }
+  return [...lines, ...warnings.map((warning) => `! ${warning}`)];
 }
 
 type SizeName = NonNullable<ElementRecipe["size"]>;

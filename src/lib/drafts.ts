@@ -29,6 +29,19 @@ export async function saveDraft(draft: Draft): Promise<string> {
   return id;
 }
 
+/**
+ * Replaces the draft saved under this id (Claude sending a fixed version), so its link stays the same.
+ * Its day starts over. False if there's no such draft (wrong id, or older than a day).
+ */
+export async function replaceDraft(id: string, draft: Draft): Promise<boolean> {
+  const now = Date.now();
+  const result = await getCloudflareContext()
+    .env.DRAFTS_DB.prepare("UPDATE drafts SET recipe = ?, created_at = ? WHERE id = ? AND created_at >= ?")
+    .bind(JSON.stringify(draft), now, id, now - DRAFT_LIFETIME_MS)
+    .run();
+  return result.meta.changes > 0;
+}
+
 /** The draft saved under this id, or null if there's none (wrong id, or older than a day). */
 export async function getDraft(id: string): Promise<Draft | null> {
   const row = await getCloudflareContext()
