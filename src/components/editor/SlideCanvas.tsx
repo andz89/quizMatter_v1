@@ -163,7 +163,6 @@ export function SlideCanvas({ slide }: SlideCanvasProps) {
             key={element.id}
             slideId={slide.id}
             element={element}
-            allElements={freeElements}
             isSelected={selectedElementIds.includes(element.id)}
             bounds={CANVAS_BOUNDS}
           />

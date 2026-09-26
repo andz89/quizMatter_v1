@@ -120,7 +120,6 @@ export function OptionCard({ slideId, option, index, isCorrect, elements, box }:
             key={element.id}
             slideId={slideId}
             element={element}
-            allElements={boundElements}
             isSelected={selectedElementIds.includes(element.id)}
             bounds={bounds}
           />

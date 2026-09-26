@@ -60,7 +60,6 @@ export function QuestionContainer({ slide }: { slide: Slide }) {
             key={element.id}
             slideId={slide.id}
             element={element}
-            allElements={boundElements}
             isSelected={selectedElementIds.includes(element.id)}
             bounds={bounds}
           />

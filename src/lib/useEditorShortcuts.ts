@@ -79,7 +79,14 @@ export function useEditorShortcuts() {
         e.preventDefault();
         if (e.shiftKey) state.ungroupSelectedElements();
         else state.groupSelectedElements();
-      } else if (state.croppingElementId && (e.key === "Escape" || e.key === "Enter")) {
+      } else if (
+        // Only while the cropped element is still the one selected: after it's deleted or the slide
+        // changes, the id can linger, and it must not swallow Escape (deselect) or Enter.
+        state.croppingElementId &&
+        selectedElementIds.length === 1 &&
+        selectedElementIds[0] === state.croppingElementId &&
+        (e.key === "Escape" || e.key === "Enter")
+      ) {
         // Also stops Enter from clicking a focused button (like Crop, which would start cropping again).
         e.preventDefault();
         state.setCroppingElementId(null);

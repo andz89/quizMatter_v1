@@ -42,7 +42,6 @@ const MAX_HISTORY = 100;
 // Quiz changes closer together than this count as one undo step (a whole drag, a typed word).
 const HISTORY_GROUP_MS = 500;
 
-/** Applies `updater` to the one slide matching `slideId` and bumps the quiz's updatedAt — the shape every mutation below needs. */
 /** A text on the canvas that can be typed in: the question, one option, or a text box element. */
 export type TextTarget =
   | { kind: "question"; slideId: string }
@@ -65,6 +64,7 @@ export function isPanelEscape(e: KeyboardEvent) {
   return !isGridViewOpen && !isPresenting && !answerSlideId && !(e.target as HTMLElement | null)?.isContentEditable;
 }
 
+/** Applies `updater` to the one slide matching `slideId` and bumps the quiz's updatedAt — the shape every mutation below needs. */
 function updateSlide(quiz: Quiz, slideId: string, updater: (slide: Slide) => Slide): Quiz {
   return {
     ...quiz,

@@ -56,7 +56,9 @@ export function PresentationView() {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // While all slides are showing, Esc only closes that grid and the arrows do nothing.
+      // While all slides are showing, the arrows do nothing and Esc closes only the grid — but only when
+      // not in full screen. In full screen the browser takes Esc to leave full screen (the page never
+      // gets it), which ends the presentation, so no hint promises that Esc closes the grid.
       if (showAllSlides) {
         if (e.key === "Escape") setShowAllSlides(false);
         return;

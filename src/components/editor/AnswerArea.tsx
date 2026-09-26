@@ -185,7 +185,6 @@ function AnswerCanvas({ slide }: { slide: Slide }) {
             key={element.id}
             slideId={slide.id}
             element={element}
-            allElements={answerElements}
             isSelected={selectedElementIds.includes(element.id)}
             bounds={ANSWER_BOUNDS}
           />

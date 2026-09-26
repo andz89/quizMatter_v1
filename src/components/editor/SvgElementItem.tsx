@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import { useEditorStore, withoutHistory } from "@/lib/store";
 import { canCrop, getElementAsset } from "@/lib/svgLibrary";
 import { ElementSvg, TRIM_PADDING } from "./ElementSvg";
@@ -70,7 +70,6 @@ function overflowAmount(box: Rect, angle: number, bounds: { width: number; heigh
 interface SvgElementItemProps {
   slideId: string;
   element: SvgElement;
-  allElements: SvgElement[];
   isSelected: boolean;
   /** The coordinate space element.x/y/width/height are relative to (canvas, or a container's own box). */
   bounds: { width: number; height: number };
@@ -100,7 +99,11 @@ interface DragState {
   grabOffsetY: number;
 }
 
-export function SvgElementItem({ slideId, element, allElements, isSelected, bounds }: SvgElementItemProps) {
+/**
+ * One placed element with its handles. Wrapped in memo (means: skip redrawing when its props haven't
+ * changed), so dragging one element or typing in the question doesn't redraw every other element.
+ */
+export const SvgElementItem = memo(function SvgElementItem({ slideId, element, isSelected, bounds }: SvgElementItemProps) {
   const zoom = useEditorStore((s) => s.zoom);
   // Just "is exactly one element selected?", so a click elsewhere doesn't redraw every element.
   const isSingleSelection = useEditorStore((s) => s.selectedElementIds.length === 1);
@@ -148,6 +151,14 @@ export function SvgElementItem({ slideId, element, allElements, isSelected, boun
     if (isCropTarget && !isOnlySelected) setCroppingElementId(null);
   }, [isCropTarget, isOnlySelected, setCroppingElementId]);
 
+  // The elements in this element's box, read from the store when a drag needs them. Not a prop: that
+  // list changes whenever any of them moves, which would redraw every element in the box.
+  const getBoxElements = () =>
+    useEditorStore
+      .getState()
+      .quiz.slides.find((s) => s.id === slideId)
+      ?.elements.filter((el) => el.containerId === element.containerId) ?? [];
+
   const handleBodyPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     e.stopPropagation();
     // While typing, clicks and drags place the cursor or select words instead of moving the box.
@@ -168,13 +179,14 @@ export function SvgElementItem({ slideId, element, allElements, isSelected, boun
     // double-click) — keep that selection. Otherwise select it, which pulls in its whole group.
     if (!isSelected) selectElement(slideId, element.id, false);
     const idsToMove = useEditorStore.getState().selectedElementIds;
+    const boxElements = getBoxElements();
 
     const elementRect = e.currentTarget.getBoundingClientRect();
     dragState.current = {
       x: e.clientX,
       y: e.clientY,
       items: idsToMove
-        .map((id) => allElements.find((el) => el.id === id))
+        .map((id) => boxElements.find((el) => el.id === id))
         .filter((el): el is SvgElement => !!el)
         .map((el) => ({ id: el.id, x: el.x, y: el.y, width: el.width, height: el.height })),
       dx: 0,
@@ -198,6 +210,7 @@ export function SvgElementItem({ slideId, element, allElements, isSelected, boun
     const { x, y, items } = state;
 
     const { minX, minY, maxX, maxY } = getOuterEdges(items);
+    const boxElements = getBoxElements();
 
     let rawDx = (e.clientX - x) / zoom;
     let rawDy = (e.clientY - y) / zoom;
@@ -206,7 +219,7 @@ export function SvgElementItem({ slideId, element, allElements, isSelected, boun
     // edges/center. Alt turns snapping off for fine placement.
     let snap: { x: Snap; y: Snap } | null = null;
     if (!e.altKey) {
-      const others = allElements.filter((el) => !items.some((item) => item.id === el.id));
+      const others = boxElements.filter((el) => !items.some((item) => item.id === el.id));
       const threshold = SNAP_DISTANCE / zoom;
       snap = {
         x: findSnap(
@@ -264,7 +277,7 @@ export function SvgElementItem({ slideId, element, allElements, isSelected, boun
       const primary = items.find((item) => item.id === element.id) ?? items[0];
       setElementDragGhosts(
         items
-          .map((item) => ({ item, el: allElements.find((el) => el.id === item.id) }))
+          .map((item) => ({ item, el: boxElements.find((el) => el.id === item.id) }))
           .filter((pair): pair is { item: DragItem; el: SvgElement } => !!pair.el)
           .map(({ item, el }) => ({
             id: el.id,
@@ -310,9 +323,10 @@ export function SvgElementItem({ slideId, element, allElements, isSelected, boun
 
     // A group lives in one box, so an element moved without the rest of its group leaves the group.
     const movedIds = finalItems.map((item) => item.id);
+    const boxElements = getBoxElements();
     const leavesGroup = (id: string) => {
-      const groupId = allElements.find((el) => el.id === id)?.groupId;
-      return !!groupId && allElements.some((el) => el.groupId === groupId && !movedIds.includes(el.id));
+      const groupId = boxElements.find((el) => el.id === id)?.groupId;
+      return !!groupId && boxElements.some((el) => el.groupId === groupId && !movedIds.includes(el.id));
     };
 
     const containerId = state.hoverContainerId;
@@ -682,7 +696,14 @@ export function SvgElementItem({ slideId, element, allElements, isSelected, boun
         ))}
     </div>
   );
-}
+},
+// Each box passes a new bounds object on every redraw, so its size is compared instead.
+(prev, next) =>
+  prev.slideId === next.slideId &&
+  prev.element === next.element &&
+  prev.isSelected === next.isSelected &&
+  prev.bounds.width === next.bounds.width &&
+  prev.bounds.height === next.bounds.height);
 
 export function RotateIcon() {
   return (
