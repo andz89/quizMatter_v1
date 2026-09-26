@@ -2,7 +2,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useEditorStore } from "@/lib/store";
-import { CANVAS_WIDTH, CANVAS_HEIGHT, getSlideNumbers, hasAnswerContent } from "@/lib/constants";
+import { CANVAS_WIDTH, CANVAS_HEIGHT, hasAnswerContent } from "@/lib/constants";
 import { SlideStaticView } from "./SlideStaticView";
 import { AnswerModal } from "@/components/editor/AnswerModal";
 
@@ -148,7 +148,6 @@ export function PresentationView() {
         >
           <SlideStaticView
             slide={slide}
-            number={getSlideNumbers(quiz.slides).get(slide.id)}
             revealAnswer={isChoice && isAnswerShown}
             fullscreen
           />
@@ -157,10 +156,6 @@ export function PresentationView() {
 
 
       {isAnswerShown && !isChoice &&<AnswerModal slide={slide} onClose={() => setRevealedSlideId(null)} />}
-
-      <div className="absolute bottom-5 left-1/2 -translate-x-1/2 rounded-dropdown bg-black/30 px-3 py-1 text-xs font-medium text-white/80">
-        {presentationIndex + 1} / {quiz.slides.length}
-      </div>
     </div>
   );
 }

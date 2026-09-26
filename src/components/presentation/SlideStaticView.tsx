@@ -40,8 +40,6 @@ export function getSlideBackgroundStyle(slide: Pick<Slide, "background" | "backg
 
 interface SlideStaticViewProps {
   slide: Slide;
-  /** Slide's place in the quiz (1, 2, 3…). Shown as a "Q1" badge when given. */
-  number?: number;
   /** When true, the correct option is colored green. */
   revealAnswer?: boolean;
   /** Full-screen presentation: hides the slide border and gives the option labels a soft tint. */
@@ -49,7 +47,7 @@ interface SlideStaticViewProps {
 }
 
 /** Read-only, full-size rendering of a slide — used in presentation mode. */
-export function SlideStaticView({ slide, number, revealAnswer = false, fullscreen = false }: SlideStaticViewProps) {
+export function SlideStaticView({ slide, revealAnswer = false, fullscreen = false }: SlideStaticViewProps) {
   // Borders turn see-through instead of going away, so nothing on the slide shifts.
   const lineColor = fullscreen ? "transparent" : "var(--border-default)";
   const sideElements = slide.elements.filter((el) => el.containerId === SIDE_CONTAINER_ID);
@@ -64,12 +62,6 @@ export function SlideStaticView({ slide, number, revealAnswer = false, fullscree
           className="relative flex shrink-0 gap-4 rounded-button border border-transparent p-4"
           style={{ height: slide.questionHeight }}
         >
-          {number !== undefined && (
-            // Before the question, lined up with its first line (mt-2).
-            <span className="mt-2 shrink-0 self-start rounded-dropdown bg-accent-navy px-3 py-1.5 text-[20px] font-semibold leading-none text-white">
-              Q{number}
-            </span>
-          )}
           <div className="h-full min-w-0 flex-1">
             <SlideText
               text={slide.question || "Untitled question"}

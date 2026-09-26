@@ -27,7 +27,7 @@ type DragHandleProps = Pick<ReturnType<typeof useSortable>, "attributes" | "list
 
 interface SlideToolbarProps {
   slide: Slide;
-  // Q1, Q2… on question slides; Slide 1, Slide 2… on blank slides (each type counted separately).
+  // Slide 1, Slide 2… on blank slides, used as their name until they get one.
   slideNumber: number;
   isFirst: boolean;
   isLast: boolean;
@@ -50,10 +50,9 @@ export function SlideToolbar({ slide, slideNumber, isFirst, isLast, canDelete, o
   const [isRenaming, setIsRenaming] = useState(false);
 
   const isBlank = slide.type === "lesson";
-  // Question slides keep their number in front of the name; blank slides show the name alone.
-  const prefix = isBlank ? "" : `Q${slideNumber}`;
-  const defaultName = isBlank ? `Slide ${slideNumber}` : "";
-  const label = isBlank ? slide.name || defaultName : slide.name ? `${prefix} · ${slide.name}` : prefix;
+  // Only the slide's name is shown; an unnamed question slide invites one instead.
+  const defaultName = isBlank ? `Slide ${slideNumber}` : "Add a name";
+  const label = slide.name || defaultName;
 
   const isChoice = (slide.type ?? "choice") === "choice";
   // Short-answer and lesson slides have no options to fill in, so their (always empty) options pass this check.
@@ -68,11 +67,10 @@ export function SlideToolbar({ slide, slideNumber, isFirst, isLast, canDelete, o
       <div className="flex min-w-0 items-center gap-1 rounded-dropdown bg-bg-surface px-1.5 py-1.5 shadow-[0_1px_3px_rgba(0,0,0,0.08)]">
         {isRenaming ? (
           <div className="flex items-center gap-1.5 px-1.5 text-sm font-semibold uppercase tracking-[0.05em] text-text-header">
-            {prefix && <span>{prefix} ·</span>}
             <input
               autoFocus
               defaultValue={slide.name ?? ""}
-              placeholder={defaultName || "Add a name"}
+              placeholder={defaultName}
               onBlur={(e) => {
                 if (e.target.value.trim() !== (slide.name ?? "")) renameSlide(slide.id, e.target.value);
                 setIsRenaming(false);
