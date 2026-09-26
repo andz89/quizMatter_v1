@@ -399,7 +399,7 @@ Also fill in "details" when you send it: the lesson's title, a short description
 
 Leave a setting out and the app decides it. The layout report you get back (see "Checking before the final version") shows where everything landed.
 
-Never number the questions: write "Which change forms no new substance?", not "1. Which change…" or "Q1: Which change…". The app shows no question numbers, and the teacher may move slides around, so a number in the text would soon be wrong.
+Number the questions yourself: the app shows no question numbers. Start each question's text with its number, e.g. "1. Which change forms no new substance?". Count only question slides ("choice" and "short-answer"), in order, starting at 1; blank slides don't get a number.
 
 === The slides and what is on each one ===
 
@@ -569,14 +569,14 @@ Example:
       "type": "choice",
       "background": "#E0F2FE",
       "pictureBox": { "fill": "#F0F9FF", "border": "#7DD3FC" },
-      "question": "What time does the clock show?",
+      "question": "1. What time does the clock show?",
       "options": ["3:00", "4:30", "6:15", "9:45"],
       "answer": "C",
       "elements": [{ "asset": "clock", "clockTime": { "hours": 6, "minutes": 15 } }]
     },
     {
       "type": "short-answer",
-      "question": "How many apples are there in all?",
+      "question": "2. How many apples are there in all?",
       "answer": "5 apples",
       "elements": [
         { "asset": "apple", "count": 3 },
@@ -591,7 +591,7 @@ Example:
     },
     {
       "type": "choice",
-      "question": "What is 2 + 3?",
+      "question": "3. What is 2 + 3?",
       "options": ["4", "5", "6", "7"],
       "answer": "B",
       "elements": [
