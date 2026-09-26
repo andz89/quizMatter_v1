@@ -388,11 +388,18 @@ const BOXES: Record<"choice" | "short-answer", BoxName[]> = {
 // Tools you read a value from. They get the tall side box (list-side) and start large.
 const READING_TOOLS = new Set(["clock", "digital-clock", "thermometer", "bar-graph", "protractor", "base-ten-blocks", "fraction-circle"]);
 
-const CLAUDE_NOTES = `Write a lesson for my app (quizMatter) as JSON. A lesson is a set of slides: lesson slides that teach, and question slides. Reply with only the JSON. It must match the JSON Schema at the end.
+const CLAUDE_NOTES = `Write a lesson for my app (quizMatter) as JSON. Send it with send_lesson: "slides" is the slides array below, and it must match the JSON Schema at the end.
+
+quizMatter is an open canvas tool for making presentations, like Canva or PowerPoint. It is not only for quizzes. A lesson is a set of slides of two kinds:
+- Blank slides ("lesson" type): a free canvas for any kind of presentation — teaching a topic, a class discussion, a story, a report, instructions, a review. A lesson can be all blank slides, with no questions at all.
+- Question slides ("choice" and "short-answer"): for checking what learners know — an evaluation, a paper quiz, an assessment, or a short quiz after the discussion.
+Mix them as the user's request needs: e.g. blank slides to teach, then question slides to check.
+
+Also fill in "details" when you send it: the lesson's title, a short description, grade, subject, curriculum and learning competency (and author or reference links only when you know them).
 
 Leave a setting out and the app decides it. The layout report you get back (see "Checking before the final version") shows where everything landed.
 
-Never number the questions: write "Which change forms no new substance?", not "1. Which change…" or "Q1: Which change…". The app adds the numbers itself.
+Never number the questions: write "Which change forms no new substance?", not "1. Which change…" or "Q1: Which change…". The app shows no question numbers, and the teacher may move slides around, so a number in the text would soon be wrong.
 
 === The slides and what is on each one ===
 
@@ -411,8 +418,9 @@ The slide is 1280 × 720 px.
    - Picture box "side": the big area under the question. Put the pictures for the question here (the apples to count, the shape to measure…). "pictureBox" colors it.
    - "background": the slide's color.
    - "answerCanvas": optional, the answer shown as a picture (see Answers below).
-3. "lesson" — a white slide for teaching. Use it to:
-   - teach before the questions (explain the idea with a picture),
+3. "lesson" — a blank white slide, a free canvas (the app calls it a blank slide). Use it for any presentation slide, e.g. to:
+   - teach a topic (explain the idea with a picture),
+   - build a whole presentation with no questions (a report, a story, a topic overview),
    - give instructions for a new kind of question,
    - start a class discussion: ask an open question with no right answer ("Which fruit do you like best? Why?", "Where do you see fractions at home?").
    - It has no boxes. "title" and "text" become text boxes ("titleStyle", "textStyle", "titleFontSize", "textFontSize"), and the pictures fill the room they leave, as "layout" says.
@@ -429,6 +437,7 @@ The question box never holds pictures. Pictures always go in a picture box or an
 - Style for a whole text ("questionStyle", "optionStyle", "titleStyle", "textStyle", a text box's "style"): "color", "align" (left, center, right), "bold", "italic", "underline". Keep colors dark enough to read.
 - "\\n" starts a new line (a new paragraph).
 - Font sizes: every text shrinks to fit its box, so the font size is the largest a text gets. Defaults: question ${QUESTION_FONT_SIZE}px, options ${OPTION_FONT_SIZE}px, lesson title and text ${TEXT_BOX_FONT_SIZE}px. You can set ${FONT_SIZE_RANGE.min}–${FONT_SIZE_RANGE.max}px, e.g. bigger text for young learners.
+
 === Box sizes (question slides) ===
 
 The question box, the strip and the options share the slide's height, so giving one more room takes it from the others.
@@ -471,7 +480,13 @@ Placing them yourself:
 - Anything past its box's edge is pulled back in.
 - "textBoxes" (lesson slides) are placed the same way, and sit on top of pictures — good for labels on a picture.
 
-Checking before the final version (the layout report):
+Arrows that point at part of a picture ("callouts", lesson slides only):
+- Use them to show where something is: the numerator and the denominator of a fraction, the hour hand of a clock, the tallest bar of a graph.
+- "from" = where the arrow comes from: left, right, top or bottom. "at" = which part it points at: top, middle or bottom for arrows from the left or right; left, middle or right for arrows from the top or bottom.
+- Up to 3 from the left and 3 from the right; at most 1 from the top and 1 from the bottom.
+
+=== Checking before the final version (the layout report) ===
+
 - send_lesson replies with a layout report: every box's size, and where each text and picture landed, in the same px as "position". Lines starting with "!" point out things to check: pictures that wrapped to more rows or shrank a lot, pictures on top of text, text that will probably shrink.
 - Send the lesson first with "final": false. The user sees it as "Checking…" and can't open it yet. Check the report against what you meant, and fix anything that's off (e.g. give "position" with the numbers you want). You can check again the same way.
 - Then send it with "final": true and the "draftId" you got. That turns the checking version into the finished lesson and gives you the link for the user.
@@ -490,11 +505,6 @@ When presenting, the teacher clicks a button to show hidden content in a popup. 
   Most often give "answerCanvas" with a title like "Activity" or "Let's try!", short instructions and a picture. Leave both out on plain teaching slides that have nothing to reveal.
 - Choice slides never have these: their answer is the letter in "answer".
 - The layout report shows the answer canvas (a lesson slide's Reveal too) under its slide, as "Answer canvas".
-
-Arrows that point at part of a picture ("callouts", lesson slides only):
-- Use them to show where something is: the numerator and the denominator of a fraction, the hour hand of a clock, the tallest bar of a graph.
-- "from" = where the arrow comes from: left, right, top or bottom. "at" = which part it points at: top, middle or bottom for arrows from the left or right; left, middle or right for arrows from the top or bottom.
-- Up to 3 from the left and 3 from the right; at most 1 from the top and 1 from the bottom.
 
 === Design ===
 
@@ -551,8 +561,7 @@ Example:
       "elements": [{ "asset": "apple" }, { "asset": "banana" }, { "asset": "grapes" }],
       "answerCanvas": {
         "title": "Activity",
-        "text": "Draw your favorite fruit.
-Tell a partner **why** you like it.",
+        "text": "Draw your favorite fruit.\\nTell a partner **why** you like it.",
         "elements": [{ "asset": "apple" }, { "asset": "banana" }]
       }
     },

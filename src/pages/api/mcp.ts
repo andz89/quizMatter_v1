@@ -23,7 +23,8 @@ function createServer(appUrl: string) {
     server.registerTool(
       name,
       {
-        description: "Returns the JSON format for quizMatter lesson slides, with notes and an example. Call this before send_lesson.",
+        description:
+          "Returns the JSON format for quizMatter slides (blank presentation slides and question slides), with notes and an example. Call this before send_lesson.",
         annotations: { readOnlyHint: true },
       },
       async () => ({ content: [{ type: "text", text: getClaudeFormat() }] }),
@@ -35,7 +36,8 @@ function createServer(appUrl: string) {
       name,
       {
         description:
-          "Sends a lesson (teaching slides and/or questions) to quizMatter. `slides` must follow the format from get_lesson_format. " +
+          "Sends a lesson to quizMatter, an open canvas presentation tool (like Canva or PowerPoint): blank slides for any presentation, " +
+          "and/or question slides for a quiz or assessment. `slides` must follow the format from get_lesson_format. " +
           "If something is wrong, the errors come back — fix them and send again. Otherwise it returns a layout report: " +
           "where every box, text and picture landed. " +
           'Send it first with final: false to check: the user sees it as "Checking…" and can\'t open it yet, and you get the report and a draftId. ' +
