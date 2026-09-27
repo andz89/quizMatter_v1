@@ -7,8 +7,8 @@ import { useRouter } from "next/navigation";
 import { CANVAS_WIDTH, CANVAS_HEIGHT, getSlideNumbers } from "@/lib/constants";
 import { createId } from "@/lib/id";
 import { joinParts, slideCountLabel } from "@/lib/format";
-import { saveQuizToDb } from "@/lib/quizzes";
-import { DETAIL_MAX_LENGTH, isWebLink, type Quiz } from "@/lib/schema";
+import { savePresentationToDb } from "@/lib/presentations";
+import { DETAIL_MAX_LENGTH, isWebLink, type Presentation } from "@/lib/schema";
 import { useEditorStore } from "@/lib/store";
 import { LinkPending } from "@/components/LinkPending";
 import { Spinner } from "@/components/Spinner";
@@ -24,20 +24,20 @@ const PresentationView = dynamic(() =>
  * A presentation's details and all its slides, view only. Present shows it fullscreen (the same view as the
  * editor's Present button); "Make a copy" saves a private copy for me and opens it in the editor.
  */
-export function PresentationPreview({ quiz, isMine }: { quiz: Quiz; isMine: boolean }) {
+export function PresentationPreview({ presentation, isMine }: { presentation: Presentation; isMine: boolean }) {
   const router = useRouter();
   const isPresenting = useEditorStore((s) => s.isPresenting);
   const [isCopying, setIsCopying] = useState(false);
 
   // The presentation view reads the editor's store, so the presentation goes in there first.
-  const present = async (slideId = quiz.slides[0]?.id) => {
+  const present = async (slideId = presentation.slides[0]?.id) => {
     try {
       await document.documentElement.requestFullscreen();
     } catch {
       // Fullscreen isn't available (unsupported/blocked) — presentation still opens.
     }
     const store = useEditorStore.getState();
-    store.loadQuiz(quiz);
+    store.loadPresentation(presentation);
     useEditorStore.setState({ selectedSlideId: slideId });
     store.startPresentation();
   };
@@ -47,10 +47,10 @@ export function PresentationPreview({ quiz, isMine }: { quiz: Quiz; isMine: bool
     const now = Date.now();
     // Slide ids can stay: a slide's id only has to be unique inside its own presentation.
     // "Copy of …" so it's easy to tell apart from the original. `author` stays: it credits who wrote the content.
-    const title = `Copy of ${quiz.title || "Untitled presentation"}`.slice(0, DETAIL_MAX_LENGTH.title);
-    const copy = { ...quiz, id: createId(), title, isPublished: false, createdAt: now, updatedAt: now };
+    const title = `Copy of ${presentation.title || "Untitled presentation"}`.slice(0, DETAIL_MAX_LENGTH.title);
+    const copy = { ...presentation, id: createId(), title, isPublished: false, createdAt: now, updatedAt: now };
     try {
-      await saveQuizToDb(copy);
+      await savePresentationToDb(copy);
       // isCopying stays true, so the spinner and top line keep showing until the editor opens.
       router.push(`/presentation/${copy.id}/edit`);
     } catch {
@@ -60,11 +60,11 @@ export function PresentationPreview({ quiz, isMine }: { quiz: Quiz; isMine: bool
   };
 
   const details = [
-    { label: "Description", value: quiz.description },
-    { label: "Curriculum", value: quiz.curriculum },
-    { label: "Learning competency", value: quiz.learningCompetency },
+    { label: "Description", value: presentation.description },
+    { label: "Curriculum", value: presentation.curriculum },
+    { label: "Learning competency", value: presentation.learningCompetency },
   ].filter((detail) => detail.value);
-  const slideNumbers = getSlideNumbers(quiz.slides);
+  const slideNumbers = getSlideNumbers(presentation.slides);
 
   return (
     <main className="mx-auto w-full max-w-6xl px-4 py-10 sm:py-14">
@@ -74,14 +74,14 @@ export function PresentationPreview({ quiz, isMine }: { quiz: Quiz; isMine: bool
 
       <header className="mt-3 mb-6 flex flex-wrap items-start gap-3">
         <div className="min-w-0">
-          <h1 className="text-base font-semibold text-text-primary">{quiz.title || "Untitled presentation"}</h1>
+          <h1 className="text-base font-semibold text-text-primary">{presentation.title || "Untitled presentation"}</h1>
           <p className="mt-0.5 text-sm text-text-secondary">
-            {joinParts([quiz.author && `By ${quiz.author}`, quiz.grade, quiz.subject, slideCountLabel(quiz.slides.length)])}
+            {joinParts([presentation.author && `By ${presentation.author}`, presentation.grade, presentation.subject, slideCountLabel(presentation.slides.length)])}
           </p>
         </div>
         <div className="ml-auto flex items-center gap-2">
           {isMine ? (
-            <Link href={`/presentation/${quiz.id}/edit`} className={secondaryButtonClass}>
+            <Link href={`/presentation/${presentation.id}/edit`} className={secondaryButtonClass}>
               Edit
               <LinkPending />
             </Link>
@@ -96,7 +96,7 @@ export function PresentationPreview({ quiz, isMine }: { quiz: Quiz; isMine: bool
               {isCopying ? "Copying…" : "Make a copy"}
             </button>
           )}
-          {quiz.slides.length > 0 && (
+          {presentation.slides.length > 0 && (
             <button
               type="button"
               onClick={() => present()}
@@ -108,7 +108,7 @@ export function PresentationPreview({ quiz, isMine }: { quiz: Quiz; isMine: bool
         </div>
       </header>
 
-      {(details.length > 0 || quiz.referenceLinks.length > 0) && (
+      {(details.length > 0 || presentation.referenceLinks.length > 0) && (
         <dl className="mb-8 grid gap-4 rounded-card border border-border-default bg-bg-surface px-5 py-4 text-sm">
           {details.map((detail) => (
             <div key={detail.label}>
@@ -116,10 +116,10 @@ export function PresentationPreview({ quiz, isMine }: { quiz: Quiz; isMine: bool
               <dd className="mt-1 whitespace-pre-line text-text-primary">{detail.value}</dd>
             </div>
           ))}
-          {quiz.referenceLinks.length > 0 && (
+          {presentation.referenceLinks.length > 0 && (
             <div>
               <dt className="text-[11px] font-bold tracking-[0.05em] text-text-header uppercase">References</dt>
-              {quiz.referenceLinks.map((reference) => (
+              {presentation.referenceLinks.map((reference) => (
                 <dd key={reference} className="mt-1 break-words text-text-primary">
                   {isWebLink(reference) ? (
                     <a href={reference} target="_blank" rel="noopener noreferrer" className="underline">
@@ -137,7 +137,7 @@ export function PresentationPreview({ quiz, isMine }: { quiz: Quiz; isMine: bool
 
       {/* Clicking a slide presents from that slide. */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-        {quiz.slides.map((slide, index) => (
+        {presentation.slides.map((slide, index) => (
           <button
             key={slide.id}
             type="button"

@@ -29,7 +29,7 @@ export function AnswerModal({ slide, onClose }: AnswerModalProps) {
   const isCanvas = slide.answerType === "canvas";
   const answer = slide.correctAnswer ?? "";
   // A blank slide's answer is content shown during the discussion, not a correct answer.
-  const isReveal = slide.type === "lesson";
+  const isReveal = slide.type === "blank";
 
   // Portal into <body>, so no parent's `transform` shifts this `position: fixed` box.
   return createPortal(

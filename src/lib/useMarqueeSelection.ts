@@ -89,7 +89,7 @@ export function useMarqueeSelection(slideId: string, containerId: string | null)
       .map((el) => el.dataset.elementId!);
 
     const state = useEditorStore.getState();
-    const elements = state.quiz.slides.find((s) => s.id === slideId)?.elements ?? [];
+    const elements = state.presentation.slides.find((s) => s.id === slideId)?.elements ?? [];
     state.selectContainer(containerId, slideId);
     // Touching any part of a group selects the whole group.
     state.selectElements(withGroupMembers(elements, [...new Set([...marquee.keptIds, ...touchedIds])]));

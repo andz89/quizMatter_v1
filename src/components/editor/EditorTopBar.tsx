@@ -9,7 +9,7 @@ import { TextFormatToolbar } from "./TextFormatToolbar";
 import { ShapeBoxToolbar } from "./ShapeBoxToolbar";
 
 export function EditorTopBar() {
-  const title = useEditorStore((s) => s.quiz.title);
+  const title = useEditorStore((s) => s.presentation.title);
   const setPresentationDetails = useEditorStore((s) => s.setPresentationDetails);
   const startPresentation = useEditorStore((s) => s.startPresentation);
   const undo = useEditorStore((s) => s.undo);
@@ -30,7 +30,7 @@ export function EditorTopBar() {
 
   return (
     <header className="relative z-20 flex h-14 shrink-0 items-center gap-3 border-b border-border-default bg-bg-surface px-4">
-      <BackToQuizzesLink />
+      <BackToPresentationsLink />
 
       <input
         value={title}
@@ -72,14 +72,14 @@ export function EditorTopBar() {
 }
 
 /** Asks before leaving when there are unsaved changes (the browser's own "Leave page?" doesn't cover in-app links). */
-function BackToQuizzesLink() {
+function BackToPresentationsLink() {
   return (
     <Link
       href="/"
       title="My presentations"
       onClick={(e) => {
-        const { quiz, savedQuiz } = useEditorStore.getState();
-        if (quiz !== savedQuiz && !confirm("You have unsaved changes. Leave without saving?")) e.preventDefault();
+        const { presentation, savedPresentation } = useEditorStore.getState();
+        if (presentation !== savedPresentation && !confirm("You have unsaved changes. Leave without saving?")) e.preventDefault();
       }}
       className={historyButtonClass}
     >
@@ -88,11 +88,11 @@ function BackToQuizzesLink() {
   );
 }
 
-/** Saves the quiz to the database (also Ctrl+S). A dot shows while there are unsaved changes. */
+/** Saves the presentation to the database (also Ctrl+S). A dot shows while there are unsaved changes. */
 function SaveButton() {
-  const saveQuiz = useEditorStore((s) => s.saveQuiz);
+  const savePresentation = useEditorStore((s) => s.savePresentation);
   const saveStatus = useEditorStore((s) => s.saveStatus);
-  const hasUnsavedChanges = useEditorStore((s) => s.quiz !== s.savedQuiz);
+  const hasUnsavedChanges = useEditorStore((s) => s.presentation !== s.savedPresentation);
 
   const label =
     saveStatus === "saving" ? "Saving…" : saveStatus === "error" ? "Couldn't save — retry" : hasUnsavedChanges ? "Save" : "Saved";
@@ -100,7 +100,7 @@ function SaveButton() {
   return (
     <button
       type="button"
-      onClick={saveQuiz}
+      onClick={savePresentation}
       disabled={saveStatus === "saving" || !hasUnsavedChanges}
       title="Save (Ctrl+S)"
       className="ml-auto flex items-center gap-2 rounded-button border border-border-default px-4 py-2 text-sm font-semibold text-text-primary transition-colors hover:bg-bg-page disabled:hover:bg-transparent"

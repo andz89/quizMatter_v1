@@ -2,21 +2,21 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { createBlankQuiz } from "@/lib/factories";
-import { saveQuizToDb } from "@/lib/quizzes";
+import { createBlankPresentation } from "@/lib/factories";
+import { savePresentationToDb } from "@/lib/presentations";
 import { createClient } from "@/lib/supabase/client";
 
-/** Makes a blank quiz, saves it right away (so it has a row to open), then opens it in the editor. */
-export function NewQuizButton() {
+/** Makes a blank presentation, saves it right away (so it has a row to open), then opens it in the editor. */
+export function NewPresentationButton() {
   const router = useRouter();
   const [isCreating, setIsCreating] = useState(false);
 
-  const createQuiz = async () => {
+  const createPresentation = async () => {
     setIsCreating(true);
-    const quiz = createBlankQuiz();
+    const presentation = createBlankPresentation();
     try {
-      await saveQuizToDb(quiz);
-      router.push(`/presentation/${quiz.id}/edit`);
+      await savePresentationToDb(presentation);
+      router.push(`/presentation/${presentation.id}/edit`);
     } catch {
       alert("Couldn't create the presentation. Please try again.");
       setIsCreating(false);
@@ -26,7 +26,7 @@ export function NewQuizButton() {
   return (
     <button
       type="button"
-      onClick={createQuiz}
+      onClick={createPresentation}
       disabled={isCreating}
       className="rounded-button bg-accent-navy px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
     >

@@ -2,16 +2,16 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { z } from "zod";
-import { buildSlides, getClaudeFormat, quizDetailsSchema } from "@/lib/importQuiz";
+import { buildSlides, getClaudeFormat, claudeDetailsSchema } from "@/lib/importPresentation";
 import { replaceDraft, saveDraft } from "@/lib/drafts";
 
 /**
  * The MCP server Claude chat connects to (added in claude.ai as a custom connector with this URL).
  * Claude writes a presentation, `send_presentation` checks it and stores it as a draft, and Claude hands the user a
- * link that opens the draft in the editor as a new presentation. Nothing here touches the user's saved quizzes, so it
+ * link that opens the draft in the editor as a new presentation. Nothing here touches the user's saved presentations, so it
  * needs no login — the proxy lets this path through. Instead it asks for a shared secret (below).
  *
- * It's a Pages Router API route (not an App Router route.ts) because the quiz importer imports
+ * It's a Pages Router API route (not an App Router route.ts) because the presentation importer imports
  * react-dom/server (for drawing background patterns), which the App Router doesn't allow on the server.
  */
 function createServer(appUrl: string) {
@@ -44,7 +44,7 @@ function createServer(appUrl: string) {
           "Fix anything that's off (you can check again), then send the final version with final: true and that draftId. " +
           "The final send returns the link for the user, which opens the presentation in the editor; nothing is saved until they click Save.",
         inputSchema: {
-          details: quizDetailsSchema.optional().describe("About the presentation as a whole."),
+          details: claudeDetailsSchema.optional().describe("About the presentation as a whole."),
           slides: z.array(z.unknown()).describe("The slides array, in the format from get_presentation_format."),
           // Chats that started before checking existed don't send it, so they still get a finished presentation.
           final: z
@@ -85,7 +85,7 @@ function createServer(appUrl: string) {
           `Draft id: ${id}`,
           "",
           "Layout report: what the editor will show. Sizes are px; x,y is the top-left corner inside its box",
-          '(on lesson slides, on the 1280×720 slide). Lines starting with "!" are things to check.',
+          '(on blank slides, on the 1280×720 slide). Lines starting with "!" are things to check.',
           "",
           result.report,
         ].join("\n");
@@ -127,5 +127,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   res.send(await response.text());
 }
 
-// A quiz with drawn backgrounds can be bigger than the 1 MB default.
+// A presentation with drawn backgrounds can be bigger than the 1 MB default.
 export const config = { api: { bodyParser: { sizeLimit: "4mb" } } };

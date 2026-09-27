@@ -2,7 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { listDrafts, type DraftSummary } from "@/lib/drafts";
 import { joinParts, slideCountLabel, timeAgo } from "@/lib/format";
 import { parseSlide } from "@/lib/schema";
-import { LogoutButton, NewQuizButton } from "./QuizListButtons";
+import { LogoutButton, NewPresentationButton } from "./PresentationListButtons";
 import { PresentationHome } from "./PresentationHome";
 import type { PresentationCardData } from "./PresentationCard";
 
@@ -20,14 +20,14 @@ export default async function HomePage() {
 
   const [mine, others, drafts] = await Promise.all([
     supabase
-      .from("quizzes")
+      .from("presentations")
       .select(CARD_COLUMNS)
       .eq("owner_id", myId)
       .order("updated_at", { ascending: false })
       .order("position", { referencedTable: "first_slide" })
       .limit(1, { referencedTable: "first_slide" }),
     supabase
-      .from("quizzes")
+      .from("presentations")
       .select(CARD_COLUMNS)
       .eq("is_published", true)
       .neq("owner_id", myId)
@@ -51,7 +51,7 @@ export default async function HomePage() {
         </div>
         <div className="ml-auto flex items-center gap-2">
           <LogoutButton />
-          <NewQuizButton />
+          <NewPresentationButton />
         </div>
       </header>
 
@@ -60,7 +60,7 @@ export default async function HomePage() {
   );
 }
 
-type CardQuiz = {
+type CardPresentation = {
   id: string;
   title: string;
   grade: string;
@@ -73,14 +73,14 @@ type CardQuiz = {
 };
 
 /** My presentations and Claude's drafts (newest first), and other teachers' published presentations, as cards. */
-function buildCards(mine: CardQuiz[], others: CardQuiz[], drafts: DraftSummary[]) {
+function buildCards(mine: CardPresentation[], others: CardPresentation[], drafts: DraftSummary[]) {
   const now = Date.now();
-  const savedIds = new Set(mine.map((quiz) => quiz.id));
+  const savedIds = new Set(mine.map((presentation) => presentation.id));
   const myCards: (PresentationCardData & { sortTime: number })[] = [
-    ...mine.map((quiz) => ({
-      ...toCard(quiz, `/presentation/${quiz.id}/edit`, now),
-      badge: quiz.is_published ? ("published" as const) : undefined,
-      sortTime: Date.parse(quiz.updated_at),
+    ...mine.map((presentation) => ({
+      ...toCard(presentation, `/presentation/${presentation.id}/edit`, now),
+      badge: presentation.is_published ? ("published" as const) : undefined,
+      sortTime: Date.parse(presentation.updated_at),
     })),
     // Claude's drafts that aren't saved yet (see /presentations). Their slides are only a recipe, so no picture.
     ...drafts
@@ -96,21 +96,21 @@ function buildCards(mine: CardQuiz[], others: CardQuiz[], drafts: DraftSummary[]
       })),
   ].sort((a, b) => b.sortTime - a.sortTime);
 
-  const otherCards = others.map((quiz) => ({
-    ...toCard(quiz, `/presentation/${quiz.id}`, now),
-    byline: quiz.author ? `By ${quiz.author}` : undefined,
+  const otherCards = others.map((presentation) => ({
+    ...toCard(presentation, `/presentation/${presentation.id}`, now),
+    byline: presentation.author ? `By ${presentation.author}` : undefined,
   }));
 
   return { myCards, otherCards };
 }
 
-function toCard(quiz: CardQuiz, href: string, now: number): PresentationCardData {
-  const slideCount = quiz.slides[0]?.count ?? 0;
+function toCard(presentation: CardPresentation, href: string, now: number): PresentationCardData {
+  const slideCount = presentation.slides[0]?.count ?? 0;
   return {
-    id: quiz.id,
+    id: presentation.id,
     href,
-    title: quiz.title || "Untitled presentation",
-    meta: joinParts([quiz.grade, quiz.subject, slideCountLabel(slideCount), timeAgo(Date.parse(quiz.updated_at), now)]),
-    firstSlide: parseSlide(quiz.first_slide[0]?.data),
+    title: presentation.title || "Untitled presentation",
+    meta: joinParts([presentation.grade, presentation.subject, slideCountLabel(slideCount), timeAgo(Date.parse(presentation.updated_at), now)]),
+    firstSlide: parseSlide(presentation.first_slide[0]?.data),
   };
 }

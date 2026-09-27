@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import dynamic from "next/dynamic";
 import { useEditorStore } from "@/lib/store";
-import { buildSlides } from "@/lib/importQuiz";
+import { buildSlides } from "@/lib/importPresentation";
 import { useEditorShortcuts } from "@/lib/useEditorShortcuts";
 import { EditorTopBar } from "./EditorTopBar";
 import { IconRail } from "./IconRail";
@@ -14,7 +14,7 @@ import { BackgroundPanel } from "./BackgroundPanel";
 import { DetailsPanel } from "./DetailsPanel";
 import { PresentationsPanel } from "./PresentationsPanel";
 import { Spinner } from "@/components/Spinner";
-import type { Quiz } from "@/lib/schema";
+import type { Presentation } from "@/lib/schema";
 
 // Only downloaded the first time they're opened, so the editor itself loads faster. While one
 // downloads, a dimmed screen with the spinner shows over the editor. Without `loading`, the whole
@@ -33,13 +33,13 @@ const PresentationView = dynamic(
 );
 
 /**
- * `draft` is the slides recipe of a quiz Claude sent through the MCP server (see /presentation/new): its
- * slides replace the new quiz's sample slide, unsaved, like the Paste button does.
+ * `draft` is the slides recipe of a presentation Claude sent through the MCP server (see /presentation/new): its
+ * slides replace the new presentation's sample slide, unsaved, like the Paste button does.
  */
-export function Editor({ quiz, draft }: { quiz: Quiz; draft?: unknown }) {
-  // Until the quiz below is in the store, the store still holds the placeholder (or the last quiz opened).
-  const isLoaded = useEditorStore((s) => s.quiz.id === quiz.id);
-  const hasUnsavedChanges = useEditorStore((s) => s.quiz !== s.savedQuiz);
+export function Editor({ presentation, draft }: { presentation: Presentation; draft?: unknown }) {
+  // Until the presentation below is in the store, the store still holds the placeholder (or the last presentation opened).
+  const isLoaded = useEditorStore((s) => s.presentation.id === presentation.id);
+  const hasUnsavedChanges = useEditorStore((s) => s.presentation !== s.savedPresentation);
   const isPresenting = useEditorStore((s) => s.isPresenting);
   const isGridViewOpen = useEditorStore((s) => s.isGridViewOpen);
   const isElementsPanelOpen = useEditorStore((s) => s.isElementsPanelOpen);
@@ -57,16 +57,16 @@ export function Editor({ quiz, draft }: { quiz: Quiz; draft?: unknown }) {
 
   useEffect(() => {
     const store = useEditorStore.getState();
-    store.loadQuiz(quiz);
+    store.loadPresentation(presentation);
     if (draft === undefined) return;
 
-    // Show the quiz's own address instead of /presentation/new?draft=…, so a reload after saving opens the
-    // saved quiz instead of another new copy.
-    window.history.replaceState(null, "", `/presentation/${quiz.id}/edit`);
+    // Show the presentation's own address instead of /presentation/new?draft=…, so a reload after saving opens the
+    // saved presentation instead of another new copy.
+    window.history.replaceState(null, "", `/presentation/${presentation.id}/edit`);
     const result = buildSlides(draft);
     if ("errors" in result) alert(`Couldn't load the slides from Claude:\n\n${result.errors.join("\n")}`);
     else store.importSlides(result.slides);
-  }, [quiz, draft]);
+  }, [presentation, draft]);
 
   // Closing or reloading the tab with unsaved changes makes the browser ask "Leave page?" first.
   useEffect(() => {

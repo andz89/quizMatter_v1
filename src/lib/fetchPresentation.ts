@@ -1,15 +1,15 @@
 import { createClient } from "./supabase/server";
-import { quizSchema, type Quiz } from "./schema";
+import { presentationSchema, type Presentation } from "./schema";
 
 /**
- * The whole quiz (details + every slide, in order) and who owns it, or null if there's none the user
- * can read: their own quizzes, and other people's published ones. Server-only.
+ * The whole presentation (details + every slide, in order) and who owns it, or null if there's none the user
+ * can read: their own presentations, and other people's published ones. Server-only.
  */
-export async function fetchQuiz(id: string): Promise<{ quiz: Quiz; isMine: boolean } | null> {
+export async function fetchPresentation(id: string): Promise<{ presentation: Presentation; isMine: boolean } | null> {
   const supabase = await createClient();
   const [{ data, error }, { data: claims }] = await Promise.all([
     supabase
-      .from("quizzes")
+      .from("presentations")
       .select(
         "id, owner_id, title, description, grade, subject, curriculum, learning_competency, author, reference_links, is_published, created_at, updated_at, slides(data, position)",
       )
@@ -22,7 +22,7 @@ export async function fetchQuiz(id: string): Promise<{ quiz: Quiz; isMine: boole
   if (!data) return null;
 
   // Checked against the schema, so a slide saved in an older/broken shape fails here instead of inside the editor.
-  const quiz = quizSchema.parse({
+  const presentation = presentationSchema.parse({
     id: data.id,
     title: data.title,
     description: data.description,
@@ -37,5 +37,5 @@ export async function fetchQuiz(id: string): Promise<{ quiz: Quiz; isMine: boole
     updatedAt: Date.parse(data.updated_at),
     slides: data.slides.map((slide: { data: unknown }) => slide.data),
   });
-  return { quiz, isMine: data.owner_id === claims?.claims.sub };
+  return { presentation, isMine: data.owner_id === claims?.claims.sub };
 }

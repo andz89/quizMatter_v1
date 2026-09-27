@@ -26,7 +26,7 @@ type PresentationSummary = {
 
 // What the panel had loaded, kept after it closes so reopening it is instant (no new download) and
 // comes back to the same presentation. Only for the presentation being edited; cleared on a full page reload.
-let cache: { quizId: string; presentations: PresentationSummary[]; openPresentation: PresentationSummary | null; slides: Slide[] | null } | null = null;
+let cache: { presentationId: string; presentations: PresentationSummary[]; openPresentation: PresentationSummary | null; slides: Slide[] | null } | null = null;
 
 /**
  * Sidebar panel with the published presentations (mine too, except the one being edited). Clicking a presentation
@@ -36,9 +36,9 @@ let cache: { quizId: string; presentations: PresentationSummary[]; openPresentat
 export function PresentationsPanel() {
   const closePresentationsPanel = useEditorStore((s) => s.closePresentationsPanel);
   const insertSlides = useEditorStore((s) => s.insertSlides);
-  const quizId = useEditorStore((s) => s.quiz.id);
+  const presentationId = useEditorStore((s) => s.presentation.id);
 
-  const [cached] = useState(() => (cache?.quizId === quizId ? cache : null));
+  const [cached] = useState(() => (cache?.presentationId === presentationId ? cache : null));
   // null while loading.
   const [presentations, setPresentations] = useState<PresentationSummary[] | null>(cached?.presentations ?? null);
   const [search, setSearch] = useState("");
@@ -54,13 +54,13 @@ export function PresentationsPanel() {
   const [draggingSlideId, setDraggingSlideId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (cache?.quizId === quizId) return;
+    if (cache?.presentationId === presentationId) return;
     let cancelled = false;
     createClient()
-      .from("quizzes")
+      .from("presentations")
       .select("id, title, grade, subject, author, slides(count), first_slide:slides(data, position)")
       .eq("is_published", true)
-      .neq("id", quizId)
+      .neq("id", presentationId)
       .order("updated_at", { ascending: false })
       .order("position", { referencedTable: "first_slide" })
       .limit(1, { referencedTable: "first_slide" })
@@ -69,28 +69,28 @@ export function PresentationsPanel() {
         if (cancelled) return;
         if (error) return setListError(true);
         setPresentations(
-          data.map((quiz) => ({
-            id: quiz.id,
-            title: quiz.title || "Untitled presentation",
+          data.map((presentation) => ({
+            id: presentation.id,
+            title: presentation.title || "Untitled presentation",
             meta: joinParts([
-              quiz.author && `By ${quiz.author}`,
-              quiz.grade,
-              quiz.subject,
-              slideCountLabel(quiz.slides[0]?.count ?? 0),
+              presentation.author && `By ${presentation.author}`,
+              presentation.grade,
+              presentation.subject,
+              slideCountLabel(presentation.slides[0]?.count ?? 0),
             ]),
-            firstSlide: parseSlide(quiz.first_slide[0]?.data),
+            firstSlide: parseSlide(presentation.first_slide[0]?.data),
           })),
         );
       });
     return () => {
       cancelled = true;
     };
-  }, [quizId]);
+  }, [presentationId]);
 
   // A presentation whose slides were still loading isn't kept: that request stops when the panel closes.
   useEffect(() => {
-    if (presentations) cache = { quizId, presentations, openPresentation: slides ? openPresentation : null, slides };
-  }, [quizId, presentations, openPresentation, slides]);
+    if (presentations) cache = { presentationId, presentations, openPresentation: slides ? openPresentation : null, slides };
+  }, [presentationId, presentations, openPresentation, slides]);
 
   // Escape steps back one level: out of a presentation first, then closes the panel.
   useEffect(() => {
@@ -111,7 +111,7 @@ export function PresentationsPanel() {
     const { data, error } = await createClient()
       .from("slides")
       .select("data")
-      .eq("quiz_id", presentation.id)
+      .eq("presentation_id", presentation.id)
       .order("position");
     if (latestPresentationId.current !== presentation.id) return;
     if (error) return setSlidesError(true);

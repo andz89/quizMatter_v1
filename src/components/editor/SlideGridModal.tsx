@@ -9,7 +9,7 @@ import { SlideGridItem } from "./SlideGridItem";
 import { CloseIcon } from "@/components/icons/CloseIcon";
 
 export function SlideGridModal() {
-  const quiz = useEditorStore((s) => s.quiz);
+  const presentation = useEditorStore((s) => s.presentation);
   const selectedSlideId = useEditorStore((s) => s.selectedSlideId);
   const selectSlide = useEditorStore((s) => s.selectSlide);
   const reorderSlides = useEditorStore((s) => s.reorderSlides);
@@ -39,7 +39,7 @@ export function SlideGridModal() {
     document.querySelector(`[data-slide-id="${slideId}"]`)?.scrollIntoView({ block: "center" });
   };
 
-  const slideNumbers = getSlideNumbers(quiz.slides);
+  const slideNumbers = getSlideNumbers(presentation.slides);
 
   return (
     <div
@@ -50,7 +50,7 @@ export function SlideGridModal() {
     >
       <div className="flex h-[85vh] w-[90vw] max-w-6xl flex-col rounded-card bg-bg-surface p-6">
         <div className="mb-4 flex shrink-0 items-center justify-between">
-          <h2 className="text-[15px] font-semibold text-text-primary">All slides ({quiz.slides.length})</h2>
+          <h2 className="text-[15px] font-semibold text-text-primary">All slides ({presentation.slides.length})</h2>
           <button
             type="button"
             onClick={closeGridView}
@@ -63,16 +63,16 @@ export function SlideGridModal() {
 
         <div className="min-h-0 flex-1 overflow-y-auto">
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-            <SortableContext items={quiz.slides.map((s) => s.id)} strategy={rectSortingStrategy}>
+            <SortableContext items={presentation.slides.map((s) => s.id)} strategy={rectSortingStrategy}>
               <div className="grid justify-center gap-4" style={{ gridTemplateColumns: "repeat(auto-fill, 200px)" }}>
-                {quiz.slides.map((slide, index) => (
+                {presentation.slides.map((slide, index) => (
                   <SlideGridItem
                     key={slide.id}
                     slide={slide}
                     questionNumber={slideNumbers.get(slide.id)}
                     index={index}
                     isActive={slide.id === selectedSlideId}
-                    canDelete={quiz.slides.length > 1}
+                    canDelete={presentation.slides.length > 1}
                     onSelect={handleSelect}
                   />
                 ))}

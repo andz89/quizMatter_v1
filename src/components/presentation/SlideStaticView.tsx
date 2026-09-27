@@ -80,7 +80,7 @@ export function SlideStaticView({ slide, questionNumber, revealAnswer = false, f
       className={`relative flex select-none flex-col gap-6 overflow-hidden rounded-card border bg-bg-surface ${fullscreen ? "px-10 py-4" : "p-10"}`}
       style={{ width: CANVAS_WIDTH, height: CANVAS_HEIGHT, borderColor: lineColor, ...getSlideBackgroundStyle(slide) }}
     >
-      {slide.type !== "lesson" && (
+      {slide.type !== "blank" && (
         <div
           className="relative flex shrink-0 gap-4 rounded-button border border-transparent p-4"
           style={{

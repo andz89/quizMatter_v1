@@ -1,5 +1,5 @@
 // A slide's background: a soft color, plus an optional pattern from the library drawn as a frame
-// around the edges. Used by the Background panel and by the quiz importer, so both look the same.
+// around the edges. Used by the Background panel and by the presentation importer, so both look the same.
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ELEMENT_LIBRARY, getElementAsset } from "./svgLibrary";

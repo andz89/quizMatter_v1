@@ -38,7 +38,7 @@ export function AnswerArea({ slide, onClose }: AnswerAreaProps) {
   const answerType = slide.answerType ?? "text";
   const answer = slide.correctAnswer ?? "";
   // A blank slide's answer isn't a correct answer but content shown during the discussion: "Reveal", in navy.
-  const isReveal = slide.type === "lesson";
+  const isReveal = slide.type === "blank";
   // A drag that starts in the canvas and ends on the dim backdrop also "clicks" the backdrop, so
   // only close when the press started on the backdrop too.
   const pressedBackdrop = useRef(false);

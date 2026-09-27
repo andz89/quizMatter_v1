@@ -24,8 +24,8 @@ export function BackgroundPanel() {
   const closeBackgroundPanel = useEditorStore((s) => s.closeBackgroundPanel);
   const setSlideBackground = useEditorStore((s) => s.setSlideBackground);
   const applyBackgroundToAll = useEditorStore((s) => s.applyBackgroundToAll);
-  const slide = useEditorStore((s) => s.quiz.slides.find((slide) => slide.id === s.selectedSlideId));
-  const questionNumber = useEditorStore((s) => getSlideNumbers(s.quiz.slides).get(s.selectedSlideId ?? ""));
+  const slide = useEditorStore((s) => s.presentation.slides.find((slide) => slide.id === s.selectedSlideId));
+  const questionNumber = useEditorStore((s) => getSlideNumbers(s.presentation.slides).get(s.selectedSlideId ?? ""));
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {

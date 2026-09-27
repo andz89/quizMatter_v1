@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import type { Editor } from "@tiptap/react";
-import { createBlankQuiz, createBlankSlide, duplicateSlide as cloneSlide } from "./factories";
+import { createBlankPresentation, createBlankSlide, duplicateSlide as cloneSlide } from "./factories";
 import { createId } from "./id";
 import { DEFAULT_ELEMENT_COLOR, DEFAULT_ELEMENT_SIZE, getElementAsset, type ElementCategory, type RenderSettings } from "./svgLibrary";
 import {
@@ -19,8 +19,8 @@ import {
 } from "./constants";
 import { fitInBox, getOuterEdges } from "./geometry";
 import { withBackground, type BackgroundPatch } from "./slideBackground";
-import { saveQuizToDb } from "./quizzes";
-import type { PresentationDetails, Quiz, Slide, SlideType, SvgElement } from "./schema";
+import { savePresentationToDb } from "./presentations";
+import type { PresentationDetails, Presentation, Slide, SlideType, SvgElement } from "./schema";
 
 type ElementPatch = Partial<Omit<SvgElement, "id" | "assetId">>;
 
@@ -39,7 +39,7 @@ export const MAX_ZOOM = 2;
 const ZOOM_STEP = 0.1;
 
 const MAX_HISTORY = 100;
-// Quiz changes closer together than this count as one undo step (a whole drag, a typed word).
+// Presentation changes closer together than this count as one undo step (a whole drag, a typed word).
 const HISTORY_GROUP_MS = 500;
 
 /** A text on the canvas that can be typed in: the question, one option, or a text box element. */
@@ -64,11 +64,11 @@ export function isPanelEscape(e: KeyboardEvent) {
   return !isGridViewOpen && !isPresenting && !answerSlideId && !(e.target as HTMLElement | null)?.isContentEditable;
 }
 
-/** Applies `updater` to the one slide matching `slideId` and bumps the quiz's updatedAt — the shape every mutation below needs. */
-function updateSlide(quiz: Quiz, slideId: string, updater: (slide: Slide) => Slide): Quiz {
+/** Applies `updater` to the one slide matching `slideId` and bumps the presentation's updatedAt — the shape every mutation below needs. */
+function updateSlide(presentation: Presentation, slideId: string, updater: (slide: Slide) => Slide): Presentation {
   return {
-    ...quiz,
-    slides: quiz.slides.map((s) => (s.id === slideId ? updater(s) : s)),
+    ...presentation,
+    slides: presentation.slides.map((s) => (s.id === slideId ? updater(s) : s)),
     updatedAt: Date.now(),
   };
 }
@@ -171,17 +171,17 @@ function fitShapeStripHeight(box: BoxLayout): number | undefined {
 }
 
 interface EditorState {
-  quiz: Quiz;
-  // Opens a quiz loaded from the database: sets it as the saved version and starts a fresh undo history.
-  loadQuiz: (quiz: Quiz) => void;
-  // The quiz as it was last saved. Any edit makes a new quiz object, so `quiz !== savedQuiz` means unsaved changes.
-  savedQuiz: Quiz | null;
+  presentation: Presentation;
+  // Opens a presentation loaded from the database: sets it as the saved version and starts a fresh undo history.
+  loadPresentation: (presentation: Presentation) => void;
+  // The presentation as it was last saved. Any edit makes a new presentation object, so `presentation !== savedPresentation` means unsaved changes.
+  savedPresentation: Presentation | null;
   saveStatus: "idle" | "saving" | "error";
-  saveQuiz: () => Promise<void>;
-  // Undo/redo history of the quiz content only (not selection, zoom or open panels). Filled
+  savePresentation: () => Promise<void>;
+  // Undo/redo history of the presentation content only (not selection, zoom or open panels). Filled
   // automatically by the store subscription at the bottom of this file.
-  past: Quiz[];
-  future: Quiz[];
+  past: Presentation[];
+  future: Presentation[];
   undo: () => void;
   redo: () => void;
   selectedSlideId: string;
@@ -293,7 +293,7 @@ interface EditorState {
   // Most-recently-inserted asset ids first, for the Elements panel's "Recently used" row.
   recentElementAssetIds: string[];
   updateElement: (slideId: string, elementId: string, patch: ElementPatch) => void;
-  // Changes several elements in one store update (one redraw, one quiz copy), keyed by element id.
+  // Changes several elements in one store update (one redraw, one presentation copy), keyed by element id.
   updateElements: (slideId: string, patches: Record<string, ElementPatch>) => void;
   deleteElements: (slideId: string, elementIds: string[]) => void;
   // Returns the copies' ids. Copies of a whole group form a new group of their own.
@@ -343,7 +343,7 @@ interface EditorState {
   closePresentationsPanel: () => void;
 
   // Which box a placed element is currently being dragged over, while it's being moved from a
-  // different box — drives that box's "drop here" highlight. Not part of quiz data.
+  // different box — drives that box's "drop here" highlight. Not part of presentation data.
   dragOverContainerId: string | null;
   setDragOverContainerId: (containerId: string | null) => void;
 
@@ -365,28 +365,28 @@ interface EditorState {
   setElementDragGhosts: (ghosts: EditorState["elementDragGhosts"]) => void;
 
   // Snap lines shown while an element is dragged: xs are vertical lines, ys horizontal ones, in the
-  // box's own coordinates. slideId is needed because every slide has a "question" box. Not part of quiz data.
+  // box's own coordinates. slideId is needed because every slide has a "question" box. Not part of presentation data.
   snapGuides: { slideId: string; containerId: string | null; xs: number[]; ys: number[] } | null;
   setSnapGuides: (guides: EditorState["snapGuides"]) => void;
 }
 
-// A placeholder until loadQuiz puts the real quiz in.
-const initialQuiz = createBlankQuiz();
+// A placeholder until loadPresentation puts the real presentation in.
+const initialPresentation = createBlankPresentation();
 
 export const useEditorStore = create<EditorState>((set, get) => ({
-  quiz: initialQuiz,
+  presentation: initialPresentation,
   past: [],
   future: [],
 
-  loadQuiz: (quiz) =>
+  loadPresentation: (presentation) =>
     withoutHistory(() =>
       set({
-        quiz,
-        savedQuiz: quiz,
+        presentation,
+        savedPresentation: presentation,
         saveStatus: "idle",
         past: [],
         future: [],
-        selectedSlideId: quiz.slides[0].id,
+        selectedSlideId: presentation.slides[0].id,
         selectedElementIds: [],
         selectedContainerId: null,
         selectedContainerIds: [],
@@ -395,17 +395,17 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       })
     ),
 
-  savedQuiz: null,
+  savedPresentation: null,
   saveStatus: "idle",
 
-  saveQuiz: async () => {
-    const { quiz, saveStatus } = get();
+  savePresentation: async () => {
+    const { presentation, saveStatus } = get();
     if (saveStatus === "saving") return;
     set({ saveStatus: "saving" });
     try {
-      await saveQuizToDb(quiz);
+      await savePresentationToDb(presentation);
       // Edits made while saving aren't in the database yet, so they still count as unsaved.
-      set({ savedQuiz: quiz, saveStatus: "idle" });
+      set({ savedPresentation: presentation, saveStatus: "idle" });
     } catch {
       set({ saveStatus: "error" });
     }
@@ -415,17 +415,17 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const state = get();
     const previous = state.past[state.past.length - 1];
     if (!previous) return;
-    restoreQuiz(previous, { past: state.past.slice(0, -1), future: [state.quiz, ...state.future] });
+    restorePresentation(previous, { past: state.past.slice(0, -1), future: [state.presentation, ...state.future] });
   },
 
   redo: () => {
     const state = get();
     const next = state.future[0];
     if (!next) return;
-    restoreQuiz(next, { past: [...state.past, state.quiz], future: state.future.slice(1) });
+    restorePresentation(next, { past: [...state.past, state.presentation], future: state.future.slice(1) });
   },
 
-  selectedSlideId: initialQuiz.slides[0].id,
+  selectedSlideId: initialPresentation.slides[0].id,
   zoom: 1,
   recentElementAssetIds: [],
 
@@ -435,11 +435,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   addSlide: (afterSlideId, type) => {
     const slide = createBlankSlide(type);
     set((state) => {
-      const slides = [...state.quiz.slides];
+      const slides = [...state.presentation.slides];
       const insertAt = afterSlideId ? slides.findIndex((s) => s.id === afterSlideId) + 1 : slides.length;
       slides.splice(insertAt, 0, slide);
       return {
-        quiz: { ...state.quiz, slides, updatedAt: Date.now() },
+        presentation: { ...state.presentation, slides, updatedAt: Date.now() },
         selectedSlideId: slide.id,
       };
     });
@@ -447,7 +447,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   importSlides: (slides) =>
     set((state) => ({
-      quiz: { ...state.quiz, slides, updatedAt: Date.now() },
+      presentation: { ...state.presentation, slides, updatedAt: Date.now() },
       selectedSlideId: slides[0].id,
       selectedElementIds: [],
       selectedContainerId: null,
@@ -455,33 +455,33 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     })),
 
   deleteSlide: (slideId) => {
-    const { quiz, selectedSlideId } = get();
-    if (quiz.slides.length <= 1) return;
+    const { presentation, selectedSlideId } = get();
+    if (presentation.slides.length <= 1) return;
 
-    const index = quiz.slides.findIndex((s) => s.id === slideId);
-    const slides = quiz.slides.filter((s) => s.id !== slideId);
+    const index = presentation.slides.findIndex((s) => s.id === slideId);
+    const slides = presentation.slides.filter((s) => s.id !== slideId);
     const nextSelected =
       selectedSlideId === slideId
         ? slides[Math.max(0, index - 1)].id
         : selectedSlideId;
 
     set({
-      quiz: { ...quiz, slides, updatedAt: Date.now() },
+      presentation: { ...presentation, slides, updatedAt: Date.now() },
       selectedSlideId: nextSelected,
     });
   },
 
   duplicateSlide: (slideId) => {
-    const { quiz } = get();
-    const index = quiz.slides.findIndex((s) => s.id === slideId);
+    const { presentation } = get();
+    const index = presentation.slides.findIndex((s) => s.id === slideId);
     if (index === -1) return;
 
-    const copy = cloneSlide(quiz.slides[index]);
-    const slides = [...quiz.slides];
+    const copy = cloneSlide(presentation.slides[index]);
+    const slides = [...presentation.slides];
     slides.splice(index + 1, 0, copy);
 
     set({
-      quiz: { ...quiz, slides, updatedAt: Date.now() },
+      presentation: { ...presentation, slides, updatedAt: Date.now() },
       selectedSlideId: copy.id,
     });
   },
@@ -490,12 +490,12 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     if (slides.length === 0) return;
     const copies = slides.map(cloneSlide);
     set((state) => {
-      const all = [...state.quiz.slides];
+      const all = [...state.presentation.slides];
       const targetIndex = at ? all.findIndex((s) => s.id === at.slideId) : -1;
       const insertAt = targetIndex === -1 ? all.length : at?.before ? targetIndex : targetIndex + 1;
       all.splice(insertAt, 0, ...copies);
       return {
-        quiz: { ...state.quiz, slides: all, updatedAt: Date.now() },
+        presentation: { ...state.presentation, slides: all, updatedAt: Date.now() },
         selectedSlideId: copies[0].id,
         selectedElementIds: [],
         selectedContainerId: null,
@@ -505,21 +505,21 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   reorderSlides: (fromId, toId) => {
-    const { quiz } = get();
-    const fromIndex = quiz.slides.findIndex((s) => s.id === fromId);
-    const toIndex = quiz.slides.findIndex((s) => s.id === toId);
+    const { presentation } = get();
+    const fromIndex = presentation.slides.findIndex((s) => s.id === fromId);
+    const toIndex = presentation.slides.findIndex((s) => s.id === toId);
     if (fromIndex === -1 || toIndex === -1 || fromIndex === toIndex) return;
 
-    const slides = [...quiz.slides];
+    const slides = [...presentation.slides];
     const [moved] = slides.splice(fromIndex, 1);
     slides.splice(toIndex, 0, moved);
 
-    set({ quiz: { ...quiz, slides, updatedAt: Date.now() } });
+    set({ presentation: { ...presentation, slides, updatedAt: Date.now() } });
   },
 
   setLayout: (slideId, layout) => {
-    const { quiz, selectedContainerId, selectedContainerIds } = get();
-    const slide = quiz.slides.find((s) => s.id === slideId);
+    const { presentation, selectedContainerId, selectedContainerIds } = get();
+    const slide = presentation.slides.find((s) => s.id === slideId);
     if (!slide || slide.layout === layout) return;
 
     // Leaving list-side with shapes in its box keeps that box as a strip under the question.
@@ -531,7 +531,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     next.questionHeight = Math.min(slide.questionHeight, getMaxQuestionHeight(next));
 
     set({
-      quiz: updateSlide(quiz, slideId, (s) => ({
+      presentation: updateSlide(presentation, slideId, (s) => ({
         ...s,
         layout,
         hasShapeBox: keepsShapeBox,
@@ -547,8 +547,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   addShapeBox: (slideId) => {
-    const { quiz } = get();
-    const slide = quiz.slides.find((s) => s.id === slideId);
+    const { presentation } = get();
+    const slide = presentation.slides.find((s) => s.id === slideId);
     if (!slide || hasShapeBox(slide)) return;
 
     const next = { ...slide, hasShapeBox: true };
@@ -557,7 +557,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     next.questionHeight = Math.min(slide.questionHeight, getMaxQuestionHeight(next));
 
     set({
-      quiz: updateSlide(quiz, slideId, (s) => ({
+      presentation: updateSlide(presentation, slideId, (s) => ({
         ...s,
         hasShapeBox: true,
         shapeStripHeight: next.shapeStripHeight,
@@ -574,13 +574,13 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   removeShapeBox: (slideId) => {
-    const { quiz, selectedContainerId, selectedContainerIds, selectedElementIds } = get();
-    const slide = quiz.slides.find((s) => s.id === slideId);
+    const { presentation, selectedContainerId, selectedContainerIds, selectedElementIds } = get();
+    const slide = presentation.slides.find((s) => s.id === slideId);
     if (!slide) return;
 
     const removedIds = slide.elements.filter((el) => el.containerId === SIDE_CONTAINER_ID).map((el) => el.id);
     set({
-      quiz: updateSlide(quiz, slideId, (s) => ({
+      presentation: updateSlide(presentation, slideId, (s) => ({
         ...s,
         hasShapeBox: false,
         // The options grow into the strip's space, so their elements move along.
@@ -598,13 +598,13 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   updateQuestion: (slideId, text, html) => {
-    const { quiz } = get();
-    set({ quiz: updateSlide(quiz, slideId, (s) => ({ ...s, question: text, questionHtml: html })) });
+    const { presentation } = get();
+    set({ presentation: updateSlide(presentation, slideId, (s) => ({ ...s, question: text, questionHtml: html })) });
   },
 
   setQuestionHeight: (slideId, height) => {
-    const { quiz } = get();
-    const slide = quiz.slides.find((s) => s.id === slideId);
+    const { presentation } = get();
+    const slide = presentation.slides.find((s) => s.id === slideId);
     if (!slide) return;
 
     const clamped = Math.min(getMaxQuestionHeight(slide), Math.max(MIN_QUESTION_HEIGHT, height));
@@ -612,7 +612,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
     const resized = { ...slide, questionHeight: clamped };
     set({
-      quiz: updateSlide(quiz, slideId, (s) => ({
+      presentation: updateSlide(presentation, slideId, (s) => ({
         ...s,
         questionHeight: clamped,
         elements: scaleElementsToBoxes(s.elements, s, resized),
@@ -621,16 +621,16 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   setShapeBoxColors: (slideId, patch) => {
-    set((state) => ({ quiz: updateSlide(state.quiz, slideId, (s) => ({ ...s, ...patch })) }));
+    set((state) => ({ presentation: updateSlide(state.presentation, slideId, (s) => ({ ...s, ...patch })) }));
   },
 
   setSlideBackground: (slideId, patch) => {
-    set((state) => ({ quiz: updateSlide(state.quiz, slideId, (s) => withBackground(s, patch)) }));
+    set((state) => ({ presentation: updateSlide(state.presentation, slideId, (s) => withBackground(s, patch)) }));
   },
 
   applyBackgroundToAll: (slideId) => {
-    const { quiz } = get();
-    const source = quiz.slides.find((s) => s.id === slideId);
+    const { presentation } = get();
+    const source = presentation.slides.find((s) => s.id === slideId);
     if (!source) return;
     // The source's artwork is already drawn for its color, pattern and strength (or is Claude's own
     // drawing), so every slide takes it as-is instead of redrawing it — and nothing gets erased.
@@ -640,12 +640,12 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       backgroundOpacity: source.backgroundOpacity,
       backgroundSvg: source.backgroundSvg,
     };
-    set({ quiz: { ...quiz, slides: quiz.slides.map((s) => ({ ...s, ...background })), updatedAt: Date.now() } });
+    set({ presentation: { ...presentation, slides: presentation.slides.map((s) => ({ ...s, ...background })), updatedAt: Date.now() } });
   },
 
   setShapeStripHeight: (slideId, height) => {
-    const { quiz } = get();
-    const slide = quiz.slides.find((s) => s.id === slideId);
+    const { presentation } = get();
+    const slide = presentation.slides.find((s) => s.id === slideId);
     if (!slide) return;
 
     const clamped = Math.min(getMaxShapeStripHeight(slide), Math.max(MIN_SHAPE_STRIP_HEIGHT, height));
@@ -653,7 +653,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
     const resized = { ...slide, shapeStripHeight: clamped };
     set({
-      quiz: updateSlide(quiz, slideId, (s) => ({
+      presentation: updateSlide(presentation, slideId, (s) => ({
         ...s,
         shapeStripHeight: clamped,
         // The strip's shapes stretch with it; the options' shapes stretch with the options.
@@ -663,9 +663,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   updateOption: (slideId, optionId, text, html) => {
-    const { quiz } = get();
+    const { presentation } = get();
     set({
-      quiz: updateSlide(quiz, slideId, (s) => ({
+      presentation: updateSlide(presentation, slideId, (s) => ({
         ...s,
         options: s.options.map((o) => (o.id === optionId ? { ...o, text, html } : o)) as typeof s.options,
       })),
@@ -673,9 +673,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   setCorrectOption: (slideId, optionId) => {
-    const { quiz } = get();
+    const { presentation } = get();
     set({
-      quiz: updateSlide(quiz, slideId, (s) => ({
+      presentation: updateSlide(presentation, slideId, (s) => ({
         ...s,
         correctOptionId: s.correctOptionId === optionId ? null : optionId,
       })),
@@ -683,29 +683,29 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   updateCorrectAnswer: (slideId, answer) => {
-    const { quiz } = get();
-    set({ quiz: updateSlide(quiz, slideId, (s) => ({ ...s, correctAnswer: answer })) });
+    const { presentation } = get();
+    set({ presentation: updateSlide(presentation, slideId, (s) => ({ ...s, correctAnswer: answer })) });
   },
 
   setAnswerType: (slideId, answerType) => {
-    set((state) => ({ quiz: updateSlide(state.quiz, slideId, (s) => ({ ...s, answerType })) }));
+    set((state) => ({ presentation: updateSlide(state.presentation, slideId, (s) => ({ ...s, answerType })) }));
   },
 
   renameSlide: (slideId, name) => {
-    const { quiz } = get();
+    const { presentation } = get();
     // An empty name means "no name", so the slide falls back to its default label.
-    set({ quiz: updateSlide(quiz, slideId, (s) => ({ ...s, name: name.trim() || undefined })) });
+    set({ presentation: updateSlide(presentation, slideId, (s) => ({ ...s, name: name.trim() || undefined })) });
   },
 
   setSlideNumbered: (slideId, numbered) => {
-    const { quiz } = get();
-    set({ quiz: updateSlide(quiz, slideId, (s) => ({ ...s, hideNumber: numbered ? undefined : true })) });
+    const { presentation } = get();
+    set({ presentation: updateSlide(presentation, slideId, (s) => ({ ...s, hideNumber: numbered ? undefined : true })) });
   },
 
   reorderOptions: (slideId, fromOptionId, toOptionId) => {
-    const { quiz } = get();
+    const { presentation } = get();
     set({
-      quiz: updateSlide(quiz, slideId, (s) => {
+      presentation: updateSlide(presentation, slideId, (s) => {
         const fromIndex = s.options.findIndex((o) => o.id === fromOptionId);
         const toIndex = s.options.findIndex((o) => o.id === toOptionId);
         if (fromIndex === -1 || toIndex === -1 || fromIndex === toIndex) return s;
@@ -719,9 +719,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   shuffleOptions: (slideId) => {
-    const { quiz } = get();
+    const { presentation } = get();
     set({
-      quiz: updateSlide(quiz, slideId, (s) => {
+      presentation: updateSlide(presentation, slideId, (s) => {
         const options = [...s.options];
         // Fisher-Yates shuffle; repeat if it lands on the same order so every click visibly changes something.
         do {
@@ -736,12 +736,12 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   clearSlide: (slideId) => {
-    const { quiz, selectedElementIds } = get();
-    const slide = quiz.slides.find((s) => s.id === slideId);
+    const { presentation, selectedElementIds } = get();
+    const slide = presentation.slides.find((s) => s.id === slideId);
     if (!slide) return;
 
     set({
-      quiz: updateSlide(quiz, slideId, (s) => ({
+      presentation: updateSlide(presentation, slideId, (s) => ({
         ...s,
         question: "",
         questionHtml: "",
@@ -755,16 +755,16 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   setPresentationDetails: (patch) => {
-    const { quiz } = get();
-    set({ quiz: { ...quiz, ...patch, updatedAt: Date.now() } });
+    const { presentation } = get();
+    set({ presentation: { ...presentation, ...patch, updatedAt: Date.now() } });
   },
 
   setPublished: async (isPublished) => {
-    const { quiz, saveStatus, setPresentationDetails, saveQuiz } = get();
+    const { presentation, saveStatus, setPresentationDetails, savePresentation } = get();
     if (saveStatus === "saving") return false;
-    const wasPublished = quiz.isPublished;
+    const wasPublished = presentation.isPublished;
     setPresentationDetails({ isPublished });
-    await saveQuiz();
+    await savePresentation();
     if (get().saveStatus !== "error") return true;
     setPresentationDetails({ isPublished: wasPublished });
     return false;
@@ -780,22 +780,22 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   // Starts at the slide being edited, so the teacher doesn't have to click through from slide 1.
   startPresentation: () => {
-    const { quiz, selectedSlideId } = get();
-    const startIndex = Math.max(0, quiz.slides.findIndex((s) => s.id === selectedSlideId));
+    const { presentation, selectedSlideId } = get();
+    const startIndex = Math.max(0, presentation.slides.findIndex((s) => s.id === selectedSlideId));
     set({ isPresenting: true, presentationIndex: startIndex });
   },
   exitPresentation: () => set({ isPresenting: false }),
   nextPresentationSlide: () => {
-    const { quiz, presentationIndex } = get();
-    set({ presentationIndex: Math.min(quiz.slides.length - 1, presentationIndex + 1) });
+    const { presentation, presentationIndex } = get();
+    set({ presentationIndex: Math.min(presentation.slides.length - 1, presentationIndex + 1) });
   },
   prevPresentationSlide: () => {
     const { presentationIndex } = get();
     set({ presentationIndex: Math.max(0, presentationIndex - 1) });
   },
   goToPresentationSlide: (index) => {
-    const { quiz } = get();
-    set({ presentationIndex: Math.min(quiz.slides.length - 1, Math.max(0, index)) });
+    const { presentation } = get();
+    set({ presentationIndex: Math.min(presentation.slides.length - 1, Math.max(0, index)) });
   },
 
   isGridViewOpen: false,
@@ -809,8 +809,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   selectedElementIds: [],
 
   selectElement: (slideId, elementId, additive = false) => {
-    const { quiz, selectedElementIds } = get();
-    const elements = quiz.slides.find((s) => s.id === slideId)?.elements ?? [];
+    const { presentation, selectedElementIds } = get();
+    const elements = presentation.slides.find((s) => s.id === slideId)?.elements ?? [];
     const ids = withGroupMembers(elements, [elementId]);
     if (!additive) {
       set({ selectedSlideId: slideId, selectedElementIds: ids });
@@ -829,14 +829,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setCroppingElementId: (elementId) => set({ croppingElementId: elementId }),
 
   groupSelectedElements: () => {
-    const { quiz, selectedSlideId, selectedElementIds } = get();
-    const slide = quiz.slides.find((s) => s.id === selectedSlideId);
+    const { presentation, selectedSlideId, selectedElementIds } = get();
+    const slide = presentation.slides.find((s) => s.id === selectedSlideId);
     const selected = slide?.elements.filter((el) => selectedElementIds.includes(el.id)) ?? [];
     if (selected.length < 2 || selected.some((el) => el.containerId !== selected[0].containerId)) return;
 
     const groupId = createId();
     set({
-      quiz: updateSlide(quiz, selectedSlideId, (s) => ({
+      presentation: updateSlide(presentation, selectedSlideId, (s) => ({
         ...s,
         // Grouping members of an older group can leave that group with one element — clean it up.
         elements: dropLoneGroups(s.elements.map((el) => (selectedElementIds.includes(el.id) ? { ...el, groupId } : el))),
@@ -845,9 +845,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   ungroupSelectedElements: () => {
-    const { quiz, selectedSlideId, selectedElementIds } = get();
+    const { presentation, selectedSlideId, selectedElementIds } = get();
     set({
-      quiz: updateSlide(quiz, selectedSlideId, (s) => ({
+      presentation: updateSlide(presentation, selectedSlideId, (s) => ({
         ...s,
         elements: dropLoneGroups(
           s.elements.map((el) => (selectedElementIds.includes(el.id) ? { ...el, groupId: undefined } : el))
@@ -903,9 +903,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     })),
 
   setTextFontSizes: (targets, fontSize) => {
-    const quiz = targets.reduce(
-      (quiz, target) =>
-        updateSlide(quiz, target.slideId, (s) => {
+    const presentation = targets.reduce(
+      (presentation, target) =>
+        updateSlide(presentation, target.slideId, (s) => {
           if (target.kind === "question") return { ...s, questionFontSize: fontSize };
           if (target.kind === "option") {
             return { ...s, options: s.options.map((o) => (o.id === target.optionId ? { ...o, fontSize } : o)) as typeof s.options };
@@ -915,14 +915,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
             elements: s.elements.map((el) => (el.id === target.elementId ? { ...el, text: { html: el.text?.html ?? "", fontSize } } : el)),
           };
         }),
-      get().quiz
+      get().presentation
     );
-    set({ quiz });
+    set({ presentation });
   },
 
   addElement: (slideId, assetId, containerId = null, position) => {
-    const { quiz } = get();
-    const slide = quiz.slides.find((s) => s.id === slideId);
+    const { presentation } = get();
+    const slide = presentation.slides.find((s) => s.id === slideId);
     if (!slide) return;
     const bounds = getContainerBounds(containerId, slide);
     const asset = getElementAsset(assetId);
@@ -946,7 +946,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     };
     const { recentElementAssetIds, selectedSlideId, selectedContainerId, selectedContainerIds } = get();
     set({
-      quiz: updateSlide(quiz, slideId, (s) => ({ ...s, elements: [...s.elements, element] })),
+      presentation: updateSlide(presentation, slideId, (s) => ({ ...s, elements: [...s.elements, element] })),
       // The drop may land on a slide other than the current one — make it current so the toolbar
       // and shortcuts act on the new element. A box picked on the old slide doesn't carry over.
       selectedSlideId: slideId,
@@ -961,11 +961,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   updateElement: (slideId, elementId, patch) => get().updateElements(slideId, { [elementId]: patch }),
 
   updateElements: (slideId, patches) => {
-    const { quiz } = get();
+    const { presentation } = get();
     // Taking an element out of its group may leave one member behind on its own.
     const changesGroups = Object.values(patches).some((patch) => "groupId" in patch);
     set({
-      quiz: updateSlide(quiz, slideId, (s) => {
+      presentation: updateSlide(presentation, slideId, (s) => {
         const elements = s.elements.map((el) => (patches[el.id] ? { ...el, ...patches[el.id] } : el));
         return { ...s, elements: changesGroups ? dropLoneGroups(elements) : elements };
       }),
@@ -974,9 +974,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   deleteElements: (slideId, elementIds) => {
     if (elementIds.length === 0) return;
-    const { quiz, selectedElementIds } = get();
+    const { presentation, selectedElementIds } = get();
     set({
-      quiz: updateSlide(quiz, slideId, (s) => ({
+      presentation: updateSlide(presentation, slideId, (s) => ({
         ...s,
         elements: dropLoneGroups(s.elements.filter((el) => !elementIds.includes(el.id))),
       })),
@@ -985,8 +985,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   duplicateElements: (slideId, elementIds) => {
-    const { quiz } = get();
-    const slide = quiz.slides.find((s) => s.id === slideId);
+    const { presentation } = get();
+    const slide = presentation.slides.find((s) => s.id === slideId);
     if (!slide) return [];
 
     const OFFSET = 20;
@@ -1004,25 +1004,25 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         })
     );
 
-    set({ quiz: updateSlide(quiz, slideId, (s) => ({ ...s, elements: [...s.elements, ...copies] })) });
+    set({ presentation: updateSlide(presentation, slideId, (s) => ({ ...s, elements: [...s.elements, ...copies] })) });
 
     return copies.map((el) => el.id);
   },
 
   clearContainerElements: (slideId, containerId) => {
-    const { quiz, selectedElementIds } = get();
-    const slide = quiz.slides.find((s) => s.id === slideId);
+    const { presentation, selectedElementIds } = get();
+    const slide = presentation.slides.find((s) => s.id === slideId);
     if (!slide) return;
 
     const removedIds = slide.elements.filter((el) => el.containerId === containerId).map((el) => el.id);
     set({
-      quiz: updateSlide(quiz, slideId, (s) => ({ ...s, elements: s.elements.filter((el) => el.containerId !== containerId) })),
+      presentation: updateSlide(presentation, slideId, (s) => ({ ...s, elements: s.elements.filter((el) => el.containerId !== containerId) })),
       selectedElementIds: selectedElementIds.filter((id) => !removedIds.includes(id)),
     });
   },
 
   fitElementsToContainer: (slideId, elementIds) => {
-    const slide = get().quiz.slides.find((s) => s.id === slideId);
+    const slide = get().presentation.slides.find((s) => s.id === slideId);
     if (!slide) return;
 
     const byContainer = new Map<string, SvgElement[]>();
@@ -1055,10 +1055,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   clipboard: null,
 
   copySelectedElements: () => {
-    const { quiz, selectedSlideId, selectedElementIds } = get();
+    const { presentation, selectedSlideId, selectedElementIds } = get();
     if (selectedElementIds.length === 0) return;
 
-    const slide = quiz.slides.find((s) => s.id === selectedSlideId);
+    const slide = presentation.slides.find((s) => s.id === selectedSlideId);
     const elements = slide?.elements.filter((el) => selectedElementIds.includes(el.id)) ?? [];
     if (elements.length === 0) return;
 
@@ -1070,9 +1070,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   clearClipboard: () => set({ clipboard: null }),
 
   pasteClipboard: (slideId, containerId) => {
-    const { quiz, clipboard } = get();
+    const { presentation, clipboard } = get();
     if (!clipboard) return;
-    const slide = quiz.slides.find((s) => s.id === slideId);
+    const slide = presentation.slides.find((s) => s.id === slideId);
     if (!slide) return;
 
     // An element copied from an option on another slide goes into the option in the same spot
@@ -1080,15 +1080,15 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const resolveContainer = (id: string | null) => {
       // A slide without an answer canvas (multiple choice) takes answer elements on the open slide.
       if (id === ANSWER_CONTAINER_ID) return canHaveAnswer(slide) ? id : null;
-      // Lesson slides have no boxes at all, so everything lands on the open slide.
-      if (slide.type === "lesson") return null;
+      // Blank slides have no boxes at all, so everything lands on the open slide.
+      if (slide.type === "blank") return null;
       if (id === null || id === QUESTION_CONTAINER_ID) return id;
       // Short-answer slides hide their options, so an element from an option goes into the shape box.
       if (slide.type === "short-answer") return SIDE_CONTAINER_ID;
       if (slide.options.some((o) => o.id === id)) return id;
       // No shape box on this slide — the element lands on the open canvas instead.
       if (id === SIDE_CONTAINER_ID) return hasShapeBox(slide) ? id : null;
-      const sourceIndex = quiz.slides.map((s) => s.options.findIndex((o) => o.id === id)).find((i) => i !== -1);
+      const sourceIndex = presentation.slides.map((s) => s.options.findIndex((o) => o.id === id)).find((i) => i !== -1);
       return sourceIndex === undefined ? null : slide.options[sourceIndex].id;
     };
 
@@ -1102,7 +1102,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     });
 
     set({
-      quiz: updateSlide(quiz, slideId, (s) => ({ ...s, elements: [...s.elements, ...pasted] })),
+      presentation: updateSlide(presentation, slideId, (s) => ({ ...s, elements: [...s.elements, ...pasted] })),
       selectedSlideId: slideId,
       selectedElementIds: pasted.map((el) => el.id),
     });
@@ -1203,13 +1203,13 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setSnapGuides: (guides) => set({ snapGuides: guides }),
 }));
 
-// Set while undo/redo swaps the quiz (or withoutHistory runs), so the subscription below doesn't
+// Set while undo/redo swaps the presentation (or withoutHistory runs), so the subscription below doesn't
 // record that as a new edit.
 let skipHistory = false;
-let lastQuizChangeAt = 0;
+let lastPresentationChangeAt = 0;
 
 /**
- * Runs a quiz change that isn't the user's own edit — like fitting a box to its drawing when it
+ * Runs a presentation change that isn't the user's own edit — like fitting a box to its drawing when it
  * first shows — so it never becomes an undo step of its own. Otherwise undo would take the fit
  * away, the box would fit itself again, and that new step would wipe the redo list.
  */
@@ -1222,32 +1222,32 @@ export function withoutHistory(change: () => void) {
   }
 }
 
-/** Puts an older/newer quiz back, dropping any selection that points at things that no longer exist. */
-function restoreQuiz(quiz: Quiz, history: Pick<EditorState, "past" | "future">) {
+/** Puts an older/newer presentation back, dropping any selection that points at things that no longer exist. */
+function restorePresentation(presentation: Presentation, history: Pick<EditorState, "past" | "future">) {
   const { selectedSlideId, selectedElementIds } = useEditorStore.getState();
-  const slide = quiz.slides.find((s) => s.id === selectedSlideId) ?? quiz.slides[0];
+  const slide = presentation.slides.find((s) => s.id === selectedSlideId) ?? presentation.slides[0];
 
   skipHistory = true;
   useEditorStore.setState({
-    quiz,
+    presentation,
     ...history,
     selectedSlideId: slide.id,
     selectedElementIds: selectedElementIds.filter((id) => slide.elements.some((el) => el.id === id)),
   });
   skipHistory = false;
   // The next edit after an undo/redo always starts its own step.
-  lastQuizChangeAt = 0;
+  lastPresentationChangeAt = 0;
 }
 
-// Every quiz change goes through here, so each action gets undo for free. Only the first change of
-// a quick burst saves the old quiz; the rest of the burst joins that same step.
+// Every presentation change goes through here, so each action gets undo for free. Only the first change of
+// a quick burst saves the old presentation; the rest of the burst joins that same step.
 useEditorStore.subscribe((state, prev) => {
-  if (state.quiz === prev.quiz || skipHistory) return;
+  if (state.presentation === prev.presentation || skipHistory) return;
 
   const now = Date.now();
-  const startsNewStep = now - lastQuizChangeAt > HISTORY_GROUP_MS;
-  lastQuizChangeAt = now;
+  const startsNewStep = now - lastPresentationChangeAt > HISTORY_GROUP_MS;
+  lastPresentationChangeAt = now;
   if (!startsNewStep) return;
 
-  useEditorStore.setState({ past: [...state.past, prev.quiz].slice(-MAX_HISTORY), future: [] });
+  useEditorStore.setState({ past: [...state.past, prev.presentation].slice(-MAX_HISTORY), future: [] });
 });

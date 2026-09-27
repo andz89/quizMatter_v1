@@ -1,10 +1,10 @@
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import type { D1Database } from "@cloudflare/workers-types";
-import type { QuizDetails } from "./importQuiz";
+import type { ClaudeDetails } from "./importPresentation";
 
-// Quiz drafts Claude sends through the MCP server (/api/mcp). They live in Cloudflare D1, not
-// Supabase: a draft isn't anyone's quiz yet — it only becomes one when the user opens the link
-// (it opens as a new quiz in the editor) and clicks Save. Server-only.
+// Presentation drafts Claude sends through the MCP server (/api/mcp). They live in Cloudflare D1, not
+// Supabase: a draft isn't anyone's presentation yet — it only becomes one when the user opens the link
+// (it opens as a new presentation in the editor) and clicks Save. Server-only.
 
 declare global {
   interface CloudflareEnv {
@@ -18,10 +18,10 @@ export const DRAFT_LIFETIME_MS = 24 * 60 * 60 * 1000;
 export const CHECK_TIMEOUT_MS = 10 * 60 * 1000;
 
 /**
- * What Claude sent: the quiz's details, and the slides as a recipe for buildSlides. `checking` = a first
+ * What Claude sent: the presentation's details, and the slides as a recipe for buildSlides. `checking` = a first
  * version Claude sent to see the layout report, before its final one.
  */
-export type Draft = { details: QuizDetails; slides: unknown[]; checking?: boolean };
+export type Draft = { details: ClaudeDetails; slides: unknown[]; checking?: boolean };
 
 /** Stores the draft and returns its id. Also clears out expired drafts. */
 export async function saveDraft(draft: Draft): Promise<string> {
@@ -58,7 +58,7 @@ export async function getDraft(id: string): Promise<Draft | null> {
 }
 
 /**
- * What the quiz list shows of a draft. `state`: "ready" = Claude's final version; "checking" = Claude is
+ * What the presentation list shows of a draft. `state`: "ready" = Claude's final version; "checking" = Claude is
  * still checking it (not openable yet); "unfinished" = checked, but no final version came within CHECK_TIMEOUT_MS.
  */
 export type DraftSummary = {

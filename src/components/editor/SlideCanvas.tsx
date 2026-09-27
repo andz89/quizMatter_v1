@@ -47,8 +47,8 @@ export function SlideCanvas({ slide, questionNumber }: SlideCanvasProps) {
 
   const addShapeBox = useEditorStore((s) => s.addShapeBox);
 
-  // Lesson slides have no boxes, so the slide itself takes elements dropped from the Elements panel.
-  const isLesson = slide.type === "lesson";
+  // Blank slides have no boxes, so the slide itself takes elements dropped from the Elements panel.
+  const isBlank = slide.type === "blank";
   const isChoice = (slide.type ?? "choice") === "choice";
   const { isDragOver: isCanvasDragOver, dropHandlers: canvasDropHandlers } = useElementDropTarget(slide.id, null);
 
@@ -95,7 +95,7 @@ export function SlideCanvas({ slide, questionNumber }: SlideCanvasProps) {
         ...getSlideBackgroundStyle(slide),
         borderColor: isCanvasDragOver ? "var(--accent-navy)" : "var(--border-default)",
       }}
-      {...(isLesson ? canvasDropHandlers : {})}
+      {...(isBlank ? canvasDropHandlers : {})}
       {...pointerHandlers}
       onClick={(e) => {
         if (takeSkippedClick()) return;
@@ -106,7 +106,7 @@ export function SlideCanvas({ slide, questionNumber }: SlideCanvasProps) {
       }}
       onContextMenu={handleContextMenu}
     >
-      {!isLesson && <QuestionContainer slide={slide} questionNumber={questionNumber} />}
+      {!isBlank && <QuestionContainer slide={slide} questionNumber={questionNumber} />}
       {slide.type === "short-answer" && <SideContainer slide={slide} />}
 
       {isChoice && (

@@ -5,7 +5,7 @@ import { useEditorState, type ChainedCommands } from "@tiptap/react";
 import { useEditorStore, type TextEditorEntry, type TextTarget } from "@/lib/store";
 import { DEFAULT_TEXT_COLOR, formatChain } from "@/lib/richText";
 import { OPTION_FONT_SIZE, QUESTION_CONTAINER_ID, QUESTION_FONT_SIZE, TEXT_BOX_FONT_SIZE } from "@/lib/constants";
-import type { Quiz } from "@/lib/schema";
+import type { Presentation } from "@/lib/schema";
 import { EraserIcon } from "@/components/icons/EraserIcon";
 
 type Align = "left" | "center" | "right";
@@ -156,7 +156,7 @@ const FONT_SIZES = [12, 14, 16, 18, 20, 24, 28, 32, 36, 40, 44, 48, 56, 64, 72, 
  * to fit its box when it's too long.
  */
 function FontSizePicker({ targets }: { targets: TextTarget[] }) {
-  const size = useEditorStore((s) => chosenFontSize(s.quiz, targets[0]));
+  const size = useEditorStore((s) => chosenFontSize(s.presentation, targets[0]));
   const setTextFontSizes = useEditorStore((s) => s.setTextFontSizes);
   const [isListOpen, setIsListOpen] = useState(false);
   if (size === null) return null;
@@ -206,8 +206,8 @@ function FontSizePicker({ targets }: { targets: TextTarget[] }) {
 }
 
 /** The size chosen for a text, or its default when none was chosen. null if the text is gone. */
-function chosenFontSize(quiz: Quiz, target: TextTarget): number | null {
-  const slide = quiz.slides.find((s) => s.id === target.slideId);
+function chosenFontSize(presentation: Presentation, target: TextTarget): number | null {
+  const slide = presentation.slides.find((s) => s.id === target.slideId);
   if (!slide) return null;
   if (target.kind === "question") return slide.questionFontSize ?? QUESTION_FONT_SIZE;
   if (target.kind === "option") {

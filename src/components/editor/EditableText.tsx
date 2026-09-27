@@ -8,7 +8,7 @@ import type { TextTarget } from "@/lib/store";
 
 interface EditableTextProps {
   text: string;
-  // Styled version of `text`. Missing on quizzes saved before styled text existed.
+  // Styled version of `text`. Missing on presentations saved before styled text existed.
   html: string | undefined;
   onChange: (text: string, html: string) => void;
   placeholder: string;

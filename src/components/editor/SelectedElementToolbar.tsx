@@ -26,7 +26,7 @@ const MIXED_COLOR_SWATCH = "conic-gradient(#191A2C, #1E8E4F, #F2A93B, #A8A6A1, #
 export function SelectedElementToolbar({ showColor = true }: { showColor?: boolean }) {
   const selectedSlideId = useEditorStore((s) => s.selectedSlideId);
   const selectedElementIds = useEditorStore((s) => s.selectedElementIds);
-  const slide = useEditorStore((s) => s.quiz.slides.find((sl) => sl.id === s.selectedSlideId));
+  const slide = useEditorStore((s) => s.presentation.slides.find((sl) => sl.id === s.selectedSlideId));
   const deleteElements = useEditorStore((s) => s.deleteElements);
   const duplicateElements = useEditorStore((s) => s.duplicateElements);
   const groupSelectedElements = useEditorStore((s) => s.groupSelectedElements);

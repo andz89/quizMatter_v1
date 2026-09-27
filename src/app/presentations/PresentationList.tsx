@@ -7,7 +7,7 @@ import { Spinner } from "@/components/Spinner";
 import { GlobeIcon } from "@/components/icons/GlobeIcon";
 import { removePresentations } from "../actions";
 
-export type QuizRow = {
+export type PresentationRow = {
   id: string;
   title: string;
   // Grade, subject… ("" if none), shown under the title and searched too.
@@ -30,7 +30,7 @@ type Filter = "all" | "saved" | "draft";
 const COLUMNS = "grid-cols-[16px_minmax(0,1fr)_auto] sm:grid-cols-[16px_minmax(0,1fr)_96px_64px_112px_36px]";
 
 /** Deletes saved presentations and discards drafts in one call. False if anything failed. */
-function removeRows(rows: QuizRow[]) {
+function removeRows(rows: PresentationRow[]) {
   return removePresentations(
     rows.filter((row) => row.status === "saved").map((row) => row.id),
     rows.filter((row) => row.status === "draft").map((row) => row.id),
@@ -44,10 +44,10 @@ const FILTERS: { id: Filter; label: string }[] = [
 ];
 
 /**
- * The quiz list: saved quizzes and Claude's drafts together, with a filter and a search box. Rows can
+ * The presentation list: saved presentations and Claude's drafts together, with a filter and a search box. Rows can
  * be checked and deleted together.
  */
-export function QuizList({ rows }: { rows: QuizRow[] }) {
+export function PresentationList({ rows }: { rows: PresentationRow[] }) {
   const [filter, setFilter] = useState<Filter>("all");
   const [search, setSearch] = useState("");
   const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
@@ -162,10 +162,10 @@ export function QuizList({ rows }: { rows: QuizRow[] }) {
         </div>
 
         {shown.length === 0 ? (
-          <EmptyState hasQuizzes={rows.length > 0} search={search.trim()} />
+          <EmptyState hasPresentations={rows.length > 0} search={search.trim()} />
         ) : (
           shown.map((row) => (
-            <QuizListRow
+            <PresentationListRow
               key={row.id}
               row={row}
               isChecked={checkedIds.has(row.id)}
@@ -179,13 +179,13 @@ export function QuizList({ rows }: { rows: QuizRow[] }) {
   );
 }
 
-function QuizListRow({
+function PresentationListRow({
   row,
   isChecked,
   onToggle,
   isBeingDeleted,
 }: {
-  row: QuizRow;
+  row: PresentationRow;
   isChecked: boolean;
   onToggle: () => void;
   isBeingDeleted: boolean;
@@ -204,7 +204,7 @@ function QuizListRow({
   };
 
   return (
-    // The link stretches over the whole row (its ::after), so the row clicks through to the quiz while
+    // The link stretches over the whole row (its ::after), so the row clicks through to the presentation while
     // the Discard button, sitting above it, stays its own button.
     <div
       className={`relative grid min-h-14 ${COLUMNS} items-center gap-x-4 border-b border-border-default px-5 py-3 transition-colors last:border-b-0 ${
@@ -275,7 +275,7 @@ function QuizListRow({
   );
 }
 
-function StatusPill({ status }: { status: QuizRow["status"] }) {
+function StatusPill({ status }: { status: PresentationRow["status"] }) {
   return (
     <span
       className={`inline-flex w-fit items-center rounded-dropdown px-2.5 py-1 text-[13px] leading-none font-semibold text-white ${
@@ -297,14 +297,14 @@ function CheckingPill() {
   );
 }
 
-function EmptyState({ hasQuizzes, search }: { hasQuizzes: boolean; search: string }) {
+function EmptyState({ hasPresentations, search }: { hasPresentations: boolean; search: string }) {
   return (
     <div className="px-5 py-12 text-center">
       <p className="text-sm font-semibold text-text-primary">
-        {hasQuizzes ? (search ? `No presentations match “${search}”` : "Nothing here yet") : "No presentations yet"}
+        {hasPresentations ? (search ? `No presentations match “${search}”` : "Nothing here yet") : "No presentations yet"}
       </p>
       <p className="mt-1 text-sm text-text-secondary">
-        {hasQuizzes
+        {hasPresentations
           ? "Try another search or filter."
           : "Click “+ New presentation” to make one, or ask Claude to send you one."}
       </p>

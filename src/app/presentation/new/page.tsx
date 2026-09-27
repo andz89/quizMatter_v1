@@ -1,24 +1,24 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { createBlankQuiz } from "@/lib/factories";
+import { createBlankPresentation } from "@/lib/factories";
 import { getDraft } from "@/lib/drafts";
 import { createClient } from "@/lib/supabase/server";
-import { QuizEditor } from "../[id]/edit/QuizEditor";
+import { PresentationEditor } from "../[id]/edit/PresentationEditor";
 
 /**
- * Opens a quiz Claude sent through the MCP server (the link /api/mcp hands out) as a new quiz. It
+ * Opens a presentation Claude sent through the MCP server (the link /api/mcp hands out) as a new presentation. It
  * isn't saved yet: the editor shows it, and the user's Save creates it in the database.
  *
- * The new quiz takes the draft's id, so once it's saved the quiz list knows this draft is done
- * (and hides it), and opening the link again opens the saved quiz instead of a second copy.
+ * The new presentation takes the draft's id, so once it's saved the presentation list knows this draft is done
+ * (and hides it), and opening the link again opens the saved presentation instead of a second copy.
  */
-export default async function NewQuizFromClaudePage({ searchParams }: PageProps<"/presentation/new">) {
+export default async function NewPresentationFromClaudePage({ searchParams }: PageProps<"/presentation/new">) {
   const { draft: draftId } = await searchParams;
   if (typeof draftId !== "string") redirect("/");
 
   const supabase = await createClient();
-  const { data: savedQuiz } = await supabase.from("quizzes").select("id").eq("id", draftId).maybeSingle();
-  if (savedQuiz) redirect(`/presentation/${draftId}/edit`);
+  const { data: savedPresentation } = await supabase.from("presentations").select("id").eq("id", draftId).maybeSingle();
+  if (savedPresentation) redirect(`/presentation/${draftId}/edit`);
 
   const draft = await getDraft(draftId);
   if (!draft) {
@@ -37,6 +37,6 @@ export default async function NewQuizFromClaudePage({ searchParams }: PageProps<
     );
   }
 
-  const quiz = { ...createBlankQuiz(draft.details), id: draftId };
-  return <QuizEditor quiz={quiz} draft={{ slides: draft.slides }} />;
+  const presentation = { ...createBlankPresentation(draft.details), id: draftId };
+  return <PresentationEditor presentation={presentation} draft={{ slides: draft.slides }} />;
 }

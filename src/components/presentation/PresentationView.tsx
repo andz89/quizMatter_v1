@@ -14,7 +14,7 @@ const PREV_ZONE = 0.25;
 const HIDE_BUTTONS_AFTER_MS = 3000;
 
 export function PresentationView() {
-  const quiz = useEditorStore((s) => s.quiz);
+  const presentation = useEditorStore((s) => s.presentation);
   const presentationIndex = useEditorStore((s) => s.presentationIndex);
   const exitPresentation = useEditorStore((s) => s.exitPresentation);
   const nextSlide = useEditorStore((s) => s.nextPresentationSlide);
@@ -29,14 +29,14 @@ export function PresentationView() {
   const [showAllSlides, setShowAllSlides] = useState(false);
   const currentThumbRef = useRef<HTMLButtonElement>(null);
 
-  const slide = quiz.slides[presentationIndex];
-  const slideNumbers = getSlideNumbers(quiz.slides);
+  const slide = presentation.slides[presentationIndex];
+  const slideNumbers = getSlideNumbers(presentation.slides);
   const isAnswerShown = revealedSlideId === slide?.id;
   const isChoice = (slide?.type ?? "choice") === "choice";
   // Blank slides are often just for teaching, so they only get the button once an answer is typed.
   const canReveal =
     slide?.type === "short-answer" ||
-    (slide?.type === "lesson" && hasAnswerContent(slide)) ||
+    (slide?.type === "blank" && hasAnswerContent(slide)) ||
     (isChoice && !!slide?.correctOptionId);
 
   useLayoutEffect(() => {
@@ -165,7 +165,7 @@ export function PresentationView() {
               // Choice slides toggle the green highlight; short-answer and blank slides open the answer popup.
               setRevealedSlideId(isChoice && isAnswerShown ? null : slide.id);
             }}
-            title={slide.type === "lesson" ? "Reveal" : isChoice && isAnswerShown ? "Hide answer" : "Show answer"}
+            title={slide.type === "blank" ? "Reveal" : isChoice && isAnswerShown ? "Hide answer" : "Show answer"}
             className={roundButtonClass}
           >
             <EyeIcon />
@@ -203,7 +203,7 @@ export function PresentationView() {
           }}
         >
           <div className="mx-auto grid max-w-6xl grid-cols-[repeat(auto-fill,200px)] justify-center gap-6">
-            {quiz.slides.map((s, i) => {
+            {presentation.slides.map((s, i) => {
               const isCurrent = i === presentationIndex;
               return (
                 <button

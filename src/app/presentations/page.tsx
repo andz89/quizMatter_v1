@@ -2,16 +2,16 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { DRAFT_LIFETIME_MS, listDrafts, type DraftSummary } from "@/lib/drafts";
 import { joinParts, timeAgo } from "@/lib/format";
-import { NewQuizButton } from "../QuizListButtons";
-import { QuizList, type QuizRow } from "./QuizList";
+import { NewPresentationButton } from "../PresentationListButtons";
+import { PresentationList, type PresentationRow } from "./PresentationList";
 
 /** "See all" from the home page: every presentation of mine and every draft from Claude, as a table. */
 export default async function AllPresentationsPage() {
   const supabase = await createClient();
   const { data: claims } = await supabase.auth.getClaims();
-  const [{ data: quizzes, error }, drafts] = await Promise.all([
+  const [{ data: presentations, error }, drafts] = await Promise.all([
     supabase
-      .from("quizzes")
+      .from("presentations")
       .select("id, title, grade, subject, is_published, updated_at, slides(count)")
       // Other teachers' published presentations are readable too, so only take mine.
       .eq("owner_id", claims?.claims.sub ?? "")
@@ -20,7 +20,7 @@ export default async function AllPresentationsPage() {
   ]);
   if (error) throw error;
 
-  const rows = buildRows(quizzes, drafts);
+  const rows = buildRows(presentations, drafts);
 
   return (
     <main className="mx-auto w-full max-w-4xl px-4 py-10 sm:py-14">
@@ -33,16 +33,16 @@ export default async function AllPresentationsPage() {
           <p className="mt-0.5 text-sm text-text-secondary">Your saved presentations, and the ones Claude sent you.</p>
         </div>
         <div className="ml-auto">
-          <NewQuizButton />
+          <NewPresentationButton />
         </div>
       </header>
 
-      <QuizList rows={rows} />
+      <PresentationList rows={rows} />
     </main>
   );
 }
 
-type SavedQuiz = {
+type SavedPresentation = {
   id: string;
   title: string;
   grade: string;
@@ -52,25 +52,25 @@ type SavedQuiz = {
   slides: { count: number }[];
 };
 
-/** Saved quizzes and Claude's drafts as one list, newest first. */
-function buildRows(quizzes: SavedQuiz[], drafts: DraftSummary[]): QuizRow[] {
+/** Saved presentations and Claude's drafts as one list, newest first. */
+function buildRows(presentations: SavedPresentation[], drafts: DraftSummary[]): PresentationRow[] {
   const now = Date.now();
-  const savedIds = new Set(quizzes.map((quiz) => quiz.id));
+  const savedIds = new Set(presentations.map((presentation) => presentation.id));
   return [
-    ...quizzes.map((quiz) => {
-      const updatedAt = Date.parse(quiz.updated_at);
+    ...presentations.map((presentation) => {
+      const updatedAt = Date.parse(presentation.updated_at);
       return {
-        id: quiz.id,
-        title: quiz.title || "Untitled presentation",
-        meta: joinParts([quiz.grade, quiz.subject]),
+        id: presentation.id,
+        title: presentation.title || "Untitled presentation",
+        meta: joinParts([presentation.grade, presentation.subject]),
         status: "saved" as const,
-        isPublished: quiz.is_published,
-        slideCount: quiz.slides[0]?.count ?? 0,
+        isPublished: presentation.is_published,
+        slideCount: presentation.slides[0]?.count ?? 0,
         sortTime: updatedAt,
         dateLabel: timeAgo(updatedAt, now),
       };
     }),
-    // A draft whose quiz is already saved is done (the saved quiz took the draft's id — see /presentation/new).
+    // A draft whose presentation is already saved is done (the saved presentation took the draft's id — see /presentation/new).
     ...drafts
       .filter((draft) => !savedIds.has(draft.id))
       .map((draft) => ({

@@ -18,7 +18,7 @@ const SLIDE_GAP = 40;
 const ADD_ROW_WIDTH = 460;
 
 export function Workspace() {
-  const quiz = useEditorStore((s) => s.quiz);
+  const presentation = useEditorStore((s) => s.presentation);
   const zoom = useEditorStore((s) => s.zoom);
   const setZoom = useEditorStore((s) => s.setZoom);
   const selectSlide = useEditorStore((s) => s.selectSlide);
@@ -50,11 +50,11 @@ export function Workspace() {
   // Whichever slide crosses the vertical center of the scroll area becomes the selected one,
   // so the toolbar and the elements panel always act on the slide the user is looking at.
   //
-  // Deliberately keyed on slideIds (which slides exist, and in what order), not on `quiz.slides`
+  // Deliberately keyed on slideIds (which slides exist, and in what order), not on `presentation.slides`
   // itself: that array gets a new reference on every store mutation, including every pointer-move
   // while dragging or resizing an SVG element. Rebuilding the observer on each of those would fire
   // its callback immediately and reset the current selection mid-drag.
-  const slideIds = quiz.slides.map((s) => s.id).join(",");
+  const slideIds = presentation.slides.map((s) => s.id).join(",");
 
   // True while we scroll to a new slide ourselves. The slides passed on the way shouldn't get
   // selected: each pick redraws the slides mid-scroll and makes the scroll stutter.
@@ -185,7 +185,7 @@ export function Workspace() {
     const overSlide = (e.target as Element).closest("[data-slide-id]")?.getAttribute("data-slide-id");
     const slideId = overSlide ?? nearestSlideId(e.clientY);
     if (!slideId) return null;
-    if (slideId === quiz.slides[0]?.id) {
+    if (slideId === presentation.slides[0]?.id) {
       const box = slideNodes.current.get(slideId)?.getBoundingClientRect();
       if (box && e.clientY < box.top + box.height / 2) return { slideId, before: true };
     }
@@ -224,9 +224,9 @@ export function Workspace() {
     else slideNodes.current.delete(slideId);
   }, []);
 
-  const slideNumbers = getSlideNumbers(quiz.slides);
+  const slideNumbers = getSlideNumbers(presentation.slides);
   // Gone if the slide was deleted (or undone away) while its answer was open.
-  const answerSlide = quiz.slides.find((s) => s.id === answerSlideId && canHaveAnswer(s));
+  const answerSlide = presentation.slides.find((s) => s.id === answerSlideId && canHaveAnswer(s));
   // Below the needed width the add row shrinks as a whole (CSS zoom keeps it sharp) instead of wrapping.
   const addRowScale = Math.min(1, (CANVAS_WIDTH * zoom) / ADD_ROW_WIDTH);
 
@@ -243,16 +243,16 @@ export function Workspace() {
             modifiers={[restrictToVerticalAxis]}
             onDragEnd={handleDragEnd}
           >
-            <SortableContext items={quiz.slides.map((s) => s.id)} strategy={verticalListSortingStrategy}>
-              {quiz.slides.map((slide, index) => (
+            <SortableContext items={presentation.slides.map((s) => s.id)} strategy={verticalListSortingStrategy}>
+              {presentation.slides.map((slide, index) => (
                 <SlideWorkspaceItem
                   key={slide.id}
                   slide={slide}
                   slideNumber={slideNumbers.get(slide.id)}
                   zoom={zoom}
-                  prevSlideId={quiz.slides[index - 1]?.id}
-                  nextSlideId={quiz.slides[index + 1]?.id}
-                  canDelete={quiz.slides.length > 1}
+                  prevSlideId={presentation.slides[index - 1]?.id}
+                  nextSlideId={presentation.slides[index + 1]?.id}
+                  canDelete={presentation.slides.length > 1}
                   dropSide={slide.id === dropTarget?.slideId ? (dropTarget.before ? "before" : "after") : undefined}
                   registerNode={registerNode}
                 />
@@ -280,7 +280,7 @@ export function Workspace() {
             </button>
             <button
               type="button"
-              onClick={() => addSlide(undefined, "lesson")}
+              onClick={() => addSlide(undefined, "blank")}
               className="flex flex-1 items-center justify-center rounded-card bg-bg-surface text-sm font-semibold text-text-secondary shadow-[0_1px_3px_rgba(0,0,0,0.08)] transition hover:text-accent-navy hover:shadow-[0_2px_8px_rgba(0,0,0,0.1)]"
             >
               + Blank slide

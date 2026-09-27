@@ -8,7 +8,7 @@ const fontSizeSchema = z.number().int().min(FONT_SIZE_RANGE.min).max(FONT_SIZE_R
 export const optionSchema = z.object({
   id: z.string(),
   text: z.string(),
-  // Styled version of `text` (bold, color…), as HTML from the text editor. Missing on older quizzes.
+  // Styled version of `text` (bold, color…), as HTML from the text editor. Missing on older presentations.
   html: z.string().optional(),
   // Chosen font size. Missing = OPTION_FONT_SIZE.
   fontSize: fontSizeSchema.optional(),
@@ -83,9 +83,10 @@ export const MAX_ANSWER_LENGTH = 300;
 export const slideSchema = z.object({
   id: z.string(),
   // choice = 4 options to pick from; short-answer = no options, the teacher types the correct answer;
-  // presentation = a blank slide for teaching (free-placed elements only, no question, no number).
-  // Missing = "choice" (older quizzes).
-  type: z.enum(["choice", "short-answer", "lesson"]).optional(),
+  // blank = a blank slide for teaching (free-placed elements only, no question, no number).
+  // Missing = "choice" (older presentations). "lesson" is blank's old name: a browser tab opened before
+  // the rename can still send it.
+  type: z.preprocess((type) => (type === "lesson" ? "blank" : type), z.enum(["choice", "short-answer", "blank"]).optional()),
   // Name the teacher gave the slide. Question slides show it after their number ("Q1 · Fractions");
   // blank slides show it instead of "Slide 1". Missing = no name.
   name: z.string().optional(),
@@ -93,7 +94,7 @@ export const slideSchema = z.object({
   // slides count on without it). Missing = numbered.
   hideNumber: z.boolean().optional(),
   question: z.string(),
-  // Styled version of `question`, as HTML from the text editor. Missing on older quizzes.
+  // Styled version of `question`, as HTML from the text editor. Missing on older presentations.
   questionHtml: z.string().optional(),
   // Chosen font size for the question. Missing = QUESTION_FONT_SIZE.
   questionFontSize: fontSizeSchema.optional(),
@@ -176,7 +177,7 @@ export const referenceSchema = z
   .refine((reference) => !reference.includes("://") || isWebLink(reference), "A link must start with http:// or https://");
 export const MAX_REFERENCE_LINKS = 20;
 
-export const quizSchema = z.object({
+export const presentationSchema = z.object({
   id: z.string(),
   title: z.string().max(DETAIL_MAX_LENGTH.title),
   // Presentation details, all optional ("" when not filled in).
@@ -207,9 +208,9 @@ export function parseSlide(data: unknown): Slide | null {
   const result = slideSchema.safeParse(data);
   return result.success ? result.data : null;
 }
-export type Quiz = z.infer<typeof quizSchema>;
+export type Presentation = z.infer<typeof presentationSchema>;
 export type PresentationDetails = Pick<
-  Quiz,
+  Presentation,
   | "title"
   | "description"
   | "grade"

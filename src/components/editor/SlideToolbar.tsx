@@ -21,7 +21,7 @@ const LAYOUTS: { value: Slide["layout"]; label: string; icon: ReactNode }[] = [
 const SLIDE_TYPES: { value: SlideType; label: string; icon: ReactNode }[] = [
   { value: "choice", label: "Multiple choice", icon: <ChoiceTypeIcon /> },
   { value: "short-answer", label: "Short answer", icon: <ShortAnswerTypeIcon /> },
-  { value: "lesson", label: "Blank slide", icon: <LessonTypeIcon /> },
+  { value: "blank", label: "Blank slide", icon: <BlankTypeIcon /> },
 ];
 
 type DragHandleProps = Pick<ReturnType<typeof useSortable>, "attributes" | "listeners">;
@@ -52,13 +52,13 @@ export function SlideToolbar({ slide, slideNumber, isFirst, isLast, canDelete, o
   const [isRenaming, setIsRenaming] = useState(false);
   const [isConfirmingNoNumber, setIsConfirmingNoNumber] = useState(false);
 
-  const isBlank = slide.type === "lesson";
+  const isBlank = slide.type === "blank";
   // Only the slide's name is shown; an unnamed question slide invites one instead.
   const defaultName = isBlank ? `Slide ${slideNumber}` : "Add a name";
   const label = slide.name || defaultName;
 
   const isChoice = (slide.type ?? "choice") === "choice";
-  // Short-answer and lesson slides have no options to fill in, so their (always empty) options pass this check.
+  // Short-answer and blank slides have no options to fill in, so their (always empty) options pass this check.
   // The answer canvas isn't cleared with the slide, so its elements don't count.
   const isEmpty =
     slide.question === "" &&
@@ -235,7 +235,7 @@ export function SlideToolbar({ slide, slideNumber, isFirst, isLast, canDelete, o
                   onClick={() => addSlide(slide.id, slideType.value)}
                   // A thin line above "Blank slide" splits it from the question types.
                   className={`flex items-center gap-3 whitespace-nowrap px-4 py-2.5 text-sm text-text-primary hover:bg-bg-page ${
-                    slideType.value === "lesson" ? "mt-1 border-t border-border-default pt-3.5" : ""
+                    slideType.value === "blank" ? "mt-1 border-t border-border-default pt-3.5" : ""
                   }`}
                 >
                   {slideType.icon}
@@ -344,7 +344,7 @@ function ShortAnswerTypeIcon() {
   );
 }
 
-function LessonTypeIcon() {
+function BlankTypeIcon() {
   return (
     <svg width="20" height="20" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.05">
       <rect x="1.5" y="2.5" width="11" height="7.5" rx="1.2" />

@@ -10,7 +10,7 @@ import { GRADIENT_PREFIX, toCssBackground } from "./ElementSvg";
 import { SIDE_CONTAINER_ID } from "@/lib/constants";
 import { CloseIcon } from "@/components/icons/CloseIcon";
 
-// A simple curated palette: the app's own brand colors first, then a broader range for quiz content.
+// A simple curated palette: the app's own brand colors first, then a broader range for presentation content.
 const COLORS = [
   "#191A2C",
   "#1E8E4F",
@@ -70,7 +70,7 @@ const GRADIENTS: [string, string][] = [
 export function ColorPanel() {
   const selectedSlideId = useEditorStore((s) => s.selectedSlideId);
   const selectedElementIds = useEditorStore((s) => s.selectedElementIds);
-  const slide = useEditorStore((s) => s.quiz.slides.find((sl) => sl.id === s.selectedSlideId));
+  const slide = useEditorStore((s) => s.presentation.slides.find((sl) => sl.id === s.selectedSlideId));
   const updateElements = useEditorStore((s) => s.updateElements);
   const selectedContainerId = useEditorStore((s) => s.selectedContainerId);
   const shapeBoxColorTarget = useEditorStore((s) => s.shapeBoxColorTarget);

@@ -17,7 +17,7 @@ const ARROW_DIRECTIONS: Record<string, { x: number; y: number }> = {
  * The editor's keyboard shortcuts, set up once for the whole editor. They read the store when a key
  * is pressed, so the listener never has to be rebuilt when the selection changes.
  *
- * - Ctrl/Cmd+S saves the quiz (also while typing)
+ * - Ctrl/Cmd+S saves the presentation (also while typing)
  * - Ctrl/Cmd+Z undoes; Ctrl+Y or Ctrl/Cmd+Shift+Z redoes (also while typing, so there's only one undo history)
  * - Ctrl/Cmd+C copies and Ctrl/Cmd+V pastes the selected element(s)
  * - Ctrl/Cmd+G groups, Ctrl/Cmd+Shift+G ungroups
@@ -37,7 +37,7 @@ export function useEditorShortcuts() {
 
       if (isMeta && key === "s") {
         e.preventDefault();
-        state.saveQuiz();
+        state.savePresentation();
         return;
       }
       if (isMeta && key === "z") {
@@ -96,7 +96,7 @@ export function useEditorShortcuts() {
       } else if (selectedElementIds.length > 0 && ARROW_DIRECTIONS[e.key]) {
         // Stops the page from scrolling.
         e.preventDefault();
-        const slide = state.quiz.slides.find((sl) => sl.id === selectedSlideId);
+        const slide = state.presentation.slides.find((sl) => sl.id === selectedSlideId);
         if (!slide) return;
         const elements = slide.elements.filter((el) => selectedElementIds.includes(el.id));
         const step = e.shiftKey ? ARROW_STEP_SHIFT : ARROW_STEP;

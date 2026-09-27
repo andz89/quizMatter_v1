@@ -22,7 +22,7 @@ export function IconRail() {
   const toggleDetailsPanel = useEditorStore((s) => s.toggleDetailsPanel);
   const isPresentationsPanelOpen = useEditorStore((s) => s.isPresentationsPanelOpen);
   const togglePresentationsPanel = useEditorStore((s) => s.togglePresentationsPanel);
-  const slideCount = useEditorStore((s) => s.quiz.slides.length);
+  const slideCount = useEditorStore((s) => s.presentation.slides.length);
 
   return (
     <aside className="flex w-20 shrink-0 flex-col gap-1.5 border-r-2 border-border-default bg-bg-surface px-1.5 py-3">

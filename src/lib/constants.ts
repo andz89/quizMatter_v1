@@ -102,7 +102,7 @@ const SIDE_PADDING = 16;
 export const ADD_SHAPE_BOX_ROW_HEIGHT = 32;
 
 /**
- * Slide numbers for the whole quiz, by slide id. Question slides and blank slides are counted
+ * Slide numbers for the whole presentation, by slide id. Question slides and blank slides are counted
  * separately: Slide 1, Q1, Q2, Slide 2, Q3.
  */
 export function getSlideNumbers(slides: Slide[]): Map<string, number> {
@@ -110,7 +110,7 @@ export function getSlideNumbers(slides: Slide[]): Map<string, number> {
   let questions = 0;
   let blanks = 0;
   slides.forEach((slide) => {
-    if (slide.type === "lesson") numbers.set(slide.id, ++blanks);
+    if (slide.type === "blank") numbers.set(slide.id, ++blanks);
     // A question slide taken out of the numbers gets none, and doesn't count.
     else if (!slide.hideNumber) numbers.set(slide.id, ++questions);
   });
@@ -119,7 +119,7 @@ export function getSlideNumbers(slides: Slide[]): Map<string, number> {
 
 /** Short-answer and blank slides can have an answer (text, or a canvas of elements); choice slides mark an option instead. */
 export function canHaveAnswer(slide: Pick<Slide, "type">): boolean {
-  return slide.type === "short-answer" || slide.type === "lesson";
+  return slide.type === "short-answer" || slide.type === "blank";
 }
 
 /** Whether the slide's chosen kind of answer has anything in it. */

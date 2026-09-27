@@ -5,9 +5,9 @@ import Link from "next/link";
 import { useEditorStore } from "@/lib/store";
 import { LinkPending } from "@/components/LinkPending";
 import { Spinner } from "@/components/Spinner";
-import { createBlankQuiz } from "@/lib/factories";
-import { buildSlides } from "@/lib/importQuiz";
-import type { Quiz } from "@/lib/schema";
+import { createBlankPresentation } from "@/lib/factories";
+import { buildSlides } from "@/lib/importPresentation";
+import type { Presentation } from "@/lib/schema";
 import { getDraftPresentation, getPresentation, removePresentations } from "./actions";
 import type { PresentationCardData } from "./PresentationCard";
 
@@ -47,17 +47,17 @@ export function PresentationCardMenu({ card }: { card: PresentationCardData }) {
     await document.documentElement.requestFullscreen().catch(() => {
       // Fullscreen isn't available (unsupported/blocked) — presentation still opens.
     });
-    const quiz = isDraft ? await loadDraft(card.id) : await getPresentation(card.id);
+    const presentation = isDraft ? await loadDraft(card.id) : await getPresentation(card.id);
     setIsBusy(false);
-    if (!quiz || quiz.slides.length === 0) {
+    if (!presentation || presentation.slides.length === 0) {
       if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
-      alert(quiz ? "This presentation has no slides yet." : "Couldn't open the presentation. Please try again.");
+      alert(presentation ? "This presentation has no slides yet." : "Couldn't open the presentation. Please try again.");
       return;
     }
     // The presentation view reads the editor's store, so the presentation goes in there first.
     const store = useEditorStore.getState();
-    store.loadQuiz(quiz);
-    useEditorStore.setState({ selectedSlideId: quiz.slides[0].id });
+    store.loadPresentation(presentation);
+    useEditorStore.setState({ selectedSlideId: presentation.slides[0].id });
     store.startPresentation();
   };
 
@@ -117,12 +117,12 @@ export function PresentationCardMenu({ card }: { card: PresentationCardData }) {
 }
 
 /** Claude's draft as a presentation: its slides built from the recipe, the same way the editor does. */
-async function loadDraft(id: string): Promise<Quiz | null> {
+async function loadDraft(id: string): Promise<Presentation | null> {
   const draft = await getDraftPresentation(id);
   if (!draft) return null;
   const built = buildSlides({ slides: draft.slides });
   if ("errors" in built) return null;
-  return { ...createBlankQuiz(draft.details), id, slides: built.slides };
+  return { ...createBlankPresentation(draft.details), id, slides: built.slides };
 }
 
 function DotsIcon() {

@@ -1,6 +1,6 @@
 import { createId } from "./id";
 import { DEFAULT_QUESTION_HEIGHT } from "./constants";
-import type { PresentationDetails, Quiz, Slide, SlideType } from "./schema";
+import type { PresentationDetails, Presentation, Slide, SlideType } from "./schema";
 
 export function createBlankSlide(type: SlideType = "choice"): Slide {
   return {
@@ -40,7 +40,7 @@ function createSampleSlide(): Slide {
   };
 }
 
-export function createBlankQuiz(details: Partial<PresentationDetails> = {}): Quiz {
+export function createBlankPresentation(details: Partial<PresentationDetails> = {}): Presentation {
   const now = Date.now();
   return {
     id: createId(),

@@ -8,7 +8,7 @@ import { NONE_SWATCH } from "./ColorPanel";
 /** Centered header container for the selected shape box's fill and border colors. */
 export function ShapeBoxToolbar() {
   const selectedContainerId = useEditorStore((s) => s.selectedContainerId);
-  const slide = useEditorStore((s) => s.quiz.slides.find((sl) => sl.id === s.selectedSlideId));
+  const slide = useEditorStore((s) => s.presentation.slides.find((sl) => sl.id === s.selectedSlideId));
   const isColorPanelOpen = useEditorStore((s) => s.isColorPanelOpen);
   const shapeBoxColorTarget = useEditorStore((s) => s.shapeBoxColorTarget);
   const openShapeBoxColorPanel = useEditorStore((s) => s.openShapeBoxColorPanel);

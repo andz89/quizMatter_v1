@@ -21,7 +21,7 @@ export function DetailsPanel() {
   const isSaving = useEditorStore((s) => s.saveStatus === "saving");
   // Which button was clicked, so only that one shows the spinner.
   const [pendingVisibility, setPendingVisibility] = useState<boolean | null>(null);
-  const quiz = useEditorStore((s) => s.quiz);
+  const presentation = useEditorStore((s) => s.presentation);
   const publishedBy = useLoggedInEmail();
 
   useEffect(() => {
@@ -33,7 +33,7 @@ export function DetailsPanel() {
   }, [closeDetailsPanel]);
 
   const changeVisibility = async (isPublished: boolean) => {
-    if (isPublished === quiz.isPublished) return;
+    if (isPublished === presentation.isPublished) return;
     setPendingVisibility(isPublished);
     const saved = await setPublished(isPublished);
     setPendingVisibility(null);
@@ -46,7 +46,7 @@ export function DetailsPanel() {
     <Field label={label}>
       {multiline ? (
         <textarea
-          value={quiz[key]}
+          value={presentation[key]}
           onChange={(e) => setPresentationDetails({ [key]: e.target.value })}
           placeholder={placeholder}
           maxLength={DETAIL_MAX_LENGTH[key]}
@@ -55,7 +55,7 @@ export function DetailsPanel() {
         />
       ) : (
         <input
-          value={quiz[key]}
+          value={presentation[key]}
           onChange={(e) => setPresentationDetails({ [key]: e.target.value })}
           placeholder={placeholder}
           maxLength={DETAIL_MAX_LENGTH[key]}
@@ -87,7 +87,7 @@ export function DetailsPanel() {
 
       <Field label="Grade">
         <select
-          value={quiz.grade}
+          value={presentation.grade}
           onChange={(e) => setPresentationDetails({ grade: e.target.value as PresentationDetails["grade"] })}
           className={inputClass}
         >
@@ -105,7 +105,7 @@ export function DetailsPanel() {
       {textField("learningCompetency", "Learning competency", "The competency this presentation targets, with its code", true)}
       {textField("author", "Author", "Who wrote it: you, a book, another teacher…")}
 
-      <ReferenceLinks links={quiz.referenceLinks} onChange={(referenceLinks) => setPresentationDetails({ referenceLinks })} />
+      <ReferenceLinks links={presentation.referenceLinks} onChange={(referenceLinks) => setPresentationDetails({ referenceLinks })} />
 
       <Field label="Visibility">
         <div className="grid grid-cols-2 gap-1 rounded-button bg-bg-page p-1">
@@ -119,7 +119,7 @@ export function DetailsPanel() {
               onClick={() => changeVisibility(value)}
               disabled={isSaving}
               className={`flex items-center justify-center gap-2 rounded-dropdown py-1.5 text-sm transition-colors disabled:cursor-default ${
-                quiz.isPublished === value
+                presentation.isPublished === value
                   ? "bg-bg-surface font-semibold text-text-primary shadow-[0_0_0_1px_var(--border-default)]"
                   : "text-text-secondary hover:text-text-primary"
               }`}

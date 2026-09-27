@@ -156,7 +156,7 @@ export const SvgElementItem = memo(function SvgElementItem({ slideId, element, i
   const getBoxElements = () =>
     useEditorStore
       .getState()
-      .quiz.slides.find((s) => s.id === slideId)
+      .presentation.slides.find((s) => s.id === slideId)
       ?.elements.filter((el) => el.containerId === element.containerId) ?? [];
 
   const handleBodyPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
