@@ -24,7 +24,7 @@ function createServer(appUrl: string) {
       name,
       {
         description:
-          "Returns the JSON format for quizMatter slides (blank presentation slides and question slides), with notes and an example. Call this before send_presentation.",
+          "Returns the JSON format for quizMatter slides (blank, title, question, and video / slide deck / picture slides), with notes and an example. Call this before send_presentation.",
         annotations: { readOnlyHint: true },
       },
       async () => ({ content: [{ type: "text", text: getClaudeFormat() }] }),
@@ -36,7 +36,7 @@ function createServer(appUrl: string) {
       name,
       {
         description:
-          "Sends a presentation to quizMatter, an open canvas presentation tool (like Canva or PowerPoint): blank slides for any presentation, " +
+          "Sends a presentation to quizMatter, an open canvas presentation tool (like Canva or PowerPoint): blank and title slides for any presentation, video / slide deck / picture slides from a link, " +
           "and/or question slides for a quiz or assessment. `slides` must follow the format from get_presentation_format. " +
           "If something is wrong, the errors come back — fix them and send again. Otherwise it returns a layout report: " +
           "where every box, text and picture landed. " +

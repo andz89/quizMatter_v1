@@ -13,6 +13,7 @@ import { Spinner } from "@/components/Spinner";
 
 export function ElementsPanel() {
   const closeElementsPanel = useEditorStore((s) => s.closeElementsPanel);
+  const insertElement = useEditorStore((s) => s.insertElement);
   const recentElementAssetIds = useEditorStore((s) => s.recentElementAssetIds);
   const favoriteCategories = useEditorStore((s) => s.favoriteElementCategories);
   const setFavoriteCategories = useEditorStore((s) => s.setFavoriteElementCategories);
@@ -57,8 +58,8 @@ export function ElementsPanel() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [openCategory, closeElementsPanel]);
 
-  // Elements are added only by dragging; the question/option boxes handle the drop themselves.
-  // The panel stays open so several elements can be added in a row.
+  // Elements are added by dragging (the question/option boxes handle the drop themselves) or by a
+  // click (insertElement picks the box). The panel stays open so several can be added in a row.
   const handleDragStart = (e: React.DragEvent, assetId: string) => {
     e.dataTransfer.setData(ELEMENT_DRAG_MIME, assetId);
     e.dataTransfer.effectAllowed = "copy";
@@ -118,23 +119,47 @@ export function ElementsPanel() {
           <CloseIcon />
         </button>
       </div>
-      <p className="mb-4 text-xs text-text-secondary">Drag an element onto the question or an option to add it.</p>
+      <p className="mb-4 text-xs text-text-secondary">Drag an element onto a box, or click it to add it.</p>
 
       {openCategory === null ? (
         <>
-          <button
-            type="button"
-            draggable
-            onDragStart={(e) => handleDragStart(e, "text-box")}
-            className="mb-5 flex w-full cursor-grab items-center gap-3 rounded-button border border-border-default bg-bg-surface p-1.5 text-sm font-medium text-text-primary transition-colors hover:border-accent-navy"
-          >
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-dropdown bg-bg-page">
-              <span data-drag-image className="block h-4 w-4">
-                <ElementSvg assetId="text-box" color="currentColor" />
+          <div className="mb-5 grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              draggable
+              onDragStart={(e) => handleDragStart(e, "text-box")}
+              onClick={() => insertElement("text-box")}
+              className="flex cursor-grab items-center justify-center gap-2 whitespace-nowrap rounded-card border border-transparent bg-[#E7F1FD] p-2 text-[13px] font-semibold text-text-primary transition-colors hover:border-[#2F80ED]"
+            >
+              {/* The colored square is the drag image, so the ghost shows the icon, not a white "T". */}
+              <span
+                data-drag-image
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-button bg-linear-to-br from-[#1FA2F2] to-[#2F6BED] text-white"
+              >
+                <span className="block h-4 w-4">
+                  <ElementSvg assetId="text-box" color="currentColor" />
+                </span>
               </span>
-            </span>
-            Text box
-          </button>
+              Text box
+            </button>
+            <button
+              type="button"
+              draggable
+              onDragStart={(e) => handleDragStart(e, "rectangle")}
+              onClick={() => insertElement("rectangle")}
+              className="flex cursor-grab items-center justify-center gap-2 whitespace-nowrap rounded-card border border-transparent bg-[#FDEBE1] p-2 text-[13px] font-semibold text-text-primary transition-colors hover:border-[#F2743B]"
+            >
+              <span
+                data-drag-image
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-button bg-linear-to-br from-[#F79A4B] to-[#EE5A2F] text-white"
+              >
+                <span className="block h-4 w-4">
+                  <ElementSvg assetId="rectangle" color="currentColor" />
+                </span>
+              </span>
+              Box
+            </button>
+          </div>
 
           {favoriteCategories === null ? (
             <div className="mb-5 flex justify-center">
@@ -160,7 +185,7 @@ export function ElementsPanel() {
                 {recentElementAssetIds.map((assetId) => {
                   const asset = getElementAsset(assetId);
                   return asset ? (
-                    <ElementButton key={asset.id} assetId={asset.id} label={asset.label} onDragStart={handleDragStart} />
+                    <ElementButton key={asset.id} assetId={asset.id} label={asset.label} onDragStart={handleDragStart} onClick={insertElement} />
                   ) : null;
                 })}
               </div>
@@ -174,9 +199,10 @@ export function ElementsPanel() {
           </div>
         </>
       ) : (
-        <div className="grid grid-cols-4 justify-items-center gap-3">
+        // People are tall, so they get 3 wider columns with bigger tiles.
+        <div className={`grid justify-items-center gap-3 ${openCategory === "person" ? "grid-cols-3" : "grid-cols-4"}`}>
           {ELEMENT_LIBRARY.filter((asset) => asset.category === openCategory).map((asset) => (
-            <ElementButton key={asset.id} assetId={asset.id} label={asset.label} onDragStart={handleDragStart} />
+            <ElementButton key={asset.id} assetId={asset.id} label={asset.label} onDragStart={handleDragStart} onClick={insertElement} />
           ))}
         </div>
       )}
@@ -200,10 +226,12 @@ function ElementButton({
   assetId,
   label,
   onDragStart,
+  onClick,
 }: {
   assetId: string;
   label: string;
   onDragStart: (e: React.DragEvent, assetId: string) => void;
+  onClick: (assetId: string) => void;
 }) {
   const asset = getElementAsset(assetId);
   return (
@@ -211,10 +239,16 @@ function ElementButton({
       type="button"
       draggable
       onDragStart={(e) => onDragStart(e, assetId)}
+      onClick={() => onClick(assetId)}
       title={label}
-      className={`flex h-12 w-12 cursor-grab items-center justify-center rounded-dropdown border border-border-default bg-bg-page text-text-primary transition-colors hover:border-accent-navy ${
-        // Shapes get less padding so they fill more of the tile and are easier to see.
-        asset?.category === "shape" || asset?.category === "solid" ? "p-1" : "p-2.5"
+      className={`flex cursor-grab items-center justify-center rounded-dropdown border border-border-default bg-bg-page text-text-primary transition-colors hover:border-accent-navy ${
+        // People are tall and thin: bigger tiles with little padding so they're easy to see.
+        // Shapes also get less padding so they fill more of the tile.
+        asset?.category === "person"
+          ? "h-18 w-18 p-1"
+          : asset?.category === "shape" || asset?.category === "solid"
+            ? "h-12 w-12 p-1"
+            : "h-12 w-12 p-2.5"
       }`}
     >
       {/* Used as the drag image so the ghost shows only the SVG, not the tile's border/padding. */}

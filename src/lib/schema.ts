@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { CANVAS_HEIGHT, CANVAS_WIDTH, MIN_QUESTION_HEIGHT, MIN_QUESTION_WIDTH, moveShortAnswerPicturesToSlide } from "./constants";
+import { EMBED_SLIDE_TYPES, MAX_EMBED_URL_LENGTH, isEmbedSlide, readEmbedLink, type EmbedKind } from "./embed";
 
 // The font sizes (px) a user can choose for a text. The chosen size is the largest the text gets;
 // it still shrinks to fit its box when it's too long.
@@ -34,6 +36,9 @@ export const svgElementSchema = z.object({
   rotation: z.number().optional(),
   // How see-through the element is, in percent (OPACITY_MIN–100). Missing = 100 (solid).
   opacity: z.number().optional(),
+  // Only used by the square and rectangle: how round their corners are, in percent of the shorter
+  // side (0–50; 50 = fully round ends). Missing = 0 (sharp corners).
+  cornerRadius: z.number().min(0).max(50).optional(),
   // Only used by the clocks: the time they show (hours 1–12, minutes 0–59). Missing = 10:10.
   // `pm` is only shown by the digital clock; missing = AM.
   clockTime: z.object({ hours: z.number(), minutes: z.number(), pm: z.boolean().optional() }).optional(),
@@ -77,22 +82,51 @@ export const svgElementSchema = z.object({
     .optional(),
 });
 
-// Longest typed answer (short-answer and blank slides), in the editor and from Claude.
+// Longest typed answer (short-answer, blank and custom slides), in the editor and from Claude.
 export const MAX_ANSWER_LENGTH = 300;
+
+// Most items one custom question slide can hold (e.g. 5 items = Q11–15).
+export const MAX_ITEM_COUNT = 50;
+
+/** What the teacher pasted into an embed slide's box, turned into the link the slide keeps (or a message why it can't be used). */
+export function embedLinkSchema(kind: EmbedKind) {
+  return z
+    .string()
+    .max(MAX_EMBED_URL_LENGTH, "This link is too long.")
+    .transform((pasted, ctx) => {
+      const result = readEmbedLink(kind, pasted);
+      if ("error" in result) {
+        ctx.addIssue({ code: "custom", message: result.error });
+        return z.NEVER;
+      }
+      return result.src;
+    });
+}
 
 export const slideSchema = z.object({
   id: z.string(),
-  // choice = 4 options to pick from; short-answer = no options, the teacher types the correct answer;
+  // choice = 4 options to pick from; true-false = 2 options ("True" and "False", editable), kept in the
+  // first 2 option slots (the other 2 stay empty and hidden); short-answer = no options, the teacher types the correct answer;
   // blank = a blank slide for teaching (free-placed elements only, no question, no number).
+  // custom = a question slide the teacher builds on a free canvas, numbered like questions (see itemCount).
+  // title = a blank slide that starts with a title and a description text box (still a free canvas).
+  // video / embed-slides / image = a video, a slide deck (Google Slides, Canva) or a picture from
+  // another site, filling the slide (no elements, no answer).
   // Missing = "choice" (older presentations). "lesson" is blank's old name: a browser tab opened before
   // the rename can still send it.
-  type: z.preprocess((type) => (type === "lesson" ? "blank" : type), z.enum(["choice", "short-answer", "blank"]).optional()),
+  type: z.preprocess(
+    (type) => (type === "lesson" ? "blank" : type),
+    z.enum(["choice", "true-false", "short-answer", "custom", "blank", "title", ...EMBED_SLIDE_TYPES]).optional()
+  ),
+  // Embed slides only: the link they show (already turned into the viewer or picture address, and
+  // checked against the slide's kind below). Missing = nothing added yet.
+  embedUrl: z.string().max(MAX_EMBED_URL_LENGTH).optional(),
+  // Custom slides only: how many question items the slide holds, so it takes that many numbers
+  // (5 items after Q10 = Q11–15). Missing = 1.
+  itemCount: z.number().int().min(1).max(MAX_ITEM_COUNT).optional(),
   // Name the teacher gave the slide. Question slides show it after their number ("Q1 · Fractions");
   // blank slides show it instead of "Slide 1". Missing = no name.
   name: z.string().optional(),
-  // Question slides only: true = taken out of the question numbers (no number shown, and the next
-  // slides count on without it). Missing = numbered.
-  hideNumber: z.boolean().optional(),
   question: z.string(),
   // Styled version of `question`, as HTML from the text editor. Missing on older presentations.
   questionHtml: z.string().optional(),
@@ -121,15 +155,36 @@ export const slideSchema = z.object({
   backgroundOpacity: z.number().optional(),
   options: z.tuple([optionSchema, optionSchema, optionSchema, optionSchema]),
   correctOptionId: z.string().nullable(),
-  // Short-answer and blank slides only: the answer the teacher expects. (Their options stay empty and aren't shown.)
+  // Short-answer, custom and blank slides only: the answer the teacher expects. (Their options stay empty and aren't shown.)
   correctAnswer: z.string().optional(),
-  // Short-answer and blank slides only: which answer is shown — the typed `correctAnswer`, or a canvas
+  // Short-answer, custom and blank slides only: which answer is shown — the typed `correctAnswer`, or a canvas
   // of elements (those with containerId ANSWER_CONTAINER_ID). Both are kept, so switching loses nothing.
   // Missing = "text".
   answerType: z.enum(["text", "canvas"]).optional(),
   elements: z.array(svgElementSchema),
   questionHeight: z.number(),
-});
+  // Short-answer slides only: where the teacher moved the question box, and how wide they made it,
+  // in slide px (its height is `questionHeight`). It always stays inside the slide. Missing =
+  // DEFAULT_QUESTION_BOX.
+  questionBox: z
+    .object({
+      x: z.number().min(0).max(CANVAS_WIDTH - MIN_QUESTION_WIDTH),
+      y: z.number().min(0).max(CANVAS_HEIGHT - MIN_QUESTION_HEIGHT),
+      width: z.number().min(MIN_QUESTION_WIDTH).max(CANVAS_WIDTH),
+    })
+    .optional(),
+})
+  .refine(
+    (slide) => !slide.embedUrl || (isEmbedSlide(slide) && !("error" in readEmbedLink(slide.type, slide.embedUrl))),
+    { message: "This slide's link can't be shown.", path: ["embedUrl"] }
+  )
+  .refine(
+    (slide) =>
+      slide.type !== "true-false" || !slide.correctOptionId || slide.options.slice(0, 2).some((o) => o.id === slide.correctOptionId),
+    { message: "A true-or-false answer must be True or False.", path: ["correctOptionId"] }
+  )
+  // Older short-answer slides kept their pictures in a shape box; they now sit on the slide itself.
+  .transform((slide) => ({ ...slide, elements: moveShortAnswerPicturesToSlide(slide) }));
 
 // The grade a presentation is for ("" = not chosen).
 export const GRADES = [

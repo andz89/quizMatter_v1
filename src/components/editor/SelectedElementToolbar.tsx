@@ -3,7 +3,7 @@
 import { useEditorStore } from "@/lib/store";
 import { canCrop, getElementAsset, DEFAULT_CLOCK_TIME } from "@/lib/svgLibrary";
 import { DEFAULT_ROTATION_3D } from "@/lib/solids";
-import { getContainerBounds, OPACITY_MIN } from "@/lib/constants";
+import { CORNER_RADIUS_MAX, getContainerBounds, OPACITY_MIN } from "@/lib/constants";
 import { boxForShownPart, getCropFrame } from "@/lib/crop";
 import { fitInBox } from "@/lib/geometry";
 import { toCssBackground } from "./ElementSvg";
@@ -64,6 +64,14 @@ export function SelectedElementToolbar({ showColor = true }: { showColor?: boole
   const setOpacity = (value: number) => {
     const clamped = Math.min(100, Math.max(OPACITY_MIN, value));
     updateElements(selectedSlideId, Object.fromEntries(elements.map((el) => [el.id, { opacity: clamped }])));
+  };
+
+  // Corner radius is offered when every selected element is a square or rectangle, and applies to all of them.
+  const canRoundCorners = elements.every((el) => getElementAsset(el.assetId)?.roundCorners);
+  const cornerRadius = elements[0].cornerRadius ?? 0;
+  const setCornerRadius = (value: number) => {
+    const clamped = Math.min(CORNER_RADIUS_MAX, Math.max(0, value));
+    updateElements(selectedSlideId, Object.fromEntries(elements.map((el) => [el.id, { cornerRadius: clamped || undefined }])));
   };
 
   // Crop is offered when exactly one picture is selected.
@@ -143,7 +151,7 @@ export function SelectedElementToolbar({ showColor = true }: { showColor?: boole
         </>
       )}
       {slide && (
-        <ToolPanelButton title={elements.length > 1 ? "Arrange" : "Align"} icon={<ArrangeIcon />} panelWidthClassName="w-64">
+        <ToolPanelButton title="Arrange" icon={<ArrangeIcon />} panelWidthClassName="w-64">
           <ArrangePanel slideId={selectedSlideId} box={slide} elements={elements} />
         </ToolPanelButton>
       )}
@@ -199,6 +207,12 @@ export function SelectedElementToolbar({ showColor = true }: { showColor?: boole
         <PanelSlider label="Opacity" value={opacity} min={OPACITY_MIN} max={100} unit="%" onChange={setOpacity} />
         <ResetButton onClick={() => setOpacity(100)} />
       </ToolPanelButton>
+      {canRoundCorners && (
+        <ToolPanelButton title="Corner radius" icon={<CornerRadiusIcon />}>
+          <PanelSlider label="Corner radius" value={cornerRadius} min={0} max={CORNER_RADIUS_MAX} unit="%" onChange={setCornerRadius} />
+          <ResetButton onClick={() => setCornerRadius(0)} />
+        </ToolPanelButton>
+      )}
       {solid && (
         <ToolPanelButton title="Rotate 3D" icon={<Rotate3dIcon />}>
           <PanelSlider label="Tilt" value={rotation.x} min={-90} max={90} onChange={(x) => setRotation({ x })} />
@@ -302,6 +316,14 @@ function OpacityIcon() {
       <rect x="2" y="2" width="12" height="12" rx="2" />
       <path d="M2 8h12M8 2v12" strokeOpacity="0.35" />
       <path d="M8 2h4a2 2 0 0 1 2 2v4H8ZM2 8h6v6H4a2 2 0 0 1-2-2Z" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
+function CornerRadiusIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round">
+      <path d="M2.5 13.5V8a5.5 5.5 0 0 1 5.5-5.5h5.5" />
     </svg>
   );
 }

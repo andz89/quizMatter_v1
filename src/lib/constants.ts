@@ -1,4 +1,5 @@
 import type { Slide } from "./schema";
+import { isEmbedSlide } from "./embed";
 
 export const CANVAS_WIDTH = 1280;
 export const CANVAS_HEIGHT = 720;
@@ -38,6 +39,8 @@ export function autoFitRange(fontSize: number) {
 
 // Lowest opacity (percent) an element can be set to, so it never fully disappears.
 export const OPACITY_MIN = 5;
+// Most rounding for a square/rectangle's corners, in percent of its shorter side (50 = fully round ends).
+export const CORNER_RADIUS_MAX = 50;
 
 // The question box and each option card are fixed-size within the fixed CANVAS_WIDTH/HEIGHT layout
 // (p-10 canvas padding, gap-6 between the question, the optional shape strip and the options — or,
@@ -54,21 +57,27 @@ const CONTENT_HEIGHT = CANVAS_HEIGHT - CARD_PADDING * 2;
 
 export type SlideLayout = Slide["layout"];
 // The parts of a slide that decide how big each box is.
-export type BoxLayout = Pick<Slide, "questionHeight" | "layout" | "hasShapeBox" | "type" | "shapeStripHeight">;
+export type BoxLayout = Pick<Slide, "questionHeight" | "layout" | "hasShapeBox" | "type" | "shapeStripHeight" | "questionBox">;
 
 // Tailwind classes for the options area in each layout (the canvas, thumbnails and presentation
 // all use these, so they can't drift apart). list-side puts this area and the side box in a row.
-export const OPTIONS_GRID_CLASSES: Record<SlideLayout, string> = {
+const OPTIONS_GRID_CLASSES: Record<SlideLayout, string> = {
   grid: "grid-cols-2 grid-rows-2 gap-x-24 gap-y-5",
   list: "grid-rows-4 gap-3",
   "list-side": "grid-rows-4 gap-3",
 };
+// True-or-false slides have 2 cards: side by side in the grid, 2 rows in the lists.
+const TRUE_FALSE_GRID_CLASSES: Record<SlideLayout, string> = {
+  grid: "grid-cols-2 grid-rows-1 gap-x-24",
+  list: "grid-rows-2 gap-3",
+  "list-side": "grid-rows-2 gap-3",
+};
+
+export function getOptionsGridClasses(box: Pick<Slide, "type" | "layout">): string {
+  return (box.type === "true-false" ? TRUE_FALSE_GRID_CLASSES : OPTIONS_GRID_CLASSES)[box.layout];
+}
 
 export const QUESTION_CONTAINER_WIDTH = CANVAS_WIDTH - CARD_PADDING * 2;
-// A numbered question's text starts this much further right, to make room for its number.
-export const QUESTION_NUMBER_INDENT = 40;
-// The question box's left padding (p-4) plus that room, for a numbered question.
-export const NUMBERED_QUESTION_PADDING_LEFT = 16 + QUESTION_NUMBER_INDENT;
 
 export const DEFAULT_QUESTION_HEIGHT = 160;
 export const MIN_QUESTION_HEIGHT = 56;
@@ -76,6 +85,20 @@ export const MIN_QUESTION_HEIGHT = 56;
 // The options area is indented from the left (Tailwind pl-13 on OPTIONS_AREA_CLASSES) so each
 // option's grip + ✓/A label, which sit outside the card, fit inside the slide.
 const OPTIONS_INDENT = 52;
+// The question box starts this much further right, so its number sits beside it (lined up
+// with the option letters below), not in it.
+export const QUESTION_NUMBER_INDENT = OPTIONS_INDENT;
+// The question box's width, with its number beside it.
+export const QUESTION_WIDTH = QUESTION_CONTAINER_WIDTH - QUESTION_NUMBER_INDENT;
+// Short-answer slides: the teacher can move and resize the question box. Until then it sits in its
+// usual spot, inside the slide padding and beside the question number (which always stays there).
+export const DEFAULT_QUESTION_BOX = { x: CARD_PADDING + QUESTION_NUMBER_INDENT, y: CARD_PADDING, width: QUESTION_WIDTH };
+export const MIN_QUESTION_WIDTH = 200;
+
+/** A short-answer slide's question box spot and width, in slide px (its height is `questionHeight`). */
+export function getQuestionBox(box: Pick<Slide, "questionBox">) {
+  return box.questionBox ?? DEFAULT_QUESTION_BOX;
+}
 // Gap between the rows and the side box in the list-side layout (Tailwind gap-5).
 const SIDE_BOX_GAP = 20;
 const OPTIONS_WIDTH = QUESTION_CONTAINER_WIDTH - OPTIONS_INDENT;
@@ -103,23 +126,58 @@ export const ADD_SHAPE_BOX_ROW_HEIGHT = 32;
 
 /**
  * Slide numbers for the whole presentation, by slide id. Question slides and blank slides are counted
- * separately: Slide 1, Q1, Q2, Slide 2, Q3.
+ * separately: Slide 1, Q1, Q2, Slide 2, Q3. A custom slide gets its first number and uses up one per
+ * item, so after Q10 a 5-item custom slide is 11 (shown as 11–15) and the next question is 16.
  */
 export function getSlideNumbers(slides: Slide[]): Map<string, number> {
   const numbers = new Map<string, number>();
   let questions = 0;
   let blanks = 0;
   slides.forEach((slide) => {
-    if (slide.type === "blank") numbers.set(slide.id, ++blanks);
-    // A question slide taken out of the numbers gets none, and doesn't count.
-    else if (!slide.hideNumber) numbers.set(slide.id, ++questions);
+    if (isDiscussionSlide(slide)) {
+      numbers.set(slide.id, ++blanks);
+    } else {
+      numbers.set(slide.id, questions + 1);
+      questions += getItemCount(slide);
+    }
   });
   return numbers;
 }
 
-/** Short-answer and blank slides can have an answer (text, or a canvas of elements); choice slides mark an option instead. */
+/** How many question numbers the slide takes: its item count on custom slides, 1 on the others. */
+export function getItemCount(slide: Pick<Slide, "type" | "itemCount">): number {
+  return slide.type === "custom" ? (slide.itemCount ?? 1) : 1;
+}
+
+/** Blank, title and custom slides: a free canvas with no question or option boxes, where elements go anywhere. */
+export function isFreeCanvas(slide: Pick<Slide, "type">): boolean {
+  return slide.type === "blank" || slide.type === "title" || slide.type === "custom";
+}
+
+/** Blank and title slides hold a "Reveal" (hint, activity, example); question slides hold an "Answer". */
+export function hasReveal(slide: Pick<Slide, "type">): boolean {
+  return slide.type === "blank" || slide.type === "title";
+}
+
+/** Multiple choice and true-or-false slides: the teacher marks one of the option cards as right. */
+export function hasOptions(slide: Pick<Slide, "type">): boolean {
+  const type = slide.type ?? "choice";
+  return type === "choice" || type === "true-false";
+}
+
+/** The option cards the slide shows: true-or-false slides use only the first 2 of the 4 (the rest stay empty). */
+export function getShownOptions<O>(slide: { type?: Slide["type"]; options: readonly O[] }): readonly O[] {
+  return slide.type === "true-false" ? slide.options.slice(0, 2) : slide.options;
+}
+
+/** Blank, title and embed slides: named "Slide 1", "Slide 2"… instead of numbered like questions. */
+export function isDiscussionSlide(slide: Pick<Slide, "type">): boolean {
+  return hasReveal(slide) || isEmbedSlide(slide);
+}
+
+/** Short-answer and free-canvas slides can have an answer (text, or a canvas of elements); choice slides mark an option instead. */
 export function canHaveAnswer(slide: Pick<Slide, "type">): boolean {
-  return slide.type === "short-answer" || slide.type === "blank";
+  return slide.type === "short-answer" || isFreeCanvas(slide);
 }
 
 /** Whether the slide's chosen kind of answer has anything in it. */
@@ -134,9 +192,28 @@ export function hasShapeStrip(box: Omit<BoxLayout, "questionHeight">): boolean {
   return box.type !== "short-answer" && box.layout !== "list-side" && !!box.hasShapeBox;
 }
 
-/** Whether the slide shows the shape box at all (beside the rows, as a strip, or on a short-answer slide). */
+/** Whether the slide shows the shape box at all (beside the rows, or as a strip). Short-answer slides have none. */
 export function hasShapeBox(box: Omit<BoxLayout, "questionHeight">): boolean {
-  return box.type === "short-answer" || box.layout === "list-side" || !!box.hasShapeBox;
+  return box.type !== "short-answer" && (box.layout === "list-side" || !!box.hasShapeBox);
+}
+
+/**
+ * Short-answer slides used to keep their pictures in a shape box under the question. Returns the
+ * slide's elements with those pictures moved onto the slide itself, in the same spot: past the slide
+ * padding, the question, the gap and the box padding. (Typed by its fields, not Slide, because the
+ * slide schema uses it.)
+ */
+export function moveShortAnswerPicturesToSlide<E extends { containerId: string | null; x: number; y: number }>(slide: {
+  type?: string;
+  questionHeight: number;
+  elements: E[];
+}): E[] {
+  if (slide.type !== "short-answer") return slide.elements;
+  const dx = CARD_PADDING + SIDE_PADDING;
+  const dy = CARD_PADDING + slide.questionHeight + SECTION_GAP + SIDE_PADDING;
+  return slide.elements.map((el) =>
+    el.containerId === SIDE_CONTAINER_ID ? { ...el, containerId: null, x: el.x + dx, y: el.y + dy } : el
+  );
 }
 
 export function getShapeStripHeight(box: Pick<BoxLayout, "shapeStripHeight">): number {
@@ -172,10 +249,14 @@ function getOptionsAreaHeight(box: BoxLayout): number {
 /** The coordinate space an element's x/y/width/height are relative to. */
 export function getContainerBounds(containerId: string | null, box: BoxLayout): { width: number; height: number } {
   if (containerId === null || containerId === ANSWER_CONTAINER_ID) return { width: CANVAS_WIDTH, height: CANVAS_HEIGHT };
-  if (containerId === QUESTION_CONTAINER_ID) return { width: QUESTION_CONTAINER_WIDTH, height: box.questionHeight };
+  if (containerId === QUESTION_CONTAINER_ID) {
+    const width = box.type === "short-answer" ? getQuestionBox(box).width : QUESTION_WIDTH;
+    return { width, height: box.questionHeight };
+  }
   if (containerId === SIDE_CONTAINER_ID) {
     if (box.type === "short-answer") {
-      // Everything under the question (after the gap-6), minus the inset-4 padding.
+      // Short-answer slides have no shape box. This is the room under the question where the old box
+      // was (after the gap-6, minus its inset-4 padding) — Claude's "side" pictures are placed in it.
       const height = CONTENT_HEIGHT - box.questionHeight - SECTION_GAP;
       return { width: QUESTION_CONTAINER_WIDTH - SIDE_PADDING * 2, height: height - SIDE_PADDING * 2 };
     }
@@ -184,8 +265,14 @@ export function getContainerBounds(containerId: string | null, box: BoxLayout): 
       : { width: QUESTION_CONTAINER_WIDTH, height: getShapeStripHeight(box) }; // the strip has no inner padding
   }
   const optionsHeight = getOptionsAreaHeight(box);
+  // True-or-false slides have 1 grid row or 2 list rows instead of 2 and 4.
+  const gridRows = box.type === "true-false" ? 1 : 2;
+  const listRows = gridRows * 2;
   return {
     width: box.layout === "list" ? OPTIONS_WIDTH : box.layout === "grid" ? GRID_OPTION_WIDTH : LIST_SIDE_HALF_WIDTH,
-    height: box.layout === "grid" ? (optionsHeight - GRID_ROW_GAP) / 2 : (optionsHeight - LIST_GAP * 3) / 4,
+    height:
+      box.layout === "grid"
+        ? (optionsHeight - GRID_ROW_GAP * (gridRows - 1)) / gridRows
+        : (optionsHeight - LIST_GAP * (listRows - 1)) / listRows,
   };
 }

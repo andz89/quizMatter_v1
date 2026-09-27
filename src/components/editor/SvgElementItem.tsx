@@ -5,7 +5,19 @@ import { useEditorStore, withoutHistory } from "@/lib/store";
 import { canCrop, getElementAsset } from "@/lib/svgLibrary";
 import { ElementSvg, TRIM_PADDING } from "./ElementSvg";
 import { TextBoxContent } from "./TextBoxContent";
-import { clamp, findSnap, fitInBox, getOuterEdges, maxScaleFor, MIN_ELEMENT_SIZE, type Rect, type Snap } from "@/lib/geometry";
+import {
+  clamp,
+  findSnap,
+  fitInBox,
+  getOuterEdges,
+  maxScaleFor,
+  MIN_ELEMENT_SIZE,
+  overhangFor,
+  positionRange,
+  pullIntoBox,
+  type Rect,
+  type Snap,
+} from "@/lib/geometry";
 import { boxForShownPart, getCropFrame, toCrop, type CropFrame } from "@/lib/crop";
 import type { SvgElement } from "@/lib/schema";
 
@@ -13,13 +25,13 @@ const ROTATE_SNAP = 15;
 // How close (in screen pixels) an edge or center must get to a line before it snaps onto it.
 const SNAP_DISTANCE = 6;
 /** A text box's, line's or stretchable shape's edge handle: "x" changes the width, "y" the height; dir = which way is outward. */
-interface EdgeHandle {
+export interface EdgeHandle {
   axis: "x" | "y";
   dir: 1 | -1;
   className: string;
 }
 
-const EDGE_HANDLES: EdgeHandle[] = [
+export const EDGE_HANDLES: EdgeHandle[] = [
   { axis: "x", dir: -1, className: "top-1/2 -left-[5px] h-6 w-2.5 -translate-y-1/2 cursor-ew-resize" },
   { axis: "x", dir: 1, className: "top-1/2 -right-[5px] h-6 w-2.5 -translate-y-1/2 cursor-ew-resize" },
   { axis: "y", dir: -1, className: "left-1/2 -top-[5px] h-2.5 w-6 -translate-x-1/2 cursor-ns-resize" },
@@ -73,6 +85,12 @@ interface SvgElementItemProps {
   isSelected: boolean;
   /** The coordinate space element.x/y/width/height are relative to (canvas, or a container's own box). */
   bounds: { width: number; height: number };
+  /**
+   * Which part to draw. Elements on the slide can stick out past its edge, so the slide draws them
+   * twice: the "picture" in a layer cut off at the slide's edge, and the "selection" (border and
+   * handles) in a layer that isn't, so it shows even outside the slide. Missing = both together.
+   */
+  part?: "picture" | "selection";
 }
 
 interface DragItem {
@@ -103,7 +121,11 @@ interface DragState {
  * One placed element with its handles. Wrapped in memo (means: skip redrawing when its props haven't
  * changed), so dragging one element or typing in the question doesn't redraw every other element.
  */
-export const SvgElementItem = memo(function SvgElementItem({ slideId, element, isSelected, bounds }: SvgElementItemProps) {
+export const SvgElementItem = memo(function SvgElementItem({ slideId, element, isSelected, bounds, part }: SvgElementItemProps) {
+  const showPicture = part !== "selection";
+  const showSelection = part !== "picture";
+  // How much of it may stick out past its box (0 = none).
+  const overhang = overhangFor(element.containerId);
   const zoom = useEditorStore((s) => s.zoom);
   // Just "is exactly one element selected?", so a click elsewhere doesn't redraw every element.
   const isSingleSelection = useEditorStore((s) => s.selectedElementIds.length === 1);
@@ -237,8 +259,11 @@ export const SvgElementItem = memo(function SvgElementItem({ slideId, element, i
       rawDy += snap.y.shift;
     }
 
-    const dx = Math.min(bounds.width - maxX, Math.max(-minX, rawDx));
-    const dy = Math.min(bounds.height - maxY, Math.max(-minY, rawDy));
+    // Keep the moved selection inside its box (or, on the slide, at least 10% of it on the slide).
+    const rangeX = positionRange(maxX - minX, bounds.width, overhang);
+    const rangeY = positionRange(maxY - minY, bounds.height, overhang);
+    const dx = clamp(rawDx, rangeX.min - minX, rangeX.max - minX);
+    const dy = clamp(rawDy, rangeY.min - minY, rangeY.max - minY);
     state.dx = dx;
     state.dy = dy;
 
@@ -381,24 +406,26 @@ export const SvgElementItem = memo(function SvgElementItem({ slideId, element, i
     const moveY = (sx * w * sin + sy * h * cos) / 2;
     // Each box edge is a straight line in s (start + s * rate), so each gives a simple largest s
     // that keeps the box inside the bounds. This works for any angle.
-    const maxScale = Math.min(
-      maxScaleFor(x + w / 2 - moveX, moveX - w / 2, 0, bounds.width), // left edge
-      maxScaleFor(x + w / 2 - moveX, moveX + w / 2, 0, bounds.width), // right edge
-      maxScaleFor(y + h / 2 - moveY, moveY - h / 2, 0, bounds.height), // top edge
-      maxScaleFor(y + h / 2 - moveY, moveY + h / 2, 0, bounds.height), // bottom edge
-    );
+    // On the slide it may grow past the edge instead (it's pulled back below if too little stays on).
+    const maxScale = overhang
+      ? Infinity
+      : Math.min(
+          maxScaleFor(x + w / 2 - moveX, moveX - w / 2, 0, bounds.width), // left edge
+          maxScaleFor(x + w / 2 - moveX, moveX + w / 2, 0, bounds.width), // right edge
+          maxScaleFor(y + h / 2 - moveY, moveY - h / 2, 0, bounds.height), // top edge
+          maxScaleFor(y + h / 2 - moveY, moveY + h / 2, 0, bounds.height), // bottom edge
+        );
     const minScale = Math.max(MIN_ELEMENT_SIZE / w, MIN_ELEMENT_SIZE / h);
     const scale = Math.min(maxScale, Math.max(minScale, newDistance / originalDistance));
     const width = w * scale;
     const height = h * scale;
     const centerX = x + w / 2 + (scale - 1) * moveX;
     const centerY = y + h / 2 + (scale - 1) * moveY;
-    updateElement(slideId, element.id, {
-      width,
-      height,
-      x: centerX - width / 2,
-      y: centerY - height / 2,
-    });
+    updateElement(
+      slideId,
+      element.id,
+      pullIntoBox({ width, height, x: centerX - width / 2, y: centerY - height / 2 }, bounds, overhang)
+    );
   };
 
   const stopResize = () => {
@@ -439,22 +466,28 @@ export const SvgElementItem = memo(function SvgElementItem({ slideId, element, i
     const centerY = y + h / 2;
     const halfX = (w * Math.abs(cos) + h * Math.abs(sin)) / 2;
     const halfY = (w * Math.abs(sin) + h * Math.abs(cos)) / 2;
-    const maxGrow = Math.min(
-      maxScaleFor(centerX - halfX, (ux - Math.abs(ux)) / 2, 0, bounds.width), // left edge
-      maxScaleFor(centerX + halfX, (ux + Math.abs(ux)) / 2, 0, bounds.width), // right edge
-      maxScaleFor(centerY - halfY, (uy - Math.abs(uy)) / 2, 0, bounds.height), // top edge
-      maxScaleFor(centerY + halfY, (uy + Math.abs(uy)) / 2, 0, bounds.height), // bottom edge
-    );
+    // On the slide it may grow past the edge instead (it's pulled back below if too little stays on).
+    const maxGrow = overhang
+      ? Infinity
+      : Math.min(
+          maxScaleFor(centerX - halfX, (ux - Math.abs(ux)) / 2, 0, bounds.width), // left edge
+          maxScaleFor(centerX + halfX, (ux + Math.abs(ux)) / 2, 0, bounds.width), // right edge
+          maxScaleFor(centerY - halfY, (uy - Math.abs(uy)) / 2, 0, bounds.height), // top edge
+          maxScaleFor(centerY + halfY, (uy + Math.abs(uy)) / 2, 0, bounds.height), // bottom edge
+        );
     const size = handle.axis === "x" ? w : h;
     const g = Math.min(maxGrow, Math.max(MIN_ELEMENT_SIZE - size, grow));
     const width = handle.axis === "x" ? w + g : w;
     const height = handle.axis === "y" ? h + g : h;
-    updateElement(slideId, element.id, {
-      width,
-      height,
-      x: centerX + (g / 2) * ux - width / 2,
-      y: centerY + (g / 2) * uy - height / 2,
-    });
+    updateElement(
+      slideId,
+      element.id,
+      pullIntoBox(
+        { width, height, x: centerX + (g / 2) * ux - width / 2, y: centerY + (g / 2) * uy - height / 2 },
+        bounds,
+        overhang
+      )
+    );
   };
 
   const startCropDrag = (e: React.PointerEvent<HTMLDivElement>, handle: CropHandle | null) => {
@@ -502,7 +535,11 @@ export const SvgElementItem = memo(function SvgElementItem({ slideId, element, i
     const shown = { x: left, y: top, width: right - left, height: bottom - top };
     const box = boxForShownPart(start, frame, shown);
     // Showing more must not push the box out of its bounds (any further than it already was).
-    if (overflowAmount(box, angle, bounds) > overflowAmount(start, angle, bounds) + 0.5) return;
+    // On the slide it may stick out, as long as enough of it stays on the slide.
+    if (overhang) {
+      const pulled = pullIntoBox(box, bounds, overhang);
+      if (pulled.x !== box.x || pulled.y !== box.y) return;
+    } else if (overflowAmount(box, angle, bounds) > overflowAmount(start, angle, bounds) + 0.5) return;
     updateElement(slideId, element.id, { ...box, crop: toCrop(shown, frame, start) });
   };
 
@@ -563,8 +600,10 @@ export const SvgElementItem = memo(function SvgElementItem({ slideId, element, i
     <div
       ref={boxRef}
       data-svg-element="true"
-      data-element-id={element.id}
-      className="pointer-events-auto absolute"
+      // Only on the picture, so the element is found once (e.g. by rectangle selection).
+      data-element-id={showPicture ? element.id : undefined}
+      // The selection part lets clicks through to the picture under it; only its handles take them.
+      className={`absolute ${showPicture ? "pointer-events-auto" : "pointer-events-none"}`}
       style={{
         left: element.x,
         top: element.y,
@@ -572,12 +611,12 @@ export const SvgElementItem = memo(function SvgElementItem({ slideId, element, i
         height: element.height,
         transform: `rotate(${angle}deg)`,
         visibility: isGhosting ? "hidden" : "visible",
-        outline: isOnlySelected ? "1.5px dashed var(--accent-gray)" : "1.5px dashed transparent",
+        outline: isOnlySelected && showSelection ? "1.5px dashed var(--accent-gray)" : "1.5px dashed transparent",
         outlineOffset: 3,
       }}
     >
       {/* While cropping, the whole picture shows faded, so the hidden part can be seen and dragged back in. */}
-      {isCropping && (
+      {showPicture && isCropping && (
         <div
           className="pointer-events-none absolute"
           style={{
@@ -592,48 +631,50 @@ export const SvgElementItem = memo(function SvgElementItem({ slideId, element, i
           <ElementSvg assetId={element.assetId} color={element.color} settings={{ ...element, crop: undefined }} />
         </div>
       )}
-      <div
-        onPointerDown={handleBodyPointerDown}
-        onPointerMove={handleBodyPointerMove}
-        onPointerUp={stopDrag}
-        onPointerLeave={stopDrag}
-        onClick={(e) => e.stopPropagation()}
-        // Double-click picks just this one element out of its group, to edit it on its own.
-        // On a text box it also starts typing.
-        onDoubleClick={(e) => {
-          if (element.groupId && !isOnlySelected) selectElements([element.id]);
-          // On a picture that's already selected on its own, it starts cropping.
-          else if (canCrop(element)) setCroppingElementId(element.id);
-          // Already typing: leave it be, so a double-click selects a word instead of moving the cursor.
-          if (asset?.isTextBox) setEditStart((current) => current ?? { x: e.clientX, y: e.clientY });
-        }}
-        // relative: stays above the faded crop picture drawn before it.
-        className={`relative h-full w-full ${editStart ? "cursor-text" : "cursor-move"}`}
-        style={{ opacity: (element.opacity ?? 100) / 100 }}
-      >
-        {asset?.isTextBox ? (
-          <TextBoxContent
-            html={element.text?.html ?? ""}
-            fontSize={element.text?.fontSize}
-            target={{ kind: "textBox", slideId, elementId: element.id }}
-            color={element.color}
-            editStart={editStart}
-            isSelected={isOnlySelected}
-            onChange={(html) => updateElement(slideId, element.id, { text: { ...element.text, html } })}
-            onStopEditing={() => setEditStart(null)}
-          />
-        ) : (
-          // A cropped box is the shown part, not the drawing's shape, so it isn't fitted to the drawing.
-          <ElementSvg
-            assetId={element.assetId}
-            color={element.color}
-            settings={element}
-            onMeasure={element.crop || isCropping ? undefined : fitBoxToDrawing}
-          />
-        )}
-      </div>
+      {showPicture && (
+        <div
+          onPointerDown={handleBodyPointerDown}
+          onPointerMove={handleBodyPointerMove}
+          onPointerUp={stopDrag}
+          onPointerLeave={stopDrag}
+          onClick={(e) => e.stopPropagation()}
+          // Double-click picks just this one element out of its group, to edit it on its own.
+          // On a text box it also starts typing.
+          onDoubleClick={(e) => {
+            if (element.groupId && !isOnlySelected) selectElements([element.id]);
+            // On a picture that's already selected on its own, it starts cropping.
+            else if (canCrop(element)) setCroppingElementId(element.id);
+            // Already typing: leave it be, so a double-click selects a word instead of moving the cursor.
+            if (asset?.isTextBox) setEditStart((current) => current ?? { x: e.clientX, y: e.clientY });
+          }}
+          // relative: stays above the faded crop picture drawn before it.
+          className={`relative h-full w-full ${editStart ? "cursor-text" : "cursor-move"}`}
+          style={{ opacity: (element.opacity ?? 100) / 100 }}
+        >
+          {asset?.isTextBox ? (
+            <TextBoxContent
+              html={element.text?.html ?? ""}
+              fontSize={element.text?.fontSize}
+              target={{ kind: "textBox", slideId, elementId: element.id }}
+              color={element.color}
+              editStart={editStart}
+              isSelected={isOnlySelected}
+              onChange={(html) => updateElement(slideId, element.id, { text: { ...element.text, html } })}
+              onStopEditing={() => setEditStart(null)}
+            />
+          ) : (
+            // A cropped box is the shown part, not the drawing's shape, so it isn't fitted to the drawing.
+            <ElementSvg
+              assetId={element.assetId}
+              color={element.color}
+              settings={element}
+              onMeasure={element.crop || isCropping ? undefined : fitBoxToDrawing}
+            />
+          )}
+        </div>
+      )}
 
-      {isOnlySelected && canRotate && !isCropping && (
+      {showSelection && isOnlySelected && canRotate && !isCropping && (
         <div
           onPointerDown={handleRotatePointerDown}
           onPointerMove={handleRotatePointerMove}
@@ -641,13 +682,14 @@ export const SvgElementItem = memo(function SvgElementItem({ slideId, element, i
           onPointerLeave={stopRotate}
           onClick={(e) => e.stopPropagation()}
           title="Rotate (hold Shift to snap)"
-          className="absolute -top-12 left-1/2 flex h-8 w-8 -translate-x-1/2 cursor-grab items-center justify-center rounded-full border border-border-default bg-bg-surface text-text-primary active:cursor-grabbing"
+          className="pointer-events-auto absolute -top-12 left-1/2 flex h-8 w-8 -translate-x-1/2 cursor-grab items-center justify-center rounded-full border border-border-default bg-bg-surface text-text-primary active:cursor-grabbing"
         >
           <RotateIcon />
         </div>
       )}
 
-      {isOnlySelected &&
+      {showSelection &&
+        isOnlySelected &&
         !isCropping &&
         CORNERS.map((corner) => (
           <div
@@ -658,16 +700,17 @@ export const SvgElementItem = memo(function SvgElementItem({ slideId, element, i
             onPointerLeave={stopResize}
             onClick={(e) => e.stopPropagation()}
             title="Resize"
-            className={`absolute h-4 w-4 rounded-full border-2 border-white shadow-sm ${corner.className}`}
+            className={`pointer-events-auto absolute h-4 w-4 rounded-full border-2 border-white shadow-sm ${corner.className}`}
             style={{ background: "var(--accent-navy)" }}
           />
         ))}
 
-      {isOnlySelected &&
+      {showSelection &&
+        isOnlySelected &&
         !isCropping &&
         (asset?.isTextBox || asset?.isLine || asset?.stretchX) &&
-        // Lines, squares and rectangles only get the left/right handles (lines grow longer, never thicker).
-        EDGE_HANDLES.filter((handle) => asset.isTextBox || handle.axis === "x").map((handle) => (
+        // Lines only get the left/right handles (they grow longer, never thicker).
+        EDGE_HANDLES.filter((handle) => !asset.isLine || handle.axis === "x").map((handle) => (
           <div
             key={handle.className}
             onPointerDown={(e) => handleEdgePointerDown(e, handle)}
@@ -676,12 +719,13 @@ export const SvgElementItem = memo(function SvgElementItem({ slideId, element, i
             onPointerLeave={stopResize}
             onClick={(e) => e.stopPropagation()}
             title={handle.axis === "x" ? "Change width" : "Change height"}
-            className={`absolute rounded-full border-2 border-white shadow-sm ${handle.className}`}
+            className={`pointer-events-auto absolute rounded-full border-2 border-white shadow-sm ${handle.className}`}
             style={{ background: "var(--accent-navy)" }}
           />
         ))}
 
-      {isCropping &&
+      {showSelection &&
+        isCropping &&
         CROP_HANDLES.map((handle) => (
           <div
             key={handle.className}
@@ -691,7 +735,7 @@ export const SvgElementItem = memo(function SvgElementItem({ slideId, element, i
             onPointerLeave={stopCropDrag}
             onClick={(e) => e.stopPropagation()}
             title="Crop"
-            className={`absolute rounded-full border-2 bg-white shadow-sm ${handle.className}`}
+            className={`pointer-events-auto absolute rounded-full border-2 bg-white shadow-sm ${handle.className}`}
             style={{ borderColor: "var(--accent-navy)" }}
           />
         ))}
@@ -703,6 +747,7 @@ export const SvgElementItem = memo(function SvgElementItem({ slideId, element, i
   prev.slideId === next.slideId &&
   prev.element === next.element &&
   prev.isSelected === next.isSelected &&
+  prev.part === next.part &&
   prev.bounds.width === next.bounds.width &&
   prev.bounds.height === next.bounds.height);
 

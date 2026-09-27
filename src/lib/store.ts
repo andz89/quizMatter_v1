@@ -4,11 +4,17 @@ import { createBlankPresentation, createBlankSlide, duplicateSlide as cloneSlide
 import { createId } from "./id";
 import { DEFAULT_ELEMENT_COLOR, DEFAULT_ELEMENT_SIZE, getElementAsset, type ElementCategory, type RenderSettings } from "./svgLibrary";
 import {
+  CANVAS_HEIGHT,
+  CANVAS_WIDTH,
   getContainerBounds,
   getMaxQuestionHeight,
+  getQuestionBox,
+  MIN_QUESTION_WIDTH,
   getMaxShapeStripHeight,
   getShapeStripHeight,
   hasShapeBox,
+  hasOptions,
+  getShownOptions,
   type BoxLayout,
   MIN_QUESTION_HEIGHT,
   MIN_SHAPE_STRIP_HEIGHT,
@@ -16,11 +22,14 @@ import {
   SIDE_CONTAINER_ID,
   ANSWER_CONTAINER_ID,
   canHaveAnswer,
+  isFreeCanvas,
 } from "./constants";
-import { fitInBox, getOuterEdges } from "./geometry";
+import { clamp, fitInBox, getOuterEdges } from "./geometry";
 import { withBackground, type BackgroundPatch } from "./slideBackground";
 import { savePresentationToDb } from "./presentations";
+import { isEmbedSlide } from "./embed";
 import type { PresentationDetails, Presentation, Slide, SlideType, SvgElement } from "./schema";
+import { MAX_ITEM_COUNT } from "./schema";
 
 type ElementPatch = Partial<Omit<SvgElement, "id" | "assetId">>;
 
@@ -78,6 +87,50 @@ export function withGroupMembers(elements: SvgElement[], ids: string[]): string[
   const groupIds = new Set(elements.filter((el) => ids.includes(el.id) && el.groupId).map((el) => el.groupId));
   const members = elements.filter((el) => el.groupId && groupIds.has(el.groupId)).map((el) => el.id);
   return [...new Set([...ids, ...members])];
+}
+
+export type LayerMove = "forward" | "backward" | "front" | "back";
+
+/**
+ * Changes which elements draw on top. Later in the list = drawn on top, and only elements in the same
+ * box can overlap, so each box is reordered on its own. The selection (plus its group members) moves as
+ * one block. "forward"/"backward" step past the next element (or whole group) in that box.
+ * Returns the same array when nothing would change, so callers can use it to disable a button.
+ */
+export function moveInLayers(elements: SvgElement[], ids: string[], move: LayerMove): SvgElement[] {
+  const selected = new Set(withGroupMembers(elements, ids));
+  const containerIds = new Set(elements.filter((el) => selected.has(el.id)).map((el) => el.containerId));
+  const result = [...elements];
+
+  containerIds.forEach((containerId) => {
+    const slots = elements.flatMap((el, i) => (el.containerId === containerId ? [i] : []));
+    const list = slots.map((i) => elements[i]);
+    const block = list.filter((el) => selected.has(el.id));
+    const others = list.filter((el) => !selected.has(el.id));
+
+    let insertAt: number;
+    if (move === "front") insertAt = others.length;
+    else if (move === "back") insertAt = 0;
+    else {
+      const blockIndexes = list.flatMap((el, i) => (selected.has(el.id) ? [i] : []));
+      const target =
+        move === "forward"
+          ? list.find((el, i) => i > Math.max(...blockIndexes) && !selected.has(el.id))
+          : list.findLast((el, i) => i < Math.min(...blockIndexes) && !selected.has(el.id));
+      if (!target) return;
+      // Step past the target's whole group, so the selection doesn't land between its members.
+      const targetGroup = others.filter((el) => el === target || (target.groupId && el.groupId === target.groupId));
+      insertAt =
+        move === "forward"
+          ? others.indexOf(targetGroup[targetGroup.length - 1]) + 1
+          : others.indexOf(targetGroup[0]);
+    }
+
+    const reordered = [...others.slice(0, insertAt), ...block, ...others.slice(insertAt)];
+    slots.forEach((slot, i) => (result[slot] = reordered[i]));
+  });
+
+  return result.every((el, i) => el === elements[i]) ? elements : result;
 }
 
 /** A group needs 2+ members — an element left alone in its group becomes a plain element again. */
@@ -207,6 +260,8 @@ interface EditorState {
 
   updateQuestion: (slideId: string, text: string, html: string) => void;
   setQuestionHeight: (slideId: string, height: number) => void;
+  // Short-answer slides only: moves and/or resizes the question box (slide px), kept inside the slide.
+  setQuestionBox: (slideId: string, rect: { x: number; y: number; width: number; height: number }) => void;
   // Grid/list shape strip only: drag its bottom edge to make it taller or shorter.
   setShapeStripHeight: (slideId: string, height: number) => void;
   // Sets the shape box's fill or border color; undefined = none.
@@ -221,8 +276,11 @@ interface EditorState {
   // Picks which answer a short-answer or blank slide shows: the typed text or the answer canvas.
   setAnswerType: (slideId: string, answerType: NonNullable<Slide["answerType"]>) => void;
   renameSlide: (slideId: string, name: string) => void;
+  // Custom slides: how many question items they hold (1–MAX_ITEM_COUNT), so they take that many numbers.
+  setItemCount: (slideId: string, itemCount: number) => void;
+  // Embed slides: the link they show (already checked with embedLinkSchema).
+  setEmbedUrl: (slideId: string, embedUrl: string) => void;
   // Puts a question slide in or takes it out of the question numbers (1, 2, 3…).
-  setSlideNumbered: (slideId: string, numbered: boolean) => void;
   reorderOptions: (slideId: string, fromOptionId: string, toOptionId: string) => void;
   shuffleOptions: (slideId: string) => void;
   // Empties the question, every option's text and all slide elements; keeps the answer (text and canvas) and layout.
@@ -289,13 +347,25 @@ interface EditorState {
 
   // `position`, when given, is the exact drop point (in the container's own coordinate space) to
   // center the new element on, instead of the container's center.
-  addElement: (slideId: string, assetId: string, containerId?: string | null, position?: { x: number; y: number }) => void;
+  // With `size`, `position` is the new element's top-left corner (a drawn box); without it, its center.
+  addElement: (
+    slideId: string,
+    assetId: string,
+    containerId?: string | null,
+    position?: { x: number; y: number },
+    size?: { width: number; height: number }
+  ) => void;
+  // Adds an element by clicking it in the Elements panel: into the selected box on the current
+  // slide, else a multiple-choice slide's shape box (added first if missing), else the slide itself.
+  insertElement: (assetId: string) => void;
   // Most-recently-inserted asset ids first, for the Elements panel's "Recently used" row.
   recentElementAssetIds: string[];
   updateElement: (slideId: string, elementId: string, patch: ElementPatch) => void;
   // Changes several elements in one store update (one redraw, one presentation copy), keyed by element id.
   updateElements: (slideId: string, patches: Record<string, ElementPatch>) => void;
   deleteElements: (slideId: string, elementIds: string[]) => void;
+  // Brings elements forward/to front or sends them backward/to back (see moveInLayers).
+  moveElementsInLayers: (slideId: string, elementIds: string[], move: LayerMove) => void;
   // Returns the copies' ids. Copies of a whole group form a new group of their own.
   duplicateElements: (slideId: string, elementIds: string[]) => string[];
   // Removes every element bound to one box (the question or an option).
@@ -620,6 +690,35 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     });
   },
 
+  setQuestionBox: (slideId, rect) => {
+    const { presentation } = get();
+    const slide = presentation.slides.find((s) => s.id === slideId);
+    if (!slide) return;
+
+    const width = clamp(rect.width, MIN_QUESTION_WIDTH, CANVAS_WIDTH);
+    const height = clamp(rect.height, MIN_QUESTION_HEIGHT, CANVAS_HEIGHT);
+    const questionBox = { x: clamp(rect.x, 0, CANVAS_WIDTH - width), y: clamp(rect.y, 0, CANVAS_HEIGHT - height), width };
+    const current = getQuestionBox(slide);
+    if (
+      questionBox.x === current.x &&
+      questionBox.y === current.y &&
+      questionBox.width === current.width &&
+      height === slide.questionHeight
+    ) {
+      return;
+    }
+
+    const resized = { ...slide, questionBox, questionHeight: height };
+    set({
+      presentation: updateSlide(presentation, slideId, (s) => ({
+        ...s,
+        questionBox,
+        questionHeight: height,
+        elements: scaleElementsToBoxes(s.elements, s, resized),
+      })),
+    });
+  },
+
   setShapeBoxColors: (slideId, patch) => {
     set((state) => ({ presentation: updateSlide(state.presentation, slideId, (s) => ({ ...s, ...patch })) }));
   },
@@ -697,9 +796,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set({ presentation: updateSlide(presentation, slideId, (s) => ({ ...s, name: name.trim() || undefined })) });
   },
 
-  setSlideNumbered: (slideId, numbered) => {
-    const { presentation } = get();
-    set({ presentation: updateSlide(presentation, slideId, (s) => ({ ...s, hideNumber: numbered ? undefined : true })) });
+  setItemCount: (slideId, itemCount) => {
+    // Kept a whole number in range, so the slide always passes the schema when it's saved.
+    const count = Math.min(MAX_ITEM_COUNT, Math.max(1, Math.round(itemCount)));
+    set((state) => ({ presentation: updateSlide(state.presentation, slideId, (s) => ({ ...s, itemCount: count })) }));
+  },
+
+  setEmbedUrl: (slideId, embedUrl) => {
+    set((state) => ({ presentation: updateSlide(state.presentation, slideId, (s) => ({ ...s, embedUrl })) }));
   },
 
   reorderOptions: (slideId, fromOptionId, toOptionId) => {
@@ -745,7 +849,12 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         ...s,
         question: "",
         questionHtml: "",
-        options: s.options.map((o) => ({ ...o, text: "", html: "" })) as typeof s.options,
+        // True-or-false cards go back to "True" and "False" instead of empty.
+        options: s.options.map((o, i) => ({
+          ...o,
+          text: s.type === "true-false" && i < 2 ? ["True", "False"][i] : "",
+          html: "",
+        })) as typeof s.options,
         elements: s.elements.filter((el) => el.containerId === ANSWER_CONTAINER_ID),
       })),
       selectedElementIds: selectedElementIds.filter(
@@ -920,10 +1029,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set({ presentation });
   },
 
-  addElement: (slideId, assetId, containerId = null, position) => {
+  addElement: (slideId, assetId, containerId = null, position, size) => {
     const { presentation } = get();
     const slide = presentation.slides.find((s) => s.id === slideId);
-    if (!slide) return;
+    // Embed slides hold only their video, deck or picture: anything on top would cover the player's buttons.
+    if (!slide || isEmbedSlide(slide)) return;
     const bounds = getContainerBounds(containerId, slide);
     const asset = getElementAsset(assetId);
     // 3D solids are drawn smaller inside their square (so they still fit when rotated), so they
@@ -935,7 +1045,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const wanted = asset?.defaultSize ?? { width: square, height: square };
     // Centered on the drop point (or the box's center), shrunk evenly if it doesn't fit.
     const center = position ?? { x: bounds.width / 2, y: bounds.height / 2 };
-    const rect = { ...wanted, x: center.x - wanted.width / 2, y: center.y - wanted.height / 2 };
+    const rect =
+      size && position
+        ? { ...size, ...position }
+        : { ...wanted, x: center.x - wanted.width / 2, y: center.y - wanted.height / 2 };
     const element: SvgElement = {
       id: createId(),
       assetId,
@@ -956,6 +1069,19 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       selectedElementIds: [element.id],
       recentElementAssetIds: [assetId, ...recentElementAssetIds.filter((id) => id !== assetId)].slice(0, 8),
     });
+  },
+
+  insertElement: (assetId) => {
+    const { presentation, selectedSlideId, selectedContainerId, answerSlideId } = get();
+    const slide = presentation.slides.find((s) => s.id === selectedSlideId);
+    if (!slide) return;
+    // The answer canvas stays selected after its window closes; only add to it while it's open.
+    const isHiddenAnswer = selectedContainerId === ANSWER_CONTAINER_ID && answerSlideId !== slide.id;
+    if (selectedContainerId && !isHiddenAnswer) return get().addElement(slide.id, assetId, selectedContainerId);
+    if (!hasOptions(slide)) return get().addElement(slide.id, assetId, null);
+    // addShapeBox does nothing if the slide already has one.
+    get().addShapeBox(slide.id);
+    get().addElement(slide.id, assetId, SIDE_CONTAINER_ID);
   },
 
   updateElement: (slideId, elementId, patch) => get().updateElements(slideId, { [elementId]: patch }),
@@ -982,6 +1108,15 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       })),
       selectedElementIds: selectedElementIds.filter((id) => !elementIds.includes(id)),
     });
+  },
+
+  moveElementsInLayers: (slideId, elementIds, move) => {
+    const { presentation } = get();
+    const slide = presentation.slides.find((s) => s.id === slideId);
+    if (!slide) return;
+    const elements = moveInLayers(slide.elements, elementIds, move);
+    if (elements === slide.elements) return;
+    set({ presentation: updateSlide(presentation, slideId, (s) => ({ ...s, elements })) });
   },
 
   duplicateElements: (slideId, elementIds) => {
@@ -1073,7 +1208,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const { presentation, clipboard } = get();
     if (!clipboard) return;
     const slide = presentation.slides.find((s) => s.id === slideId);
-    if (!slide) return;
+    if (!slide || isEmbedSlide(slide)) return;
 
     // An element copied from an option on another slide goes into the option in the same spot
     // here — that other slide's option id doesn't exist on this slide, so the element would vanish.
@@ -1081,15 +1216,17 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       // A slide without an answer canvas (multiple choice) takes answer elements on the open slide.
       if (id === ANSWER_CONTAINER_ID) return canHaveAnswer(slide) ? id : null;
       // Blank slides have no boxes at all, so everything lands on the open slide.
-      if (slide.type === "blank") return null;
+      if (isFreeCanvas(slide)) return null;
       if (id === null || id === QUESTION_CONTAINER_ID) return id;
-      // Short-answer slides hide their options, so an element from an option goes into the shape box.
-      if (slide.type === "short-answer") return SIDE_CONTAINER_ID;
-      if (slide.options.some((o) => o.id === id)) return id;
+      // Short-answer slides hide their options and have no shape box, so the element lands on the slide.
+      if (slide.type === "short-answer") return null;
+      // True-or-false slides hide their last 2 option slots, so only the 2 shown cards take elements.
+      const shownOptions = getShownOptions(slide);
+      if (shownOptions.some((o) => o.id === id)) return id;
       // No shape box on this slide — the element lands on the open canvas instead.
       if (id === SIDE_CONTAINER_ID) return hasShapeBox(slide) ? id : null;
       const sourceIndex = presentation.slides.map((s) => s.options.findIndex((o) => o.id === id)).find((i) => i !== -1);
-      return sourceIndex === undefined ? null : slide.options[sourceIndex].id;
+      return shownOptions[sourceIndex ?? -1]?.id ?? null;
     };
 
     const OFFSET = 20;

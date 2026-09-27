@@ -2,7 +2,7 @@
 
 import { useRef } from "react";
 import { useEditorStore, selectedIdsOn } from "@/lib/store";
-import { getOuterEdges, MIN_ELEMENT_SIZE } from "@/lib/geometry";
+import { getOuterEdges, MIN_ELEMENT_SIZE, overhangFor, pullIntoBox } from "@/lib/geometry";
 import type { SvgElement } from "@/lib/schema";
 import { CORNERS, type Corner } from "./SvgElementItem";
 
@@ -44,6 +44,8 @@ export function GroupSelectionOverlay({ slideId, elements, bounds }: GroupSelect
   if (selected.length < 2 || isGhosting) return null;
 
   const { minX, minY, maxX, maxY } = getOuterEdges(selected);
+  // How much of the group may stick out past its box (0 = none; on the slide, 90%).
+  const overhang = overhangFor(selected[0].containerId);
   // A saved group gets a solid outline; a temporary multi-select keeps the dashed one.
   const isSavedGroup = !!selected[0].groupId && selected.every((el) => el.groupId === selected[0].groupId);
 
@@ -83,8 +85,20 @@ export function GroupSelectionOverlay({ slideId, elements, bounds }: GroupSelect
 
     const smallestDimension = Math.min(...items.flatMap((i) => [i.width, i.height]));
     const minScale = MIN_ELEMENT_SIZE / smallestDimension;
-    const maxScale = Math.min(roomX / groupWidth, roomY / groupHeight);
+    // On the slide the group may grow past the edge (it's pulled back below if too little stays on).
+    const maxScale = overhang ? Infinity : Math.min(roomX / groupWidth, roomY / groupHeight);
     const scale = Math.min(maxScale, Math.max(minScale, newDistance / originalDistance));
+
+    // The whole group moves back together, so its layout stays the same.
+    const scaledGroup = {
+      x: anchorX + (groupX - anchorX) * scale,
+      y: anchorY + (groupY - anchorY) * scale,
+      width: groupWidth * scale,
+      height: groupHeight * scale,
+    };
+    const pulled = pullIntoBox(scaledGroup, bounds, overhang);
+    const shiftX = pulled.x - scaledGroup.x;
+    const shiftY = pulled.y - scaledGroup.y;
 
     updateElements(
       slideId,
@@ -92,8 +106,8 @@ export function GroupSelectionOverlay({ slideId, elements, bounds }: GroupSelect
         items.map((item) => [
           item.id,
           {
-            x: anchorX + (item.x - anchorX) * scale,
-            y: anchorY + (item.y - anchorY) * scale,
+            x: anchorX + (item.x - anchorX) * scale + shiftX,
+            y: anchorY + (item.y - anchorY) * scale + shiftY,
             width: item.width * scale,
             height: item.height * scale,
           },

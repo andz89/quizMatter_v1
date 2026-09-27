@@ -1,11 +1,18 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+
+// Space kept between the panel and its button, and between the panel and the bottom of its area.
+const PANEL_EDGE_GAP = 12;
+
+// Where a panel that doesn't fit below its button goes: this far below the top of its area.
+const PANEL_TOP_GAP = 25;
 
 // Closes whichever tool panel is open right now, so only one is open at a time.
 let closeOpenPanel: (() => void) | null = null;
 
-/** A toolbar icon button that opens a small settings panel below it (e.g. Rotate, Set time, Edit numbers). */
+/** A toolbar icon button that opens a small settings panel below it (e.g. Rotate, Set time, Edit numbers).
+ * If the panel doesn't fit below, it moves up to 25px from the top of its area. */
 export function ToolPanelButton({
   title,
   icon,
@@ -28,7 +35,37 @@ export function ToolPanelButton({
   children: ReactNode;
 }) {
   const [isOpen, setIsOpen] = useState(false);
+  // The panel's top, in px from the button's top; null until measured (then it sits just below the button).
+  const [panelTop, setPanelTop] = useState<number | null>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  // Measured before paint, so the panel never flashes in the wrong place. The panel opens below the
+  // button when it fits. If not, it moves up to sit 25px below the top of the box that cuts it off
+  // (e.g. the scrolling slide area).
+  useLayoutEffect(() => {
+    if (!isOpen) {
+      setPanelTop(null);
+      return;
+    }
+    const panel = panelRef.current;
+    const button = buttonRef.current;
+    if (!panel || !button) return;
+    let clipTop = 0;
+    let clipBottom = window.innerHeight;
+    for (let el = panel.parentElement; el; el = el.parentElement) {
+      if (getComputedStyle(el).overflowY !== "visible") {
+        const box = el.getBoundingClientRect();
+        clipTop = Math.max(clipTop, box.top);
+        clipBottom = Math.min(clipBottom, box.bottom);
+        break;
+      }
+    }
+    const b = button.getBoundingClientRect();
+    const below = b.bottom + PANEL_EDGE_GAP;
+    const fitsBelow = below + panel.offsetHeight + PANEL_EDGE_GAP <= clipBottom;
+    setPanelTop((fitsBelow ? below : clipTop + PANEL_TOP_GAP) - b.top);
+  }, [isOpen]);
 
   // Opening this panel closes the one that was open before it.
   useEffect(() => {
@@ -64,7 +101,9 @@ export function ToolPanelButton({
       </button>
       {isOpen && (
         <div
-          className={`absolute left-1/2 top-full z-30 mt-3 flex -translate-x-1/2 flex-col gap-3 rounded-card border border-border-default bg-bg-surface px-4 py-3 ${panelWidthClassName ?? (wide ? "w-72" : "w-60")}`}
+          ref={panelRef}
+          style={{ top: panelTop ?? `calc(100% + ${PANEL_EDGE_GAP}px)` }}
+          className={`absolute left-1/2 z-30 flex -translate-x-1/2 flex-col gap-3 rounded-card border border-border-default bg-bg-surface px-4 py-3 ${panelWidthClassName ?? (wide ? "w-72" : "w-60")}`}
         >
           {children}
         </div>

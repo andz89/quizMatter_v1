@@ -4,31 +4,52 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { restrictToVerticalAxis } from "@dnd-kit/modifiers";
+import { useShallow } from "zustand/react/shallow";
 import { useEditorStore, MIN_ZOOM, type SlideInsertTarget } from "@/lib/store";
 import { CANVAS_WIDTH, CANVAS_HEIGHT, SLIDE_DRAG_MIME, getSlideNumbers, canHaveAnswer } from "@/lib/constants";
 import { slideSchema } from "@/lib/schema";
 import { SlideWorkspaceItem } from "./SlideWorkspaceItem";
 import { ZoomControls } from "./ZoomControls";
 import { AnswerArea } from "./AnswerArea";
+import { useMarqueeSelection } from "@/lib/useMarqueeSelection";
 
 const WORKSPACE_PADDING = 96;
 // Space between one slide and the next slide's toolbar (the toolbar is part of each slide item).
 const SLIDE_GAP = 40;
-// Room the "+ Multiple choice / + Short answer / + Blank slide" row needs with one-line labels.
-const ADD_ROW_WIDTH = 460;
+// Room the "+ Multiple choice / + Short answer / … / + Title slide" row needs with one-line labels.
+const ADD_ROW_WIDTH = 580;
+// Slides within this distance of the visible area (1.5 screen heights above and below) get the full
+// editable canvas; the rest show the light read-only view, so 100 slides don't all do editor work.
+const NEAR_MARGIN = "150% 0px 150% 0px";
+// Stays the same array, so the drag-to-reorder list doesn't redraw every slide.
+const VERTICAL_ONLY = [restrictToVerticalAxis];
 
 export function Workspace() {
-  const presentation = useEditorStore((s) => s.presentation);
+  // Only which slides exist (and their numbers), not their content: dragging an element changes the
+  // presentation on every pointer-move, and watching all of it would redraw this whole list each time.
+  // useShallow keeps the same array while the ids/numbers stay the same.
+  const slideIdList = useEditorStore(useShallow((s) => s.presentation.slides.map((slide) => slide.id)));
+  const slideNumberList = useEditorStore(
+    useShallow((s) => {
+      const numbers = getSlideNumbers(s.presentation.slides);
+      return s.presentation.slides.map((slide) => numbers.get(slide.id));
+    })
+  );
+  // Gone if the slide was deleted (or undone away) while its answer was open.
+  const answerSlide = useEditorStore((s) =>
+    s.presentation.slides.find((slide) => slide.id === s.answerSlideId && canHaveAnswer(slide))
+  );
   const zoom = useEditorStore((s) => s.zoom);
   const setZoom = useEditorStore((s) => s.setZoom);
   const selectSlide = useEditorStore((s) => s.selectSlide);
   const addSlide = useEditorStore((s) => s.addSlide);
   const reorderSlides = useEditorStore((s) => s.reorderSlides);
   const insertSlides = useEditorStore((s) => s.insertSlides);
-  const answerSlideId = useEditorStore((s) => s.answerSlideId);
   const closeAnswer = useEditorStore((s) => s.closeAnswer);
   // Where a slide dragged from the Presentations panel will go (a line shows the spot while dragging).
   const [dropTarget, setDropTarget] = useState<SlideInsertTarget | null>(null);
+  // Slides on or near the screen — these get the full editable canvas.
+  const [nearSlideIds, setNearSlideIds] = useState<ReadonlySet<string>>(new Set());
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const slideNodes = useRef(new Map<string, HTMLDivElement>());
@@ -50,11 +71,9 @@ export function Workspace() {
   // Whichever slide crosses the vertical center of the scroll area becomes the selected one,
   // so the toolbar and the elements panel always act on the slide the user is looking at.
   //
-  // Deliberately keyed on slideIds (which slides exist, and in what order), not on `presentation.slides`
-  // itself: that array gets a new reference on every store mutation, including every pointer-move
-  // while dragging or resizing an SVG element. Rebuilding the observer on each of those would fire
-  // its callback immediately and reset the current selection mid-drag.
-  const slideIds = presentation.slides.map((s) => s.id).join(",");
+  // Keyed on slideIds (which slides exist, and in what order), so the observers are only rebuilt
+  // when slides are added, removed or moved — not on every edit.
+  const slideIds = slideIdList.join(",");
 
   // True while we scroll to a new slide ourselves. The slides passed on the way shouldn't get
   // selected: each pick redraws the slides mid-scroll and makes the scroll stutter.
@@ -74,8 +93,32 @@ export function Workspace() {
       { root, rootMargin: "-45% 0px -45% 0px", threshold: 0 }
     );
 
-    slideNodes.current.forEach((node) => observer.observe(node));
-    return () => observer.disconnect();
+    // Tracks which slides are near the screen. It only reports slides that came near or went away,
+    // so the set is updated from those changes (and kept as-is when nothing changed, to skip a redraw).
+    const nearObserver = new IntersectionObserver(
+      (entries) => {
+        setNearSlideIds((prev) => {
+          const next = new Set(prev);
+          entries.forEach((entry) => {
+            const slideId = entry.target.getAttribute("data-slide-id");
+            if (!slideId) return;
+            if (entry.isIntersecting) next.add(slideId);
+            else next.delete(slideId);
+          });
+          return next.size === prev.size && [...next].every((id) => prev.has(id)) ? prev : next;
+        });
+      },
+      { root, rootMargin: NEAR_MARGIN, threshold: 0 }
+    );
+
+    slideNodes.current.forEach((node) => {
+      observer.observe(node);
+      nearObserver.observe(node);
+    });
+    return () => {
+      observer.disconnect();
+      nearObserver.disconnect();
+    };
   }, [slideIds, selectSlide]);
 
   // A slide that wasn't there before (added, duplicated, or brought back by undo) scrolls into view.
@@ -185,7 +228,7 @@ export function Workspace() {
     const overSlide = (e.target as Element).closest("[data-slide-id]")?.getAttribute("data-slide-id");
     const slideId = overSlide ?? nearestSlideId(e.clientY);
     if (!slideId) return null;
-    if (slideId === presentation.slides[0]?.id) {
+    if (slideId === slideIdList[0]) {
       const box = slideNodes.current.get(slideId)?.getBoundingClientRect();
       if (box && e.clientY < box.top + box.height / 2) return { slideId, before: true };
     }
@@ -218,21 +261,31 @@ export function Workspace() {
     },
   };
 
+  // Drag on empty space — on a slide or the gray area around it — to select elements with a rectangle.
+  // It selects on the slide pressed on, or the nearest slide when pressed outside one.
+  const { pointerHandlers: marqueeHandlers, marqueeBox } = useMarqueeSelection(
+    (e) => {
+      const slideId =
+        (e.target as Element).closest("[data-slide-id]")?.getAttribute("data-slide-id") ?? nearestSlideId(e.clientY);
+      const root = slideId && slideNodes.current.get(slideId);
+      return root ? { slideId, root } : null;
+    },
+    null,
+    1
+  );
+
   // Stays the same function between redraws, so it doesn't undo SlideWorkspaceItem's memo.
   const registerNode = useCallback((slideId: string, node: HTMLDivElement | null) => {
     if (node) slideNodes.current.set(slideId, node);
     else slideNodes.current.delete(slideId);
   }, []);
 
-  const slideNumbers = getSlideNumbers(presentation.slides);
-  // Gone if the slide was deleted (or undone away) while its answer was open.
-  const answerSlide = presentation.slides.find((s) => s.id === answerSlideId && canHaveAnswer(s));
   // Below the needed width the add row shrinks as a whole (CSS zoom keeps it sharp) instead of wrapping.
   const addRowScale = Math.min(1, (CANVAS_WIDTH * zoom) / ADD_ROW_WIDTH);
 
   return (
     <div className="relative flex-1 overflow-hidden bg-bg-page" {...slideDropHandlers}>
-      <div ref={scrollRef} className="h-full overflow-y-auto">
+      <div ref={scrollRef} className="h-full select-none overflow-y-auto" {...marqueeHandlers}>
         <div
           className="flex flex-col items-center"
           style={{ gap: SLIDE_GAP, padding: `${WORKSPACE_PADDING}px` }}
@@ -240,20 +293,21 @@ export function Workspace() {
           <DndContext
             sensors={sensors}
             collisionDetection={closestCenter}
-            modifiers={[restrictToVerticalAxis]}
+            modifiers={VERTICAL_ONLY}
             onDragEnd={handleDragEnd}
           >
-            <SortableContext items={presentation.slides.map((s) => s.id)} strategy={verticalListSortingStrategy}>
-              {presentation.slides.map((slide, index) => (
+            <SortableContext items={slideIdList} strategy={verticalListSortingStrategy}>
+              {slideIdList.map((slideId, index) => (
                 <SlideWorkspaceItem
-                  key={slide.id}
-                  slide={slide}
-                  slideNumber={slideNumbers.get(slide.id)}
+                  key={slideId}
+                  slideId={slideId}
+                  slideNumber={slideNumberList[index]}
                   zoom={zoom}
-                  prevSlideId={presentation.slides[index - 1]?.id}
-                  nextSlideId={presentation.slides[index + 1]?.id}
-                  canDelete={presentation.slides.length > 1}
-                  dropSide={slide.id === dropTarget?.slideId ? (dropTarget.before ? "before" : "after") : undefined}
+                  isNear={nearSlideIds.has(slideId)}
+                  prevSlideId={slideIdList[index - 1]}
+                  nextSlideId={slideIdList[index + 1]}
+                  canDelete={slideIdList.length > 1}
+                  dropSide={slideId === dropTarget?.slideId ? (dropTarget.before ? "before" : "after") : undefined}
                   registerNode={registerNode}
                 />
               ))}
@@ -280,14 +334,42 @@ export function Workspace() {
             </button>
             <button
               type="button"
+              onClick={() => addSlide(undefined, "true-false")}
+              className="flex flex-1 items-center justify-center rounded-card bg-bg-surface text-sm font-semibold text-text-secondary shadow-[0_1px_3px_rgba(0,0,0,0.08)] transition hover:text-accent-navy hover:shadow-[0_2px_8px_rgba(0,0,0,0.1)]"
+            >
+              + True or false
+            </button>
+            <button
+              type="button"
+              onClick={() => addSlide(undefined, "custom")}
+              className="flex flex-1 items-center justify-center rounded-card bg-bg-surface text-sm font-semibold text-text-secondary shadow-[0_1px_3px_rgba(0,0,0,0.08)] transition hover:text-accent-navy hover:shadow-[0_2px_8px_rgba(0,0,0,0.1)]"
+            >
+              + Custom question
+            </button>
+            <button
+              type="button"
               onClick={() => addSlide(undefined, "blank")}
               className="flex flex-1 items-center justify-center rounded-card bg-bg-surface text-sm font-semibold text-text-secondary shadow-[0_1px_3px_rgba(0,0,0,0.08)] transition hover:text-accent-navy hover:shadow-[0_2px_8px_rgba(0,0,0,0.1)]"
             >
               + Blank slide
             </button>
+            <button
+              type="button"
+              onClick={() => addSlide(undefined, "title")}
+              className="flex flex-1 items-center justify-center rounded-card bg-bg-surface text-sm font-semibold text-text-secondary shadow-[0_1px_3px_rgba(0,0,0,0.08)] transition hover:text-accent-navy hover:shadow-[0_2px_8px_rgba(0,0,0,0.1)]"
+            >
+              + Title slide
+            </button>
           </div>
         </div>
       </div>
+      {/* Drawn over the whole workspace (same top-left as the scroll area), so the slide's edges don't cut it off. */}
+      {marqueeBox && (
+        <div
+          className="pointer-events-none absolute z-40 border border-accent-navy"
+          style={{ ...marqueeBox, background: "rgba(25, 26, 44, 0.08)" }}
+        />
+      )}
       <ZoomControls />
       {answerSlide && <AnswerArea slide={answerSlide} onClose={closeAnswer} />}
     </div>

@@ -13,9 +13,8 @@ import { CloseIcon } from "@/components/icons/CloseIcon";
 import type { Slide } from "@/lib/schema";
 
 /**
- * The elements-only shape box: to the right of the option rows in the "list-side" layout, a
- * full-width strip between the question and the options in grid/list, or the big middle area of
- * a short-answer slide.
+ * The elements-only shape box of a choice slide: to the right of the option rows in the "list-side"
+ * layout, or a full-width strip between the question and the options in grid/list.
  */
 export function SideContainer({ slide }: { slide: Slide }) {
   const removeShapeBox = useEditorStore((s) => s.removeShapeBox);
@@ -57,7 +56,7 @@ export function SideContainer({ slide }: { slide: Slide }) {
         </p>
       )}
 
-      {/* Matches SIDE_PADDING: inset-4 beside the list rows and on short-answer slides, none in the strip. */}
+      {/* Matches SIDE_PADDING: inset-4 beside the list rows, none in the strip. */}
       <div data-element-layer className={`pointer-events-none absolute ${isStrip ? "inset-0" : "inset-4"}`}>
         {boundElements.map((element) => (
           <SvgElementItem

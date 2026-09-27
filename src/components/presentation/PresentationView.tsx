@@ -2,9 +2,10 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useEditorStore } from "@/lib/store";
-import { CANVAS_WIDTH, CANVAS_HEIGHT, hasAnswerContent, getSlideNumbers } from "@/lib/constants";
+import { CANVAS_WIDTH, CANVAS_HEIGHT, hasAnswerContent, getSlideNumbers, hasOptions, hasReveal } from "@/lib/constants";
 import { SlideStaticView } from "./SlideStaticView";
 import { AnswerModal } from "@/components/editor/AnswerModal";
+import { EyeIcon } from "@/components/icons/EyeIcon";
 import { SlideThumbnailPreview } from "@/components/editor/SlideThumbnailPreview";
 import { GridIcon } from "@/components/icons/GridIcon";
 
@@ -32,11 +33,12 @@ export function PresentationView() {
   const slide = presentation.slides[presentationIndex];
   const slideNumbers = getSlideNumbers(presentation.slides);
   const isAnswerShown = revealedSlideId === slide?.id;
-  const isChoice = (slide?.type ?? "choice") === "choice";
-  // Blank slides are often just for teaching, so they only get the button once an answer is typed.
+  const isChoice = !!slide && hasOptions(slide);
+  // Blank and title slides are often just for teaching, so they only get the button once a reveal is added.
   const canReveal =
     slide?.type === "short-answer" ||
-    (slide?.type === "blank" && hasAnswerContent(slide)) ||
+    slide?.type === "custom" ||
+    (!!slide && hasReveal(slide) && hasAnswerContent(slide)) ||
     (isChoice && !!slide?.correctOptionId);
 
   useLayoutEffect(() => {
@@ -162,10 +164,10 @@ export function PresentationView() {
             type="button"
             onClick={(e) => {
               e.stopPropagation();
-              // Choice slides toggle the green highlight; short-answer and blank slides open the answer popup.
+              // Choice slides toggle the green highlight; the others open the answer popup.
               setRevealedSlideId(isChoice && isAnswerShown ? null : slide.id);
             }}
-            title={slide.type === "blank" ? "Reveal" : isChoice && isAnswerShown ? "Hide answer" : "Show answer"}
+            title={hasReveal(slide) ? "Reveal" : isChoice && isAnswerShown ? "Hide answer" : "Show answer"}
             className={roundButtonClass}
           >
             <EyeIcon />
@@ -187,6 +189,7 @@ export function PresentationView() {
             questionNumber={slideNumbers.get(slide.id)}
             revealAnswer={isChoice && isAnswerShown}
             fullscreen
+            liveEmbed
           />
         </div>
       </div>
@@ -239,15 +242,6 @@ function CloseIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5">
       <path d="M4 4L14 14M14 4L4 14" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function EyeIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5">
-      <path d="M1.5 9C3.2 5.8 5.9 4 9 4s5.8 1.8 7.5 5c-1.7 3.2-4.4 5-7.5 5S3.2 12.2 1.5 9Z" strokeLinejoin="round" />
-      <circle cx="9" cy="9" r="2.25" />
     </svg>
   );
 }

@@ -5,12 +5,12 @@ import type { useSortable } from "@dnd-kit/sortable";
 import { useEditorStore } from "@/lib/store";
 import { GripIcon } from "@/components/icons/GripIcon";
 import { EraserIcon } from "@/components/icons/EraserIcon";
-import type { Slide, SlideType } from "@/lib/schema";
-import { ANSWER_CONTAINER_ID, canHaveAnswer, hasAnswerContent } from "@/lib/constants";
+import { MAX_ITEM_COUNT, type Slide, type SlideType } from "@/lib/schema";
+import { ANSWER_CONTAINER_ID, canHaveAnswer, getItemCount, hasAnswerContent, hasOptions, hasReveal, isDiscussionSlide } from "@/lib/constants";
 import { DuplicateIcon } from "@/components/icons/DuplicateIcon";
 import { TrashIcon } from "@/components/icons/TrashIcon";
+import { EyeIcon } from "@/components/icons/EyeIcon";
 import { ToolPanelButton, PanelLabel } from "./PanelControls";
-import { ConfirmModal } from "./ConfirmModal";
 
 const LAYOUTS: { value: Slide["layout"]; label: string; icon: ReactNode }[] = [
   { value: "grid", label: "Grid", icon: <GridLayoutIcon /> },
@@ -18,10 +18,27 @@ const LAYOUTS: { value: Slide["layout"]; label: string; icon: ReactNode }[] = [
   { value: "list-side", label: "List + box", icon: <ListSideLayoutIcon /> },
 ];
 
-const SLIDE_TYPES: { value: SlideType; label: string; icon: ReactNode }[] = [
-  { value: "choice", label: "Multiple choice", icon: <ChoiceTypeIcon /> },
-  { value: "short-answer", label: "Short answer", icon: <ShortAnswerTypeIcon /> },
-  { value: "blank", label: "Blank slide", icon: <BlankTypeIcon /> },
+// The Add slide menu, in labeled groups.
+const SLIDE_TYPE_GROUPS: { label: string; types: { value: SlideType; label: string; icon: ReactNode }[] }[] = [
+  {
+    label: "Assessment slide",
+    types: [
+      { value: "choice", label: "Multiple choice", icon: <ChoiceTypeIcon /> },
+      { value: "short-answer", label: "Short answer", icon: <ShortAnswerTypeIcon /> },
+      { value: "true-false", label: "True or false", icon: <TrueFalseTypeIcon /> },
+      { value: "custom", label: "Custom question", icon: <CustomTypeIcon /> },
+    ],
+  },
+  {
+    label: "Discussion",
+    types: [
+      { value: "title", label: "Title slide", icon: <TitleTypeIcon /> },
+      { value: "blank", label: "Blank slide", icon: <BlankTypeIcon /> },
+      { value: "video", label: "Embed video", icon: <VideoTypeIcon /> },
+      { value: "embed-slides", label: "Embed slides", icon: <EmbedSlidesTypeIcon /> },
+      { value: "image", label: "Embed image", icon: <ImageTypeIcon /> },
+    ],
+  },
 ];
 
 type DragHandleProps = Pick<ReturnType<typeof useSortable>, "attributes" | "listeners">;
@@ -47,17 +64,20 @@ export function SlideToolbar({ slide, slideNumber, isFirst, isLast, canDelete, o
   const clearSlide = useEditorStore((s) => s.clearSlide);
   const setLayout = useEditorStore((s) => s.setLayout);
   const renameSlide = useEditorStore((s) => s.renameSlide);
+  const setItemCount = useEditorStore((s) => s.setItemCount);
   const openAnswer = useEditorStore((s) => s.openAnswer);
-  const setSlideNumbered = useEditorStore((s) => s.setSlideNumbered);
   const [isRenaming, setIsRenaming] = useState(false);
-  const [isConfirmingNoNumber, setIsConfirmingNoNumber] = useState(false);
 
-  const isBlank = slide.type === "blank";
+  // Blank and title slides hold a reveal; question slides (custom ones too) hold an answer.
+  const isReveal = hasReveal(slide);
+  const itemCount = getItemCount(slide);
   // Only the slide's name is shown; an unnamed question slide invites one instead.
-  const defaultName = isBlank ? `Slide ${slideNumber}` : "Add a name";
+  const defaultName = isDiscussionSlide(slide) ? `Slide ${slideNumber}` : "Add a name";
   const label = slide.name || defaultName;
 
   const isChoice = (slide.type ?? "choice") === "choice";
+  // Multiple choice and true-or-false slides both get the Layout menu; only multiple choice gets Shuffle.
+  const hasCards = hasOptions(slide);
   // Short-answer and blank slides have no options to fill in, so their (always empty) options pass this check.
   // The answer canvas isn't cleared with the slide, so its elements don't count.
   const isEmpty =
@@ -99,6 +119,31 @@ export function SlideToolbar({ slide, slideNumber, isFirst, isLast, canDelete, o
             {label}
           </button>
         )}
+        {slide.type === "custom" && (
+          // How many items the slide holds, so it takes that many question numbers (e.g. 11–15).
+          <label className="flex items-center gap-1.5 px-1.5 text-xs font-semibold uppercase tracking-[0.05em] text-text-header">
+            Items
+            <input
+              // Saved on blur or Enter; the key resets the box when the count changes elsewhere (undo).
+              key={itemCount}
+              type="number"
+              min={1}
+              max={MAX_ITEM_COUNT}
+              defaultValue={itemCount}
+              title={`How many items this slide holds (1–${MAX_ITEM_COUNT})`}
+              onBlur={(e) => {
+                const count = Number(e.target.value);
+                // An empty or broken number puts the old count back.
+                if (e.target.value === "" || !Number.isFinite(count)) e.target.value = String(itemCount);
+                else if (count !== itemCount) setItemCount(slide.id, count);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") e.currentTarget.blur();
+              }}
+              className="h-7 w-14 rounded-input border border-border-default bg-bg-page px-2 text-sm font-normal text-text-primary outline-none focus:border-accent-navy"
+            />
+          </label>
+        )}
         {canDelete && (
           <button
             type="button"
@@ -113,25 +158,21 @@ export function SlideToolbar({ slide, slideNumber, isFirst, isLast, canDelete, o
 
       <div className="flex shrink-0 items-center gap-2">
         {canHaveAnswer(slide) && (
-          // Its own pale pill, so the answer stands apart from the slide tools. Green (= correct) for a
-          // short-answer slide's answer; navy for a blank slide's "Reveal", which isn't an answer.
-          <div
-            className="flex items-center rounded-dropdown px-1.5 py-1.5 shadow-[0_1px_3px_rgba(0,0,0,0.08)]"
-            style={{ background: isBlank ? "rgba(25, 26, 44, 0.06)" : "rgba(30, 142, 79, 0.1)" }}
+          // Its own pale green button, so the answer stands apart from the slide tools.
+          // Same height as the tools box next to it (h-8 button + py-1.5).
+          <button
+            type="button"
+            onClick={() => openAnswer(slide.id)}
+            title={
+              isReveal
+                ? hasAnswerContent(slide) ? "Reveal" : "Add reveal"
+                : hasAnswerContent(slide) ? "Answer" : "Add answer"
+            }
+            className="flex h-11 w-11 items-center justify-center rounded-dropdown bg-[rgba(30,142,79,0.1)] text-accent-green shadow-[0_1px_3px_rgba(0,0,0,0.08)] hover:bg-[rgba(30,142,79,0.18)]"
           >
-            <button
-              type="button"
-              onClick={() => openAnswer(slide.id)}
-              title={isBlank ? "Content to reveal during the presentation" : "Correct answer"}
-              className={`flex h-8 items-center gap-2 rounded-dropdown px-2.5 text-sm font-semibold ${
-                isBlank ? "text-accent-navy hover:bg-[rgba(25,26,44,0.06)]" : "text-accent-green hover:bg-[rgba(30,142,79,0.1)]"
-              }`}
-            >
-              <AnswerIcon />
-              {/* "Add …" until it has something in it, so slides still missing one stand out. */}
-              {isBlank ? (hasAnswerContent(slide) ? "Reveal" : "Add reveal") : hasAnswerContent(slide) ? "Answer" : "Add answer"}
-            </button>
-          </div>
+            {/* Blank and title slides hold a "Reveal" (hint, activity, example), not a correct answer — same eye as present mode. */}
+            {isReveal ? <EyeIcon /> : <AnswerIcon />}
+          </button>
         )}
 
         <div className="flex items-center gap-1 rounded-dropdown bg-bg-surface px-1.5 py-1.5 shadow-[0_1px_3px_rgba(0,0,0,0.08)]">
@@ -153,29 +194,18 @@ export function SlideToolbar({ slide, slideNumber, isFirst, isLast, canDelete, o
           >
             <ChevronIcon direction="down" />
           </button>
-          {!isBlank && (
-            // Filled while the slide is numbered. Taking the number away asks first; putting it back doesn't.
-            <button
-              type="button"
-              onClick={() => (slide.hideNumber ? setSlideNumbered(slide.id, true) : setIsConfirmingNoNumber(true))}
-              title={slide.hideNumber ? "Add a question number" : "Remove the question number"}
-              className={`flex h-8 w-8 items-center justify-center rounded-dropdown text-text-primary ${
-                slide.hideNumber ? "hover:bg-bg-page" : "bg-bg-page hover:bg-border-default"
-              }`}
-            >
-              <NumberIcon crossed={!!slide.hideNumber} />
-            </button>
-          )}
-          {isChoice && (
+          {hasCards && (
             <>
-              <button
-                type="button"
-                onClick={() => shuffleOptions(slide.id)}
-                title="Shuffle options"
-                className="flex h-8 w-8 items-center justify-center rounded-dropdown text-text-primary hover:bg-bg-page"
-              >
-                <ShuffleIcon />
-              </button>
+              {isChoice && (
+                <button
+                  type="button"
+                  onClick={() => shuffleOptions(slide.id)}
+                  title="Shuffle options"
+                  className="flex h-8 w-8 items-center justify-center rounded-dropdown text-text-primary hover:bg-bg-page"
+                >
+                  <ShuffleIcon />
+                </button>
+              )}
               <ToolPanelButton
                 title="Layout"
                 panelWidthClassName="w-auto"
@@ -225,22 +255,29 @@ export function SlideToolbar({ slide, slideNumber, isFirst, isLast, canDelete, o
             closeOnAnyClick
             icon={<PlusIcon />}
           >
-            <PanelLabel>Add slide</PanelLabel>
             {/* Vertical menu (icon left, label right); -mx-4 lets the row hover reach the panel edges. */}
-            <div className="-mx-4 flex w-56 flex-col py-1">
-              {SLIDE_TYPES.map((slideType) => (
-                <button
-                  key={slideType.value}
-                  type="button"
-                  onClick={() => addSlide(slide.id, slideType.value)}
-                  // A thin line above "Blank slide" splits it from the question types.
-                  className={`flex items-center gap-3 whitespace-nowrap px-4 py-2.5 text-sm text-text-primary hover:bg-bg-page ${
-                    slideType.value === "blank" ? "mt-1 border-t border-border-default pt-3.5" : ""
-                  }`}
+            <div className="-mx-4 flex w-56 flex-col">
+              {SLIDE_TYPE_GROUPS.map((group, groupIndex) => (
+                // A thin line splits each group from the one above.
+                <div
+                  key={group.label}
+                  className={`flex flex-col py-1 ${groupIndex > 0 ? "mt-1 border-t border-border-default pt-3" : ""}`}
                 >
-                  {slideType.icon}
-                  {slideType.label}
-                </button>
+                  <div className="px-4 pb-1">
+                    <PanelLabel>{group.label}</PanelLabel>
+                  </div>
+                  {group.types.map((slideType) => (
+                    <button
+                      key={slideType.value}
+                      type="button"
+                      onClick={() => addSlide(slide.id, slideType.value)}
+                      className="flex items-center gap-3 whitespace-nowrap px-4 py-2.5 text-sm text-text-primary hover:bg-bg-page"
+                    >
+                      {slideType.icon}
+                      {slideType.label}
+                    </button>
+                  ))}
+                </div>
               ))}
             </div>
           </ToolPanelButton>
@@ -255,29 +292,7 @@ export function SlideToolbar({ slide, slideNumber, isFirst, isLast, canDelete, o
           </button>
         </div>
       </div>
-      {isConfirmingNoNumber && (
-        <ConfirmModal
-          title="Remove the question number?"
-          message="This slide will have no number, and the next slides will count on without it. If you want a number here, you will need to type it in the question yourself. Do you want to continue?"
-          confirmLabel="Remove number"
-          onConfirm={() => {
-            setSlideNumbered(slide.id, false);
-            setIsConfirmingNoNumber(false);
-          }}
-          onCancel={() => setIsConfirmingNoNumber(false)}
-        />
-      )}
     </div>
-  );
-}
-
-// A "#"; crossed out when the slide has no number.
-function NumberIcon({ crossed }: { crossed: boolean }) {
-  return (
-    <svg width="18" height="18" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.15">
-      <path d="M5.5 2L4.5 12M9.5 2L8.5 12M2.5 5H12M2 9H11.5" strokeLinecap="round" />
-      {crossed && <path d="M1.5 1.5L12.5 12.5" strokeLinecap="round" />}
-    </svg>
   );
 }
 
@@ -344,6 +359,15 @@ function ShortAnswerTypeIcon() {
   );
 }
 
+function TrueFalseTypeIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.05">
+      <path d="M1.5 7.2L3.4 9L6.3 5.2" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M8.3 5L12.3 9M12.3 5L8.3 9" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 function BlankTypeIcon() {
   return (
     <svg width="20" height="20" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.05">
@@ -353,11 +377,56 @@ function BlankTypeIcon() {
   );
 }
 
+function CustomTypeIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.05">
+      <path d="M12.5 6V3.7C12.5 3 12 2.5 11.3 2.5H2.7C2 2.5 1.5 3 1.5 3.7V9.3C1.5 10 2 10.5 2.7 10.5H6" strokeLinecap="round" />
+      <path d="M8.2 12L8.6 10.4L11.9 7.1C12.3 6.7 12.9 6.7 13.2 7.1C13.6 7.4 13.6 8 13.2 8.4L9.9 11.7L8.2 12Z" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function EmbedSlidesTypeIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.05">
+      <rect x="3.5" y="1.5" width="9" height="7" rx="1" />
+      <path d="M1.5 4.5V10.5C1.5 11.05 1.95 11.5 2.5 11.5H9.5" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function ImageTypeIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.05" strokeLinejoin="round">
+      <rect x="1.5" y="2.5" width="11" height="9" rx="1.2" />
+      <circle cx="4.9" cy="5.4" r="1" />
+      <path d="M1.8 10.2L5 7L7.4 9.4L9.2 7.6L12.2 10.6" />
+    </svg>
+  );
+}
+
+function VideoTypeIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.05">
+      <rect x="1.5" y="2.5" width="11" height="9" rx="1.2" />
+      <path d="M5.8 5.2V8.8L8.8 7L5.8 5.2Z" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function TitleTypeIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.05">
+      <rect x="1.5" y="2.5" width="11" height="9" rx="1.2" />
+      <path d="M4.5 6H9.5M5.5 8.5H8.5" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 function AnswerIcon() {
   return (
-    <svg width="18" height="18" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.15">
-      <rect x="1.5" y="1.5" width="11" height="11" rx="2.5" />
-      <path d="M4.5 7.2L6.3 9L9.7 5.2" strokeLinecap="round" strokeLinejoin="round" />
+    <svg width="18" height="18" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.3">
+      <path d="M2.5 7.4L5.6 10.4L11.5 3.8" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }

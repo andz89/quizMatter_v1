@@ -8,14 +8,17 @@ import {
   CANVAS_WIDTH,
   CANVAS_HEIGHT,
   OPTIONS_AREA_CLASSES,
-  OPTIONS_GRID_CLASSES,
+  getOptionsGridClasses,
+  getShownOptions,
+  hasOptions,
   ADD_SHAPE_BOX_ROW_HEIGHT,
   hasShapeBox,
   hasShapeStrip,
+  getItemCount,
+  isFreeCanvas,
 } from "@/lib/constants";
 import { getElementAsset } from "@/lib/svgLibrary";
 import { useElementDropTarget } from "@/lib/useElementDropTarget";
-import { useMarqueeSelection } from "@/lib/useMarqueeSelection";
 import { QuestionContainer } from "./QuestionContainer";
 import { OptionCard } from "./OptionCard";
 import { SideContainer } from "./SideContainer";
@@ -24,7 +27,9 @@ import { GroupSelectionOverlay } from "./GroupSelectionOverlay";
 import { SnapGuides } from "./SnapGuides";
 import { ElementContextMenu } from "./ElementContextMenu";
 import { ElementDragGhost } from "./ElementDragGhost";
-import { getSlideBackgroundStyle } from "@/components/presentation/SlideStaticView";
+import { EmbedSlideEditor } from "./EmbedSlide";
+import { isEmbedSlide } from "@/lib/embed";
+import { getSlideBackgroundStyle, QuestionNumberBadge } from "@/components/presentation/SlideStaticView";
 import type { Slide } from "@/lib/schema";
 
 const CANVAS_BOUNDS = { width: CANVAS_WIDTH, height: CANVAS_HEIGHT };
@@ -44,18 +49,19 @@ export function SlideCanvas({ slide, questionNumber }: SlideCanvasProps) {
   const copySelectedElements = useEditorStore((s) => s.copySelectedElements);
   const pasteClipboard = useEditorStore((s) => s.pasteClipboard);
   const fitElementsToContainer = useEditorStore((s) => s.fitElementsToContainer);
+  const moveElementsInLayers = useEditorStore((s) => s.moveElementsInLayers);
 
   const addShapeBox = useEditorStore((s) => s.addShapeBox);
 
-  // Blank slides have no boxes, so the slide itself takes elements dropped from the Elements panel.
-  const isBlank = slide.type === "blank";
-  const isChoice = (slide.type ?? "choice") === "choice";
+  // Blank, title and custom slides have no boxes, so the slide itself takes elements dropped from the Elements panel.
+  const isBlank = isFreeCanvas(slide);
+  const isChoice = hasOptions(slide);
+  const shownOptions = getShownOptions(slide);
+  // Short-answer slides only have the question box; elements can go anywhere else on the slide.
+  const isSlideDropTarget = isBlank || slide.type === "short-answer";
   const { isDragOver: isCanvasDragOver, dropHandlers: canvasDropHandlers } = useElementDropTarget(slide.id, null);
 
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; containerId: string | null; canPaste: boolean } | null>(null);
-
-  // Drag on empty space to select elements with a rectangle.
-  const { rootRef, pointerHandlers, marqueeBox, takeSkippedClick } = useMarqueeSelection(slide.id, null);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
@@ -85,20 +91,19 @@ export function SlideCanvas({ slide, questionNumber }: SlideCanvasProps) {
   };
 
   return (
+    // Rectangle selection (dragging on empty space) is handled by the Workspace around the slides,
+    // so it can also start outside the slide.
     <div
-      ref={rootRef}
       data-canvas-root="true"
-      className="relative flex select-none flex-col gap-6 overflow-hidden rounded-card border bg-bg-surface p-10"
+      className="relative flex select-none flex-col gap-6 rounded-card border bg-bg-surface p-10"
       style={{
         width: CANVAS_WIDTH,
         height: CANVAS_HEIGHT,
         ...getSlideBackgroundStyle(slide),
         borderColor: isCanvasDragOver ? "var(--accent-navy)" : "var(--border-default)",
       }}
-      {...(isBlank ? canvasDropHandlers : {})}
-      {...pointerHandlers}
+      {...(isSlideDropTarget ? canvasDropHandlers : {})}
       onClick={(e) => {
-        if (takeSkippedClick()) return;
         if (e.target === e.currentTarget) {
           clearElementSelection();
           selectContainer(null, slide.id);
@@ -106,8 +111,12 @@ export function SlideCanvas({ slide, questionNumber }: SlideCanvasProps) {
       }}
       onContextMenu={handleContextMenu}
     >
-      {!isBlank && <QuestionContainer slide={slide} questionNumber={questionNumber} />}
-      {slide.type === "short-answer" && <SideContainer slide={slide} />}
+      {isEmbedSlide(slide) && <EmbedSlideEditor slide={slide} kind={slide.type} />}
+      {!isBlank && !isEmbedSlide(slide) && <QuestionContainer slide={slide} questionNumber={questionNumber} />}
+      {/* Custom slides have no question box, so their number (or range) sits at its usual spot. */}
+      {slide.type === "custom" && questionNumber !== undefined && (
+        <QuestionNumberBadge number={questionNumber} count={getItemCount(slide)} atDefaultSpot />
+      )}
 
       {isChoice && (
         <>
@@ -138,9 +147,9 @@ export function SlideCanvas({ slide, questionNumber }: SlideCanvasProps) {
 
           <div className={OPTIONS_AREA_CLASSES}>
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-              <SortableContext items={slide.options.map((o) => o.id)} strategy={rectSortingStrategy}>
-                <div className={`grid min-h-0 flex-1 ${OPTIONS_GRID_CLASSES[slide.layout]}`}>
-                  {slide.options.map((option, index) => (
+              <SortableContext items={shownOptions.map((o) => o.id)} strategy={rectSortingStrategy}>
+                <div className={`grid min-h-0 flex-1 ${getOptionsGridClasses(slide)}`}>
+                  {shownOptions.map((option, index) => (
                     <OptionCard
                       key={option.id}
                       slideId={slide.id}
@@ -159,6 +168,23 @@ export function SlideCanvas({ slide, questionNumber }: SlideCanvasProps) {
         </>
       )}
 
+      {/* Elements on the slide may stick out past its edge. Their pictures are cut off there, like
+          in present mode, but their selection border and handles are drawn in a second layer that
+          isn't, so they still show outside the slide. */}
+      <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-card">
+        {freeElements.map((element) => (
+          <SvgElementItem
+            key={element.id}
+            slideId={slide.id}
+            element={element}
+            isSelected={selectedElementIds.includes(element.id)}
+            bounds={CANVAS_BOUNDS}
+            part="picture"
+          />
+        ))}
+        <SnapGuides slideId={slide.id} containerId={null} />
+        {isSelectedSlide && <ElementDragGhost />}
+      </div>
       <div className="pointer-events-none absolute inset-0">
         {freeElements.map((element) => (
           <SvgElementItem
@@ -167,19 +193,11 @@ export function SlideCanvas({ slide, questionNumber }: SlideCanvasProps) {
             element={element}
             isSelected={selectedElementIds.includes(element.id)}
             bounds={CANVAS_BOUNDS}
+            part="selection"
           />
         ))}
         <GroupSelectionOverlay slideId={slide.id} elements={freeElements} bounds={CANVAS_BOUNDS} />
-        <SnapGuides slideId={slide.id} containerId={null} />
-        {isSelectedSlide && <ElementDragGhost />}
       </div>
-
-      {marqueeBox && (
-        <div
-          className="pointer-events-none absolute z-40 border border-accent-navy"
-          style={{ ...marqueeBox, background: "rgba(25, 26, 44, 0.08)" }}
-        />
-      )}
 
       {contextMenu && (
         <ElementContextMenu
@@ -191,6 +209,7 @@ export function SlideCanvas({ slide, questionNumber }: SlideCanvasProps) {
           canFit={canFitSelection}
           onPaste={() => pasteClipboard(slide.id, contextMenu.containerId)}
           onFit={() => fitElementsToContainer(slide.id, selectedElementIds)}
+          onLayer={(move) => moveElementsInLayers(slide.id, selectedElementIds, move)}
           onClose={() => setContextMenu(null)}
         />
       )}

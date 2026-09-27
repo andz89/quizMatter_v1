@@ -42,7 +42,8 @@ export function useElementDropTarget(slideId: string, containerId: string | null
         dragDepth.current = 0;
         setIsDragOver(false);
         // Measure from the box's elements area (it can be inset, e.g. past an option's ✓/A button).
-        const layer = e.currentTarget.querySelector("[data-element-layer]") ?? e.currentTarget;
+        // The slide itself is measured whole: the layer inside it belongs to its question box.
+        const layer = (containerId !== null && e.currentTarget.querySelector("[data-element-layer]")) || e.currentTarget;
         const rect = layer.getBoundingClientRect();
         addElement(slideId, assetId, containerId, {
           x: (e.clientX - rect.left) / zoom,

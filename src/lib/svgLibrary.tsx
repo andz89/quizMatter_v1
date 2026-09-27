@@ -3,6 +3,8 @@ import { renderSolid, SOLIDS } from "./solids";
 import type { SvgElement } from "./schema";
 import { DEFAULT_TEXT_COLOR } from "./richText";
 import { KIDS, KID_VIEWBOX } from "./kids";
+import { renderSchoolBoy, SCHOOL_BOY_VIEWBOX } from "./schoolBoy";
+import { CLIPART_KIDS } from "./clipartKids";
 
 export type ElementCategory = "shape" | "line" | "arrow" | "solid" | "icon" | "time" | "math" | "decorative" | "cloud" | "number" | "letter" | "symbol" | "emoji" | "music" | "fruit" | "kitchen" | "book" | "vehicle" | "person" | "animal" | "space" | "sport" | "tree" | "leaf" | "background" | "text";
 
@@ -24,6 +26,7 @@ export type RenderSettings = Partial<Pick<
   | "crop"
   | "flipX"
   | "flipY"
+  | "cornerRadius"
   | "width"
   | "height"
 >>;
@@ -43,8 +46,10 @@ interface ElementAsset {
   isTextBox?: boolean;
   // Set for lines; they get left/right handles that make them longer without making them thicker.
   isLine?: boolean;
-  // Set for the square and rectangle; they get left/right handles that make them wider.
+  // Set for the square and rectangle; they get side and top/bottom handles that make them wider or taller.
   stretchX?: boolean;
+  // Set for the square and rectangle; only they use `cornerRadius`.
+  roundCorners?: boolean;
   // Set for number lines; only they use `numberLine`. `centered` = 0 always sits in the middle.
   numberLine?: { ticks: number; centered: boolean };
   // Which math tool this is, for the ones with their own settings panel (each uses its matching
@@ -700,10 +705,12 @@ function boxViewBox({ width, height }: RenderSettings, fallbackWidth: number, fa
   return width && height ? `0 0 ${width} ${height}` : `0 0 ${fallbackWidth} ${fallbackHeight}`;
 }
 
-function renderBoxRect(color: string, { width, height }: RenderSettings, fallbackWidth: number, fallbackHeight: number) {
-  const w = width && height ? width : fallbackWidth;
-  const h = width && height ? height : fallbackHeight;
-  return <rect x={BOX_GAP} y={BOX_GAP} width={Math.max(0, w - BOX_GAP * 2)} height={Math.max(0, h - BOX_GAP * 2)} fill={color} />;
+function renderBoxRect(color: string, { width, height, cornerRadius }: RenderSettings, fallbackWidth: number, fallbackHeight: number) {
+  const w = Math.max(0, (width && height ? width : fallbackWidth) - BOX_GAP * 2);
+  const h = Math.max(0, (width && height ? height : fallbackHeight) - BOX_GAP * 2);
+  // cornerRadius is a percent of the shorter side, so the corners look the same at any size.
+  const radius = (Math.min(w, h) * (cornerRadius ?? 0)) / 100;
+  return <rect x={BOX_GAP} y={BOX_GAP} width={w} height={h} rx={radius} fill={color} />;
 }
 
 // Block arrow pointing right; the other directions are this one turned around the center.
@@ -1044,6 +1051,9 @@ function renderPatternCard(color: string, pattern: ReactNode) {
   );
 }
 
+// Starting height of people (px), so they come out big on the slide.
+const PERSON_HEIGHT = 300;
+
 // Every asset shares a 0–100 viewBox so element width/height map to it uniformly.
 const ASSETS: ElementAsset[] = [
   // Shapes
@@ -1053,6 +1063,7 @@ const ASSETS: ElementAsset[] = [
     label: "Square",
     defaultColor: "#F59E0B",
     stretchX: true,
+    roundCorners: true,
     viewBox: (settings: RenderSettings) => boxViewBox(settings, 100, 100),
     defaultSize: { width: 120, height: 120 },
     render: (color: string, settings: RenderSettings) => renderBoxRect(color, settings, 100, 100),
@@ -1063,6 +1074,7 @@ const ASSETS: ElementAsset[] = [
     label: "Rectangle",
     defaultColor: "#3B82F6",
     stretchX: true,
+    roundCorners: true,
     viewBox: (settings: RenderSettings) => boxViewBox(settings, 100, 76),
     defaultSize: { width: 160, height: 122 },
     render: (color: string, settings: RenderSettings) => renderBoxRect(color, settings, 100, 76),
@@ -2602,6 +2614,154 @@ const ASSETS: ElementAsset[] = [
         {[[40, 52], [60, 52], [50, 62], [36, 70], [64, 70], [50, 78], [42, 86], [58, 86]].map(([cx, cy]) => (
           <circle key={`${cx}-${cy}`} cx={cx} cy={cy} r="2.5" fill="#B45309" />
         ))}
+      </>
+    ),
+  },
+  {
+    id: "mango",
+    category: "fruit",
+    label: "Mango",
+    defaultColor: "#FFB020",
+    render: (color) => (
+      <>
+        <path d="M22 60C18 38 36 20 58 22C78 24 90 42 86 62C82 82 62 92 44 88C30 85 24 74 22 60Z" fill={color} />
+        {lightPatch(<ellipse cx="42" cy="46" rx="8" ry="12" transform="rotate(30 42 46)" />)}
+        <line x1="58" y1="22" x2="60" y2="12" stroke={STEM_BROWN} strokeWidth="4" strokeLinecap="round" />
+        <path d="M60 14C68 4 84 6 88 12C80 20 68 20 60 14Z" fill={LEAF_GREEN} />
+      </>
+    ),
+  },
+  {
+    id: "peach",
+    category: "fruit",
+    label: "Peach",
+    defaultColor: "#FB9A6C",
+    render: (color) => (
+      <>
+        <path d="M50 28C30 20 14 36 16 58C18 78 34 90 50 90C66 90 82 78 84 58C86 36 70 20 50 28Z" fill={color} />
+        <path d="M50 30C42 46 42 70 50 88" fill="none" stroke="#000" strokeOpacity="0.15" strokeWidth="3" strokeLinecap="round" />
+        <line x1="50" y1="28" x2="52" y2="16" stroke={STEM_BROWN} strokeWidth="4" strokeLinecap="round" />
+        <path d="M52 20C58 8 72 8 76 12C70 20 60 22 52 20Z" fill={LEAF_GREEN} />
+      </>
+    ),
+  },
+  {
+    id: "kiwi",
+    category: "fruit",
+    label: "Kiwi",
+    defaultColor: "#84CC16",
+    render: (color) => (
+      <>
+        <circle cx="50" cy="50" r="40" fill="#8D6E63" />
+        <circle cx="50" cy="50" r="35" fill={color} />
+        {lightPatch(<ellipse cx="50" cy="50" rx="11" ry="9" />)}
+        {Array.from({ length: 12 }, (_, i) => (
+          <ellipse key={i} cx="50" cy="31" rx="1.6" ry="3" fill="#1F1F1F" transform={`rotate(${i * 30} 50 50)`} />
+        ))}
+      </>
+    ),
+  },
+  {
+    id: "coconut",
+    category: "fruit",
+    label: "Coconut",
+    defaultColor: "#7B4A2A",
+    render: (color) => (
+      <>
+        <path d="M10 46A40 40 0 0 0 90 46Z" fill={color} />
+        <path d="M22 62Q30 70 34 80M50 70V86M78 62Q70 70 66 80" fill="none" stroke="#000" strokeOpacity="0.2" strokeWidth="2.5" strokeLinecap="round" />
+        <ellipse cx="50" cy="46" rx="40" ry="12" fill="#FFFFFF" />
+        <ellipse cx="50" cy="46" rx="32" ry="8" fill="#F1F5F9" />
+      </>
+    ),
+  },
+  {
+    id: "avocado",
+    category: "fruit",
+    label: "Avocado",
+    defaultColor: "#D9F99D",
+    render: (color) => {
+      const body = "M50 8C36 8 32 24 30 36C28 46 16 56 16 70C16 86 32 94 50 94C68 94 84 86 84 70C84 56 72 46 70 36C68 24 64 8 50 8Z";
+      return (
+        <>
+          <path d={body} fill="#166534" />
+          <path d={body} fill={color} transform="translate(50 56) scale(0.85) translate(-50 -56)" />
+          <circle cx="50" cy="66" r="14" fill="#92400E" />
+          {lightPatch(<circle cx="45" cy="61" r="4" />)}
+        </>
+      );
+    },
+  },
+  {
+    id: "blueberries",
+    category: "fruit",
+    label: "Blueberries",
+    defaultColor: "#3B5BDB",
+    render: (color) => (
+      <>
+        {[[34, 42], [64, 40], [26, 68], [74, 68], [50, 62]].map(([cx, cy]) => (
+          <g key={`${cx}-${cy}`}>
+            <circle cx={cx} cy={cy} r="15" fill={color} stroke="#000" strokeOpacity="0.15" strokeWidth="1.5" />
+            {darkPatch(<circle cx={cx + 3} cy={cy - 5} r="3.5" />)}
+          </g>
+        ))}
+      </>
+    ),
+  },
+  {
+    id: "papaya",
+    category: "fruit",
+    label: "Papaya",
+    defaultColor: "#FB923C",
+    render: (color) => (
+      <>
+        <ellipse cx="50" cy="52" rx="32" ry="44" fill="#A3E635" />
+        <ellipse cx="50" cy="52" rx="27" ry="39" fill={color} />
+        {lightPatch(<ellipse cx="50" cy="58" rx="11" ry="22" />)}
+        {[[46, 42], [54, 45], [47, 52], [54, 58], [46, 63], [53, 69], [49, 75]].map(([cx, cy]) => (
+          <circle key={`${cx}-${cy}`} cx={cx} cy={cy} r="2.8" fill="#1F1F1F" />
+        ))}
+      </>
+    ),
+  },
+  {
+    id: "pomegranate",
+    category: "fruit",
+    label: "Pomegranate",
+    defaultColor: "#BE123C",
+    render: (color) => (
+      <>
+        <path d="M40 26 37 12 45 18 50 8 55 18 63 12 60 26Z" fill={color} />
+        {darkPatch(<path d="M40 26 37 12 45 18 50 8 55 18 63 12 60 26Z" />)}
+        <circle cx="50" cy="58" r="36" fill={color} />
+        {lightPatch(<ellipse cx="36" cy="46" rx="7" ry="10" transform="rotate(30 36 46)" />)}
+      </>
+    ),
+  },
+  {
+    id: "dragon-fruit",
+    category: "fruit",
+    label: "Dragon Fruit",
+    defaultColor: "#EC4899",
+    render: (color) => (
+      <>
+        <ellipse cx="50" cy="54" rx="30" ry="38" fill={color} />
+        <path d="M44 18 50 4 56 18ZM26 34 14 22 34 28ZM74 34 86 22 66 28ZM22 58 8 54 22 50ZM78 58 92 54 78 50ZM30 80 20 88 36 86ZM70 80 80 88 64 86ZM44 66 38 54 50 60ZM60 44 54 34 64 38Z" fill="#84CC16" />
+      </>
+    ),
+  },
+  {
+    id: "rambutan",
+    category: "fruit",
+    label: "Rambutan",
+    defaultColor: "#DC2626",
+    render: (color) => (
+      <>
+        {Array.from({ length: 16 }, (_, i) => (
+          <line key={i} x1="50" y1="28" x2="50" y2="14" stroke={color} strokeWidth="3" strokeLinecap="round" transform={`rotate(${i * 22.5} 50 52)`} />
+        ))}
+        <circle cx="50" cy="52" r="28" fill={color} />
+        {lightPatch(<ellipse cx="40" cy="42" rx="6" ry="9" transform="rotate(30 40 42)" />)}
       </>
     ),
   },
@@ -4153,16 +4313,39 @@ const ASSETS: ElementAsset[] = [
     ),
   },
 
-  // People — cartoon students (see kids.tsx); `color` goes on the shirt or dress.
+  // People — cartoon students (see kids.tsx); `color` goes on the shirt or dress. They start
+  // PERSON_HEIGHT tall (shrunk to fit when added to a smaller box).
   ...KIDS.map(({ id, label, defaultColor, render }) => ({
     id,
     category: "person" as const,
     label,
     defaultColor,
     viewBox: KID_VIEWBOX,
-    defaultSize: { width: 100, height: 175 },
+    defaultSize: { width: (100 * PERSON_HEIGHT) / 175, height: PERSON_HEIGHT },
     render,
   })),
+  {
+    id: "school-boy",
+    category: "person",
+    label: "School Boy",
+    defaultColor: "#F2A93B",
+    viewBox: SCHOOL_BOY_VIEWBOX,
+    defaultSize: { width: (79 * PERSON_HEIGHT) / 175, height: PERSON_HEIGHT },
+    render: renderSchoolBoy,
+  },
+  // Students from clipart (see clipartKids.tsx); `color` goes on their clothes and shoes.
+  ...CLIPART_KIDS.map(({ id, label, defaultColor, viewBox, render }) => {
+    const [, , width, height] = viewBox.split(" ").map(Number);
+    return {
+      id,
+      category: "person" as const,
+      label,
+      defaultColor,
+      viewBox,
+      defaultSize: { width: Math.round((PERSON_HEIGHT * width) / height), height: PERSON_HEIGHT },
+      render,
+    };
+  }),
 
   // Trees — the leaves use `color`; trunks, fruit, and flowers keep fixed colors.
   {
@@ -5039,7 +5222,7 @@ export const ELEMENT_CATEGORY_LABELS: Record<ElementCategory, string> = {
 };
 
 export const DEFAULT_ELEMENT_COLOR = "#191A2C";
-export const DEFAULT_ELEMENT_SIZE = 140;
+export const DEFAULT_ELEMENT_SIZE = 260;
 
 // assetId of a custom drawing (e.g. one Claude drew) — not in the library; the element's `svg` holds it.
 export const CUSTOM_SVG_ID = "custom-svg";

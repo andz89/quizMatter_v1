@@ -1,9 +1,25 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useEditor, type Editor } from "@tiptap/react";
+import type { EditorView } from "@tiptap/pm/view";
 import { useEditorStore, type TextTarget } from "@/lib/store";
 import { useAutoFitText } from "@/lib/useAutoFitText";
 import { TEXT_EXTENSIONS } from "@/lib/richText";
 import { autoFitRange } from "@/lib/constants";
+
+const TEXT_DOM_EVENTS = {
+  // Paste as plain text only, so colors and fonts from other sites don't come along.
+  paste: (view: EditorView, event: ClipboardEvent) => {
+    event.preventDefault();
+    view.pasteText(event.clipboardData?.getData("text/plain") ?? "");
+    return true;
+  },
+  // Escape stops typing (a text box stays selected).
+  keydown: (view: EditorView, event: KeyboardEvent) => {
+    if (event.key !== "Escape") return false;
+    (view.dom as HTMLElement).blur();
+    return true;
+  },
+};
 
 interface CanvasTextEditorOptions {
   // The stored HTML to show.
@@ -46,29 +62,20 @@ export function useCanvasTextEditor({
     targetRef.current = target;
   });
 
+  // The same object between redraws: Tiptap re-applies its options to the editor (slow) whenever
+  // one of them is a new object, and the canvas redraws on every pointer-move while dragging.
+  const editorProps = useMemo(
+    () => ({ attributes: { class: `outline-none ${editorClass}` }, handleDOMEvents: TEXT_DOM_EVENTS }),
+    [editorClass]
+  );
+
   const editor = useEditor({
     extensions: TEXT_EXTENSIONS,
     content,
     editable: false,
     // Next.js renders this on the server first; the editor can only be built in the browser.
     immediatelyRender: false,
-    editorProps: {
-      attributes: { class: `outline-none ${editorClass}` },
-      handleDOMEvents: {
-        // Paste as plain text only, so colors and fonts from other sites don't come along.
-        paste: (view, event) => {
-          event.preventDefault();
-          view.pasteText(event.clipboardData?.getData("text/plain") ?? "");
-          return true;
-        },
-        // Escape stops typing (a text box stays selected).
-        keydown: (view, event) => {
-          if (event.key !== "Escape") return false;
-          (view.dom as HTMLElement).blur();
-          return true;
-        },
-      },
-    },
+    editorProps,
     onUpdate: ({ editor }) => {
       onUpdate(editor);
       remeasure();

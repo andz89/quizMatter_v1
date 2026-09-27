@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useEditorStore, selectedIdsOn } from "@/lib/store";
-import { ANSWER_CONTAINER_ID, CANVAS_WIDTH, CANVAS_HEIGHT, getContainerBounds } from "@/lib/constants";
+import { ANSWER_CONTAINER_ID, CANVAS_WIDTH, CANVAS_HEIGHT, getContainerBounds, hasReveal } from "@/lib/constants";
 import { useElementDropTarget } from "@/lib/useElementDropTarget";
 import { useMarqueeSelection } from "@/lib/useMarqueeSelection";
 import { getElementAsset } from "@/lib/svgLibrary";
@@ -25,7 +25,7 @@ interface AnswerAreaProps {
 }
 
 /**
- * Modal with the answer of a short-answer or blank slide: a typed text, or a canvas the size of a
+ * Modal with the answer of a short-answer, custom or blank slide: a typed text, or a canvas the size of a
  * slide where elements are dropped, pasted and edited just like on the slide itself.
  * It covers only the workspace (Workspace draws it inside itself), so the top toolbar and the
  * Elements panel stay usable — elements can be dragged from the panel straight into the canvas.
@@ -37,8 +37,6 @@ export function AnswerArea({ slide, onClose }: AnswerAreaProps) {
   const zoom = useEditorStore((s) => s.zoom);
   const answerType = slide.answerType ?? "text";
   const answer = slide.correctAnswer ?? "";
-  // A blank slide's answer isn't a correct answer but content shown during the discussion: "Reveal", in navy.
-  const isReveal = slide.type === "blank";
   // A drag that starts in the canvas and ends on the dim backdrop also "clicks" the backdrop, so
   // only close when the press started on the backdrop too.
   const pressedBackdrop = useRef(false);
@@ -69,11 +67,7 @@ export function AnswerArea({ slide, onClose }: AnswerAreaProps) {
       >
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-3">
-            <span
-              className={`text-xs font-semibold uppercase tracking-[0.05em] ${isReveal ? "text-accent-navy" : "text-accent-green"}`}
-            >
-              {isReveal ? "Reveal" : "Correct answer"}
-            </span>
+            <span className="text-xs font-semibold uppercase tracking-[0.05em] text-accent-green">{hasReveal(slide) ? "Reveal" : "Answer"}</span>
             {/* Filled pill for the chosen kind of answer. */}
             <div className="flex items-center gap-0.5 rounded-dropdown bg-bg-page p-0.5">
               {ANSWER_TYPES.map((type) => (
@@ -83,7 +77,7 @@ export function AnswerArea({ slide, onClose }: AnswerAreaProps) {
                   onClick={() => setAnswerType(slide.id, type.value)}
                   className={`h-7 rounded-[6px] px-3 text-sm font-semibold ${
                     answerType === type.value
-                      ? `${isReveal ? "bg-accent-navy" : "bg-accent-green"} text-white`
+                      ? "bg-accent-green text-white"
                       : "text-text-primary hover:bg-bg-surface"
                   }`}
                 >
@@ -95,7 +89,7 @@ export function AnswerArea({ slide, onClose }: AnswerAreaProps) {
           <button
             type="button"
             onClick={onClose}
-            title="Close answer"
+            title={hasReveal(slide) ? "Close reveal" : "Close answer"}
             className="flex h-8 w-8 items-center justify-center rounded-dropdown text-text-primary hover:bg-bg-page"
           >
             <CloseIcon size={16} />
@@ -110,7 +104,7 @@ export function AnswerArea({ slide, onClose }: AnswerAreaProps) {
               maxLength={MAX_ANSWER_LENGTH}
               value={answer}
               onChange={(e) => updateCorrectAnswer(slide.id, e.target.value)}
-              placeholder={isReveal ? "Type what to reveal…" : "Type the correct answer…"}
+              placeholder="Type the answer…"
               // Google Forms look: light gray fill, a single bottom line, which gets thicker on focus.
               // The line is an inset shadow so the thicker one doesn't push the text.
               className="resize-none rounded-t-[4px] bg-[#F8F9FA] px-4 py-3 text-base font-normal text-[#202124] shadow-[inset_0_-1px_0_#80868B] outline-none placeholder:text-[#70757A] focus:shadow-[inset_0_-2px_0_var(--accent-navy)]"
@@ -142,9 +136,15 @@ function AnswerCanvas({ slide }: { slide: Slide }) {
   const copySelectedElements = useEditorStore((s) => s.copySelectedElements);
   const pasteClipboard = useEditorStore((s) => s.pasteClipboard);
   const fitElementsToContainer = useEditorStore((s) => s.fitElementsToContainer);
+  const moveElementsInLayers = useEditorStore((s) => s.moveElementsInLayers);
 
   const { isDragOver, dropHandlers } = useElementDropTarget(slide.id, ANSWER_CONTAINER_ID);
-  const { rootRef, pointerHandlers, marqueeBox, takeSkippedClick } = useMarqueeSelection(slide.id, ANSWER_CONTAINER_ID);
+  const zoom = useEditorStore((s) => s.zoom);
+  const { pointerHandlers, marqueeBox } = useMarqueeSelection(
+    (e) => ({ slideId: slide.id, root: e.currentTarget }),
+    ANSWER_CONTAINER_ID,
+    zoom
+  );
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; canPaste: boolean } | null>(null);
 
   const answerElements = slide.elements.filter((el) => el.containerId === ANSWER_CONTAINER_ID);
@@ -152,7 +152,6 @@ function AnswerCanvas({ slide }: { slide: Slide }) {
 
   return (
     <div
-      ref={rootRef}
       // Its own canvas root, so a drag here never counts the slide's boxes as drop spots.
       data-canvas-root="true"
       data-container-id={ANSWER_CONTAINER_ID}
@@ -163,10 +162,7 @@ function AnswerCanvas({ slide }: { slide: Slide }) {
       }}
       {...dropHandlers}
       {...pointerHandlers}
-      onClick={() => {
-        if (takeSkippedClick()) return;
-        selectContainer(ANSWER_CONTAINER_ID, slide.id);
-      }}
+      onClick={() => selectContainer(ANSWER_CONTAINER_ID, slide.id)}
       onContextMenu={(e) => {
         e.preventDefault();
         // Read once here instead of listening to the clipboard, which would redraw on every copy.
@@ -219,6 +215,7 @@ function AnswerCanvas({ slide }: { slide: Slide }) {
           canFit={answerElements.some((el) => selectedElementIds.includes(el.id) && !getElementAsset(el.assetId)?.isTextBox)}
           onPaste={() => pasteClipboard(slide.id, ANSWER_CONTAINER_ID)}
           onFit={() => fitElementsToContainer(slide.id, selectedElementIds)}
+          onLayer={(move) => moveElementsInLayers(slide.id, selectedElementIds, move)}
           onClose={() => setContextMenu(null)}
         />
       )}

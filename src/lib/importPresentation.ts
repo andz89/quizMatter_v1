@@ -2,21 +2,28 @@
 // *what* goes on a slide ("3 apples, medium, in the question box"); this file works out *where*
 // — every element's size and position — from the real box sizes.
 import { z } from "zod";
-import { createBlankSlide } from "./factories";
+import { createBlankSlide, TITLE_SLIDE_DESCRIPTION, TITLE_SLIDE_TITLE } from "./factories";
+import type { EmbedKind } from "./embed";
 import {
   CANVAS_HEIGHT,
   CANVAS_WIDTH,
+  CORNER_RADIUS_MAX,
+  isFreeCanvas,
   DEFAULT_QUESTION_HEIGHT,
   DEFAULT_SHAPE_STRIP_HEIGHT,
   getContainerBounds,
   getMaxQuestionHeight,
   getMaxShapeStripHeight,
+  getShownOptions,
+  hasOptions,
   hasShapeBox,
+  moveShortAnswerPicturesToSlide,
   MIN_QUESTION_HEIGHT,
   MIN_SHAPE_STRIP_HEIGHT,
   OPACITY_MIN,
   OPTION_FONT_SIZE,
   OPTION_LABELS,
+  QUESTION_CONTAINER_ID,
   QUESTION_CONTAINER_WIDTH,
   QUESTION_NUMBER_INDENT,
   QUESTION_FONT_SIZE,
@@ -50,9 +57,11 @@ import {
 } from "./svgLibrary";
 import {
   DETAIL_MAX_LENGTH,
+  embedLinkSchema,
   FONT_SIZE_RANGE,
   GRADES,
   MAX_ANSWER_LENGTH,
+  MAX_ITEM_COUNT,
   MAX_REFERENCE_LINKS,
   referenceSchema,
   type Slide,
@@ -118,7 +127,7 @@ const elementRecipe = z.object({
   in: z
     .enum(["A", "B", "C", "D", "side"])
     .optional()
-    .describe('Which box the picture goes in. Leave out for "side". Blank slides ignore it.'),
+    .describe('Which box the picture goes in. Leave out for "side". Blank, title and custom slides ignore it.'),
   count: whole(1, 20).default(1).describe("How many copies, e.g. 3 apples for a counting question."),
   size: z
     .enum(["small", "medium", "large"])
@@ -129,7 +138,7 @@ const elementRecipe = z.object({
     .array(calloutRecipe)
     .max(8)
     .optional()
-    .describe("Blank slides only: arrows with labels that point at parts of this picture."),
+    .describe("Blank, title and custom slides only: arrows with labels that point at parts of this picture."),
   clockTime: z
     .object({ hours: whole(1, 12), minutes: whole(0, 59), pm: z.boolean().optional() })
     .optional()
@@ -183,6 +192,9 @@ const elementRecipe = z.object({
   tilt: whole(-90, 90).optional().describe(`Only for 3D solids: tilt toward you, in degrees. Leave out for ${DEFAULT_ROTATION_3D.x}.`),
   turn: whole(-180, 180).optional().describe(`Only for 3D solids: turn left/right, in degrees. Leave out for ${DEFAULT_ROTATION_3D.y}.`),
   opacity: whole(OPACITY_MIN, 100).optional().describe("How solid it is, in percent. Leave out for 100."),
+  cornerRadius: whole(0, CORNER_RADIUS_MAX)
+    .optional()
+    .describe(`Only for square and rectangle: how round the corners are, in percent of the shorter side (${CORNER_RADIUS_MAX} = fully round ends). Leave out for sharp corners.`),
   flipX: z.boolean().optional().describe("Mirror the picture left to right, e.g. to make a kid face the other way."),
   flipY: z.boolean().optional().describe("Mirror the picture top to bottom."),
   crop: z
@@ -194,7 +206,7 @@ const elementRecipe = z.object({
   position: rect
     .optional()
     .describe(
-      "Place the picture yourself instead of letting the app place it, in px: on a blank slide on the 1280×720 slide, on a question slide inside its box. Only with count 1.",
+      "Place the picture yourself instead of letting the app place it, in px: on a blank, title or custom slide on the 1280×720 slide, on a question slide inside its box. Only with count 1.",
     ),
   // The id makes the JSON Schema write these rules once (as "element") instead of once per slide type.
 }).meta({ id: "element" });
@@ -235,7 +247,7 @@ const questionBoxes = {
   pictureBox: z
     .object({ fill: hexColor.optional(), border: hexColor.optional() })
     .optional()
-    .describe('Fill and border colors of the picture box ("side"). Leave out for a plain box.'),
+    .describe('Choice slides only: fill and border colors of the picture box ("side"). Leave out for a plain box.'),
 };
 
 // Blank slides are always white, with decorations and artwork.
@@ -254,16 +266,9 @@ const blankDesign = {
 const fontSize = whole(FONT_SIZE_RANGE.min, FONT_SIZE_RANGE.max);
 const fontSizeNote = "Largest font size in px; long text still shrinks to fit. Leave out unless the user asks for bigger or smaller text.";
 
-// What's on a blank slide (besides its design). The answer canvas uses the same fields.
-const blankContent = {
-  layout: z
-    .enum(["text-top", "text-left", "title-only"])
-    .default("text-top")
-    .describe(
-      "text-top (default) = title and text across the full width at the top, pictures below; " +
-        "text-left = title and text on the left half, pictures in the right half; " +
-        "title-only = a big centered title with pictures below (no text).",
-    ),
+// What's on a free canvas slide (besides its design). Title slides use these as they are; blank and
+// custom slides and the answer canvas add a layout (blankContent).
+const canvasContent = {
   title: z.string().optional().describe("Short heading, shown in bold. **word** / *word* work here too."),
   titleFontSize: fontSize.optional().describe(`The title. ${fontSizeNote}`),
   titleStyle: textStyle.optional().describe("Look of the title (it's always bold)."),
@@ -287,6 +292,42 @@ const blankContent = {
     .describe("Extra text boxes you place yourself: labels, a speech bubble's words, a second paragraph."),
   elements,
 };
+
+// What's on a blank slide (besides its design). The answer canvas uses the same fields.
+const blankContent = {
+  layout: z
+    .enum(["text-top", "text-left", "title-only"])
+    .default("text-top")
+    .describe(
+      "text-top (default) = title and text across the full width at the top, pictures below; " +
+        "text-left = title and text on the left half, pictures in the right half; " +
+        "title-only = a big centered title with pictures below (no text).",
+    ),
+  ...canvasContent,
+};
+
+// Blank and title slides: how solid their pattern or artwork is, and their optional "Reveal" as a short text.
+const blankExtras = {
+  patternOpacity: whole(PATTERN_OPACITY_RANGE.min, PATTERN_OPACITY_RANGE.max)
+    .optional()
+    .describe('How solid "backgroundPattern" is, in percent. Leave out for 25.'),
+  backgroundSvgOpacity: whole(OPACITY_MIN, 100)
+    .optional()
+    .describe(`How solid "backgroundSvg" is, in percent. Leave out for ${BACKGROUND_SVG_OPACITY}.`),
+  answer: z
+    .string()
+    .max(MAX_ANSWER_LENGTH)
+    .optional()
+    .describe(
+      'The "Reveal" as a short text: what the teacher shows during the discussion (an activity, a hint, or the answer to a practice problem).',
+    ),
+};
+
+// A video, slide deck or picture from another site, filling the slide. The link is checked the same
+// way as a link the teacher pastes in the editor.
+function embedRecipe<K extends EmbedKind>(kind: K, link: string) {
+  return z.object({ type: z.literal(kind), ...common, link: embedLinkSchema(kind).describe(link) });
+}
 
 // The answer shown as a picture instead of a typed text: a white 1280×720 canvas, built exactly like
 // a blank slide (no design). The teacher reveals it when presenting. On blank slides it's the "Reveal":
@@ -326,6 +367,28 @@ const slideRecipe = z.discriminatedUnion("type", [
     elements,
   }),
   z.object({
+    type: z.literal("true-false"),
+    ...common,
+    ...questionBackground,
+    layout: z
+      .enum(["grid", "list", "list-side"])
+      .optional()
+      .describe("grid = 2 options side by side; list = 2 rows; list-side = 2 rows with a tall picture box beside them. Leave out for grid."),
+    ...questionBoxes,
+    questionFontSize: fontSize.optional().describe(`The statement. ${fontSizeNote}`),
+    stripHeight: whole(MIN_SHAPE_STRIP_HEIGHT, 600)
+      .optional()
+      .describe('grid/list only: height of the picture strip in px, when pictures go in "side". Leave out and the app picks.'),
+    options: z
+      .tuple([z.string(), z.string()])
+      .optional()
+      .describe('Options A and B. Leave out for "True" and "False"; give them for other pairs, e.g. ["Yes", "No"] or another language.'),
+    optionFontSize: fontSize.optional().describe(`Both options. ${fontSizeNote}`),
+    optionStyle: textStyle.optional().describe("Look of both options."),
+    answer: z.boolean().describe("true when option A (True) is right, false when option B (False) is right."),
+    elements,
+  }),
+  z.object({
     type: z.literal("short-answer"),
     ...common,
     ...questionBackground,
@@ -339,20 +402,39 @@ const slideRecipe = z.discriminatedUnion("type", [
     type: z.literal("blank"),
     ...common,
     ...blankDesign,
-    patternOpacity: whole(PATTERN_OPACITY_RANGE.min, PATTERN_OPACITY_RANGE.max)
+    ...blankContent,
+    ...blankExtras,
+    answerCanvas,
+  }),
+  z.object({
+    type: z.literal("title"),
+    ...common,
+    ...blankDesign,
+    ...canvasContent,
+    title: z.string().describe("The big centered title. **word** / *word* work here too."),
+    text: z
+      .string()
       .optional()
-      .describe('How solid "backgroundPattern" is, in percent. Leave out for 25.'),
-    backgroundSvgOpacity: whole(OPACITY_MIN, 100)
-      .optional()
-      .describe(`How solid "backgroundSvg" is, in percent. Leave out for ${BACKGROUND_SVG_OPACITY}.`),
+      .describe("A short line under the title, centered: a subtitle, the grade, the teacher's name…"),
+    ...blankExtras,
+    answerCanvas,
+  }),
+  embedRecipe("video", "A YouTube, Vimeo or Canva video link."),
+  embedRecipe("embed-slides", 'A Google Slides link (shared with "Anyone with the link") or a Canva Share → Embed link.'),
+  embedRecipe("image", "A picture link that starts with https:// (a Google Drive link works too)."),
+  z.object({
+    type: z.literal("custom"),
+    ...common,
+    ...questionBackground,
+    itemCount: whole(1, MAX_ITEM_COUNT)
+      .default(1)
+      .describe("How many question items the slide holds, e.g. 5 for five blanks to fill. The slide takes that many numbers (after Q10: 11–15)."),
     ...blankContent,
     answer: z
       .string()
       .max(MAX_ANSWER_LENGTH)
       .optional()
-      .describe(
-        'The "Reveal" as a short text: what the teacher shows during the discussion (an activity, a hint, or the answer to a practice problem).',
-      ),
+      .describe('The answers as a short text, one per item, e.g. "11. cat  12. dog  13. hen".'),
     answerCanvas,
   }),
 ]);
@@ -398,10 +480,12 @@ type ElementRecipe = z.infer<typeof elementRecipe>;
 type BoxName = NonNullable<ElementRecipe["in"]> | "canvas";
 
 // Which boxes each question slide type has. The question box isn't one: its text grows to fill the
-// box, so pictures there would sit on top of it. The question's pictures go in the shape box ("side").
+// box, so pictures there would sit on top of it. The question's pictures go in "side": the shape box on
+// choice slides, the open room under the question on short-answer slides.
 // Blank slides have no boxes: their pictures go in the room the title and text leave on the canvas.
-const BOXES: Record<"choice" | "short-answer", BoxName[]> = {
+const BOXES: Record<"choice" | "true-false" | "short-answer", BoxName[]> = {
   choice: ["A", "B", "C", "D", "side"],
+  "true-false": ["A", "B", "side"],
   "short-answer": ["side"],
 };
 
@@ -410,16 +494,18 @@ const READING_TOOLS = new Set(["clock", "digital-clock", "thermometer", "bar-gra
 
 const CLAUDE_NOTES = `Write a presentation for my app (quizMatter) as JSON. Send it with send_presentation: "slides" is the slides array below, and it must match the JSON Schema at the end.
 
-quizMatter is an open canvas tool for making presentations, like Canva or PowerPoint. It is not only for quizzes. A presentation is a set of slides of two kinds:
+quizMatter is an open canvas tool for making presentations, like Canva or PowerPoint. It is not only for quizzes. A presentation is a set of slides of these kinds:
 - Blank slides ("blank" type): a free canvas for any kind of presentation — teaching a topic, a class discussion, a story, a report, instructions, a review. A presentation can be all blank slides, with no questions at all.
-- Question slides ("choice" and "short-answer"): for checking what learners know — an evaluation, a paper quiz, an assessment, or a short quiz after the discussion.
-Mix them as the user's request needs: e.g. blank slides to teach, then question slides to check.
+- Title slides ("title" type): a big centered title with a short line under it, to open a presentation or start a new part.
+- Question slides ("choice", "true-false", "short-answer" and "custom"): for checking what learners know — an evaluation, a paper quiz, an assessment, or a short quiz after the discussion.
+- Embed slides ("video", "embed-slides", "image"): a video, a slide deck or a picture from another site, filling the whole slide. Only with a link the user gives you.
+Mix them as the user's request needs: e.g. a title slide, blank slides to teach, then question slides to check.
 
 Also fill in "details" when you send it: the presentation's title, a short description, grade, subject, curriculum and learning competency (and author or reference links only when you know them).
 
 Leave a setting out and the app decides it. The layout report you get back (see "Checking before the final version") shows where everything landed.
 
-Never number the questions: write "Which change forms no new substance?", not "1. Which change…" or "Q1: Which change…". The app numbers the question slides itself (beside the question box), and keeps the numbers right when the teacher moves slides around.
+Never number the questions: write "Which change forms no new substance?", not "1. Which change…" or "Q1: Which change…". The app numbers the question slides itself (beside the question box), and keeps the numbers right when the teacher moves slides around. A "custom" slide takes one number per item ("itemCount"), shown as a range: after Q10, a 5-item custom slide is 11–15. Blank, title and embed slides are not numbered as questions: the app names them "Slide 1", "Slide 2"…
 
 === The slides and what is on each one ===
 
@@ -433,12 +519,16 @@ The slide is 1280 × 720 px.
    - 4 option boxes "A", "B", "C", "D": "options" (the texts), "optionStyle", "optionFontSize". Each can also hold pictures.
    - "pictureBox": fill and border colors of the picture box.
    - "background": the slide's color.
-2. "short-answer" — a question with no options. "answer" is the expected answer.
+2. "true-false" — a statement the learner marks true or false. It works like "choice", with 2 options "A" (True) and "B" (False) instead of 4. "answer" is true or false.
+   - Write "question" as a statement, not a question: "The sun is a star.", not "Is the sun a star?".
+   - "options": leave out for "True" and "False". Give 2 texts for another pair (e.g. "Yes" and "No", or another language).
+   - Same question box, "side" picture box, "pictureBox", "background" and layouts as "choice": "grid" (2 side by side, the default), "list" (2 rows), "list-side" (2 rows with a tall picture box beside them).
+3. "short-answer" — a question with no options. "answer" is the expected answer.
    - Question box (top, full width): "question", "questionStyle", "questionFontSize", "questionHeight".
-   - Picture box "side": the big area under the question. Put the pictures for the question here (the apples to count, the shape to measure…). "pictureBox" colors it.
+   - "side": the big open area under the question. There is no box around it: the pictures sit on the slide itself. Put the pictures for the question here (the apples to count, the shape to measure…). No "pictureBox".
    - "background": the slide's color.
    - "answerCanvas": optional, the answer shown as a picture (see Answers below).
-3. "blank" — a blank white slide, a free canvas. Use it for any presentation slide, e.g. to:
+4. "blank" — a blank white slide, a free canvas. Use it for any presentation slide, e.g. to:
    - teach a topic (explain the idea with a picture),
    - build a whole presentation with no questions (a report, a story, a topic overview),
    - give instructions for a new kind of question,
@@ -448,6 +538,21 @@ The slide is 1280 × 720 px.
    - Pictures can be placed by the app (default) or by you ("position").
    - "design", "backgroundPattern" or "backgroundSvg" make it friendly (see Design below).
    - "answer" / "answerCanvas": optional "Reveal" — hidden content the teacher shows during the discussion, like an activity (see Answers and Reveal below).
+5. "title" — a title slide: a big centered title, and "text" as a short line under it (a subtitle, the grade, the teacher's name). Use it to open the presentation, or to start a new part ("Part 2: Let's practice!").
+   - "title" is needed. "titleStyle", "textStyle", "titleFontSize" (72px if left out) and "textFontSize" (36px) work like on blank slides. There is no "layout".
+   - Pictures go in the room under the text, or where you put them ("position"), e.g. a waving student beside the title. "textBoxes" work too.
+   - Design like a blank slide: "design", "backgroundPattern" or "backgroundSvg" (see Design below).
+   - "answer" / "answerCanvas": optional "Reveal", like on blank slides. Most title slides don't need one.
+6. "custom" — a question slide built on a free canvas, like a blank slide, for questions the other types can't hold: matching, labeling a picture, fill in the blanks, a set of small items on one slide.
+   - "itemCount": how many items the slide holds (1–${MAX_ITEM_COUNT}). The app shows the range in the top-left corner (e.g. 11–15), so keep that corner free: the app starts the title, text and pictures to the right of it. Label the items inside the slide by letters or words, not by their numbers.
+   - The same content as a blank slide: "layout", "title", "text", "textBoxes", "elements" (with "position" and "callouts").
+   - Plain like the other question slides: only "background", no "design", pattern or artwork.
+   - "answer" / "answerCanvas": the correct answers (see Answers below).
+7. "video", "embed-slides" and "image" — embed slides: something from another site fills the whole slide. They have only "link" (and "name").
+   - "video": a YouTube, Vimeo or Canva video link. "embed-slides": a Google Slides link (shared with "Anyone with the link") or a Canva Share → Embed link. "image": a picture link that starts with https:// (Google Drive links work too).
+   - Only use a link the user gave you, or one you are sure is real. Never make one up. If you have no link, leave the slide out, or use a blank slide instead.
+   - A bad link comes back as an error that says what kind of link works. The layout report shows the link the slide will show.
+   - E.g. { "type": "video", "name": "Watch: The Water Cycle", "link": "<the link the user gave>" }.
 
 The question box never holds pictures. Pictures always go in a picture box or an option.
 
@@ -472,6 +577,7 @@ The question box, the strip and the options share the slide's height, so giving 
 
 Choice slides: "list" (4 rows), "grid" (2×2) or "list-side" (4 rows with a tall picture box beside them). Left out, the app picks, in this order: "grid" when the options are only pictures (empty texts); "list-side" when "side" has a clock, thermometer, bar graph, protractor, base-ten blocks or fraction circle; "grid" when the options have pictures; otherwise "list".
 - To calculate or type an answer, with no choices, use a "short-answer" slide instead.
+- For a statement that is either right or wrong, use a "true-false" slide instead.
 
 Blank slides:
 - "text-top" (default): title and text across the full width, pictures below.
@@ -481,8 +587,8 @@ Blank slides:
 === Pictures ("elements") ===
 
 Where they go ("in", default "side"; blank slides leave "in" out):
-- "side": the question's picture box (see above).
-- "A", "B", "C", "D": an option box. If the option has text, its pictures sit on the right half, beside the text. An option can be just a picture: leave its text empty ("").
+- "side": the question's picture box, or the open area under the question on short-answer slides (see above).
+- "A", "B", "C", "D": an option box ("A" and "B" only on true-false slides). If the option has text, its pictures sit on the right half, beside the text. An option can be just a picture: leave its text empty ("").
 
 How they look:
 - "size" (small, medium, large) is compared to the box. On "grid" and "list" slides, small is shown as medium.
@@ -490,21 +596,25 @@ How they look:
 - For a picture sum, list the pieces in order: 2 apples, "symbol-plus", 3 apples. Numbers and symbols take the size of the pictures next to them.
 - "color" recolors a picture. "opacity" (${OPACITY_MIN}–100%) makes it see-through.
 - "rotation" (0–359°) turns a flat picture. 3D solids (cube, cone…) use "tilt" (−90 to 90°) and "turn" (−180 to 180°) instead, to show them from another side.
+- "cornerRadius" (0–${CORNER_RADIUS_MAX}%) rounds the corners of a square or rectangle.
 - "flipX" mirrors a picture left to right (e.g. two kids facing each other), "flipY" top to bottom. Decorations in "design" can be flipped too.
 - "crop" shows only part of a flat picture, in percent of the whole picture: { x, y, width, height }. E.g. { x: 0, y: 0, width: 100, height: 50 } = the top half; a kid's head and shoulders is about the top 45%. The picture's box takes the shape of the part that shows.
-- The picture list has people: cartoon kids ("kid-…": standing, "kid-cheer-…" cheering, "kid-think-…" thinking), Filipino students in school uniform ("ph-student-…") and teachers ("ph-teacher-…"). Their "color" is the shirt, dress or uniform. Use them to make presentations friendly: a kid asking a question, a teacher explaining, a kid cheering on a summary slide.
+- The picture list has people: students in school uniform — Filipino boys ("ph-student-…", one waving, one with a fist up), a waving boy with a book ("school-boy"), and students with a pencil, reading, with an apple, a book, a globe, a backpack or a paper, pointing up, or jumping for joy ("student-…"). Their "color" is their clothes. Use them to make presentations friendly: a student reading on a lesson slide, a student cheering on a summary slide.
+- Fruits include apple, banana, grapes, mango, papaya, coconut, rambutan, dragon-fruit, kiwi, avocado, peach, pomegranate, blueberries and more.
 - Shapes include every kind of triangle (equilateral, isosceles, scalene, right, acute, obtuse) and four-sided shape (square, rectangle, trapezoid, right trapezoid, rhombus, kite, parallelogram…). 3D solids include prisms and pyramids with 3–6 sided bases, frustum, hemisphere, octahedron and icosahedron.
 - Settings like "clockTime", "fraction", "numberLine", "tenFrame", "baseTen", "thermometer", "barGraph" and "protractor" only work on the pictures named in their description.
 - Keep "elements" useful: they should help answer the question or explain the topic. Decoration goes in "design".
 
 Placing them yourself:
 - The app places, centers and sizes pictures itself. To choose the spot yourself, give "position": { x, y, width, height } in px (x, y = top-left corner). Only with count 1.
-  - Blank slides: on the 1280 × 720 slide.
+  - Blank, title and custom slides: on the 1280 × 720 slide.
   - Question slides: inside the picture's box ("side" or an option), from the box's top-left corner. The box sizes are in the layout report.
 - Anything past its box's edge is pulled back in.
-- "textBoxes" (blank slides) are placed the same way, and sit on top of pictures — good for labels on a picture.
+- "square" and "rectangle" take exactly the width and height you give, so they can be a box of any shape: e.g. a soft colored panel behind a group of pictures, or a bar. Add "cornerRadius" for rounded corners.
+- Pictures you place yourself are drawn in list order (a later one sits on top of an earlier one), and behind the pictures the app places. So list a background panel before what goes on it.
+- "textBoxes" (blank, title and custom slides) are placed the same way, and sit on top of pictures — good for labels on a picture.
 
-Arrows that point at part of a picture ("callouts", blank slides only):
+Arrows that point at part of a picture ("callouts", blank, title and custom slides only):
 - Use them to show where something is: the numerator and the denominator of a fraction, the hour hand of a clock, the tallest bar of a graph.
 - "from" = where the arrow comes from: left, right, top or bottom. "at" = which part it points at: top, middle or bottom for arrows from the left or right; left, middle or right for arrows from the top or bottom.
 - Up to 3 from the left and 3 from the right; at most 1 from the top and 1 from the bottom.
@@ -515,19 +625,20 @@ Arrows that point at part of a picture ("callouts", blank slides only):
 - Send the presentation first with "final": false. The user sees it as "Checking…" and can't open it yet. Check the report against what you meant, and fix anything that's off (e.g. give "position" with the numbers you want). You can check again the same way.
 - Then send it with "final": true and the "draftId" you got. That turns the checking version into the finished presentation and gives you the link for the user.
 
-=== Answers and Reveal (short-answer and blank slides) ===
+=== Answers and Reveal (short-answer, custom, blank and title slides) ===
 
-When presenting, the teacher clicks a button to show hidden content in a popup. On short-answer slides it's the correct answer. On blank slides the app calls it "Reveal" (see below). There are two kinds:
+When presenting, the teacher clicks a button to show hidden content in a popup. On short-answer and custom slides it's the correct answer. On blank and title slides the app calls it "Reveal" (see below). There are two kinds:
 - "answer": a short typed text (at most ${MAX_ANSWER_LENGTH} characters), e.g. "12 apples". Short-answer slides always need one.
 - "answerCanvas": the answer as a picture — a white 1280 × 720 canvas, built exactly like a blank slide: "layout", "title", "text", "textBoxes", "elements" (with "position" and "callouts"), and the same style and font size settings. No design, pattern or background. When you give it, the teacher sees the canvas instead of the text.
 - Use "answerCanvas" when the answer is best shown, not just said: a worked solution step by step, the counted pictures with the total, a shape with its parts labeled, the clock showing the right time. Keep it clear: a title like "Answer: 12", a short explanation, and the pictures that prove it.
 - A short-answer slide with "answerCanvas" still needs "answer" (a short text version).
+- Custom slides: give "answer", "answerCanvas" or both, with every item's answer.
 - Blank slides ("Reveal"): not a correct answer, but content kept hidden until the teacher shows it during the discussion. Use it for:
   - an activity for the class after the talk ("Draw your favorite fruit and tell a partner why."),
   - a worked example or the next step after the slide's idea,
   - a hint, or the answer to a practice problem or riddle the slide asks ("What comes next?").
   Most often give "answerCanvas" with a title like "Activity" or "Let's try!", short instructions and a picture. Leave both out on plain teaching slides that have nothing to reveal.
-- Choice slides never have these: their answer is the letter in "answer".
+- Choice and true-false slides never have these: their answer is in "answer". Embed slides have no answer.
 - The layout report shows the answer canvas (a blank slide's Reveal too) under its slide, as "Answer canvas".
 
 === Design ===
@@ -535,14 +646,15 @@ When presenting, the teacher clicks a button to show hidden content in a popup. 
 Question slides — keep them plain:
 - No decorations, no pattern, no artwork: question slides don't have "design", "backgroundPattern" or "backgroundSvg".
 - "background": you may give a soft, light color (e.g. #FEF3C7, #E0F2FE, #DCFCE7, #FCE7F3, #EDE9FE), or leave it out for white. Use one color family for the whole presentation. Dark colors are lightened automatically, because the text is dark.
-- "pictureBox": a soft fill and/or border for the picture box, in the same color family, so the pictures stand out.
+- "pictureBox" (choice slides): a soft fill and/or border for the picture box, in the same color family, so the pictures stand out.
 
-Blank slides — always white, made friendly with design:
-- There is no background color to set on blank slides.
+Blank and title slides — always white, made friendly with design:
+- There is no background color to set on blank or title slides.
+- Custom slides are question slides: keep them plain, like the others.
 - "design": decorations drawn behind everything, placed at a "spot". Pick ones that match the topic (leaves and trees for nature, sparkle and confetti for celebrations, planets for space, clouds for weather, shapes like circle, star or wave for anything) in 2–3 colors that go well together.
   - The 4 corners (big, about 180px) and "bottom-strip" (a row of small copies along the bottom). Use 2–4 decorations. "opacity" sets how solid each one is (${DECORATION_OPACITY}% if left out).
 
-Background artwork (blank slides only) — each blank slide can have one of these (or none, just plain white):
+Background artwork (blank and title slides only) — each blank or title slide can have one of these (or none, just plain white):
 - Option 1, "backgroundPattern": a ready-made pattern from the app: ${BACKGROUND_PATTERN_IDS.join(", ")}. It shows as a soft frame around the slide's edges, at 25% opacity unless you set "patternOpacity"; the middle stays plain white. It replaces "design": a slide with a pattern gets no decorations.
 - Option 2, "backgroundSvg": your own full-slide artwork, drawn over the white slide, behind everything. Use viewBox="0 0 1280 720". Good ideas: soft waves along the bottom, blobs in the corners, a sunburst, a frame. Keep the middle mostly empty so the text stays easy to read.
   - "backgroundSvgOpacity" sets how solid it is (${BACKGROUND_SVG_OPACITY}% if left out). Draw it in full colors and use this to soften it.
@@ -550,7 +662,7 @@ Background artwork (blank slides only) — each blank slide can have one of thes
 
 Opacity: you choose how solid decorations, patterns, background artwork and pictures are. Keep anything behind text light enough that the text stays easy to read.
 
-Your own drawings (SVG) — for blank slide design only:
+Your own drawings (SVG) — for blank and title slide design only:
 - In "design", give "svg" instead of "asset" to draw your own decoration for a spot (square viewBox, e.g. "0 0 100 100").
 - Rules: one <svg>…</svg>, under 20,000 characters. Use shapes, paths and gradients (path, circle, ellipse, rect, polygon, line, g, defs, linearGradient, radialGradient, stop). No images, scripts or links — they won't show.
 - Teaching pictures (the ones in "elements") always come from "asset", never your own drawings.
@@ -558,6 +670,13 @@ Your own drawings (SVG) — for blank slide design only:
 Example:
 {
   "slides": [
+    {
+      "type": "title",
+      "backgroundPattern": "${BACKGROUND_PATTERN_IDS[0]}",
+      "title": "Fractions",
+      "text": "Mathematics · Grade 3",
+      "elements": [{ "asset": "student-pointing", "position": { "x": 1040, "y": 500, "width": 180, "height": 200 } }]
+    },
     {
       "type": "blank",
       "layout": "text-top",
@@ -614,6 +733,12 @@ Example:
         "text": "3 apples and 2 more apples make **5** apples.",
         "elements": [{ "asset": "apple", "count": 5 }]
       }
+    },
+    {
+      "type": "true-false",
+      "question": "A square has **4** equal sides.",
+      "answer": true,
+      "elements": [{ "asset": "square" }]
     },
     {
       "type": "choice",
@@ -673,7 +798,7 @@ export function buildSlides(
     .map(({ slide, report }, i) => {
       const recipe = parsed.data.slides[i];
       // Short-answer slides have no layout to pick.
-      const layout = recipe.type === "blank" ? `, ${recipe.layout}` : recipe.type === "choice" ? `, ${slide.layout}` : "";
+      const layout = recipe.type === "blank" || recipe.type === "custom" ? `, ${recipe.layout}` : hasOptions(slide) ? `, ${slide.layout}` : "";
       return [`Slide ${i + 1} (${slide.type}${layout})`, ...report].join("\n  ");
     })
     .join("\n\n");
@@ -682,7 +807,7 @@ export function buildSlides(
 
 const CANVAS: Size = { width: CANVAS_WIDTH, height: CANVAS_HEIGHT };
 
-type QuestionRecipe = Extract<SlideRecipe, { type: "choice" | "short-answer" }>;
+type QuestionRecipe = Extract<SlideRecipe, { type: "choice" | "true-false" | "short-answer" }>;
 
 /** The question box's text, styled text, font size and height (Claude's, or just tall enough for the text). */
 function questionFields(recipe: QuestionRecipe) {
@@ -702,7 +827,15 @@ function buildSlide(
 ): { slide: Slide; report: string[] } {
   const blank = createBlankSlide(recipe.type);
   let slide: Slide = { ...blank, name: recipe.name };
-  if (recipe.type === "blank") {
+  // Video, slide deck and picture slides only show their (already checked) link.
+  if ("link" in recipe) return { slide: { ...slide, embedUrl: recipe.link }, report: [`Shows: ${recipe.link}`] };
+
+  // Blank, title and custom slides have no boxes: the title and text become text boxes, and the pictures go anywhere.
+  const isCanvas = recipe.type === "blank" || recipe.type === "title" || recipe.type === "custom";
+  const isTitle = recipe.type === "title";
+  // Blank and title slides are white, with decorations or artwork; the others get a background color.
+  const hasDesign = recipe.type === "blank" || recipe.type === "title";
+  if (hasDesign) {
     if (recipe.backgroundPattern && recipe.backgroundSvg) reportError('give "backgroundPattern" or "backgroundSvg", not both.');
     slide.backgroundSvg =
       recipe.backgroundSvg && softened(withSvgNamespace(recipe.backgroundSvg), recipe.backgroundSvgOpacity ?? BACKGROUND_SVG_OPACITY);
@@ -715,24 +848,30 @@ function buildSlide(
   } else {
     // Dark colors are lightened, because the text is dark.
     slide.background = recipe.background && lighten(recipe.background);
-    slide.shapeBoxFill = recipe.pictureBox?.fill;
-    slide.shapeBoxBorder = recipe.pictureBox?.border;
+    if (recipe.type !== "custom") {
+      slide.shapeBoxFill = recipe.pictureBox?.fill;
+      slide.shapeBoxBorder = recipe.pictureBox?.border;
+    }
   }
 
-  if (recipe.type === "choice") {
+  if (recipe.type === "choice" || recipe.type === "true-false") {
+    const isChoice = recipe.type === "choice";
+    // True-or-false slides fill only the first 2 option slots; the other 2 stay empty and hidden.
+    const texts = isChoice ? recipe.options : [...(recipe.options ?? ["True", "False"]), "", ""];
     const options = blank.options.map((option, i) => ({
       ...option,
-      text: stripMarkup(recipe.options[i]),
-      html: recipe.options[i] ? markupToHtml(recipe.options[i], recipe.optionStyle) : undefined,
+      text: stripMarkup(texts[i]),
+      html: texts[i] ? markupToHtml(texts[i], recipe.optionStyle) : undefined,
       fontSize: recipe.optionFontSize,
     })) as Slide["options"];
-    const layout = recipe.layout ?? pickLayout(recipe.options, recipe.elements);
+    const layout = recipe.layout ?? (isChoice ? pickLayout(recipe.options, recipe.elements) : "grid");
+    const answerIndex = isChoice ? OPTION_LABELS.indexOf(recipe.answer) : recipe.answer ? 0 : 1;
     slide = {
       ...slide,
       layout,
       ...questionFields(recipe),
       options,
-      correctOptionId: options[OPTION_LABELS.indexOf(recipe.answer)].id,
+      correctOptionId: options[answerIndex].id,
       // Grid/list slides only show the side box (as a strip) once it's turned on.
       hasShapeBox: layout !== "list-side" && recipe.elements.some((el) => (el.in ?? "side") === "side"),
     };
@@ -741,12 +880,15 @@ function buildSlide(
     }
   } else if (recipe.type === "short-answer") {
     slide = { ...slide, ...questionFields(recipe), correctAnswer: recipe.answer };
+  } else if (recipe.type === "custom") {
+    slide.itemCount = recipe.itemCount;
   }
 
-  if (recipe.type !== "blank") {
-    if (recipe.pictureBox && !hasShapeBox(slide)) reportError('"pictureBox" needs a picture box: put pictures in "side".');
+  if (!isCanvas) {
+    if (recipe.pictureBox && recipe.type === "short-answer") reportError('short-answer slides have no picture box, so leave "pictureBox" out.');
+    else if (recipe.pictureBox && !hasShapeBox(slide)) reportError('"pictureBox" needs a picture box: put pictures in "side".');
     // The question box and the strip share the room above the options, so each one's limit depends on the other.
-    const stripHeight = recipe.type === "choice" ? recipe.stripHeight : undefined;
+    const stripHeight = recipe.type === "choice" || recipe.type === "true-false" ? recipe.stripHeight : undefined;
     const maxQuestion = getMaxQuestionHeight({ ...slide, shapeStripHeight: stripHeight ?? DEFAULT_SHAPE_STRIP_HEIGHT });
     if (recipe.questionHeight && recipe.questionHeight > maxQuestion) {
       reportError(`"questionHeight" can be at most ${maxQuestion} on this slide.`);
@@ -759,26 +901,31 @@ function buildSlide(
     }
   }
 
-  // Blank slides: the title and text become text boxes, and the pictures get the room that's left.
-  const areas = recipe.type === "blank" ? blankAreas(recipe) : null;
-  if (recipe.type === "blank" && recipe.layout === "title-only" && recipe.text) {
-    reportError('a "title-only" blank slide has no text. Use "text-top" or "text-left", or leave "text" out.');
+  // Blank, title and custom slides: the title and text become text boxes, and the pictures get the room that's left.
+  const areas = isCanvas ? blankAreas(recipe) : null;
+  if (isCanvas && recipe.type !== "title" && recipe.layout === "title-only" && recipe.text) {
+    reportError(`a "title-only" ${recipe.type} slide has no text. Use "text-top" or "text-left", or leave "text" out.`);
   }
   // Every blank slide text box, with a name and its words, for the report.
   const texts: BlankText[] = [];
   const textBoxes: SvgElement[] = [];
-  if (recipe.type === "blank" && areas?.title) {
-    const align = recipe.layout === "title-only" ? "center" : "left";
-    textBoxes.push(textBox(areas.title, markupToHtml(recipe.title!, { align, ...recipe.titleStyle, bold: true }), recipe.titleFontSize));
+  if (isCanvas && areas?.title) {
+    // Title slides get the editor's big centered title.
+    const centered = recipe.type === "title" || recipe.layout === "title-only";
+    const fontSize = recipe.titleFontSize ?? (isTitle ? TITLE_SLIDE_TITLE.fontSize : undefined);
+    const html = markupToHtml(recipe.title!, { align: centered ? "center" : "left", ...recipe.titleStyle, bold: true });
+    textBoxes.push(textBox(areas.title, html, fontSize));
     texts.push({ label: "title", box: textBoxes.at(-1)!, words: stripMarkup(recipe.title!) });
   }
-  if (recipe.type === "blank" && areas?.text) {
-    textBoxes.push(textBox(areas.text, markupToHtml(recipe.text!, recipe.textStyle), recipe.textFontSize));
+  if (isCanvas && areas?.text) {
+    const fontSize = recipe.textFontSize ?? (isTitle ? TITLE_SLIDE_DESCRIPTION.fontSize : undefined);
+    const style = isTitle ? { align: "center" as const, ...recipe.textStyle } : recipe.textStyle;
+    textBoxes.push(textBox(areas.text, markupToHtml(recipe.text!, style), fontSize));
     texts.push({ label: "text", box: textBoxes.at(-1)!, words: stripMarkup(recipe.text!) });
   }
   // Text boxes Claude placed itself. They sit on top of the pictures, so a label can go on one.
   const placedText =
-    recipe.type === "blank"
+    isCanvas
       ? recipe.textBoxes.map((box, i) => {
           const element = textBox(fitInBox(box.position, CANVAS), markupToHtml(box.text, box.style), box.fontSize);
           texts.push({ label: `text box ${i + 1}`, box: element, words: stripMarkup(box.text) });
@@ -789,7 +936,7 @@ function buildSlide(
   // The area a box's pictures are placed in: the blank slide's picture area, or the box itself.
   const areaOf = (containerId: string | null): Rect =>
     areas && containerId === null ? areas.pictures : { x: 0, y: 0, ...getContainerBounds(containerId, slide) };
-  const boxOf = (el: ElementRecipe): BoxName => (recipe.type === "blank" ? "canvas" : (el.in ?? "side"));
+  const boxOf = (el: ElementRecipe): BoxName => (isCanvas ? "canvas" : (el.in ?? "side"));
 
   // Numbers and symbols (e.g. the "+" in 🍎🍎 + 🍎🍎🍎) match the biggest picture in their box, so
   // the row reads as one line.
@@ -810,13 +957,13 @@ function buildSlide(
   recipe.elements.forEach((el, i) => {
     const where = `element ${i + 1} (${el.asset})`;
     const boxName = boxOf(el);
-    if (recipe.type !== "blank" && !BOXES[recipe.type].includes(boxName)) {
+    if (!isCanvas && !BOXES[recipe.type].includes(boxName)) {
       reportError(`${where}: a ${recipe.type} slide has no "${boxName}" box. Use one of: ${BOXES[recipe.type].join(", ")}.`);
       return;
     }
     const asset = getElementAsset(el.asset)!;
     const settings = buildSettings(el, asset);
-    const calloutError = el.callouts && checkCallouts(el.callouts, recipe.type);
+    const calloutError = el.callouts && checkCallouts(el.callouts, isCanvas);
     if (typeof settings === "string" || calloutError) {
       reportError(`${where}: ${calloutError || settings}`);
       return;
@@ -839,7 +986,7 @@ function buildSlide(
 
     let size = isGlyph(el.asset) ? (pictureSize.get(boxName) ?? sizeOf(el)) : sizeOf(el);
     // Grid/list boxes are short (the strip, the option rows), so small pictures there look too tiny.
-    if (recipe.type === "choice" && slide.layout !== "list-side" && size === "small") size = "medium";
+    if (hasOptions(slide) && slide.layout !== "list-side" && size === "small") size = "medium";
     const list = byBox.get(containerId) ?? [];
     const callouts = el.callouts ?? [];
     for (let copy = 0; copy < el.count; copy++) {
@@ -895,9 +1042,9 @@ function buildSlide(
     });
   }
 
-  // Drawn first, so they sit behind everything. Only blank slides have decorations. A pattern background is already the slide's decoration,
+  // Drawn first, so they sit behind everything. Only blank and title slides have decorations. A pattern background is already the slide's decoration,
   // so other decorations would only crowd it.
-  const design = recipe.type !== "blank" || recipe.backgroundPattern ? [] : recipe.design;
+  const design = !hasDesign || recipe.backgroundPattern ? [] : recipe.design;
   const decorations = design.flatMap((item, i) => {
     if (!item.asset === !item.svg) {
       reportError(`decoration ${i + 1}${item.asset ? ` (${item.asset})` : ""}: give "asset" or "svg" (one of them).`);
@@ -908,11 +1055,13 @@ function buildSlide(
 
   slide = { ...slide, elements: [...decorations, ...textBoxes, ...pictures, ...placedText, ...calloutParts] };
   const report = describeSlide(slide, texts, pictures, notes);
+  // Short-answer pictures were placed in the room under the question ("side"); they sit on the slide itself.
+  slide.elements = moveShortAnswerPicturesToSlide(slide);
 
-  // The answer (short-answer and blank slides): a typed text, and/or a canvas built like a blank slide
-  // with no design, whose elements then move into the answer box.
-  if (recipe.type === "blank" && recipe.answer !== undefined) slide.correctAnswer = recipe.answer;
-  if (recipe.type !== "choice" && recipe.answerCanvas) {
+  // The answer (short-answer, custom and blank slides): a typed text, and/or a canvas built like a blank
+  // slide with no design, whose elements then move into the answer box.
+  if (isCanvas && recipe.answer !== undefined) slide.correctAnswer = recipe.answer;
+  if ((recipe.type === "short-answer" || isCanvas) && recipe.answerCanvas) {
     const canvas = buildSlide({ type: "blank", design: [], ...recipe.answerCanvas }, drawPatterns, (message) =>
       reportError(`answer canvas: ${message}`),
     );
@@ -965,7 +1114,7 @@ function describeSlide(slide: Slide, texts: BlankText[], pictures: SvgElement[],
   const lines: string[] = [];
   const warnings = [...notes];
 
-  if (slide.type === "blank") {
+  if (isFreeCanvas(slide)) {
     if (texts.length) lines.push(`Text: ${texts.map(({ label, box }) => `${label} ${formatRect(box)}`).join(" · ")}`);
     for (const { label, box, words } of texts) {
       const fontSize = box.text?.fontSize ?? TEXT_BOX_FONT_SIZE;
@@ -977,15 +1126,19 @@ function describeSlide(slide: Slide, texts: BlankText[], pictures: SvgElement[],
   } else {
     const questionFont = slide.questionFontSize ?? QUESTION_FONT_SIZE;
     const questionRoom = { width: QUESTION_TEXT_WIDTH, height: slide.questionHeight - QUESTION_PADDING };
-    const boxes = [`question ${QUESTION_CONTAINER_WIDTH}×${Math.round(slide.questionHeight)}`];
-    if (hasShapeBox(slide)) boxes.push(`side ${formatSize(getContainerBounds(SIDE_CONTAINER_ID, slide))}`);
-    if (slide.type === "choice") boxes.push(`A–D ${formatSize(getContainerBounds(slide.options[0].id, slide))} each`);
+    const boxes = [`question ${formatSize(getContainerBounds(QUESTION_CONTAINER_ID, slide))}`];
+    // Short-answer slides have no box there, but their "side" pictures are placed in the room under the question.
+    if (hasShapeBox(slide) || slide.type === "short-answer") boxes.push(`side ${formatSize(getContainerBounds(SIDE_CONTAINER_ID, slide))}`);
+    if (hasOptions(slide)) {
+      const letters = slide.type === "true-false" ? "A–B" : "A–D";
+      boxes.push(`${letters} ${formatSize(getContainerBounds(slide.options[0].id, slide))} each`);
+    }
     lines.push(`Boxes: ${boxes.join(" · ")}`);
     if (tooLong(slide.question, questionRoom, questionFont)) {
       warnings.push(`the question is probably too long for its box at ${questionFont}px, so it will shrink.`);
     }
-    if (slide.type === "choice") {
-      slide.options.forEach((option, i) => {
+    if (hasOptions(slide)) {
+      getShownOptions(slide).forEach((option, i) => {
         const box = getContainerBounds(option.id, slide);
         // Pictures in an option sit on its right half, so its text should fit in the left half.
         const hasPictures = pictures.some((picture) => picture.containerId === option.id);
@@ -1047,22 +1200,35 @@ const BLANK_BIG_TITLE_HEIGHT = 140;
 // Longest text box across the top of a text-top blank slide, so the pictures keep room below.
 const BLANK_MAX_TEXT_HEIGHT = 240;
 
-type BlankRecipe = Extract<SlideRecipe, { type: "blank" }>;
+// Custom slides keep their left side free for the question number range (e.g. "11–15") in the
+// top-left corner, so the content starts right of it.
+const CUSTOM_LEFT_MARGIN = 150;
 
-/** Where a blank slide's title, text and pictures go on the canvas (a missing title or text gets no area). */
+type BlankRecipe = Extract<SlideRecipe, { type: "blank" | "title" | "custom" }>;
+
+/** Where a blank, title or custom slide's title, text and pictures go on the canvas (a missing title or text gets no area). */
 function blankAreas(recipe: BlankRecipe): { title: Rect | null; text: Rect | null; pictures: Rect } {
-  const width = CANVAS_WIDTH - BLANK_MARGIN * 2;
+  const left = recipe.type === "custom" ? CUSTOM_LEFT_MARGIN : BLANK_MARGIN;
+  const width = CANVAS_WIDTH - left - BLANK_MARGIN;
   const bottom = CANVAS_HEIGHT - BLANK_MARGIN;
+
+  // Title slides: the title and the line under it sit where the editor puts them, pictures in the room below.
+  if (recipe.type === "title") {
+    const text = recipe.text ? TITLE_SLIDE_DESCRIPTION.rect : null;
+    const above = text ?? TITLE_SLIDE_TITLE.rect;
+    const y = above.y + above.height + BLANK_GAP;
+    return { title: TITLE_SLIDE_TITLE.rect, text, pictures: { x: left, y, width, height: bottom - y } };
+  }
   const hasText = !!recipe.text && recipe.layout !== "title-only";
 
   if (recipe.layout === "text-left" && (recipe.title || hasText)) {
     const column = (width - BLANK_GAP) / 2;
-    const title = recipe.title ? { x: BLANK_MARGIN, y: BLANK_MARGIN, width: column, height: BLANK_TITLE_HEIGHT } : null;
+    const title = recipe.title ? { x: left, y: BLANK_MARGIN, width: column, height: BLANK_TITLE_HEIGHT } : null;
     const textTop = title ? BLANK_MARGIN + BLANK_TITLE_HEIGHT + BLANK_GAP : BLANK_MARGIN;
     return {
       title,
-      text: hasText ? { x: BLANK_MARGIN, y: textTop, width: column, height: bottom - textTop } : null,
-      pictures: { x: BLANK_MARGIN + column + BLANK_GAP, y: BLANK_MARGIN, width: column, height: bottom - BLANK_MARGIN },
+      text: hasText ? { x: left, y: textTop, width: column, height: bottom - textTop } : null,
+      pictures: { x: left + column + BLANK_GAP, y: BLANK_MARGIN, width: column, height: bottom - BLANK_MARGIN },
     };
   }
 
@@ -1072,15 +1238,15 @@ function blankAreas(recipe: BlankRecipe): { title: Rect | null; text: Rect | nul
   let text: Rect | null = null;
   if (recipe.title) {
     const height = recipe.layout === "title-only" ? BLANK_BIG_TITLE_HEIGHT : BLANK_TITLE_HEIGHT;
-    title = { x: BLANK_MARGIN, y, width, height };
+    title = { x: left, y, width, height };
     y += height + BLANK_GAP;
   }
   if (hasText) {
     const height = textHeightFor(stripMarkup(recipe.text!), width, recipe.textFontSize ?? TEXT_BOX_FONT_SIZE);
-    text = { x: BLANK_MARGIN, y, width, height: Math.min(BLANK_MAX_TEXT_HEIGHT, height) };
+    text = { x: left, y, width, height: Math.min(BLANK_MAX_TEXT_HEIGHT, height) };
     y += text.height + BLANK_GAP;
   }
-  return { title, text, pictures: { x: BLANK_MARGIN, y, width, height: bottom - y } };
+  return { title, text, pictures: { x: left, y, width, height: bottom - y } };
 }
 
 function textBox(rect: Rect, html: string, fontSize?: number): SvgElement {
@@ -1117,8 +1283,8 @@ const CALLOUT_AT = { top: 0.25, left: 0.25, middle: 0.5, bottom: 0.75, right: 0.
 const CALLOUT_MAX = { left: 3, right: 3, top: 1, bottom: 1 };
 
 /** An error message, or null when the callouts are fine. */
-function checkCallouts(callouts: Callout[], slideType: SlideRecipe["type"]): string | null {
-  if (callouts.length && slideType !== "blank") return "callouts only work on blank slides.";
+function checkCallouts(callouts: Callout[], isCanvas: boolean): string | null {
+  if (callouts.length && !isCanvas) return "callouts only work on blank, title and custom slides.";
   for (const { from, at } of callouts) {
     const sideways = from === "left" || from === "right";
     const allowed = sideways ? ["top", "middle", "bottom"] : ["left", "middle", "right"];
@@ -1276,7 +1442,7 @@ const CHAR_WIDTH_PER_PX = 0.525;
 const LINE_HEIGHT_PER_PX = 1.25;
 // The room the question box's edges take (px), top + bottom (and left + right): p-4 plus its 1px border.
 const QUESTION_PADDING = 34;
-// Room the question text has across: slides from Claude are numbered, so the number takes some of it.
+// Room the question text has across: slides from Claude are numbered, so their question box is narrower.
 const QUESTION_TEXT_WIDTH = QUESTION_CONTAINER_WIDTH - QUESTION_PADDING - QUESTION_NUMBER_INDENT;
 
 /** Roughly how tall `text` is at `fontSize` in a box `width` wide. Each \n starts a new line. */
@@ -1354,6 +1520,10 @@ function buildSettings(el: ElementRecipe, asset: Asset): Partial<SvgElement> | s
     settings.rotation3d = { x: el.tilt ?? DEFAULT_ROTATION_3D.x, y: el.turn ?? DEFAULT_ROTATION_3D.y };
   }
   if (el.opacity !== undefined && el.opacity < 100) settings.opacity = el.opacity;
+  if (el.cornerRadius) {
+    if (!asset.roundCorners) return '"cornerRadius" only works on square and rectangle.';
+    settings.cornerRadius = el.cornerRadius;
+  }
   if (el.flipX) settings.flipX = true;
   if (el.flipY) settings.flipY = true;
 

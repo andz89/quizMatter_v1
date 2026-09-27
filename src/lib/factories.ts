@@ -1,23 +1,48 @@
 import { createId } from "./id";
-import { DEFAULT_QUESTION_HEIGHT } from "./constants";
-import type { PresentationDetails, Presentation, Slide, SlideType } from "./schema";
+import { CANVAS_WIDTH, DEFAULT_QUESTION_HEIGHT } from "./constants";
+import { DEFAULT_TEXT_COLOR } from "./richText";
+import type { PresentationDetails, Presentation, Slide, SlideType, SvgElement } from "./schema";
+
+// Where a new title slide's two text boxes go: centered, the title a bit above the middle.
+// Claude's title slides (importPresentation) use the same spots.
+const TITLE_SLIDE_MARGIN = 120;
+const titleSlideRect = (y: number) => ({ x: TITLE_SLIDE_MARGIN, y, width: CANVAS_WIDTH - TITLE_SLIDE_MARGIN * 2, height: 120 });
+export const TITLE_SLIDE_TITLE = { rect: titleSlideRect(220), fontSize: 72 };
+export const TITLE_SLIDE_DESCRIPTION = { rect: titleSlideRect(370), fontSize: 36 };
+
+/** A plain text box on the open slide (the same one the Elements panel adds). */
+function titleSlideTextBox({ rect, fontSize }: typeof TITLE_SLIDE_TITLE, html: string): SvgElement {
+  return { id: createId(), assetId: "text-box", ...rect, color: DEFAULT_TEXT_COLOR, containerId: null, text: { html, fontSize } };
+}
 
 export function createBlankSlide(type: SlideType = "choice"): Slide {
+  // A title slide is a blank slide that starts with a title and a description; both can be edited,
+  // moved or deleted like any other text box.
+  const elements =
+    type === "title"
+      ? [
+          titleSlideTextBox(TITLE_SLIDE_TITLE, '<p style="text-align: center"><strong>Title</strong></p>'),
+          titleSlideTextBox(TITLE_SLIDE_DESCRIPTION, '<p style="text-align: center">Add a description here</p>'),
+        ]
+      : [];
+
   return {
     id: createId(),
     type,
     question: "",
     layout: "grid",
     options: [
-      { id: createId(), text: "" },
-      { id: createId(), text: "" },
+      { id: createId(), text: type === "true-false" ? "True" : "" },
+      { id: createId(), text: type === "true-false" ? "False" : "" },
       { id: createId(), text: "" },
       { id: createId(), text: "" },
     ],
     correctOptionId: null,
     correctAnswer: "",
-    elements: [],
+    elements,
     questionHeight: DEFAULT_QUESTION_HEIGHT,
+    // A custom question starts as 1 item; the teacher changes it in the slide toolbar.
+    ...(type === "custom" && { itemCount: 1 }),
   };
 }
 

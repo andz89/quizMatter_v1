@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { createPortal } from "react-dom";
 import { CloseIcon } from "@/components/icons/CloseIcon";
-import { ANSWER_CONTAINER_ID } from "@/lib/constants";
+import { ANSWER_CONTAINER_ID, hasReveal } from "@/lib/constants";
 import { FluidCanvas } from "@/components/presentation/FluidSlidePreview";
 import { StaticElementView } from "./StaticElementView";
 import type { Slide } from "@/lib/schema";
@@ -13,7 +13,7 @@ interface AnswerModalProps {
   onClose: () => void;
 }
 
-/** Centered modal with a short-answer or blank slide's correct answer, shown when presenting: its text or its answer canvas. */
+/** Centered modal with a short-answer, custom or blank slide's answer (a reveal on blank slides), shown when presenting: its text or its answer canvas. */
 export function AnswerModal({ slide, onClose }: AnswerModalProps) {
   // Caught on the way down (capture) and stopped here, so the presentation's own shortcuts
   // (Escape leaves it, arrows change slides) don't fire behind the modal. Escape closes the modal.
@@ -28,8 +28,6 @@ export function AnswerModal({ slide, onClose }: AnswerModalProps) {
 
   const isCanvas = slide.answerType === "canvas";
   const answer = slide.correctAnswer ?? "";
-  // A blank slide's answer is content shown during the discussion, not a correct answer.
-  const isReveal = slide.type === "blank";
 
   // Portal into <body>, so no parent's `transform` shifts this `position: fixed` box.
   return createPortal(
@@ -48,8 +46,8 @@ export function AnswerModal({ slide, onClose }: AnswerModalProps) {
         }`}
       >
         <div className="flex items-center justify-between">
-          <span className={`text-xs font-semibold uppercase tracking-[0.05em] ${isReveal ? "text-accent-navy" : "text-accent-green"}`}>
-            {isReveal ? "Reveal" : "Correct answer"}
+          <span className="text-xs font-semibold uppercase tracking-[0.05em] text-accent-green">
+            {hasReveal(slide) ? "Reveal" : "Answer"}
           </span>
           <button
             type="button"
@@ -75,7 +73,7 @@ export function AnswerModal({ slide, onClose }: AnswerModalProps) {
             {answer}
           </p>
         ) : (
-          <p className="text-base text-text-secondary">{isReveal ? "Nothing was added to reveal." : "No answer was added for this slide."}</p>
+          <p className="text-base text-text-secondary">No answer was added for this slide.</p>
         )}
       </div>
     </div>,

@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { useEditorStore } from "./store";
 import { isTypingTarget } from "./dom";
 import { getContainerBounds } from "./constants";
+import { overhangFor, positionRange } from "./geometry";
 
 // How far (px) an arrow key moves the selected element(s); Shift moves further.
 const ARROW_STEP = 1;
@@ -21,8 +22,9 @@ const ARROW_DIRECTIONS: Record<string, { x: number; y: number }> = {
  * - Ctrl/Cmd+Z undoes; Ctrl+Y or Ctrl/Cmd+Shift+Z redoes (also while typing, so there's only one undo history)
  * - Ctrl/Cmd+C copies and Ctrl/Cmd+V pastes the selected element(s)
  * - Ctrl/Cmd+G groups, Ctrl/Cmd+Shift+G ungroups
+ * - Ctrl/Cmd+] brings forward, Ctrl/Cmd+[ sends backward; add Alt to go all the way to the front/back
  * - Escape or Enter stops cropping
- * - Delete/Backspace removes the selected element(s), Escape deselects
+ * - Delete removes the selected element(s) (Backspace doesn't), Escape deselects
  * - Arrow keys move the selected element(s) 1px (10px with Shift), kept inside their box
  */
 export function useEditorShortcuts() {
@@ -79,6 +81,13 @@ export function useEditorShortcuts() {
         e.preventDefault();
         if (e.shiftKey) state.ungroupSelectedElements();
         else state.groupSelectedElements();
+      } else if (isMeta && (e.code === "BracketRight" || e.code === "BracketLeft")) {
+        // e.code, not e.key: Alt changes the typed character on some keyboards.
+        if (selectedElementIds.length === 0) return;
+        e.preventDefault();
+        const up = e.code === "BracketRight";
+        const move = e.altKey ? (up ? "front" : "back") : up ? "forward" : "backward";
+        state.moveElementsInLayers(selectedSlideId, selectedElementIds, move);
       } else if (
         // Only while the cropped element is still the one selected: after it's deleted or the slide
         // changes, the id can linger, and it must not swallow Escape (deselect) or Enter.
@@ -90,7 +99,8 @@ export function useEditorShortcuts() {
         // Also stops Enter from clicking a focused button (like Crop, which would start cropping again).
         e.preventDefault();
         state.setCroppingElementId(null);
-      } else if (selectedElementIds.length > 0 && (e.key === "Delete" || e.key === "Backspace")) {
+      } else if (selectedElementIds.length > 0 && e.key === "Delete") {
+        // Only the Delete key, not Backspace, so a stray Backspace can't remove elements.
         e.preventDefault();
         state.deleteElements(selectedSlideId, selectedElementIds);
       } else if (selectedElementIds.length > 0 && ARROW_DIRECTIONS[e.key]) {
@@ -102,12 +112,16 @@ export function useEditorShortcuts() {
         const step = e.shiftKey ? ARROW_STEP_SHIFT : ARROW_STEP;
         let dx = ARROW_DIRECTIONS[e.key].x * step;
         let dy = ARROW_DIRECTIONS[e.key].y * step;
-        // Shrink the move so no element leaves its box; all move by the same amount to keep their spacing.
+        // Shrink the move so no element leaves its box (on the slide: keeps at least 10% on it); all
+        // move by the same amount to keep their spacing.
         for (const el of elements) {
           const bounds = getContainerBounds(el.containerId, slide);
+          const overhang = overhangFor(el.containerId);
+          const rangeX = positionRange(el.width, bounds.width, overhang);
+          const rangeY = positionRange(el.height, bounds.height, overhang);
           // The Math.min/max with 0 stop an element already past an edge from being pushed the wrong way.
-          dx = Math.min(Math.max(dx, Math.min(0, -el.x)), Math.max(0, bounds.width - el.width - el.x));
-          dy = Math.min(Math.max(dy, Math.min(0, -el.y)), Math.max(0, bounds.height - el.height - el.y));
+          dx = Math.min(Math.max(dx, Math.min(0, rangeX.min - el.x)), Math.max(0, rangeX.max - el.x));
+          dy = Math.min(Math.max(dy, Math.min(0, rangeY.min - el.y)), Math.max(0, rangeY.max - el.y));
         }
         if (dx === 0 && dy === 0) return;
         state.updateElements(

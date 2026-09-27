@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { useEditorStore } from "@/lib/store";
+import { moveInLayers, useEditorStore, type LayerMove } from "@/lib/store";
 import { getContainerBounds, type BoxLayout } from "@/lib/constants";
 import { fitInBox, getOuterEdges } from "@/lib/geometry";
 import type { SvgElement } from "@/lib/schema";
@@ -16,11 +16,13 @@ interface ArrangePanelProps {
   elements: SvgElement[];
 }
 
-/** Align, distribute, and same-size tools for a multi-selection, or align-to-box for a single element.
+/** Layer order, plus align, distribute, and same-size tools for a multi-selection, or align-to-box for a single element.
  *  Renders only the panel's contents — it sits inside a ToolPanelButton. */
 export function ArrangePanel({ slideId, box, elements }: ArrangePanelProps) {
   const selectedElementIds = useEditorStore((s) => s.selectedElementIds);
   const updateElements = useEditorStore((s) => s.updateElements);
+  const moveElementsInLayers = useEditorStore((s) => s.moveElementsInLayers);
+  const slideElements = useEditorStore((s) => s.presentation.slides.find((sl) => sl.id === slideId)?.elements);
   // Line items up against each other ("selection") or against their box — the slide itself for free items.
   const [alignTo, setAlignTo] = useState<"selection" | "box">("selection");
 
@@ -83,8 +85,26 @@ export function ArrangePanel({ slideId, box, elements }: ArrangePanelProps) {
     updateElements(slideId, Object.fromEntries(patches));
   };
 
+  const ids = elements.map((el) => el.id);
+  // A button is off when the move would change nothing (e.g. "to front" on the top element).
+  const layerButton = (move: LayerMove, title: string, d: string) => {
+    const canMove = !!slideElements && moveInLayers(slideElements, ids, move) !== slideElements;
+    return (
+      <ToolButton title={title} disabled={!canMove} onClick={() => moveElementsInLayers(slideId, ids, move)}>
+        <AlignIcon d={d} />
+      </ToolButton>
+    );
+  };
+
   return (
     <>
+      <Section label="Layer">
+        {layerButton("forward", "Bring forward (Ctrl+])", "M8 13V3M4.5 6.5 8 3l3.5 3.5")}
+        {layerButton("front", "Bring to front (Ctrl+Alt+])", "M8 14V5M4.5 8.5 8 5l3.5 3.5M3 2h10")}
+        {layerButton("backward", "Send backward (Ctrl+[)", "M8 3v10M4.5 9.5 8 13l3.5-3.5")}
+        {layerButton("back", "Send to back (Ctrl+Alt+[)", "M8 2v9M4.5 7.5 8 11l3.5-3.5M3 14h10")}
+      </Section>
+
       <Section
         label={isSingle ? `Align to ${boxName}` : "Align"}
         action={
