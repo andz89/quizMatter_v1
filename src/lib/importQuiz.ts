@@ -18,6 +18,7 @@ import {
   OPTION_FONT_SIZE,
   OPTION_LABELS,
   QUESTION_CONTAINER_WIDTH,
+  QUESTION_NUMBER_INDENT,
   QUESTION_FONT_SIZE,
   SIDE_CONTAINER_ID,
   ANSWER_CONTAINER_ID,
@@ -359,12 +360,12 @@ const slideRecipe = z.discriminatedUnion("type", [
 export const quizRecipeSchema = z.object({ slides: z.array(slideRecipe).min(1) });
 
 /**
- * Details about the lesson as a whole, which Claude fills in when it sends a lesson (see /api/mcp).
- * All optional. Who published it isn't here: that's the logged-in user who saves the lesson.
+ * Details about the presentation as a whole, which Claude fills in when it sends a presentation (see /api/mcp).
+ * All optional. Who published it isn't here: that's the logged-in user who saves the presentation.
  */
 export const quizDetailsSchema = z.object({
-  title: z.string().trim().max(DETAIL_MAX_LENGTH.title).optional().describe('The lesson title, e.g. "Adding Fractions".'),
-  description: z.string().trim().max(DETAIL_MAX_LENGTH.description).optional().describe("What the lesson covers, in 1–3 sentences."),
+  title: z.string().trim().max(DETAIL_MAX_LENGTH.title).optional().describe('The presentation title, e.g. "Adding Fractions".'),
+  description: z.string().trim().max(DETAIL_MAX_LENGTH.description).optional().describe("What the presentation covers, in 1–3 sentences."),
   grade: z.enum(GRADES).optional(),
   subject: z.string().trim().max(DETAIL_MAX_LENGTH.subject).optional().describe('e.g. "Mathematics", "Science", "English".'),
   curriculum: z.string().trim().max(DETAIL_MAX_LENGTH.curriculum).optional().describe('e.g. "MATATAG", "K to 12".'),
@@ -373,7 +374,7 @@ export const quizDetailsSchema = z.object({
     .trim()
     .max(DETAIL_MAX_LENGTH.learningCompetency)
     .optional()
-    .describe("The learning competency the lesson targets, with its code if known."),
+    .describe("The learning competency the presentation targets, with its code if known."),
   author: z
     .string()
     .trim()
@@ -385,7 +386,7 @@ export const quizDetailsSchema = z.object({
     .max(MAX_REFERENCE_LINKS)
     .optional()
     .describe(
-      'What the lesson is based on, one per item: a full https:// link, or a book / module name (e.g. "DepEd SLM Mathematics 5, Quarter 1 – Module 8"). Only links you are sure are real.',
+      'What the presentation is based on, one per item: a full https:// link, or a book / module name (e.g. "DepEd SLM Mathematics 5, Quarter 1 – Module 8"). Only links you are sure are real.',
     ),
 });
 
@@ -407,18 +408,18 @@ const BOXES: Record<"choice" | "short-answer", BoxName[]> = {
 // Tools you read a value from. They get the tall side box (list-side) and start large.
 const READING_TOOLS = new Set(["clock", "digital-clock", "thermometer", "bar-graph", "protractor", "base-ten-blocks", "fraction-circle"]);
 
-const CLAUDE_NOTES = `Write a lesson for my app (quizMatter) as JSON. Send it with send_lesson: "slides" is the slides array below, and it must match the JSON Schema at the end.
+const CLAUDE_NOTES = `Write a presentation for my app (quizMatter) as JSON. Send it with send_presentation: "slides" is the slides array below, and it must match the JSON Schema at the end.
 
-quizMatter is an open canvas tool for making presentations, like Canva or PowerPoint. It is not only for quizzes. A lesson is a set of slides of two kinds:
-- Blank slides ("lesson" type): a free canvas for any kind of presentation — teaching a topic, a class discussion, a story, a report, instructions, a review. A lesson can be all blank slides, with no questions at all.
+quizMatter is an open canvas tool for making presentations, like Canva or PowerPoint. It is not only for quizzes. A presentation is a set of slides of two kinds:
+- Blank slides ("lesson" type): a free canvas for any kind of presentation — teaching a topic, a class discussion, a story, a report, instructions, a review. A presentation can be all blank slides, with no questions at all.
 - Question slides ("choice" and "short-answer"): for checking what learners know — an evaluation, a paper quiz, an assessment, or a short quiz after the discussion.
 Mix them as the user's request needs: e.g. blank slides to teach, then question slides to check.
 
-Also fill in "details" when you send it: the lesson's title, a short description, grade, subject, curriculum and learning competency (and author or reference links only when you know them).
+Also fill in "details" when you send it: the presentation's title, a short description, grade, subject, curriculum and learning competency (and author or reference links only when you know them).
 
 Leave a setting out and the app decides it. The layout report you get back (see "Checking before the final version") shows where everything landed.
 
-Number the questions yourself: the app shows no question numbers. Start each question's text with its number, e.g. "1. Which change forms no new substance?". Count only question slides ("choice" and "short-answer"), in order, starting at 1; blank slides don't get a number.
+Never number the questions: write "Which change forms no new substance?", not "1. Which change…" or "Q1: Which change…". The app numbers the question slides itself (beside the question box), and keeps the numbers right when the teacher moves slides around.
 
 === The slides and what is on each one ===
 
@@ -510,9 +511,9 @@ Arrows that point at part of a picture ("callouts", lesson slides only):
 
 === Checking before the final version (the layout report) ===
 
-- send_lesson replies with a layout report: every box's size, and where each text and picture landed, in the same px as "position". Lines starting with "!" point out things to check: pictures that wrapped to more rows or shrank a lot, pictures on top of text, text that will probably shrink.
-- Send the lesson first with "final": false. The user sees it as "Checking…" and can't open it yet. Check the report against what you meant, and fix anything that's off (e.g. give "position" with the numbers you want). You can check again the same way.
-- Then send it with "final": true and the "draftId" you got. That turns the checking version into the finished lesson and gives you the link for the user.
+- send_presentation replies with a layout report: every box's size, and where each text and picture landed, in the same px as "position". Lines starting with "!" point out things to check: pictures that wrapped to more rows or shrank a lot, pictures on top of text, text that will probably shrink.
+- Send the presentation first with "final": false. The user sees it as "Checking…" and can't open it yet. Check the report against what you meant, and fix anything that's off (e.g. give "position" with the numbers you want). You can check again the same way.
+- Then send it with "final": true and the "draftId" you got. That turns the checking version into the finished presentation and gives you the link for the user.
 
 === Answers and Reveal (short-answer and lesson slides) ===
 
@@ -533,7 +534,7 @@ When presenting, the teacher clicks a button to show hidden content in a popup. 
 
 Question slides — keep them plain:
 - No decorations, no pattern, no artwork: question slides don't have "design", "backgroundPattern" or "backgroundSvg".
-- "background": you may give a soft, light color (e.g. #FEF3C7, #E0F2FE, #DCFCE7, #FCE7F3, #EDE9FE), or leave it out for white. Use one color family for the whole lesson. Dark colors are lightened automatically, because the text is dark.
+- "background": you may give a soft, light color (e.g. #FEF3C7, #E0F2FE, #DCFCE7, #FCE7F3, #EDE9FE), or leave it out for white. Use one color family for the whole presentation. Dark colors are lightened automatically, because the text is dark.
 - "pictureBox": a soft fill and/or border for the picture box, in the same color family, so the pictures stand out.
 
 Lesson slides — always white, made friendly with design:
@@ -545,7 +546,7 @@ Background artwork (lesson slides only) — each lesson slide can have one of th
 - Option 1, "backgroundPattern": a ready-made pattern from the app: ${BACKGROUND_PATTERN_IDS.join(", ")}. It shows as a soft frame around the slide's edges, at 25% opacity unless you set "patternOpacity"; the middle stays plain white. It replaces "design": a slide with a pattern gets no decorations.
 - Option 2, "backgroundSvg": your own full-slide artwork, drawn over the white slide, behind everything. Use viewBox="0 0 1280 720". Good ideas: soft waves along the bottom, blobs in the corners, a sunburst, a frame. Keep the middle mostly empty so the text stays easy to read.
   - "backgroundSvgOpacity" sets how solid it is (${BACKGROUND_SVG_OPACITY}% if left out). Draw it in full colors and use this to soften it.
-- Mix them across the lesson: patterns on some slides, your own artwork or decorations on others.
+- Mix them across the presentation: patterns on some slides, your own artwork or decorations on others.
 
 Opacity: you choose how solid decorations, patterns, background artwork and pictures are. Keep anything behind text light enough that the text stays easy to read.
 
@@ -594,14 +595,14 @@ Example:
       "type": "choice",
       "background": "#E0F2FE",
       "pictureBox": { "fill": "#F0F9FF", "border": "#7DD3FC" },
-      "question": "1. What time does the clock show?",
+      "question": "What time does the clock show?",
       "options": ["3:00", "4:30", "6:15", "9:45"],
       "answer": "C",
       "elements": [{ "asset": "clock", "clockTime": { "hours": 6, "minutes": 15 } }]
     },
     {
       "type": "short-answer",
-      "question": "2. How many apples are there in all?",
+      "question": "How many apples are there in all?",
       "answer": "5 apples",
       "elements": [
         { "asset": "apple", "count": 3 },
@@ -616,7 +617,7 @@ Example:
     },
     {
       "type": "choice",
-      "question": "3. What is 2 + 3?",
+      "question": "What is 2 + 3?",
       "options": ["4", "5", "6", "7"],
       "answer": "B",
       "elements": [
@@ -963,7 +964,7 @@ function describeSlide(slide: Slide, texts: LessonText[], pictures: SvgElement[]
     }
   } else {
     const questionFont = slide.questionFontSize ?? QUESTION_FONT_SIZE;
-    const questionRoom = { width: QUESTION_CONTAINER_WIDTH - QUESTION_PADDING, height: slide.questionHeight - QUESTION_PADDING };
+    const questionRoom = { width: QUESTION_TEXT_WIDTH, height: slide.questionHeight - QUESTION_PADDING };
     const boxes = [`question ${QUESTION_CONTAINER_WIDTH}×${Math.round(slide.questionHeight)}`];
     if (hasShapeBox(slide)) boxes.push(`side ${formatSize(getContainerBounds(SIDE_CONTAINER_ID, slide))}`);
     if (slide.type === "choice") boxes.push(`A–D ${formatSize(getContainerBounds(slide.options[0].id, slide))} each`);
@@ -1263,6 +1264,8 @@ const CHAR_WIDTH_PER_PX = 0.525;
 const LINE_HEIGHT_PER_PX = 1.25;
 // The room the question box's edges take (px), top + bottom (and left + right): p-4 plus its 1px border.
 const QUESTION_PADDING = 34;
+// Room the question text has across: slides from Claude are numbered, so the number takes some of it.
+const QUESTION_TEXT_WIDTH = QUESTION_CONTAINER_WIDTH - QUESTION_PADDING - QUESTION_NUMBER_INDENT;
 
 /** Roughly how tall `text` is at `fontSize` in a box `width` wide. Each \n starts a new line. */
 function textHeightFor(text: string, width: number, fontSize: number): number {
@@ -1273,7 +1276,7 @@ function textHeightFor(text: string, width: number, fontSize: number): number {
 
 /** A question box just tall enough for its text — short questions get a shorter box. Never taller than the default. */
 function questionHeightFor(question: string, fontSize = QUESTION_FONT_SIZE): number {
-  const height = textHeightFor(question, QUESTION_CONTAINER_WIDTH - QUESTION_PADDING, fontSize) + QUESTION_PADDING;
+  const height = textHeightFor(question, QUESTION_TEXT_WIDTH, fontSize) + QUESTION_PADDING;
   return Math.min(DEFAULT_QUESTION_HEIGHT, height);
 }
 

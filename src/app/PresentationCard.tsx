@@ -1,13 +1,13 @@
 import Link from "next/link";
-import { CANVAS_WIDTH, CANVAS_HEIGHT } from "@/lib/constants";
+import { CANVAS_WIDTH, CANVAS_HEIGHT, getSlideNumbers } from "@/lib/constants";
 import { joinParts } from "@/lib/format";
 import { LinkPending } from "@/components/LinkPending";
 import { Spinner } from "@/components/Spinner";
 import { FluidSlidePreview } from "@/components/presentation/FluidSlidePreview";
 import type { Slide } from "@/lib/schema";
-import { LessonCardMenu } from "./LessonCardMenu";
+import { PresentationCardMenu } from "./PresentationCardMenu";
 
-export type LessonCardData = {
+export type PresentationCardData = {
   id: string;
   href: string;
   title: string;
@@ -17,15 +17,15 @@ export type LessonCardData = {
   firstSlide: Slide | null;
   // "checking" = a draft Claude is still checking (not openable yet); "unfinished" = Claude didn't send its final version.
   badge?: "draft" | "published" | "checking" | "unfinished";
-  // "By <author>" on other teachers' lessons, when the author is filled in.
+  // "By <author>" on other teachers' presentations, when the author is filled in.
   byline?: string;
 };
 
 /**
- * A lesson as a card: a picture of its first slide, then the title and a gray line of details.
- * `showMenu` adds the "⋮" menu (Edit, Present, Delete) — only for my own lessons.
+ * A presentation as a card: a picture of its first slide, then the title and a gray line of details.
+ * `showMenu` adds the "⋮" menu (Edit, Present, Delete) — only for my own presentations.
  */
-export function LessonCard({ card, showMenu = false }: { card: LessonCardData; showMenu?: boolean }) {
+export function PresentationCard({ card, showMenu = false }: { card: PresentationCardData; showMenu?: boolean }) {
   const isChecking = card.badge === "checking";
   const body = (
     <>
@@ -39,7 +39,8 @@ export function LessonCard({ card, showMenu = false }: { card: LessonCardData; s
           style={{ aspectRatio: `${CANVAS_WIDTH} / ${CANVAS_HEIGHT}` }}
         >
           {card.firstSlide ? (
-            <FluidSlidePreview slide={card.firstSlide} />
+            // The presentation's first slide, so a question there is number 1 (unless taken out of the numbers).
+            <FluidSlidePreview slide={card.firstSlide} questionNumber={getSlideNumbers([card.firstSlide]).get(card.firstSlide.id)} />
           ) : (
             <div className="flex h-full items-center justify-center gap-2 bg-bg-page text-[13px] text-text-secondary">
               {isChecking && <Spinner size={14} />}
@@ -69,19 +70,19 @@ export function LessonCard({ card, showMenu = false }: { card: LessonCardData; s
           {body}
         </Link>
       )}
-      {showMenu && <LessonCardMenu card={card} />}
+      {showMenu && <PresentationCardMenu card={card} />}
     </div>
   );
 }
 
-const BADGES: Record<NonNullable<LessonCardData["badge"]>, { label: string; className: string }> = {
+const BADGES: Record<NonNullable<PresentationCardData["badge"]>, { label: string; className: string }> = {
   draft: { label: "Draft", className: "bg-accent-orange text-white" },
   published: { label: "Published", className: "bg-accent-green text-white" },
   checking: { label: "Checking…", className: "border border-border-default bg-bg-surface text-text-secondary" },
   unfinished: { label: "Not finished", className: "bg-accent-gray text-white" },
 };
 
-function Badge({ badge }: { badge: NonNullable<LessonCardData["badge"]> }) {
+function Badge({ badge }: { badge: NonNullable<PresentationCardData["badge"]> }) {
   const { label, className } = BADGES[badge];
   return (
     <span className={`absolute top-5 left-5 rounded-dropdown px-2 py-1 text-xs leading-none font-semibold ${className}`}>{label}</span>

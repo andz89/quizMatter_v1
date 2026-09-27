@@ -17,7 +17,7 @@ export const ANSWER_CONTAINER_ID = "answer";
 // dataTransfer type used to drag an element asset from the Elements panel onto a question/option box.
 export const ELEMENT_DRAG_MIME = "application/x-quizbuilder-element";
 
-// dataTransfer type used to drag a slide (as JSON) from the Lessons panel onto the workspace.
+// dataTransfer type used to drag a slide (as JSON) from the Presentations panel onto the workspace.
 export const SLIDE_DRAG_MIME = "application/x-quizbuilder-slide";
 
 // The font size (px) each kind of text shows at when the user hasn't chosen one. It's the largest
@@ -65,6 +65,10 @@ export const OPTIONS_GRID_CLASSES: Record<SlideLayout, string> = {
 };
 
 export const QUESTION_CONTAINER_WIDTH = CANVAS_WIDTH - CARD_PADDING * 2;
+// A numbered question's text starts this much further right, to make room for its number.
+export const QUESTION_NUMBER_INDENT = 40;
+// The question box's left padding (p-4) plus that room, for a numbered question.
+export const NUMBERED_QUESTION_PADDING_LEFT = 16 + QUESTION_NUMBER_INDENT;
 
 export const DEFAULT_QUESTION_HEIGHT = 160;
 export const MIN_QUESTION_HEIGHT = 56;
@@ -105,7 +109,11 @@ export function getSlideNumbers(slides: Slide[]): Map<string, number> {
   const numbers = new Map<string, number>();
   let questions = 0;
   let blanks = 0;
-  slides.forEach((slide) => numbers.set(slide.id, slide.type === "lesson" ? ++blanks : ++questions));
+  slides.forEach((slide) => {
+    if (slide.type === "lesson") numbers.set(slide.id, ++blanks);
+    // A question slide taken out of the numbers gets none, and doesn't count.
+    else if (!slide.hideNumber) numbers.set(slide.id, ++questions);
+  });
   return numbers;
 }
 

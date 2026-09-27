@@ -9,18 +9,19 @@ import { SlideToolbar } from "./SlideToolbar";
 import type { Slide } from "@/lib/schema";
 
 // Room the widest toolbar needs in one row (short-answer slide: name + "Add answer" + tools).
-const TOOLBAR_WIDTH = 460;
+const TOOLBAR_WIDTH = 496;
 
 interface SlideWorkspaceItemProps {
   slide: Slide;
-  // Q1, Q2… on question slides; Slide 1, Slide 2… on blank slides (each type counted separately).
-  slideNumber: number;
+  // 1, 2… on question slides; Slide 1, Slide 2… on blank slides (each type counted separately).
+  // Missing on a question slide taken out of the numbers.
+  slideNumber?: number;
   zoom: number;
   // The slides just before/after this one, for the move up/down buttons (undefined at the ends).
   prevSlideId?: string;
   nextSlideId?: string;
   canDelete: boolean;
-  // A slide dragged from the Lessons panel will go right before/after this one: a navy line shows where.
+  // A slide dragged from the Presentations panel will go right before/after this one: a navy line shows where.
   dropSide?: "before" | "after";
   registerNode: (slideId: string, node: HTMLDivElement | null) => void;
 }
@@ -83,7 +84,7 @@ export const SlideWorkspaceItem = memo(function SlideWorkspaceItem({
           zoom,
         }}
       >
-        <SlideCanvas slide={slide} />
+        <SlideCanvas slide={slide} questionNumber={slideNumber} />
       </div>
       {/* In the middle of the 40px gap between slides (Workspace's SLIDE_GAP). */}
       {dropSide && (

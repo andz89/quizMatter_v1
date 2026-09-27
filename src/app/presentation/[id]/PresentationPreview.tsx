@@ -4,7 +4,7 @@ import { useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { CANVAS_WIDTH, CANVAS_HEIGHT } from "@/lib/constants";
+import { CANVAS_WIDTH, CANVAS_HEIGHT, getSlideNumbers } from "@/lib/constants";
 import { createId } from "@/lib/id";
 import { joinParts, slideCountLabel } from "@/lib/format";
 import { saveQuizToDb } from "@/lib/quizzes";
@@ -21,15 +21,15 @@ const PresentationView = dynamic(() =>
 );
 
 /**
- * A lesson's details and all its slides, view only. Present shows it fullscreen (the same view as the
+ * A presentation's details and all its slides, view only. Present shows it fullscreen (the same view as the
  * editor's Present button); "Make a copy" saves a private copy for me and opens it in the editor.
  */
-export function LessonView({ quiz, isMine }: { quiz: Quiz; isMine: boolean }) {
+export function PresentationPreview({ quiz, isMine }: { quiz: Quiz; isMine: boolean }) {
   const router = useRouter();
   const isPresenting = useEditorStore((s) => s.isPresenting);
   const [isCopying, setIsCopying] = useState(false);
 
-  // The presentation view reads the editor's store, so the lesson goes in there first.
+  // The presentation view reads the editor's store, so the presentation goes in there first.
   const present = async (slideId = quiz.slides[0]?.id) => {
     try {
       await document.documentElement.requestFullscreen();
@@ -45,14 +45,14 @@ export function LessonView({ quiz, isMine }: { quiz: Quiz; isMine: boolean }) {
   const makeCopy = async () => {
     setIsCopying(true);
     const now = Date.now();
-    // Slide ids can stay: a slide's id only has to be unique inside its own lesson.
+    // Slide ids can stay: a slide's id only has to be unique inside its own presentation.
     // "Copy of …" so it's easy to tell apart from the original. `author` stays: it credits who wrote the content.
-    const title = `Copy of ${quiz.title || "Untitled lesson"}`.slice(0, DETAIL_MAX_LENGTH.title);
+    const title = `Copy of ${quiz.title || "Untitled presentation"}`.slice(0, DETAIL_MAX_LENGTH.title);
     const copy = { ...quiz, id: createId(), title, isPublished: false, createdAt: now, updatedAt: now };
     try {
       await saveQuizToDb(copy);
       // isCopying stays true, so the spinner and top line keep showing until the editor opens.
-      router.push(`/quiz/${copy.id}`);
+      router.push(`/presentation/${copy.id}/edit`);
     } catch {
       alert("Couldn't make a copy. Please try again.");
       setIsCopying(false);
@@ -64,6 +64,7 @@ export function LessonView({ quiz, isMine }: { quiz: Quiz; isMine: boolean }) {
     { label: "Curriculum", value: quiz.curriculum },
     { label: "Learning competency", value: quiz.learningCompetency },
   ].filter((detail) => detail.value);
+  const slideNumbers = getSlideNumbers(quiz.slides);
 
   return (
     <main className="mx-auto w-full max-w-6xl px-4 py-10 sm:py-14">
@@ -73,14 +74,14 @@ export function LessonView({ quiz, isMine }: { quiz: Quiz; isMine: boolean }) {
 
       <header className="mt-3 mb-6 flex flex-wrap items-start gap-3">
         <div className="min-w-0">
-          <h1 className="text-base font-semibold text-text-primary">{quiz.title || "Untitled lesson"}</h1>
+          <h1 className="text-base font-semibold text-text-primary">{quiz.title || "Untitled presentation"}</h1>
           <p className="mt-0.5 text-sm text-text-secondary">
             {joinParts([quiz.author && `By ${quiz.author}`, quiz.grade, quiz.subject, slideCountLabel(quiz.slides.length)])}
           </p>
         </div>
         <div className="ml-auto flex items-center gap-2">
           {isMine ? (
-            <Link href={`/quiz/${quiz.id}`} className={secondaryButtonClass}>
+            <Link href={`/presentation/${quiz.id}/edit`} className={secondaryButtonClass}>
               Edit
               <LinkPending />
             </Link>
@@ -148,7 +149,7 @@ export function LessonView({ quiz, isMine }: { quiz: Quiz; isMine: boolean }) {
               className="overflow-hidden rounded-dropdown border border-border-default bg-bg-surface transition-colors group-hover:border-text-secondary"
               style={{ aspectRatio: `${CANVAS_WIDTH} / ${CANVAS_HEIGHT}` }}
             >
-              <FluidSlidePreview slide={slide} />
+              <FluidSlidePreview slide={slide} questionNumber={slideNumbers.get(slide.id)} />
             </div>
             <span className="mt-1.5 block text-[13px] text-text-secondary">{index + 1}</span>
           </button>

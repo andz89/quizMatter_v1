@@ -10,10 +10,10 @@ import { SlideStaticView } from "./SlideStaticView";
  * A slide shrunk to fit its box's width, whatever that width is (a grid changes it with the screen).
  * The box must have the slide's shape (aspect ratio) and hide what overflows.
  */
-export function FluidSlidePreview({ slide }: { slide: Slide }) {
+export function FluidSlidePreview({ slide, questionNumber }: { slide: Slide; questionNumber?: number }) {
   return (
     <FluidCanvas>
-      <SlideStaticView slide={slide} />
+      <SlideStaticView slide={slide} questionNumber={questionNumber} />
     </FluidCanvas>
   );
 }

@@ -4,26 +4,26 @@ import { useState, type ReactNode } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useEditorStore } from "@/lib/store";
-import { LessonCard, type LessonCardData } from "./LessonCard";
+import { PresentationCard, type PresentationCardData } from "./PresentationCard";
 
 // Only downloaded when the teacher clicks Present on a card.
 const PresentationView = dynamic(() =>
   import("@/components/presentation/PresentationView").then((mod) => mod.PresentationView)
 );
 
-// How many of my lessons the first row shows ("See all" opens the rest).
+// How many of my presentations the first row shows ("See all" opens the rest).
 const MY_ROW_SIZE = 5;
 
 /**
- * The home page's two rows of cards: my newest lessons, then lessons other teachers published. One
+ * The home page's two rows of cards: my newest presentations, then presentations other teachers published. One
  * search box filters both; while searching, the first row shows every match, not just 5.
  */
-export function LessonHome({ myCards, otherCards }: { myCards: LessonCardData[]; otherCards: LessonCardData[] }) {
+export function PresentationHome({ myCards, otherCards }: { myCards: PresentationCardData[]; otherCards: PresentationCardData[] }) {
   const [search, setSearch] = useState("");
   const isPresenting = useEditorStore((s) => s.isPresenting);
 
   const query = search.trim().toLowerCase();
-  const matches = (card: LessonCardData) => `${card.title} ${card.meta} ${card.byline ?? ""}`.toLowerCase().includes(query);
+  const matches = (card: PresentationCardData) => `${card.title} ${card.meta} ${card.byline ?? ""}`.toLowerCase().includes(query);
   const mine = query ? myCards.filter(matches) : myCards.slice(0, MY_ROW_SIZE);
   const others = otherCards.filter(matches);
 
@@ -37,17 +37,17 @@ export function LessonHome({ myCards, otherCards }: { myCards: LessonCardData[];
           type="search"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search lessons"
-          aria-label="Search lessons"
+          placeholder="Search presentations"
+          aria-label="Search presentations"
           className="w-full rounded-card border border-border-default bg-bg-surface py-3 pr-4 pl-11 text-sm text-text-primary outline-none placeholder:text-text-secondary focus:border-text-secondary"
         />
       </label>
 
       <Section
-        title="My lessons"
+        title="My presentations"
         action={
           myCards.length > 0 && (
-            <Link href="/lessons" className="text-sm font-semibold text-text-primary hover:underline">
+            <Link href="/presentations" className="text-sm font-semibold text-text-primary hover:underline">
               See all ({myCards.length})
             </Link>
           )
@@ -55,14 +55,14 @@ export function LessonHome({ myCards, otherCards }: { myCards: LessonCardData[];
       >
         {mine.length === 0 ? (
           <Empty>
-            {query ? `None of your lessons match “${search.trim()}”.` : "No lessons yet. Click “+ New lesson” to make one, or ask Claude to send you one."}
+            {query ? `None of your presentations match “${search.trim()}”.` : "No presentations yet. Click “+ New presentation” to make one, or ask Claude to send you one."}
           </Empty>
         ) : (
           // On phones the row scrolls sideways; on bigger screens it's a grid.
           <div className="-mx-4 flex snap-x gap-4 overflow-x-auto px-4 pb-2 sm:mx-0 sm:grid sm:grid-cols-3 sm:overflow-visible sm:px-0 lg:grid-cols-5">
             {mine.map((card) => (
               <div key={card.id} className="w-44 shrink-0 snap-start sm:w-auto">
-                <LessonCard card={card} showMenu />
+                <PresentationCard card={card} showMenu />
               </div>
             ))}
           </div>
@@ -71,11 +71,11 @@ export function LessonHome({ myCards, otherCards }: { myCards: LessonCardData[];
 
       <Section title="Published by other teachers">
         {others.length === 0 ? (
-          <Empty>{query ? `No published lessons match “${search.trim()}”.` : "No other teacher has published a lesson yet."}</Empty>
+          <Empty>{query ? `No published presentations match “${search.trim()}”.` : "No other teacher has published a presentation yet."}</Empty>
         ) : (
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
             {others.map((card) => (
-              <LessonCard key={card.id} card={card} />
+              <PresentationCard key={card.id} card={card} />
             ))}
           </div>
         )}

@@ -12,6 +12,7 @@ import {
   ADD_SHAPE_BOX_ROW_HEIGHT,
   OPTION_FONT_SIZE,
   QUESTION_FONT_SIZE,
+  NUMBERED_QUESTION_PADDING_LEFT,
 } from "@/lib/constants";
 import type { Slide } from "@/lib/schema";
 import { svgDataUrl } from "@/lib/svgLibrary";
@@ -38,8 +39,30 @@ export function getSlideBackgroundStyle(slide: Pick<Slide, "background" | "backg
   };
 }
 
+/**
+ * The question's number, in a circle at the question box's left edge, lined up with the option
+ * letters below. The question text moves right to make room (NUMBERED_QUESTION_PADDING_LEFT); the
+ * box's elements don't move. Full screen gives it the option letters' soft tint instead of a ring.
+ */
+export function QuestionNumberBadge({ number, fullscreen = false }: { number: number; fullscreen?: boolean }) {
+  return (
+    <span
+      className="pointer-events-none absolute -left-[5px] top-5 flex h-12 w-12 items-center justify-center rounded-full border-2 bg-white text-2xl font-bold"
+      style={{
+        borderColor: fullscreen ? "transparent" : "var(--border-default)",
+        background: fullscreen ? "#ECEDF3" : undefined,
+        color: fullscreen ? "var(--accent-navy)" : "#000000",
+      }}
+    >
+      {number}
+    </span>
+  );
+}
+
 interface SlideStaticViewProps {
   slide: Slide;
+  /** The question's number (from getSlideNumbers). Missing = no number. Ignored on blank slides. */
+  questionNumber?: number;
   /** When true, the correct option is colored green. */
   revealAnswer?: boolean;
   /** Full-screen presentation: hides the slide border and gives the option labels a soft tint. */
@@ -47,7 +70,7 @@ interface SlideStaticViewProps {
 }
 
 /** Read-only, full-size rendering of a slide — used in presentation mode. */
-export function SlideStaticView({ slide, revealAnswer = false, fullscreen = false }: SlideStaticViewProps) {
+export function SlideStaticView({ slide, questionNumber, revealAnswer = false, fullscreen = false }: SlideStaticViewProps) {
   // Borders turn see-through instead of going away, so nothing on the slide shifts.
   const lineColor = fullscreen ? "transparent" : "var(--border-default)";
   const sideElements = slide.elements.filter((el) => el.containerId === SIDE_CONTAINER_ID);
@@ -60,8 +83,12 @@ export function SlideStaticView({ slide, revealAnswer = false, fullscreen = fals
       {slide.type !== "lesson" && (
         <div
           className="relative flex shrink-0 gap-4 rounded-button border border-transparent p-4"
-          style={{ height: slide.questionHeight }}
+          style={{
+            height: slide.questionHeight,
+            paddingLeft: questionNumber !== undefined ? NUMBERED_QUESTION_PADDING_LEFT : undefined,
+          }}
         >
+          {questionNumber !== undefined && <QuestionNumberBadge number={questionNumber} fullscreen={fullscreen} />}
           <div className="h-full min-w-0 flex-1">
             <SlideText
               text={slide.question || "Untitled question"}

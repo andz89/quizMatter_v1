@@ -6,10 +6,10 @@ import { ElementsIcon } from "@/components/icons/ElementsIcon";
 import { GridIcon } from "@/components/icons/GridIcon";
 import { BackgroundIcon } from "@/components/icons/BackgroundIcon";
 import { DetailsIcon } from "@/components/icons/DetailsIcon";
-import { LessonsIcon } from "@/components/icons/LessonsIcon";
+import { PresentationsIcon } from "@/components/icons/PresentationsIcon";
 
 /**
- * Canva-style narrow icon bar: "Elements", "Background", "Details" and "Lessons" expand their sidebar panels,
+ * Canva-style narrow icon bar: "Elements", "Background", "Details" and "Presentations" expand their sidebar panels,
  * "Slides" opens the thumbnail modal.
  */
 export function IconRail() {
@@ -20,8 +20,8 @@ export function IconRail() {
   const toggleBackgroundPanel = useEditorStore((s) => s.toggleBackgroundPanel);
   const isDetailsPanelOpen = useEditorStore((s) => s.isDetailsPanelOpen);
   const toggleDetailsPanel = useEditorStore((s) => s.toggleDetailsPanel);
-  const isLessonsPanelOpen = useEditorStore((s) => s.isLessonsPanelOpen);
-  const toggleLessonsPanel = useEditorStore((s) => s.toggleLessonsPanel);
+  const isPresentationsPanelOpen = useEditorStore((s) => s.isPresentationsPanelOpen);
+  const togglePresentationsPanel = useEditorStore((s) => s.togglePresentationsPanel);
   const slideCount = useEditorStore((s) => s.quiz.slides.length);
 
   return (
@@ -38,8 +38,8 @@ export function IconRail() {
       <RailButton label="Details" hue={250} active={isDetailsPanelOpen} onClick={toggleDetailsPanel}>
         <DetailsIcon size={24} />
       </RailButton>
-      <RailButton label="Lessons" hue={140} title="Slides from published lessons" active={isLessonsPanelOpen} onClick={toggleLessonsPanel}>
-        <LessonsIcon size={24} />
+      <RailButton label="Presentations" hue={140} title="Slides from published presentations" active={isPresentationsPanelOpen} onClick={togglePresentationsPanel}>
+        <PresentationsIcon size={24} />
       </RailButton>
     </aside>
   );

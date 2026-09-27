@@ -10,7 +10,7 @@ import { ShapeBoxToolbar } from "./ShapeBoxToolbar";
 
 export function EditorTopBar() {
   const title = useEditorStore((s) => s.quiz.title);
-  const setLessonDetails = useEditorStore((s) => s.setLessonDetails);
+  const setPresentationDetails = useEditorStore((s) => s.setPresentationDetails);
   const startPresentation = useEditorStore((s) => s.startPresentation);
   const undo = useEditorStore((s) => s.undo);
   const redo = useEditorStore((s) => s.redo);
@@ -34,8 +34,8 @@ export function EditorTopBar() {
 
       <input
         value={title}
-        onChange={(e) => setLessonDetails({ title: e.target.value })}
-        placeholder="Untitled lesson"
+        onChange={(e) => setPresentationDetails({ title: e.target.value })}
+        placeholder="Untitled presentation"
         maxLength={DETAIL_MAX_LENGTH.title}
         className="rounded-input px-2 py-1 text-[15px] font-semibold text-text-primary outline-none hover:bg-bg-page focus:bg-bg-page"
       />
@@ -76,7 +76,7 @@ function BackToQuizzesLink() {
   return (
     <Link
       href="/"
-      title="My lessons"
+      title="My presentations"
       onClick={(e) => {
         const { quiz, savedQuiz } = useEditorStore.getState();
         if (quiz !== savedQuiz && !confirm("You have unsaved changes. Leave without saving?")) e.preventDefault();

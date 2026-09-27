@@ -31,9 +31,11 @@ const CANVAS_BOUNDS = { width: CANVAS_WIDTH, height: CANVAS_HEIGHT };
 
 interface SlideCanvasProps {
   slide: Slide;
+  // The question's number, shown left of the question box. Missing = no number.
+  questionNumber?: number;
 }
 
-export function SlideCanvas({ slide }: SlideCanvasProps) {
+export function SlideCanvas({ slide, questionNumber }: SlideCanvasProps) {
   const reorderOptions = useEditorStore((s) => s.reorderOptions);
   const isSelectedSlide = useEditorStore((s) => s.selectedSlideId === slide.id);
   const selectedElementIds = useEditorStore(selectedIdsOn(slide.id));
@@ -104,7 +106,7 @@ export function SlideCanvas({ slide }: SlideCanvasProps) {
       }}
       onContextMenu={handleContextMenu}
     >
-      {!isLesson && <QuestionContainer slide={slide} />}
+      {!isLesson && <QuestionContainer slide={slide} questionNumber={questionNumber} />}
       {slide.type === "short-answer" && <SideContainer slide={slide} />}
 
       {isChoice && (

@@ -5,15 +5,15 @@ import { joinParts, timeAgo } from "@/lib/format";
 import { NewQuizButton } from "../QuizListButtons";
 import { QuizList, type QuizRow } from "./QuizList";
 
-/** "See all" from the home page: every lesson of mine and every draft from Claude, as a table. */
-export default async function AllLessonsPage() {
+/** "See all" from the home page: every presentation of mine and every draft from Claude, as a table. */
+export default async function AllPresentationsPage() {
   const supabase = await createClient();
   const { data: claims } = await supabase.auth.getClaims();
   const [{ data: quizzes, error }, drafts] = await Promise.all([
     supabase
       .from("quizzes")
       .select("id, title, grade, subject, is_published, updated_at, slides(count)")
-      // Other teachers' published lessons are readable too, so only take mine.
+      // Other teachers' published presentations are readable too, so only take mine.
       .eq("owner_id", claims?.claims.sub ?? "")
       .order("updated_at", { ascending: false }),
     listDrafts(),
@@ -29,8 +29,8 @@ export default async function AllLessonsPage() {
           <Link href="/" className="text-sm text-text-secondary transition-colors hover:text-text-primary">
             ← Home
           </Link>
-          <h1 className="mt-2 text-base font-semibold text-text-primary">All my lessons</h1>
-          <p className="mt-0.5 text-sm text-text-secondary">Your saved lessons, and the ones Claude sent you.</p>
+          <h1 className="mt-2 text-base font-semibold text-text-primary">All my presentations</h1>
+          <p className="mt-0.5 text-sm text-text-secondary">Your saved presentations, and the ones Claude sent you.</p>
         </div>
         <div className="ml-auto">
           <NewQuizButton />
@@ -61,7 +61,7 @@ function buildRows(quizzes: SavedQuiz[], drafts: DraftSummary[]): QuizRow[] {
       const updatedAt = Date.parse(quiz.updated_at);
       return {
         id: quiz.id,
-        title: quiz.title || "Untitled lesson",
+        title: quiz.title || "Untitled presentation",
         meta: joinParts([quiz.grade, quiz.subject]),
         status: "saved" as const,
         isPublished: quiz.is_published,
@@ -70,12 +70,12 @@ function buildRows(quizzes: SavedQuiz[], drafts: DraftSummary[]): QuizRow[] {
         dateLabel: timeAgo(updatedAt, now),
       };
     }),
-    // A draft whose quiz is already saved is done (the saved quiz took the draft's id — see /quiz/new).
+    // A draft whose quiz is already saved is done (the saved quiz took the draft's id — see /presentation/new).
     ...drafts
       .filter((draft) => !savedIds.has(draft.id))
       .map((draft) => ({
         id: draft.id,
-        title: draft.title || "Untitled lesson",
+        title: draft.title || "Untitled presentation",
         meta: joinParts([draft.grade, draft.subject]),
         status: "draft" as const,
         slideCount: draft.slideCount,

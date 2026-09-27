@@ -8,16 +8,16 @@ import { Spinner } from "@/components/Spinner";
 import { createBlankQuiz } from "@/lib/factories";
 import { buildSlides } from "@/lib/importQuiz";
 import type { Quiz } from "@/lib/schema";
-import { getDraftLesson, getLesson, removeLessons } from "./actions";
-import type { LessonCardData } from "./LessonCard";
+import { getDraftPresentation, getPresentation, removePresentations } from "./actions";
+import type { PresentationCardData } from "./PresentationCard";
 
 const itemClass = "block w-full px-3 py-1.5 text-left text-sm text-text-primary transition-colors hover:bg-bg-page";
 
 /**
- * The "⋮" button on my lesson cards, with Edit, Present and Delete (Remove for Claude's drafts). A
+ * The "⋮" button on my presentation cards, with Edit, Present and Delete (Remove for Claude's drafts). A
  * draft Claude is still checking can only be removed.
  */
-export function LessonCardMenu({ card }: { card: LessonCardData }) {
+export function PresentationCardMenu({ card }: { card: PresentationCardData }) {
   const [isOpen, setIsOpen] = useState(false);
   const [isBusy, setIsBusy] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -47,14 +47,14 @@ export function LessonCardMenu({ card }: { card: LessonCardData }) {
     await document.documentElement.requestFullscreen().catch(() => {
       // Fullscreen isn't available (unsupported/blocked) — presentation still opens.
     });
-    const quiz = isDraft ? await loadDraft(card.id) : await getLesson(card.id);
+    const quiz = isDraft ? await loadDraft(card.id) : await getPresentation(card.id);
     setIsBusy(false);
     if (!quiz || quiz.slides.length === 0) {
       if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
-      alert(quiz ? "This lesson has no slides yet." : "Couldn't open the lesson. Please try again.");
+      alert(quiz ? "This presentation has no slides yet." : "Couldn't open the presentation. Please try again.");
       return;
     }
-    // The presentation view reads the editor's store, so the lesson goes in there first.
+    // The presentation view reads the editor's store, so the presentation goes in there first.
     const store = useEditorStore.getState();
     store.loadQuiz(quiz);
     useEditorStore.setState({ selectedSlideId: quiz.slides[0].id });
@@ -67,9 +67,9 @@ export function LessonCardMenu({ card }: { card: LessonCardData }) {
     if (!confirm(question)) return;
     setIsBusy(true);
     // On success the page reloads its list and this card goes away.
-    const ok = await removeLessons(isDraft ? [] : [card.id], isDraft ? [card.id] : []);
+    const ok = await removePresentations(isDraft ? [] : [card.id], isDraft ? [card.id] : []);
     setIsBusy(false);
-    if (!ok) alert("Couldn't delete the lesson. Please try again.");
+    if (!ok) alert("Couldn't delete the presentation. Please try again.");
   };
 
   if (isBusy) {
@@ -116,9 +116,9 @@ export function LessonCardMenu({ card }: { card: LessonCardData }) {
   );
 }
 
-/** Claude's draft as a lesson: its slides built from the recipe, the same way the editor does. */
+/** Claude's draft as a presentation: its slides built from the recipe, the same way the editor does. */
 async function loadDraft(id: string): Promise<Quiz | null> {
-  const draft = await getDraftLesson(id);
+  const draft = await getDraftPresentation(id);
   if (!draft) return null;
   const built = buildSlides({ slides: draft.slides });
   if ("errors" in built) return null;

@@ -27,7 +27,7 @@ export function Workspace() {
   const insertSlides = useEditorStore((s) => s.insertSlides);
   const answerSlideId = useEditorStore((s) => s.answerSlideId);
   const closeAnswer = useEditorStore((s) => s.closeAnswer);
-  // Where a slide dragged from the Lessons panel will go (a line shows the spot while dragging).
+  // Where a slide dragged from the Presentations panel will go (a line shows the spot while dragging).
   const [dropTarget, setDropTarget] = useState<SlideInsertTarget | null>(null);
 
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -154,7 +154,7 @@ export function Workspace() {
     }
   };
 
-  // Slides dragged from the Lessons panel go right after the slide nearest the pointer — or before
+  // Slides dragged from the Presentations panel go right after the slide nearest the pointer — or before
   // the first slide when the pointer is over its top half, so a copy can become the new slide 1.
   const isSlideDrag = (e: React.DragEvent) => e.dataTransfer.types.includes(SLIDE_DRAG_MIME);
 
@@ -248,7 +248,7 @@ export function Workspace() {
                 <SlideWorkspaceItem
                   key={slide.id}
                   slide={slide}
-                  slideNumber={slideNumbers.get(slide.id)!}
+                  slideNumber={slideNumbers.get(slide.id)}
                   zoom={zoom}
                   prevSlideId={quiz.slides[index - 1]?.id}
                   nextSlideId={quiz.slides[index + 1]?.id}

@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, rectSortingStrategy } from "@dnd-kit/sortable";
 import { useEditorStore } from "@/lib/store";
+import { getSlideNumbers } from "@/lib/constants";
 import { SlideGridItem } from "./SlideGridItem";
 import { CloseIcon } from "@/components/icons/CloseIcon";
 
@@ -38,6 +39,8 @@ export function SlideGridModal() {
     document.querySelector(`[data-slide-id="${slideId}"]`)?.scrollIntoView({ block: "center" });
   };
 
+  const slideNumbers = getSlideNumbers(quiz.slides);
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-8"
@@ -66,6 +69,7 @@ export function SlideGridModal() {
                   <SlideGridItem
                     key={slide.id}
                     slide={slide}
+                    questionNumber={slideNumbers.get(slide.id)}
                     index={index}
                     isActive={slide.id === selectedSlideId}
                     canDelete={quiz.slides.length > 1}

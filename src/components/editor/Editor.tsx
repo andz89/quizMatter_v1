@@ -12,7 +12,7 @@ import { ElementsPanel } from "./ElementsPanel";
 import { ColorPanel } from "./ColorPanel";
 import { BackgroundPanel } from "./BackgroundPanel";
 import { DetailsPanel } from "./DetailsPanel";
-import { LessonsPanel } from "./LessonsPanel";
+import { PresentationsPanel } from "./PresentationsPanel";
 import { Spinner } from "@/components/Spinner";
 import type { Quiz } from "@/lib/schema";
 
@@ -33,7 +33,7 @@ const PresentationView = dynamic(
 );
 
 /**
- * `draft` is the slides recipe of a quiz Claude sent through the MCP server (see /quiz/new): its
+ * `draft` is the slides recipe of a quiz Claude sent through the MCP server (see /presentation/new): its
  * slides replace the new quiz's sample slide, unsaved, like the Paste button does.
  */
 export function Editor({ quiz, draft }: { quiz: Quiz; draft?: unknown }) {
@@ -46,7 +46,7 @@ export function Editor({ quiz, draft }: { quiz: Quiz; draft?: unknown }) {
   const isColorPanelOpen = useEditorStore((s) => s.isColorPanelOpen);
   const isBackgroundPanelOpen = useEditorStore((s) => s.isBackgroundPanelOpen);
   const isDetailsPanelOpen = useEditorStore((s) => s.isDetailsPanelOpen);
-  const isLessonsPanelOpen = useEditorStore((s) => s.isLessonsPanelOpen);
+  const isPresentationsPanelOpen = useEditorStore((s) => s.isPresentationsPanelOpen);
   const closeColorPanel = useEditorStore((s) => s.closeColorPanel);
   const selectedElementIds = useEditorStore((s) => s.selectedElementIds);
   const clearElementSelection = useEditorStore((s) => s.clearElementSelection);
@@ -60,9 +60,9 @@ export function Editor({ quiz, draft }: { quiz: Quiz; draft?: unknown }) {
     store.loadQuiz(quiz);
     if (draft === undefined) return;
 
-    // Show the quiz's own address instead of /quiz/new?draft=…, so a reload after saving opens the
+    // Show the quiz's own address instead of /presentation/new?draft=…, so a reload after saving opens the
     // saved quiz instead of another new copy.
-    window.history.replaceState(null, "", `/quiz/${quiz.id}`);
+    window.history.replaceState(null, "", `/presentation/${quiz.id}/edit`);
     const result = buildSlides(draft);
     if ("errors" in result) alert(`Couldn't load the slides from Claude:\n\n${result.errors.join("\n")}`);
     else store.importSlides(result.slides);
@@ -104,7 +104,7 @@ export function Editor({ quiz, draft }: { quiz: Quiz; draft?: unknown }) {
         {isColorPanelOpen && <ColorPanel />}
         {isBackgroundPanelOpen && <BackgroundPanel />}
         {isDetailsPanelOpen && <DetailsPanel />}
-        {isLessonsPanelOpen && <LessonsPanel />}
+        {isPresentationsPanelOpen && <PresentationsPanel />}
         <Workspace />
       </div>
       {isGridViewOpen && <SlideGridModal />}

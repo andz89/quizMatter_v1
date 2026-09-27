@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useEditorStore, isPanelEscape } from "@/lib/store";
 import { createClient } from "@/lib/supabase/client";
-import { CANVAS_WIDTH, CANVAS_HEIGHT, SLIDE_DRAG_MIME } from "@/lib/constants";
+import { CANVAS_WIDTH, CANVAS_HEIGHT, SLIDE_DRAG_MIME, getSlideNumbers } from "@/lib/constants";
 import { joinParts, slideCountLabel } from "@/lib/format";
 import { parseSlide, type Slide } from "@/lib/schema";
 import { Spinner } from "@/components/Spinner";
@@ -11,12 +11,12 @@ import { CloseIcon } from "@/components/icons/CloseIcon";
 import { BackIcon } from "@/components/icons/BackIcon";
 import { FluidSlidePreview } from "@/components/presentation/FluidSlidePreview";
 
-// How many published lessons the list shows (newest first).
-const LESSON_LIMIT = 50;
+// How many published presentations the list shows (newest first).
+const PRESENTATION_LIMIT = 50;
 // Width of the slide picture that follows the pointer while dragging.
 const DRAG_IMAGE_WIDTH = 180;
 
-type LessonSummary = {
+type PresentationSummary = {
   id: string;
   title: string;
   // By author, grade, subject, slide count ("" parts left out). Searched too.
@@ -25,31 +25,31 @@ type LessonSummary = {
 };
 
 // What the panel had loaded, kept after it closes so reopening it is instant (no new download) and
-// comes back to the same lesson. Only for the lesson being edited; cleared on a full page reload.
-let cache: { quizId: string; lessons: LessonSummary[]; openLesson: LessonSummary | null; slides: Slide[] | null } | null = null;
+// comes back to the same presentation. Only for the presentation being edited; cleared on a full page reload.
+let cache: { quizId: string; presentations: PresentationSummary[]; openPresentation: PresentationSummary | null; slides: Slide[] | null } | null = null;
 
 /**
- * Sidebar panel with the published lessons (mine too, except the one being edited). Clicking a lesson
+ * Sidebar panel with the published presentations (mine too, except the one being edited). Clicking a presentation
  * shows its slides; clicking a slide adds a copy right after the active slide, dragging one onto the
  * workspace adds it right after the slide it's dropped on. Stays open so several can be added in a row.
  */
-export function LessonsPanel() {
-  const closeLessonsPanel = useEditorStore((s) => s.closeLessonsPanel);
+export function PresentationsPanel() {
+  const closePresentationsPanel = useEditorStore((s) => s.closePresentationsPanel);
   const insertSlides = useEditorStore((s) => s.insertSlides);
   const quizId = useEditorStore((s) => s.quiz.id);
 
   const [cached] = useState(() => (cache?.quizId === quizId ? cache : null));
   // null while loading.
-  const [lessons, setLessons] = useState<LessonSummary[] | null>(cached?.lessons ?? null);
+  const [presentations, setPresentations] = useState<PresentationSummary[] | null>(cached?.presentations ?? null);
   const [search, setSearch] = useState("");
-  const [openLesson, setOpenLesson] = useState<LessonSummary | null>(cached?.openLesson ?? null);
-  // The open lesson's slides; null while loading.
+  const [openPresentation, setOpenPresentation] = useState<PresentationSummary | null>(cached?.openPresentation ?? null);
+  // The open presentation's slides; null while loading.
   const [slides, setSlides] = useState<Slide[] | null>(cached?.slides ?? null);
-  // Kept apart, so a failed lesson doesn't hide the list after going Back.
+  // Kept apart, so a failed presentation doesn't hide the list after going Back.
   const [listError, setListError] = useState(false);
   const [slidesError, setSlidesError] = useState(false);
-  // The lesson whose slides were asked for last; an older, slower answer is ignored.
-  const latestLessonId = useRef<string | null>(null);
+  // The presentation whose slides were asked for last; an older, slower answer is ignored.
+  const latestPresentationId = useRef<string | null>(null);
   // The slide being dragged, faded in the panel while it's dragged.
   const [draggingSlideId, setDraggingSlideId] = useState<string | null>(null);
 
@@ -64,14 +64,14 @@ export function LessonsPanel() {
       .order("updated_at", { ascending: false })
       .order("position", { referencedTable: "first_slide" })
       .limit(1, { referencedTable: "first_slide" })
-      .limit(LESSON_LIMIT)
+      .limit(PRESENTATION_LIMIT)
       .then(({ data, error }) => {
         if (cancelled) return;
         if (error) return setListError(true);
-        setLessons(
+        setPresentations(
           data.map((quiz) => ({
             id: quiz.id,
-            title: quiz.title || "Untitled lesson",
+            title: quiz.title || "Untitled presentation",
             meta: joinParts([
               quiz.author && `By ${quiz.author}`,
               quiz.grade,
@@ -87,37 +87,39 @@ export function LessonsPanel() {
     };
   }, [quizId]);
 
-  // A lesson whose slides were still loading isn't kept: that request stops when the panel closes.
+  // A presentation whose slides were still loading isn't kept: that request stops when the panel closes.
   useEffect(() => {
-    if (lessons) cache = { quizId, lessons, openLesson: slides ? openLesson : null, slides };
-  }, [quizId, lessons, openLesson, slides]);
+    if (presentations) cache = { quizId, presentations, openPresentation: slides ? openPresentation : null, slides };
+  }, [quizId, presentations, openPresentation, slides]);
 
-  // Escape steps back one level: out of a lesson first, then closes the panel.
+  // Escape steps back one level: out of a presentation first, then closes the panel.
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!isPanelEscape(e)) return;
-      if (openLesson) setOpenLesson(null);
-      else closeLessonsPanel();
+      if (openPresentation) setOpenPresentation(null);
+      else closePresentationsPanel();
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [openLesson, closeLessonsPanel]);
+  }, [openPresentation, closePresentationsPanel]);
 
-  const showLesson = async (lesson: LessonSummary) => {
-    setOpenLesson(lesson);
+  const showPresentation = async (presentation: PresentationSummary) => {
+    setOpenPresentation(presentation);
     setSlides(null);
     setSlidesError(false);
-    latestLessonId.current = lesson.id;
+    latestPresentationId.current = presentation.id;
     const { data, error } = await createClient()
       .from("slides")
       .select("data")
-      .eq("quiz_id", lesson.id)
+      .eq("quiz_id", presentation.id)
       .order("position");
-    if (latestLessonId.current !== lesson.id) return;
+    if (latestPresentationId.current !== presentation.id) return;
     if (error) return setSlidesError(true);
     // A slide in an old or broken shape is left out instead of breaking the panel.
     setSlides(data.map((row) => parseSlide(row.data)).filter((slide) => slide !== null));
   };
+
+  const slideNumbers = getSlideNumbers(slides ?? []);
 
   // Right after the active slide (at the end if none is active).
   const addSlide = (slide: Slide) => {
@@ -157,7 +159,7 @@ export function LessonsPanel() {
   };
 
   const query = search.trim().toLowerCase();
-  const shownLessons = lessons?.filter((lesson) => `${lesson.title} ${lesson.meta}`.toLowerCase().includes(query));
+  const shownPresentations = presentations?.filter((presentation) => `${presentation.title} ${presentation.meta}`.toLowerCase().includes(query));
 
   return (
     <div
@@ -167,21 +169,21 @@ export function LessonsPanel() {
     >
       <div className="mb-1 flex items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-1">
-          {openLesson && (
+          {openPresentation && (
             <button
               type="button"
-              onClick={() => setOpenLesson(null)}
+              onClick={() => setOpenPresentation(null)}
               title="Back"
               className="flex h-8 w-8 shrink-0 items-center justify-center rounded-dropdown text-text-primary hover:bg-bg-page"
             >
               <BackIcon />
             </button>
           )}
-          <h2 className="truncate text-[15px] font-semibold text-text-primary">{openLesson ? openLesson.title : "Lessons"}</h2>
+          <h2 className="truncate text-[15px] font-semibold text-text-primary">{openPresentation ? openPresentation.title : "Presentations"}</h2>
         </div>
         <button
           type="button"
-          onClick={closeLessonsPanel}
+          onClick={closePresentationsPanel}
           title="Close (Esc)"
           className="flex h-8 w-8 shrink-0 items-center justify-center rounded-dropdown text-text-primary hover:bg-bg-page"
         >
@@ -189,18 +191,18 @@ export function LessonsPanel() {
         </button>
       </div>
       <p className="mb-4 text-xs text-text-secondary">
-        {openLesson
+        {openPresentation
           ? "Click a slide to add it after the active slide, or drag it onto a slide."
-          : "Published lessons. Open one to add its slides to this lesson."}
+          : "Published presentations. Open one to add its slides to this presentation."}
       </p>
 
-      {(openLesson ? slidesError : listError) ? (
+      {(openPresentation ? slidesError : listError) ? (
         <Message>Couldn&apos;t load. Please close the panel and try again.</Message>
-      ) : openLesson ? (
+      ) : openPresentation ? (
         slides === null ? (
           <Loading />
         ) : slides.length === 0 ? (
-          <Message>This lesson has no slides.</Message>
+          <Message>This presentation has no slides.</Message>
         ) : (
           <div className="flex flex-col gap-4">
             {slides.map((slide, index) => (
@@ -216,7 +218,7 @@ export function LessonsPanel() {
                   draggingSlideId === slide.id ? "opacity-40" : ""
                 }`}
               >
-                <SlidePicture slide={slide} />
+                <SlidePicture slide={slide} questionNumber={slideNumbers.get(slide.id)} />
                 <span className="mt-1 block text-[13px] text-text-secondary">{index + 1}</span>
               </button>
             ))}
@@ -228,21 +230,21 @@ export function LessonsPanel() {
             type="search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search lessons"
-            aria-label="Search lessons"
+            placeholder="Search presentations"
+            aria-label="Search presentations"
             className="mb-4 w-full rounded-input border border-border-default bg-bg-surface px-3 py-2 text-sm text-text-primary outline-none placeholder:text-text-secondary focus:border-text-secondary"
           />
-          {shownLessons === undefined ? (
+          {shownPresentations === undefined ? (
             <Loading />
-          ) : shownLessons.length === 0 ? (
-            <Message>{query ? `No published lessons match “${search.trim()}”.` : "No published lessons yet."}</Message>
+          ) : shownPresentations.length === 0 ? (
+            <Message>{query ? `No published presentations match “${search.trim()}”.` : "No published presentations yet."}</Message>
           ) : (
             <div className="flex flex-col gap-4">
-              {shownLessons.map((lesson) => (
-                <button key={lesson.id} type="button" onClick={() => showLesson(lesson)} className="group min-w-0 text-left">
-                  <SlidePicture slide={lesson.firstSlide} />
-                  <span className="mt-1.5 block truncate text-sm font-semibold text-text-primary">{lesson.title}</span>
-                  <span className="block truncate text-[13px] text-text-secondary">{lesson.meta}</span>
+              {shownPresentations.map((presentation) => (
+                <button key={presentation.id} type="button" onClick={() => showPresentation(presentation)} className="group min-w-0 text-left">
+                  <SlidePicture slide={presentation.firstSlide} />
+                  <span className="mt-1.5 block truncate text-sm font-semibold text-text-primary">{presentation.title}</span>
+                  <span className="block truncate text-[13px] text-text-secondary">{presentation.meta}</span>
                 </button>
               ))}
             </div>
@@ -253,7 +255,8 @@ export function LessonsPanel() {
   );
 }
 
-function SlidePicture({ slide }: { slide: Slide | null }) {
+/** `questionNumber` missing = worked out as the presentation's first slide (for the presentation list). */
+function SlidePicture({ slide, questionNumber }: { slide: Slide | null; questionNumber?: number }) {
   return (
     <div
       data-drag-image
@@ -261,7 +264,7 @@ function SlidePicture({ slide }: { slide: Slide | null }) {
       style={{ aspectRatio: `${CANVAS_WIDTH} / ${CANVAS_HEIGHT}` }}
     >
       {slide ? (
-        <FluidSlidePreview slide={slide} />
+        <FluidSlidePreview slide={slide} questionNumber={questionNumber ?? getSlideNumbers([slide]).get(slide.id)} />
       ) : (
         <div className="flex h-full items-center justify-center bg-bg-page text-[13px] text-text-secondary">No preview</div>
       )}

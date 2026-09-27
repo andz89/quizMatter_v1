@@ -5,7 +5,7 @@ import Link from "next/link";
 import { LinkPending } from "@/components/LinkPending";
 import { Spinner } from "@/components/Spinner";
 import { GlobeIcon } from "@/components/icons/GlobeIcon";
-import { removeLessons } from "../actions";
+import { removePresentations } from "../actions";
 
 export type QuizRow = {
   id: string;
@@ -29,9 +29,9 @@ type Filter = "all" | "saved" | "draft";
 // Checkbox, title, status, slides, updated, trash. On phones: checkbox, title, then the rest in one cell.
 const COLUMNS = "grid-cols-[16px_minmax(0,1fr)_auto] sm:grid-cols-[16px_minmax(0,1fr)_96px_64px_112px_36px]";
 
-/** Deletes saved lessons and discards drafts in one call. False if anything failed. */
+/** Deletes saved presentations and discards drafts in one call. False if anything failed. */
 function removeRows(rows: QuizRow[]) {
-  return removeLessons(
+  return removePresentations(
     rows.filter((row) => row.status === "saved").map((row) => row.id),
     rows.filter((row) => row.status === "draft").map((row) => row.id),
   );
@@ -73,10 +73,10 @@ export function QuizList({ rows }: { rows: QuizRow[] }) {
 
   const deleteChecked = () => {
     const count = checked.length;
-    if (!confirm(`Delete ${count} ${count === 1 ? "lesson" : "lessons"}? This can't be undone.`)) return;
+    if (!confirm(`Delete ${count} ${count === 1 ? "presentation" : "presentations"}? This can't be undone.`)) return;
     startDeleting(async () => {
       if (await removeRows(checked)) setCheckedIds(new Set());
-      else alert("Couldn't delete some lessons. Please try again.");
+      else alert("Couldn't delete some presentations. Please try again.");
     });
   };
 
@@ -108,8 +108,8 @@ export function QuizList({ rows }: { rows: QuizRow[] }) {
             type="search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search lessons"
-            aria-label="Search lessons"
+            placeholder="Search presentations"
+            aria-label="Search presentations"
             className="w-full rounded-input border border-border-default bg-bg-surface py-2 pr-3 pl-9 text-sm text-text-primary outline-none placeholder:text-text-secondary focus:border-text-secondary"
           />
         </label>
@@ -151,7 +151,7 @@ export function QuizList({ rows }: { rows: QuizRow[] }) {
             }}
             onChange={toggleAll}
             disabled={shown.length === 0 || isDeleting}
-            aria-label="Select all lessons"
+            aria-label="Select all presentations"
             className="h-4 w-4 accent-accent-navy"
           />
           <span>Title</span>
@@ -192,14 +192,14 @@ function QuizListRow({
 }) {
   const [isRemoving, startRemoving] = useTransition();
   const isDraft = row.status === "draft";
-  const href = isDraft ? `/quiz/new?draft=${row.id}` : `/quiz/${row.id}`;
+  const href = isDraft ? `/presentation/new?draft=${row.id}` : `/presentation/${row.id}/edit`;
   const titleClass = "block truncate text-sm";
 
   const remove = () => {
     const question = isDraft ? `Discard "${row.title}"? Claude's draft will be deleted.` : `Delete "${row.title}"? This can't be undone.`;
     if (!confirm(question)) return;
     startRemoving(async () => {
-      if (!(await removeRows([row]))) alert("Couldn't delete the lesson. Please try again.");
+      if (!(await removeRows([row]))) alert("Couldn't delete the presentation. Please try again.");
     });
   };
 
@@ -211,7 +211,7 @@ function QuizListRow({
         row.checking ? "" : "hover:bg-bg-page"
       } ${isRemoving || isBeingDeleted ? "opacity-50" : ""}`}
     >
-      {/* z-10 keeps it above the row link's ::after, so checking doesn't open the lesson. */}
+      {/* z-10 keeps it above the row link's ::after, so checking doesn't open the presentation. */}
       <input
         type="checkbox"
         checked={isChecked}
@@ -262,7 +262,7 @@ function QuizListRow({
             <button
               type="button"
               onClick={remove}
-              title={isDraft ? "Discard draft" : "Delete lesson"}
+              title={isDraft ? "Discard draft" : "Delete presentation"}
               aria-label={`${isDraft ? "Discard" : "Delete"} ${row.title}`}
               className="rounded-dropdown p-1.5 text-text-primary transition-colors hover:bg-border-default"
             >
@@ -301,12 +301,12 @@ function EmptyState({ hasQuizzes, search }: { hasQuizzes: boolean; search: strin
   return (
     <div className="px-5 py-12 text-center">
       <p className="text-sm font-semibold text-text-primary">
-        {hasQuizzes ? (search ? `No lessons match “${search}”` : "Nothing here yet") : "No lessons yet"}
+        {hasQuizzes ? (search ? `No presentations match “${search}”` : "Nothing here yet") : "No presentations yet"}
       </p>
       <p className="mt-1 text-sm text-text-secondary">
         {hasQuizzes
           ? "Try another search or filter."
-          : "Click “+ New lesson” to make one, or ask Claude to send you one."}
+          : "Click “+ New presentation” to make one, or ask Claude to send you one."}
       </p>
     </div>
   );

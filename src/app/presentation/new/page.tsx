@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { createBlankQuiz } from "@/lib/factories";
 import { getDraft } from "@/lib/drafts";
 import { createClient } from "@/lib/supabase/server";
-import { QuizEditor } from "../[id]/QuizEditor";
+import { QuizEditor } from "../[id]/edit/QuizEditor";
 
 /**
  * Opens a quiz Claude sent through the MCP server (the link /api/mcp hands out) as a new quiz. It
@@ -12,13 +12,13 @@ import { QuizEditor } from "../[id]/QuizEditor";
  * The new quiz takes the draft's id, so once it's saved the quiz list knows this draft is done
  * (and hides it), and opening the link again opens the saved quiz instead of a second copy.
  */
-export default async function NewQuizFromClaudePage({ searchParams }: PageProps<"/quiz/new">) {
+export default async function NewQuizFromClaudePage({ searchParams }: PageProps<"/presentation/new">) {
   const { draft: draftId } = await searchParams;
   if (typeof draftId !== "string") redirect("/");
 
   const supabase = await createClient();
   const { data: savedQuiz } = await supabase.from("quizzes").select("id").eq("id", draftId).maybeSingle();
-  if (savedQuiz) redirect(`/quiz/${draftId}`);
+  if (savedQuiz) redirect(`/presentation/${draftId}/edit`);
 
   const draft = await getDraft(draftId);
   if (!draft) {
@@ -27,10 +27,10 @@ export default async function NewQuizFromClaudePage({ searchParams }: PageProps<
         <div className="w-full max-w-sm rounded-card border border-border-default bg-bg-surface px-5 py-6">
           <h1 className="mb-2 text-base font-semibold text-text-primary">This link has expired</h1>
           <p className="mb-5 text-sm text-text-secondary">
-            Lessons from Claude stay for 24 hours. Ask Claude to send the lesson again.
+            Presentations from Claude stay for 24 hours. Ask Claude to send the presentation again.
           </p>
           <Link href="/" className="text-sm font-semibold text-accent-green">
-            Back to my lessons
+            Back to my presentations
           </Link>
         </div>
       </main>

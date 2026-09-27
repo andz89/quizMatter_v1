@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { useEditorStore, isPanelEscape } from "@/lib/store";
 import { getElementAsset } from "@/lib/svgLibrary";
+import { getSlideNumbers } from "@/lib/constants";
 import {
   BACKGROUND_COLORS,
   BACKGROUND_PATTERN_IDS,
@@ -24,6 +25,7 @@ export function BackgroundPanel() {
   const setSlideBackground = useEditorStore((s) => s.setSlideBackground);
   const applyBackgroundToAll = useEditorStore((s) => s.applyBackgroundToAll);
   const slide = useEditorStore((s) => s.quiz.slides.find((slide) => slide.id === s.selectedSlideId));
+  const questionNumber = useEditorStore((s) => getSlideNumbers(s.quiz.slides).get(s.selectedSlideId ?? ""));
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -53,7 +55,7 @@ export function BackgroundPanel() {
       </div>
 
       <div className="flex justify-center">
-        <SlideThumbnailPreview slide={slide} />
+        <SlideThumbnailPreview slide={slide} questionNumber={questionNumber} />
       </div>
 
       <section className="flex flex-col gap-3">

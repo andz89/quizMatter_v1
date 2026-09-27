@@ -83,12 +83,15 @@ export const MAX_ANSWER_LENGTH = 300;
 export const slideSchema = z.object({
   id: z.string(),
   // choice = 4 options to pick from; short-answer = no options, the teacher types the correct answer;
-  // lesson = a blank slide for teaching (free-placed elements only, no question, no number).
+  // presentation = a blank slide for teaching (free-placed elements only, no question, no number).
   // Missing = "choice" (older quizzes).
   type: z.enum(["choice", "short-answer", "lesson"]).optional(),
   // Name the teacher gave the slide. Question slides show it after their number ("Q1 · Fractions");
   // blank slides show it instead of "Slide 1". Missing = no name.
   name: z.string().optional(),
+  // Question slides only: true = taken out of the question numbers (no number shown, and the next
+  // slides count on without it). Missing = numbered.
+  hideNumber: z.boolean().optional(),
   question: z.string(),
   // Styled version of `question`, as HTML from the text editor. Missing on older quizzes.
   questionHtml: z.string().optional(),
@@ -127,7 +130,7 @@ export const slideSchema = z.object({
   questionHeight: z.number(),
 });
 
-// The grade a lesson is for ("" = not chosen).
+// The grade a presentation is for ("" = not chosen).
 export const GRADES = [
   "Kindergarten",
   "Grade 1",
@@ -145,7 +148,7 @@ export const GRADES = [
   "N/A",
 ] as const;
 
-// Longest text each lesson detail may have. The zod schema below checks them before saving; the
+// Longest text each presentation detail may have. The zod schema below checks them before saving; the
 // Details panel's inputs use them too, so users can't type past them.
 export const DETAIL_MAX_LENGTH = {
   title: 120,
@@ -176,16 +179,16 @@ export const MAX_REFERENCE_LINKS = 20;
 export const quizSchema = z.object({
   id: z.string(),
   title: z.string().max(DETAIL_MAX_LENGTH.title),
-  // Lesson details, all optional ("" when not filled in).
+  // Presentation details, all optional ("" when not filled in).
   description: z.string().max(DETAIL_MAX_LENGTH.description),
   grade: z.union([z.enum(GRADES), z.literal("")]),
   subject: z.string().max(DETAIL_MAX_LENGTH.subject),
   curriculum: z.string().max(DETAIL_MAX_LENGTH.curriculum),
   learningCompetency: z.string().max(DETAIL_MAX_LENGTH.learningCompetency),
   // Who wrote the content: the teacher, a book, another teacher… Not who published it — that's the
-  // lesson's owner (the logged-in user who saved it).
+  // presentation's owner (the logged-in user who saved it).
   author: z.string().max(DETAIL_MAX_LENGTH.author),
-  // What the lesson is based on (links, or book / module names), as many as the user adds.
+  // What the presentation is based on (links, or book / module names), as many as the user adds.
   referenceLinks: z.array(referenceSchema).max(MAX_REFERENCE_LINKS),
   // Private (only the owner sees it) or published (other teachers see it on their home page and can copy it).
   isPublished: z.boolean(),
@@ -205,7 +208,7 @@ export function parseSlide(data: unknown): Slide | null {
   return result.success ? result.data : null;
 }
 export type Quiz = z.infer<typeof quizSchema>;
-export type LessonDetails = Pick<
+export type PresentationDetails = Pick<
   Quiz,
   | "title"
   | "description"

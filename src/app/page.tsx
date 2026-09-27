@@ -3,13 +3,13 @@ import { listDrafts, type DraftSummary } from "@/lib/drafts";
 import { joinParts, slideCountLabel, timeAgo } from "@/lib/format";
 import { parseSlide } from "@/lib/schema";
 import { LogoutButton, NewQuizButton } from "./QuizListButtons";
-import { LessonHome } from "./LessonHome";
-import type { LessonCardData } from "./LessonCard";
+import { PresentationHome } from "./PresentationHome";
+import type { PresentationCardData } from "./PresentationCard";
 
-// How many published lessons from other teachers the home page shows.
+// How many published presentations from other teachers the home page shows.
 const OTHERS_LIMIT = 20;
 
-// Each lesson's first slide only (for the card's picture), not all of them, to keep the page light.
+// Each presentation's first slide only (for the card's picture), not all of them, to keep the page light.
 const CARD_COLUMNS =
   "id, title, grade, subject, author, is_published, updated_at, slides(count), first_slide:slides(data, position)";
 
@@ -46,8 +46,8 @@ export default async function HomePage() {
     <main className="mx-auto w-full max-w-6xl px-4 py-10 sm:py-14">
       <header className="mb-6 flex flex-wrap items-center gap-3">
         <div>
-          <h1 className="text-base font-semibold text-text-primary">Lessons</h1>
-          <p className="mt-0.5 text-sm text-text-secondary">Your lessons, and the ones other teachers published.</p>
+          <h1 className="text-base font-semibold text-text-primary">Presentations</h1>
+          <p className="mt-0.5 text-sm text-text-secondary">Your presentations, and the ones other teachers published.</p>
         </div>
         <div className="ml-auto flex items-center gap-2">
           <LogoutButton />
@@ -55,7 +55,7 @@ export default async function HomePage() {
         </div>
       </header>
 
-      <LessonHome myCards={myCards} otherCards={otherCards} />
+      <PresentationHome myCards={myCards} otherCards={otherCards} />
     </main>
   );
 }
@@ -72,23 +72,23 @@ type CardQuiz = {
   first_slide: { data: unknown }[];
 };
 
-/** My lessons and Claude's drafts (newest first), and other teachers' published lessons, as cards. */
+/** My presentations and Claude's drafts (newest first), and other teachers' published presentations, as cards. */
 function buildCards(mine: CardQuiz[], others: CardQuiz[], drafts: DraftSummary[]) {
   const now = Date.now();
   const savedIds = new Set(mine.map((quiz) => quiz.id));
-  const myCards: (LessonCardData & { sortTime: number })[] = [
+  const myCards: (PresentationCardData & { sortTime: number })[] = [
     ...mine.map((quiz) => ({
-      ...toCard(quiz, `/quiz/${quiz.id}`, now),
+      ...toCard(quiz, `/presentation/${quiz.id}/edit`, now),
       badge: quiz.is_published ? ("published" as const) : undefined,
       sortTime: Date.parse(quiz.updated_at),
     })),
-    // Claude's drafts that aren't saved yet (see /lessons). Their slides are only a recipe, so no picture.
+    // Claude's drafts that aren't saved yet (see /presentations). Their slides are only a recipe, so no picture.
     ...drafts
       .filter((draft) => !savedIds.has(draft.id))
       .map((draft) => ({
         id: draft.id,
-        href: `/quiz/new?draft=${draft.id}`,
-        title: draft.title || "Untitled lesson",
+        href: `/presentation/new?draft=${draft.id}`,
+        title: draft.title || "Untitled presentation",
         meta: joinParts([draft.grade, draft.subject, slideCountLabel(draft.slideCount), timeAgo(draft.createdAt, now)]),
         firstSlide: null,
         badge: ({ ready: "draft", checking: "checking", unfinished: "unfinished" } as const)[draft.state],
@@ -97,19 +97,19 @@ function buildCards(mine: CardQuiz[], others: CardQuiz[], drafts: DraftSummary[]
   ].sort((a, b) => b.sortTime - a.sortTime);
 
   const otherCards = others.map((quiz) => ({
-    ...toCard(quiz, `/lesson/${quiz.id}`, now),
+    ...toCard(quiz, `/presentation/${quiz.id}`, now),
     byline: quiz.author ? `By ${quiz.author}` : undefined,
   }));
 
   return { myCards, otherCards };
 }
 
-function toCard(quiz: CardQuiz, href: string, now: number): LessonCardData {
+function toCard(quiz: CardQuiz, href: string, now: number): PresentationCardData {
   const slideCount = quiz.slides[0]?.count ?? 0;
   return {
     id: quiz.id,
     href,
-    title: quiz.title || "Untitled lesson",
+    title: quiz.title || "Untitled presentation",
     meta: joinParts([quiz.grade, quiz.subject, slideCountLabel(slideCount), timeAgo(Date.parse(quiz.updated_at), now)]),
     firstSlide: parseSlide(quiz.first_slide[0]?.data),
   };

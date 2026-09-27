@@ -20,7 +20,7 @@ import {
 import { fitInBox, getOuterEdges } from "./geometry";
 import { withBackground, type BackgroundPatch } from "./slideBackground";
 import { saveQuizToDb } from "./quizzes";
-import type { LessonDetails, Quiz, Slide, SlideType, SvgElement } from "./schema";
+import type { PresentationDetails, Quiz, Slide, SlideType, SvgElement } from "./schema";
 
 type ElementPatch = Partial<Omit<SvgElement, "id" | "assetId">>;
 
@@ -193,7 +193,7 @@ interface EditorState {
   importSlides: (slides: Slide[]) => void;
   deleteSlide: (slideId: string) => void;
   duplicateSlide: (slideId: string) => void;
-  // Copies of slides from another lesson (new ids), put right after (or before) `at.slideId`, or at
+  // Copies of slides from another presentation (new ids), put right after (or before) `at.slideId`, or at
   // the end when `at` is missing or unknown. The first one gets selected.
   insertSlides: (slides: Slide[], at?: SlideInsertTarget) => void;
   reorderSlides: (fromId: string, toId: string) => void;
@@ -221,14 +221,16 @@ interface EditorState {
   // Picks which answer a short-answer or blank slide shows: the typed text or the answer canvas.
   setAnswerType: (slideId: string, answerType: NonNullable<Slide["answerType"]>) => void;
   renameSlide: (slideId: string, name: string) => void;
+  // Puts a question slide in or takes it out of the question numbers (1, 2, 3…).
+  setSlideNumbered: (slideId: string, numbered: boolean) => void;
   reorderOptions: (slideId: string, fromOptionId: string, toOptionId: string) => void;
   shuffleOptions: (slideId: string) => void;
   // Empties the question, every option's text and all slide elements; keeps the answer (text and canvas) and layout.
   clearSlide: (slideId: string) => void;
 
-  // Title and the other lesson details (grade, subject…), edited in the top bar and the Details panel.
-  setLessonDetails: (patch: Partial<LessonDetails>) => void;
-  // Private/published, saved right away (the whole lesson, so others see what the teacher sees).
+  // Title and the other presentation details (grade, subject…), edited in the top bar and the Details panel.
+  setPresentationDetails: (patch: Partial<PresentationDetails>) => void;
+  // Private/published, saved right away (the whole presentation, so others see what the teacher sees).
   // On failure it switches back. Resolves true if the save worked.
   setPublished: (isPublished: boolean) => Promise<boolean>;
 
@@ -335,10 +337,10 @@ interface EditorState {
   toggleDetailsPanel: () => void;
   closeDetailsPanel: () => void;
 
-  // The Lessons panel lists published lessons, to add their slides to this one.
-  isLessonsPanelOpen: boolean;
-  toggleLessonsPanel: () => void;
-  closeLessonsPanel: () => void;
+  // The Presentations panel lists published presentations, to add their slides to this one.
+  isPresentationsPanelOpen: boolean;
+  togglePresentationsPanel: () => void;
+  closePresentationsPanel: () => void;
 
   // Which box a placed element is currently being dragged over, while it's being moved from a
   // different box — drives that box's "drop here" highlight. Not part of quiz data.
@@ -695,6 +697,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set({ quiz: updateSlide(quiz, slideId, (s) => ({ ...s, name: name.trim() || undefined })) });
   },
 
+  setSlideNumbered: (slideId, numbered) => {
+    const { quiz } = get();
+    set({ quiz: updateSlide(quiz, slideId, (s) => ({ ...s, hideNumber: numbered ? undefined : true })) });
+  },
+
   reorderOptions: (slideId, fromOptionId, toOptionId) => {
     const { quiz } = get();
     set({
@@ -747,19 +754,19 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     });
   },
 
-  setLessonDetails: (patch) => {
+  setPresentationDetails: (patch) => {
     const { quiz } = get();
     set({ quiz: { ...quiz, ...patch, updatedAt: Date.now() } });
   },
 
   setPublished: async (isPublished) => {
-    const { quiz, saveStatus, setLessonDetails, saveQuiz } = get();
+    const { quiz, saveStatus, setPresentationDetails, saveQuiz } = get();
     if (saveStatus === "saving") return false;
     const wasPublished = quiz.isPublished;
-    setLessonDetails({ isPublished });
+    setPresentationDetails({ isPublished });
     await saveQuiz();
     if (get().saveStatus !== "error") return true;
-    setLessonDetails({ isPublished: wasPublished });
+    setPresentationDetails({ isPublished: wasPublished });
     return false;
   },
 
@@ -1110,7 +1117,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         isColorPanelOpen: next ? false : state.isColorPanelOpen,
         isBackgroundPanelOpen: next ? false : state.isBackgroundPanelOpen,
         isDetailsPanelOpen: next ? false : state.isDetailsPanelOpen,
-        isLessonsPanelOpen: next ? false : state.isLessonsPanelOpen,
+        isPresentationsPanelOpen: next ? false : state.isPresentationsPanelOpen,
       };
     }),
   closeElementsPanel: () => set({ isElementsPanelOpen: false }),
@@ -1126,7 +1133,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         isElementsPanelOpen: next ? false : state.isElementsPanelOpen,
         isBackgroundPanelOpen: next ? false : state.isBackgroundPanelOpen,
         isDetailsPanelOpen: next ? false : state.isDetailsPanelOpen,
-        isLessonsPanelOpen: next ? false : state.isLessonsPanelOpen,
+        isPresentationsPanelOpen: next ? false : state.isPresentationsPanelOpen,
       };
     }),
   closeColorPanel: () => set({ isColorPanelOpen: false }),
@@ -1140,7 +1147,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         isElementsPanelOpen: next ? false : state.isElementsPanelOpen,
         isBackgroundPanelOpen: next ? false : state.isBackgroundPanelOpen,
         isDetailsPanelOpen: next ? false : state.isDetailsPanelOpen,
-        isLessonsPanelOpen: next ? false : state.isLessonsPanelOpen,
+        isPresentationsPanelOpen: next ? false : state.isPresentationsPanelOpen,
       };
     }),
 
@@ -1153,7 +1160,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         isElementsPanelOpen: next ? false : state.isElementsPanelOpen,
         isColorPanelOpen: next ? false : state.isColorPanelOpen,
         isDetailsPanelOpen: next ? false : state.isDetailsPanelOpen,
-        isLessonsPanelOpen: next ? false : state.isLessonsPanelOpen,
+        isPresentationsPanelOpen: next ? false : state.isPresentationsPanelOpen,
       };
     }),
   closeBackgroundPanel: () => set({ isBackgroundPanelOpen: false }),
@@ -1167,24 +1174,24 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         isElementsPanelOpen: next ? false : state.isElementsPanelOpen,
         isColorPanelOpen: next ? false : state.isColorPanelOpen,
         isBackgroundPanelOpen: next ? false : state.isBackgroundPanelOpen,
-        isLessonsPanelOpen: next ? false : state.isLessonsPanelOpen,
+        isPresentationsPanelOpen: next ? false : state.isPresentationsPanelOpen,
       };
     }),
   closeDetailsPanel: () => set({ isDetailsPanelOpen: false }),
 
-  isLessonsPanelOpen: false,
-  toggleLessonsPanel: () =>
+  isPresentationsPanelOpen: false,
+  togglePresentationsPanel: () =>
     set((state) => {
-      const next = !state.isLessonsPanelOpen;
+      const next = !state.isPresentationsPanelOpen;
       return {
-        isLessonsPanelOpen: next,
+        isPresentationsPanelOpen: next,
         isElementsPanelOpen: next ? false : state.isElementsPanelOpen,
         isColorPanelOpen: next ? false : state.isColorPanelOpen,
         isBackgroundPanelOpen: next ? false : state.isBackgroundPanelOpen,
         isDetailsPanelOpen: next ? false : state.isDetailsPanelOpen,
       };
     }),
-  closeLessonsPanel: () => set({ isLessonsPanelOpen: false }),
+  closePresentationsPanel: () => set({ isPresentationsPanelOpen: false }),
 
   dragOverContainerId: null,
   setDragOverContainerId: (containerId) => set({ dragOverContainerId: containerId }),

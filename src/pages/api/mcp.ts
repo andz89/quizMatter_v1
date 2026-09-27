@@ -7,8 +7,8 @@ import { replaceDraft, saveDraft } from "@/lib/drafts";
 
 /**
  * The MCP server Claude chat connects to (added in claude.ai as a custom connector with this URL).
- * Claude writes a lesson, `send_lesson` checks it and stores it as a draft, and Claude hands the user a
- * link that opens the draft in the editor as a new lesson. Nothing here touches the user's saved quizzes, so it
+ * Claude writes a presentation, `send_presentation` checks it and stores it as a draft, and Claude hands the user a
+ * link that opens the draft in the editor as a new presentation. Nothing here touches the user's saved quizzes, so it
  * needs no login — the proxy lets this path through. Instead it asks for a shared secret (below).
  *
  * It's a Pages Router API route (not an App Router route.ts) because the quiz importer imports
@@ -17,41 +17,41 @@ import { replaceDraft, saveDraft } from "@/lib/drafts";
 function createServer(appUrl: string) {
   const server = new McpServer({ name: "quizmatter", version: "1.0.0" });
 
-  // Each tool also answers to its old name (from before quizzes were called lessons): Claude keeps the
-  // tool list a chat started with, so older chats still call send_quiz / get_quiz_format.
-  for (const name of ["get_lesson_format", "get_quiz_format"]) {
+  // Each tool also answers to its old names (from when presentations were called quizzes, then lessons): Claude keeps the
+  // tool list a chat started with, so older chats still call send_lesson / send_quiz and their get_…_format.
+  for (const name of ["get_presentation_format", "get_lesson_format", "get_quiz_format"]) {
     server.registerTool(
       name,
       {
         description:
-          "Returns the JSON format for quizMatter slides (blank presentation slides and question slides), with notes and an example. Call this before send_lesson.",
+          "Returns the JSON format for quizMatter slides (blank presentation slides and question slides), with notes and an example. Call this before send_presentation.",
         annotations: { readOnlyHint: true },
       },
       async () => ({ content: [{ type: "text", text: getClaudeFormat() }] }),
     );
   }
 
-  for (const name of ["send_lesson", "send_quiz"]) {
+  for (const name of ["send_presentation", "send_lesson", "send_quiz"]) {
     server.registerTool(
       name,
       {
         description:
-          "Sends a lesson to quizMatter, an open canvas presentation tool (like Canva or PowerPoint): blank slides for any presentation, " +
-          "and/or question slides for a quiz or assessment. `slides` must follow the format from get_lesson_format. " +
+          "Sends a presentation to quizMatter, an open canvas presentation tool (like Canva or PowerPoint): blank slides for any presentation, " +
+          "and/or question slides for a quiz or assessment. `slides` must follow the format from get_presentation_format. " +
           "If something is wrong, the errors come back — fix them and send again. Otherwise it returns a layout report: " +
           "where every box, text and picture landed. " +
           'Send it first with final: false to check: the user sees it as "Checking…" and can\'t open it yet, and you get the report and a draftId. ' +
           "Fix anything that's off (you can check again), then send the final version with final: true and that draftId. " +
-          "The final send returns the link for the user, which opens the lesson in the editor; nothing is saved until they click Save.",
+          "The final send returns the link for the user, which opens the presentation in the editor; nothing is saved until they click Save.",
         inputSchema: {
-          details: quizDetailsSchema.optional().describe("About the lesson as a whole."),
-          slides: z.array(z.unknown()).describe("The slides array, in the format from get_lesson_format."),
-          // Chats that started before checking existed don't send it, so they still get a finished lesson.
+          details: quizDetailsSchema.optional().describe("About the presentation as a whole."),
+          slides: z.array(z.unknown()).describe("The slides array, in the format from get_presentation_format."),
+          // Chats that started before checking existed don't send it, so they still get a finished presentation.
           final: z
             .boolean()
             .default(true)
-            .describe("false = a version to check (no link for the user yet); true = the finished lesson, with a link for the user."),
-          draftId: z.uuid().optional().describe("The draftId from your earlier send of this lesson. Your new version replaces that draft."),
+            .describe("false = a version to check (no link for the user yet); true = the finished presentation, with a link for the user."),
+          draftId: z.uuid().optional().describe("The draftId from your earlier send of this presentation. Your new version replaces that draft."),
         },
       },
       async ({ details = {}, slides, final, draftId }) => {
@@ -60,24 +60,24 @@ function createServer(appUrl: string) {
         // be drawn on Cloudflare.
         const result = buildSlides({ slides }, { drawPatterns: false });
         if ("errors" in result) {
-          const text = `The lesson has mistakes. Fix them and send again:\n\n${result.errors.join("\n")}`;
+          const text = `The presentation has mistakes. Fix them and send again:\n\n${result.errors.join("\n")}`;
           return { isError: true, content: [{ type: "text", text }] };
         }
-        // A checking version is marked, so the lesson lists show it as "Checking…" and don't open it.
+        // A checking version is marked, so the presentation lists show it as "Checking…" and don't open it.
         const draft = final ? { details, slides } : { details, slides, checking: true };
         // A new version replaces its earlier draft (a checking one turns into the final one); if that draft
         // is gone (expired), it's saved as a new one.
         const replaced = draftId !== undefined && (await replaceDraft(draftId, draft));
         const id = replaced ? draftId : await saveDraft(draft);
-        const title = details.title || "Untitled lesson";
+        const title = details.title || "Untitled presentation";
         const intro = final
           ? [
-              `Sent the final version of "${title}" (${slides.length} slides). Give the user this link: ${appUrl}/quiz/new?draft=${id}`,
-              "It opens the lesson in the editor; nothing is saved until they click Save. The link works for 24 hours.",
+              `Sent the final version of "${title}" (${slides.length} slides). Give the user this link: ${appUrl}/presentation/new?draft=${id}`,
+              "It opens the presentation in the editor; nothing is saved until they click Save. The link works for 24 hours.",
             ]
           : [
               `Sent "${title}" (${slides.length} slides) for checking. The user sees it as "Checking…" and can't open it yet; there's no link for them.`,
-              'Check the report below. Fix anything that isn\'t how you meant it (e.g. with "position", sizes or shorter text), then call send_lesson',
+              'Check the report below. Fix anything that isn\'t how you meant it (e.g. with "position", sizes or shorter text), then call send_presentation',
               `with final: true and draftId "${id}". If you don't within 10 minutes, the user sees it as "Not finished" and can open this version.`,
             ];
         const text = [

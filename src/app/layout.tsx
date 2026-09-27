@@ -10,7 +10,7 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: "quizMatter",
-  description: "Build lessons with quizzes built in.",
+  description: "Build presentations with quizzes built in.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

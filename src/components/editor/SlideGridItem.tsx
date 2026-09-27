@@ -9,13 +9,14 @@ import { GripIcon } from "@/components/icons/GripIcon";
 
 interface SlideGridItemProps {
   slide: Slide;
+  questionNumber?: number;
   index: number;
   isActive: boolean;
   canDelete: boolean;
   onSelect: (slideId: string) => void;
 }
 
-export function SlideGridItem({ slide, index, isActive, canDelete, onSelect }: SlideGridItemProps) {
+export function SlideGridItem({ slide, questionNumber, index, isActive, canDelete, onSelect }: SlideGridItemProps) {
   const duplicateSlide = useEditorStore((s) => s.duplicateSlide);
   const deleteSlide = useEditorStore((s) => s.deleteSlide);
 
@@ -36,7 +37,7 @@ export function SlideGridItem({ slide, index, isActive, canDelete, onSelect }: S
           className="overflow-hidden rounded-dropdown"
           style={{ outline: isActive ? "2px solid var(--accent-navy)" : "2px solid transparent", outlineOffset: 2 }}
         >
-          <SlideThumbnailPreview slide={slide} />
+          <SlideThumbnailPreview slide={slide} questionNumber={questionNumber} />
         </div>
         <span className="text-xs font-medium text-text-header">Slide {index + 1}</span>
       </button>

@@ -2,7 +2,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useEditorStore } from "@/lib/store";
-import { CANVAS_WIDTH, CANVAS_HEIGHT, hasAnswerContent } from "@/lib/constants";
+import { CANVAS_WIDTH, CANVAS_HEIGHT, hasAnswerContent, getSlideNumbers } from "@/lib/constants";
 import { SlideStaticView } from "./SlideStaticView";
 import { AnswerModal } from "@/components/editor/AnswerModal";
 import { SlideThumbnailPreview } from "@/components/editor/SlideThumbnailPreview";
@@ -30,6 +30,7 @@ export function PresentationView() {
   const currentThumbRef = useRef<HTMLButtonElement>(null);
 
   const slide = quiz.slides[presentationIndex];
+  const slideNumbers = getSlideNumbers(quiz.slides);
   const isAnswerShown = revealedSlideId === slide?.id;
   const isChoice = (slide?.type ?? "choice") === "choice";
   // Blank slides are often just for teaching, so they only get the button once an answer is typed.
@@ -183,6 +184,7 @@ export function PresentationView() {
         >
           <SlideStaticView
             slide={slide}
+            questionNumber={slideNumbers.get(slide.id)}
             revealAnswer={isChoice && isAnswerShown}
             fullscreen
           />
@@ -220,7 +222,7 @@ export function PresentationView() {
                       isCurrent ? "ring-2 ring-white" : "hover:ring-2 hover:ring-white/40"
                     }`}
                   >
-                    <SlideThumbnailPreview slide={s} revealAnswer={false} />
+                    <SlideThumbnailPreview slide={s} questionNumber={slideNumbers.get(s.id)} revealAnswer={false} />
                   </div>
                   {i + 1}
                 </button>

@@ -1,16 +1,22 @@
 "use client";
 
 import { useEditorStore, selectedIdsOn } from "@/lib/store";
-import { QUESTION_CONTAINER_ID, QUESTION_CONTAINER_WIDTH, QUESTION_FONT_SIZE } from "@/lib/constants";
+import {
+  QUESTION_CONTAINER_ID,
+  QUESTION_CONTAINER_WIDTH,
+  QUESTION_FONT_SIZE,
+  NUMBERED_QUESTION_PADDING_LEFT,
+} from "@/lib/constants";
 import { useElementDropTarget } from "@/lib/useElementDropTarget";
 import { EditableText } from "./EditableText";
 import { SvgElementItem } from "./SvgElementItem";
 import { GroupSelectionOverlay } from "./GroupSelectionOverlay";
 import { SnapGuides } from "./SnapGuides";
 import { ResizeHandle } from "./ResizeHandle";
+import { QuestionNumberBadge } from "@/components/presentation/SlideStaticView";
 import type { Slide } from "@/lib/schema";
 
-export function QuestionContainer({ slide }: { slide: Slide }) {
+export function QuestionContainer({ slide, questionNumber }: { slide: Slide; questionNumber?: number }) {
   const updateQuestion = useEditorStore((s) => s.updateQuestion);
   const setQuestionHeight = useEditorStore((s) => s.setQuestionHeight);
   const selectedElementIds = useEditorStore(selectedIdsOn(slide.id));
@@ -39,10 +45,12 @@ export function QuestionContainer({ slide }: { slide: Slide }) {
       className="group/box relative shrink-0 rounded-button border p-4 transition-colors"
       style={{
         height: slide.questionHeight,
+        paddingLeft: questionNumber !== undefined ? NUMBERED_QUESTION_PADDING_LEFT : undefined,
         borderColor: isSelected ? "var(--accent-navy)" : "transparent",
         background: isDragOver || isElementDragOver ? "rgba(25, 26, 44, 0.05)" : undefined,
       }}
     >
+      {questionNumber !== undefined && <QuestionNumberBadge number={questionNumber} />}
       <EditableText
         text={slide.question}
         html={slide.questionHtml}

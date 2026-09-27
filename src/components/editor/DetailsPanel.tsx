@@ -4,19 +4,19 @@ import { useEffect, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { useEditorStore, isPanelEscape } from "@/lib/store";
 import { createClient } from "@/lib/supabase/client";
-import { DETAIL_MAX_LENGTH, GRADES, MAX_REFERENCE_LINKS, isWebLink, referenceSchema, type LessonDetails } from "@/lib/schema";
+import { DETAIL_MAX_LENGTH, GRADES, MAX_REFERENCE_LINKS, isWebLink, referenceSchema, type PresentationDetails } from "@/lib/schema";
 import { PanelLabel } from "./PanelControls";
 import { CloseIcon } from "@/components/icons/CloseIcon";
 import { Spinner } from "@/components/Spinner";
 
 /**
- * Sidebar panel for the lesson as a whole: title, description, grade, subject, curriculum,
+ * Sidebar panel for the presentation as a whole: title, description, grade, subject, curriculum,
  * learning competency, author, references, and private/published. All optional. Edits count as unsaved
  * changes until Save, like any other edit — except private/published, which saves right away.
  */
 export function DetailsPanel() {
   const closeDetailsPanel = useEditorStore((s) => s.closeDetailsPanel);
-  const setLessonDetails = useEditorStore((s) => s.setLessonDetails);
+  const setPresentationDetails = useEditorStore((s) => s.setPresentationDetails);
   const setPublished = useEditorStore((s) => s.setPublished);
   const isSaving = useEditorStore((s) => s.saveStatus === "saving");
   // Which button was clicked, so only that one shows the spinner.
@@ -38,8 +38,8 @@ export function DetailsPanel() {
     const saved = await setPublished(isPublished);
     setPendingVisibility(null);
     if (!saved) toast.error("Couldn't change it. Please try again.");
-    else if (isPublished) toast.success("Lesson published — other teachers can see it now.");
-    else toast.success("Lesson is private now.");
+    else if (isPublished) toast.success("Presentation published — other teachers can see it now.");
+    else toast.success("Presentation is private now.");
   };
 
   const textField = (key: keyof typeof DETAIL_MAX_LENGTH, label: string, placeholder: string, multiline = false) => (
@@ -47,7 +47,7 @@ export function DetailsPanel() {
       {multiline ? (
         <textarea
           value={quiz[key]}
-          onChange={(e) => setLessonDetails({ [key]: e.target.value })}
+          onChange={(e) => setPresentationDetails({ [key]: e.target.value })}
           placeholder={placeholder}
           maxLength={DETAIL_MAX_LENGTH[key]}
           rows={3}
@@ -56,7 +56,7 @@ export function DetailsPanel() {
       ) : (
         <input
           value={quiz[key]}
-          onChange={(e) => setLessonDetails({ [key]: e.target.value })}
+          onChange={(e) => setPresentationDetails({ [key]: e.target.value })}
           placeholder={placeholder}
           maxLength={DETAIL_MAX_LENGTH[key]}
           className={inputClass}
@@ -71,7 +71,7 @@ export function DetailsPanel() {
       className="flex w-80 shrink-0 flex-col gap-5 overflow-y-auto border-r border-border-default bg-bg-surface p-5"
     >
       <div className="flex items-center justify-between">
-        <h2 className="text-[15px] font-semibold text-text-primary">Lesson details</h2>
+        <h2 className="text-[15px] font-semibold text-text-primary">Presentation details</h2>
         <button
           type="button"
           onClick={closeDetailsPanel}
@@ -82,13 +82,13 @@ export function DetailsPanel() {
         </button>
       </div>
 
-      {textField("title", "Title", "Untitled lesson")}
-      {textField("description", "Description", "What the lesson covers", true)}
+      {textField("title", "Title", "Untitled presentation")}
+      {textField("description", "Description", "What the presentation covers", true)}
 
       <Field label="Grade">
         <select
           value={quiz.grade}
-          onChange={(e) => setLessonDetails({ grade: e.target.value as LessonDetails["grade"] })}
+          onChange={(e) => setPresentationDetails({ grade: e.target.value as PresentationDetails["grade"] })}
           className={inputClass}
         >
           <option value="">Not set</option>
@@ -102,10 +102,10 @@ export function DetailsPanel() {
 
       {textField("subject", "Subject", "e.g. Mathematics")}
       {textField("curriculum", "Curriculum", "e.g. MATATAG")}
-      {textField("learningCompetency", "Learning competency", "The competency this lesson targets, with its code", true)}
+      {textField("learningCompetency", "Learning competency", "The competency this presentation targets, with its code", true)}
       {textField("author", "Author", "Who wrote it: you, a book, another teacher…")}
 
-      <ReferenceLinks links={quiz.referenceLinks} onChange={(referenceLinks) => setLessonDetails({ referenceLinks })} />
+      <ReferenceLinks links={quiz.referenceLinks} onChange={(referenceLinks) => setPresentationDetails({ referenceLinks })} />
 
       <Field label="Visibility">
         <div className="grid grid-cols-2 gap-1 rounded-button bg-bg-page p-1">
@@ -140,7 +140,7 @@ export function DetailsPanel() {
 
 /**
  * One input per reference (a link, or a book / module name), plus "+ Add reference". Links get an
- * open button. Empty rows are dropped when the lesson is saved.
+ * open button. Empty rows are dropped when the presentation is saved.
  */
 function ReferenceLinks({ links, onChange }: { links: string[]; onChange: (links: string[]) => void }) {
   const setLink = (index: number, value: string) => onChange(links.map((link, i) => (i === index ? value : link)));
@@ -215,7 +215,7 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
-/** Who's logged in. They're the one publishing: a lesson's owner is whoever saves it. */
+/** Who's logged in. They're the one publishing: a presentation's owner is whoever saves it. */
 function useLoggedInEmail() {
   const [email, setEmail] = useState<string | null>(null);
   useEffect(() => {

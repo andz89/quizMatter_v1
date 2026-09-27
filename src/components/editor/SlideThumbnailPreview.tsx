@@ -10,14 +10,22 @@ const SCALE = THUMB_WIDTH / CANVAS_WIDTH;
  * It's the presentation view scaled down, so the two always look the same.
  * The present screen turns revealAnswer off so students don't see the answers.
  */
-export function SlideThumbnailPreview({ slide, revealAnswer = true }: { slide: Slide; revealAnswer?: boolean }) {
+export function SlideThumbnailPreview({
+  slide,
+  questionNumber,
+  revealAnswer = true,
+}: {
+  slide: Slide;
+  questionNumber?: number;
+  revealAnswer?: boolean;
+}) {
   return (
     <div
       className="pointer-events-none overflow-hidden rounded-dropdown"
       style={{ width: THUMB_WIDTH, aspectRatio: `${CANVAS_WIDTH} / ${CANVAS_HEIGHT}` }}
     >
       <div style={{ width: CANVAS_WIDTH, height: CANVAS_HEIGHT, transform: `scale(${SCALE})`, transformOrigin: "top left" }}>
-        <SlideStaticView slide={slide} revealAnswer={revealAnswer} />
+        <SlideStaticView slide={slide} questionNumber={questionNumber} revealAnswer={revealAnswer} />
       </div>
     </div>
   );

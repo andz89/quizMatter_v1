@@ -10,6 +10,7 @@ import { ANSWER_CONTAINER_ID, canHaveAnswer, hasAnswerContent } from "@/lib/cons
 import { DuplicateIcon } from "@/components/icons/DuplicateIcon";
 import { TrashIcon } from "@/components/icons/TrashIcon";
 import { ToolPanelButton, PanelLabel } from "./PanelControls";
+import { ConfirmModal } from "./ConfirmModal";
 
 const LAYOUTS: { value: Slide["layout"]; label: string; icon: ReactNode }[] = [
   { value: "grid", label: "Grid", icon: <GridLayoutIcon /> },
@@ -28,7 +29,7 @@ type DragHandleProps = Pick<ReturnType<typeof useSortable>, "attributes" | "list
 interface SlideToolbarProps {
   slide: Slide;
   // Slide 1, Slide 2… on blank slides, used as their name until they get one.
-  slideNumber: number;
+  slideNumber?: number;
   isFirst: boolean;
   isLast: boolean;
   canDelete: boolean;
@@ -47,7 +48,9 @@ export function SlideToolbar({ slide, slideNumber, isFirst, isLast, canDelete, o
   const setLayout = useEditorStore((s) => s.setLayout);
   const renameSlide = useEditorStore((s) => s.renameSlide);
   const openAnswer = useEditorStore((s) => s.openAnswer);
+  const setSlideNumbered = useEditorStore((s) => s.setSlideNumbered);
   const [isRenaming, setIsRenaming] = useState(false);
+  const [isConfirmingNoNumber, setIsConfirmingNoNumber] = useState(false);
 
   const isBlank = slide.type === "lesson";
   // Only the slide's name is shown; an unnamed question slide invites one instead.
@@ -119,7 +122,7 @@ export function SlideToolbar({ slide, slideNumber, isFirst, isLast, canDelete, o
             <button
               type="button"
               onClick={() => openAnswer(slide.id)}
-              title={isBlank ? "Content to reveal during the lesson" : "Correct answer"}
+              title={isBlank ? "Content to reveal during the presentation" : "Correct answer"}
               className={`flex h-8 items-center gap-2 rounded-dropdown px-2.5 text-sm font-semibold ${
                 isBlank ? "text-accent-navy hover:bg-[rgba(25,26,44,0.06)]" : "text-accent-green hover:bg-[rgba(30,142,79,0.1)]"
               }`}
@@ -150,6 +153,19 @@ export function SlideToolbar({ slide, slideNumber, isFirst, isLast, canDelete, o
           >
             <ChevronIcon direction="down" />
           </button>
+          {!isBlank && (
+            // Filled while the slide is numbered. Taking the number away asks first; putting it back doesn't.
+            <button
+              type="button"
+              onClick={() => (slide.hideNumber ? setSlideNumbered(slide.id, true) : setIsConfirmingNoNumber(true))}
+              title={slide.hideNumber ? "Add a question number" : "Remove the question number"}
+              className={`flex h-8 w-8 items-center justify-center rounded-dropdown text-text-primary ${
+                slide.hideNumber ? "hover:bg-bg-page" : "bg-bg-page hover:bg-border-default"
+              }`}
+            >
+              <NumberIcon crossed={!!slide.hideNumber} />
+            </button>
+          )}
           {isChoice && (
             <>
               <button
@@ -239,7 +255,29 @@ export function SlideToolbar({ slide, slideNumber, isFirst, isLast, canDelete, o
           </button>
         </div>
       </div>
+      {isConfirmingNoNumber && (
+        <ConfirmModal
+          title="Remove the question number?"
+          message="This slide will have no number, and the next slides will count on without it. If you want a number here, you will need to type it in the question yourself. Do you want to continue?"
+          confirmLabel="Remove number"
+          onConfirm={() => {
+            setSlideNumbered(slide.id, false);
+            setIsConfirmingNoNumber(false);
+          }}
+          onCancel={() => setIsConfirmingNoNumber(false)}
+        />
+      )}
     </div>
+  );
+}
+
+// A "#"; crossed out when the slide has no number.
+function NumberIcon({ crossed }: { crossed: boolean }) {
+  return (
+    <svg width="18" height="18" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.15">
+      <path d="M5.5 2L4.5 12M9.5 2L8.5 12M2.5 5H12M2 9H11.5" strokeLinecap="round" />
+      {crossed && <path d="M1.5 1.5L12.5 12.5" strokeLinecap="round" />}
+    </svg>
   );
 }
 
