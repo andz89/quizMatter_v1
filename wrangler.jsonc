@@ -1,7 +1,8 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "quizmatter-v1",
-  "main": ".open-next/worker.js",
+  // Wraps the app (.open-next/worker.js) to also run the weekly photo cleanup (see "triggers" below).
+  "main": "worker.ts",
   "compatibility_date": "2026-09-01",
   // nodejs_compat is needed by Next's server code, including proxy.ts (always runs on Node).
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
@@ -25,5 +26,10 @@
   // Photos teachers upload (or add from a link), served to everyone from images.quizmatter.com.
   // "remote": local dev uses this live bucket too, like the drafts database above.
   "r2_buckets": [{ "binding": "PHOTOS_BUCKET", "bucket_name": "quizmatter-images", "remote": true }],
+  // Every Sunday at 3:00 AM (UTC), delete photo files nothing uses anymore (see docs/photo-cleanup.md).
+  // It also needs the secret SUPABASE_SECRET_KEY, added in the Cloudflare dashboard.
+  "triggers": { "crons": ["0 3 * * SUN"] },
+  // For the photo cleanup. Not secret: the browser already knows it.
+  "vars": { "SUPABASE_URL": "https://zmmkqncfbjkmwfyngaha.supabase.co" },
   "observability": { "enabled": true }
 }
