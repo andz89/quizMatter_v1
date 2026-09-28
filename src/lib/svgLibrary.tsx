@@ -3,8 +3,7 @@ import { renderSolid, SOLIDS } from "./solids";
 import type { SvgElement } from "./schema";
 import { DEFAULT_TEXT_COLOR } from "./richText";
 import { KIDS, KID_VIEWBOX } from "./kids";
-import { renderSchoolBoy, SCHOOL_BOY_VIEWBOX } from "./schoolBoy";
-import { CLIPART_KIDS } from "./clipartKids";
+import { CLIPART_KIDS, drawPeopleArt, SCHOOL_BOY } from "./peopleArt";
 
 export type ElementCategory = "shape" | "line" | "arrow" | "solid" | "icon" | "time" | "math" | "decorative" | "cloud" | "number" | "letter" | "symbol" | "emoji" | "music" | "fruit" | "kitchen" | "book" | "vehicle" | "person" | "animal" | "space" | "sport" | "tree" | "leaf" | "background" | "text";
 
@@ -23,6 +22,7 @@ export type RenderSettings = Partial<Pick<
   | "protractor"
   | "text"
   | "svg"
+  | "image"
   | "crop"
   | "flipX"
   | "flipY"
@@ -4324,17 +4324,15 @@ const ASSETS: ElementAsset[] = [
     defaultSize: { width: (100 * PERSON_HEIGHT) / 175, height: PERSON_HEIGHT },
     render,
   })),
+  // The School Boy and the clipart students are drawn from a separate download (see peopleArt.ts);
+  // `color` goes on their clothes and shoes.
   {
-    id: "school-boy",
+    ...SCHOOL_BOY,
     category: "person",
-    label: "School Boy",
-    defaultColor: "#F2A93B",
-    viewBox: SCHOOL_BOY_VIEWBOX,
     defaultSize: { width: (79 * PERSON_HEIGHT) / 175, height: PERSON_HEIGHT },
-    render: renderSchoolBoy,
+    render: (color) => drawPeopleArt(SCHOOL_BOY.id, color),
   },
-  // Students from clipart (see clipartKids.tsx); `color` goes on their clothes and shoes.
-  ...CLIPART_KIDS.map(({ id, label, defaultColor, viewBox, render }) => {
+  ...CLIPART_KIDS.map(({ id, label, defaultColor, viewBox }) => {
     const [, , width, height] = viewBox.split(" ").map(Number);
     return {
       id,
@@ -4343,7 +4341,7 @@ const ASSETS: ElementAsset[] = [
       defaultColor,
       viewBox,
       defaultSize: { width: Math.round((PERSON_HEIGHT * width) / height), height: PERSON_HEIGHT },
-      render,
+      render: (color: string) => drawPeopleArt(id, color),
     };
   }),
 
@@ -5166,8 +5164,8 @@ export function getAssetViewBox(asset: ElementAsset, settings: RenderSettings) {
  * just get resized), nor elements whose shape changes with their settings (3D shapes, clocks, math tools),
  * where a crop would slip.
  */
-export function canCrop(element: Pick<SvgElement, "assetId" | "svg">) {
-  if (element.svg) return true;
+export function canCrop(element: Pick<SvgElement, "assetId" | "svg" | "image">) {
+  if (element.svg || element.image) return true;
   const asset = getElementAsset(element.assetId);
   return (
     !!asset &&
@@ -5226,6 +5224,9 @@ export const DEFAULT_ELEMENT_SIZE = 260;
 
 // assetId of a custom drawing (e.g. one Claude drew) — not in the library; the element's `svg` holds it.
 export const CUSTOM_SVG_ID = "custom-svg";
+
+// assetId of a photo the teacher uploaded or added from a link — not in the library; the element's `image` holds it.
+export const PHOTO_ID = "photo";
 
 /**
  * SVG markup as a data: URL, for an <img> or a CSS background. Browsers show SVG images in a locked-down

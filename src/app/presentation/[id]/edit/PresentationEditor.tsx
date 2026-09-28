@@ -2,6 +2,8 @@
 
 import dynamic from "next/dynamic";
 import type { Presentation } from "@/lib/schema";
+import { usesPeopleArt } from "@/lib/peopleArt";
+import { PeopleArtGate } from "@/components/PeopleArtGate";
 
 // The editor's store makes a placeholder presentation with crypto.randomUUID() at module load — rendering it
 // on the server would bake one set of random ids into the SSR HTML while the client generates a
@@ -10,5 +12,11 @@ import type { Presentation } from "@/lib/schema";
 const Editor = dynamic(() => import("@/components/editor/Editor").then((mod) => mod.Editor), { ssr: false });
 
 export function PresentationEditor({ presentation, draft }: { presentation: Presentation; draft?: unknown }) {
-  return <Editor presentation={presentation} draft={draft} />;
+  // A draft from Claude is only a recipe until the editor builds its slides, so it always waits for the
+  // people art (Claude often puts the clipart students in).
+  return (
+    <PeopleArtGate needed={draft !== undefined || usesPeopleArt(presentation.slides)}>
+      <Editor presentation={presentation} draft={draft} />
+    </PeopleArtGate>
+  );
 }

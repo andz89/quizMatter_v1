@@ -18,6 +18,18 @@ export const ANSWER_CONTAINER_ID = "answer";
 // dataTransfer type used to drag an element asset from the Elements panel onto a question/option box.
 export const ELEMENT_DRAG_MIME = "application/x-quizbuilder-element";
 
+// Where uploaded photos live: the R2 bucket "quizmatter-images", served from its own domain.
+export const PHOTO_URL_PREFIX = "https://images.quizmatter.com/uploads/";
+// Photos are shrunk in the browser so their longest side is at most this (px) — sharp in fullscreen.
+export const PHOTO_MAX_SIDE = 1920;
+// Biggest photo file (bytes) a teacher can pick or add from a link, before it's shrunk.
+export const MAX_PHOTO_FILE_BYTES = 20 * 1024 * 1024;
+// Biggest shrunk photo (bytes) the server stores.
+export const MAX_STORED_PHOTO_BYTES = 2 * 1024 * 1024;
+
+// dataTransfer type used to drag a photo (as JSON) from the Photos panel's "My photos" list onto a box or the slide.
+export const PHOTO_DRAG_MIME = "application/x-quizbuilder-photo";
+
 // dataTransfer type used to drag a slide (as JSON) from the Presentations panel onto the workspace.
 export const SLIDE_DRAG_MIME = "application/x-quizbuilder-slide";
 

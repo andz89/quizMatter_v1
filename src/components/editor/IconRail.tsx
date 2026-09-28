@@ -3,18 +3,21 @@
 import type { ReactNode } from "react";
 import { useEditorStore } from "@/lib/store";
 import { ElementsIcon } from "@/components/icons/ElementsIcon";
+import { PhotoIcon } from "@/components/icons/PhotoIcon";
 import { GridIcon } from "@/components/icons/GridIcon";
 import { BackgroundIcon } from "@/components/icons/BackgroundIcon";
 import { DetailsIcon } from "@/components/icons/DetailsIcon";
 import { PresentationsIcon } from "@/components/icons/PresentationsIcon";
 
 /**
- * Canva-style narrow icon bar: "Elements", "Background", "Details" and "Presentations" expand their sidebar panels,
+ * Canva-style narrow icon bar: "Elements", "Photos", "Background", "Details" and "Presentations" expand their sidebar panels,
  * "Slides" opens the thumbnail modal.
  */
 export function IconRail() {
   const isElementsPanelOpen = useEditorStore((s) => s.isElementsPanelOpen);
   const toggleElementsPanel = useEditorStore((s) => s.toggleElementsPanel);
+  const isPhotosPanelOpen = useEditorStore((s) => s.isPhotosPanelOpen);
+  const togglePhotosPanel = useEditorStore((s) => s.togglePhotosPanel);
   const openGridView = useEditorStore((s) => s.openGridView);
   const isBackgroundPanelOpen = useEditorStore((s) => s.isBackgroundPanelOpen);
   const toggleBackgroundPanel = useEditorStore((s) => s.toggleBackgroundPanel);
@@ -28,6 +31,9 @@ export function IconRail() {
     <aside className="flex w-20 shrink-0 flex-col gap-1.5 border-r-2 border-border-default bg-bg-surface px-1.5 py-3">
       <RailButton label="Elements" hue={300} active={isElementsPanelOpen} onClick={toggleElementsPanel}>
         <ElementsIcon size={24} />
+      </RailButton>
+      <RailButton label="Photos" hue={345} active={isPhotosPanelOpen} onClick={togglePhotosPanel}>
+        <PhotoIcon size={24} />
       </RailButton>
       <RailButton label="Slides" hue={30} title={`Slides (${slideCount})`} onClick={openGridView}>
         <GridIcon size={24} />

@@ -8,6 +8,7 @@ import { Spinner } from "@/components/Spinner";
 import { createBlankPresentation } from "@/lib/factories";
 import { buildSlides } from "@/lib/importPresentation";
 import type { Presentation } from "@/lib/schema";
+import { loadPeopleArt, usesPeopleArt } from "@/lib/peopleArt";
 import { getDraftPresentation, getPresentation, removePresentations } from "./actions";
 import type { PresentationCardData } from "./PresentationCard";
 
@@ -48,10 +49,12 @@ export function PresentationCardMenu({ card }: { card: PresentationCardData }) {
       // Fullscreen isn't available (unsupported/blocked) — presentation still opens.
     });
     const presentation = isDraft ? await loadDraft(card.id) : await getPresentation(card.id);
+    // It opens only once the people art it uses has downloaded (see peopleArt.ts).
+    const artLoaded = !presentation || !usesPeopleArt(presentation.slides) || (await loadPeopleArt().then(() => true, () => false));
     setIsBusy(false);
-    if (!presentation || presentation.slides.length === 0) {
+    if (!presentation || presentation.slides.length === 0 || !artLoaded) {
       if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
-      alert(presentation ? "This presentation has no slides yet." : "Couldn't open the presentation. Please try again.");
+      alert(presentation?.slides.length === 0 ? "This presentation has no slides yet." : "Couldn't open the presentation. Please try again.");
       return;
     }
     // The presentation view reads the editor's store, so the presentation goes in there first.

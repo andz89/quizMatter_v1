@@ -101,8 +101,6 @@ function clothesColors(color: string): Record<string, string> {
 const draw = (parts: Part[], colors: Record<string, string>) =>
   parts.map(([fill, d], i) => shape(d, colors[fill] ?? fill, i));
 
-export const SCHOOL_BOY_VIEWBOX = "0 0 938 2074";
-
 export function renderSchoolBoy(color: string): ReactNode {
   const colors = clothesColors(color);
   return (

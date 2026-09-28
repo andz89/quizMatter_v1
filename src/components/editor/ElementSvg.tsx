@@ -1,5 +1,7 @@
-import { useId, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { getAssetViewBox, getElementAsset, svgDataUrl, type RenderSettings } from "@/lib/svgLibrary";
+import { isPeopleArt, isPeopleArtLoaded, loadPeopleArt } from "@/lib/peopleArt";
+import { Spinner } from "@/components/Spinner";
 import { TEXT_BOX_FONT_SIZE } from "@/lib/constants";
 import { SlideText } from "./SlideText";
 
@@ -64,6 +66,15 @@ function ElementDrawing({ assetId, color, settings = {}, onMeasure }: ElementSvg
   const contentRef = useRef<SVGGElement>(null);
   // The drawing area cut down to what's actually drawn (+ TRIM_PADDING); null until measured.
   const [trimmedViewBox, setTrimmedViewBox] = useState<string | null>(null);
+  // The School Boy and the clipart students are a separate download (see peopleArt.ts). Opened
+  // presentations wait for it; anything else (Elements panel tiles, home page cards) shows the
+  // Spinner here until it arrives, or nothing if it fails.
+  const waitsForArt = isPeopleArt(assetId) && !isPeopleArtLoaded();
+  const [artFailed, setArtFailed] = useState(false);
+  const [, setArtLoaded] = useState(false);
+  useEffect(() => {
+    if (waitsForArt) loadPeopleArt().then(() => setArtLoaded(true), () => setArtFailed(true));
+  }, [waitsForArt]);
   // Kept in a ref so measuring always calls the latest callback without re-measuring on every render.
   const onMeasureRef = useRef(onMeasure);
   useLayoutEffect(() => {
@@ -74,6 +85,7 @@ function ElementDrawing({ assetId, color, settings = {}, onMeasure }: ElementSvg
   // would jump in size while being adjusted — and on the text box, which isn't a drawing.
   const canTrim =
     !!asset &&
+    !waitsForArt &&
     !asset.isTextBox &&
     !asset.is3d &&
     !asset.isClock &&
@@ -118,7 +130,20 @@ function ElementDrawing({ assetId, color, settings = {}, onMeasure }: ElementSvg
     return <img src={svgDataUrl(settings.svg)} alt="" draggable={false} className="h-full w-full object-contain" />;
   }
 
+  if (settings.image) {
+    // eslint-disable-next-line @next/next/no-img-element -- already shrunk when it was uploaded; nothing for next/image to do.
+    return <img src={settings.image.src} alt="" draggable={false} className="h-full w-full object-contain" />;
+  }
+
   if (!asset) return null;
+
+  if (waitsForArt) {
+    return artFailed ? null : (
+      <div className="flex h-full w-full items-center justify-center">
+        <Spinner size={16} />
+      </div>
+    );
+  }
 
   // A placed text box shows its text (read-only here — thumbnails, presentation, drag previews).
   // Without text settings (the Elements panel tile) it falls through and draws its "T" icon.

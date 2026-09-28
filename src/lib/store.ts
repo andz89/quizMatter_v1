@@ -29,7 +29,7 @@ import { withBackground, type BackgroundPatch } from "./slideBackground";
 import { savePresentationToDb } from "./presentations";
 import { finishDraft } from "@/app/actions";
 import { isEmbedSlide } from "./embed";
-import type { PresentationDetails, Presentation, Slide, SlideType, SvgElement } from "./schema";
+import type { Photo, PresentationDetails, Presentation, Slide, SlideType, SvgElement } from "./schema";
 import { MAX_ITEM_COUNT } from "./schema";
 
 type ElementPatch = Partial<Omit<SvgElement, "id" | "assetId">>;
@@ -51,6 +51,9 @@ const ZOOM_STEP = 0.1;
 const MAX_HISTORY = 100;
 // Presentation changes closer together than this count as one undo step (a whole drag, a typed word).
 const HISTORY_GROUP_MS = 500;
+
+// Longest side (px) of a new photo on the open slide or the answer canvas.
+const DEFAULT_PHOTO_SIZE = 480;
 
 /** A text on the canvas that can be typed in: the question, one option, or a text box element. */
 export type TextTarget =
@@ -356,11 +359,13 @@ interface EditorState {
     assetId: string,
     containerId?: string | null,
     position?: { x: number; y: number },
-    size?: { width: number; height: number }
+    size?: { width: number; height: number },
+    // Only for photos (assetId PHOTO_ID): the uploaded photo it shows.
+    photo?: Photo
   ) => void;
   // Adds an element by clicking it in the Elements panel: into the selected box on the current
   // slide, else a multiple-choice slide's shape box (added first if missing), else the slide itself.
-  insertElement: (assetId: string) => void;
+  insertElement: (assetId: string, photo?: Photo) => void;
   // Most-recently-inserted asset ids first, for the Elements panel's "Recently used" row.
   recentElementAssetIds: string[];
   updateElement: (slideId: string, elementId: string, patch: ElementPatch) => void;
@@ -388,6 +393,10 @@ interface EditorState {
   isElementsPanelOpen: boolean;
   toggleElementsPanel: () => void;
   closeElementsPanel: () => void;
+  // The Photos panel uploads photos, or adds them from a link.
+  isPhotosPanelOpen: boolean;
+  togglePhotosPanel: () => void;
+  closePhotosPanel: () => void;
   // The Elements panel categories the user starred, saved to their account. null until loaded.
   favoriteElementCategories: ElementCategory[] | null;
   setFavoriteElementCategories: (categories: ElementCategory[]) => void;
@@ -1037,7 +1046,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set({ presentation });
   },
 
-  addElement: (slideId, assetId, containerId = null, position, size) => {
+  addElement: (slideId, assetId, containerId = null, position, size, photo) => {
     const { presentation } = get();
     const slide = presentation.slides.find((s) => s.id === slideId);
     // Embed slides hold only their video, deck or picture: anything on top would cover the player's buttons.
@@ -1048,9 +1057,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     // start 30% bigger to look the same size as flat elements.
     const boxSize = asset?.is3d ? 124 : 95;
     // The open slide and the (slide-sized) answer canvas get the bigger default size.
-    const square = containerId === null || containerId === ANSWER_CONTAINER_ID ? DEFAULT_ELEMENT_SIZE : boxSize;
-    // Wide assets (number lines) start at their own size; everything else starts square.
-    const wanted = asset?.defaultSize ?? { width: square, height: square };
+    const isSlideSized = containerId === null || containerId === ANSWER_CONTAINER_ID;
+    const square = isSlideSized ? DEFAULT_ELEMENT_SIZE : boxSize;
+    // Photos keep their shape, their longest side a bit bigger on the open slide; wide assets (number
+    // lines) start at their own size; everything else starts square.
+    const photoScale = photo ? (isSlideSized ? DEFAULT_PHOTO_SIZE : boxSize) / Math.max(photo.width, photo.height) : 1;
+    const wanted = photo
+      ? { width: photo.width * photoScale, height: photo.height * photoScale }
+      : (asset?.defaultSize ?? { width: square, height: square });
     // Centered on the drop point (or the box's center), shrunk evenly if it doesn't fit.
     const center = position ?? { x: bounds.width / 2, y: bounds.height / 2 };
     const rect =
@@ -1064,6 +1078,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       color: asset?.defaultColor ?? DEFAULT_ELEMENT_COLOR,
       containerId,
       ...(asset?.isTextBox && { text: { html: "<p>Type here</p>" } }),
+      ...(photo && { image: photo }),
     };
     const { recentElementAssetIds, selectedSlideId, selectedContainerId, selectedContainerIds } = get();
     set({
@@ -1075,21 +1090,24 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         ? { selectedContainerId, selectedContainerIds }
         : { selectedContainerId: null, selectedContainerIds: [] }),
       selectedElementIds: [element.id],
-      recentElementAssetIds: [assetId, ...recentElementAssetIds.filter((id) => id !== assetId)].slice(0, 8),
+      // Photos aren't in the Elements panel, so they're not "recently used".
+      recentElementAssetIds: photo
+        ? recentElementAssetIds
+        : [assetId, ...recentElementAssetIds.filter((id) => id !== assetId)].slice(0, 8),
     });
   },
 
-  insertElement: (assetId) => {
+  insertElement: (assetId, photo) => {
     const { presentation, selectedSlideId, selectedContainerId, answerSlideId } = get();
     const slide = presentation.slides.find((s) => s.id === selectedSlideId);
     if (!slide) return;
     // The answer canvas stays selected after its window closes; only add to it while it's open.
     const isHiddenAnswer = selectedContainerId === ANSWER_CONTAINER_ID && answerSlideId !== slide.id;
-    if (selectedContainerId && !isHiddenAnswer) return get().addElement(slide.id, assetId, selectedContainerId);
-    if (!hasOptions(slide)) return get().addElement(slide.id, assetId, null);
+    if (selectedContainerId && !isHiddenAnswer) return get().addElement(slide.id, assetId, selectedContainerId, undefined, undefined, photo);
+    if (!hasOptions(slide)) return get().addElement(slide.id, assetId, null, undefined, undefined, photo);
     // addShapeBox does nothing if the slide already has one.
     get().addShapeBox(slide.id);
-    get().addElement(slide.id, assetId, SIDE_CONTAINER_ID);
+    get().addElement(slide.id, assetId, SIDE_CONTAINER_ID, undefined, undefined, photo);
   },
 
   updateElement: (slideId, elementId, patch) => get().updateElements(slideId, { [elementId]: patch }),
@@ -1263,9 +1281,25 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         isBackgroundPanelOpen: next ? false : state.isBackgroundPanelOpen,
         isDetailsPanelOpen: next ? false : state.isDetailsPanelOpen,
         isPresentationsPanelOpen: next ? false : state.isPresentationsPanelOpen,
+        isPhotosPanelOpen: next ? false : state.isPhotosPanelOpen,
       };
     }),
   closeElementsPanel: () => set({ isElementsPanelOpen: false }),
+
+  isPhotosPanelOpen: false,
+  togglePhotosPanel: () =>
+    set((state) => {
+      const next = !state.isPhotosPanelOpen;
+      return {
+        isPhotosPanelOpen: next,
+        isElementsPanelOpen: next ? false : state.isElementsPanelOpen,
+        isColorPanelOpen: next ? false : state.isColorPanelOpen,
+        isBackgroundPanelOpen: next ? false : state.isBackgroundPanelOpen,
+        isDetailsPanelOpen: next ? false : state.isDetailsPanelOpen,
+        isPresentationsPanelOpen: next ? false : state.isPresentationsPanelOpen,
+      };
+    }),
+  closePhotosPanel: () => set({ isPhotosPanelOpen: false }),
   favoriteElementCategories: null,
   setFavoriteElementCategories: (categories) => set({ favoriteElementCategories: categories }),
 
@@ -1279,6 +1313,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         isBackgroundPanelOpen: next ? false : state.isBackgroundPanelOpen,
         isDetailsPanelOpen: next ? false : state.isDetailsPanelOpen,
         isPresentationsPanelOpen: next ? false : state.isPresentationsPanelOpen,
+        isPhotosPanelOpen: next ? false : state.isPhotosPanelOpen,
       };
     }),
   closeColorPanel: () => set({ isColorPanelOpen: false }),
@@ -1293,6 +1328,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         isBackgroundPanelOpen: next ? false : state.isBackgroundPanelOpen,
         isDetailsPanelOpen: next ? false : state.isDetailsPanelOpen,
         isPresentationsPanelOpen: next ? false : state.isPresentationsPanelOpen,
+        isPhotosPanelOpen: next ? false : state.isPhotosPanelOpen,
       };
     }),
 
@@ -1306,6 +1342,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         isColorPanelOpen: next ? false : state.isColorPanelOpen,
         isDetailsPanelOpen: next ? false : state.isDetailsPanelOpen,
         isPresentationsPanelOpen: next ? false : state.isPresentationsPanelOpen,
+        isPhotosPanelOpen: next ? false : state.isPhotosPanelOpen,
       };
     }),
   closeBackgroundPanel: () => set({ isBackgroundPanelOpen: false }),
@@ -1320,6 +1357,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         isColorPanelOpen: next ? false : state.isColorPanelOpen,
         isBackgroundPanelOpen: next ? false : state.isBackgroundPanelOpen,
         isPresentationsPanelOpen: next ? false : state.isPresentationsPanelOpen,
+        isPhotosPanelOpen: next ? false : state.isPhotosPanelOpen,
       };
     }),
   closeDetailsPanel: () => set({ isDetailsPanelOpen: false }),
@@ -1334,6 +1372,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         isColorPanelOpen: next ? false : state.isColorPanelOpen,
         isBackgroundPanelOpen: next ? false : state.isBackgroundPanelOpen,
         isDetailsPanelOpen: next ? false : state.isDetailsPanelOpen,
+        isPhotosPanelOpen: next ? false : state.isPhotosPanelOpen,
       };
     }),
   closePresentationsPanel: () => set({ isPresentationsPanelOpen: false }),

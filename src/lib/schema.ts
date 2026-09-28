@@ -1,5 +1,13 @@
 import { z } from "zod";
-import { CANVAS_HEIGHT, CANVAS_WIDTH, MIN_QUESTION_HEIGHT, MIN_QUESTION_WIDTH, moveShortAnswerPicturesToSlide } from "./constants";
+import {
+  CANVAS_HEIGHT,
+  CANVAS_WIDTH,
+  MIN_QUESTION_HEIGHT,
+  MIN_QUESTION_WIDTH,
+  PHOTO_MAX_SIDE,
+  PHOTO_URL_PREFIX,
+  moveShortAnswerPicturesToSlide,
+} from "./constants";
 import { EMBED_SLIDE_TYPES, MAX_EMBED_URL_LENGTH, isEmbedSlide, readEmbedLink, type EmbedKind } from "./embed";
 
 // The font sizes (px) a user can choose for a text. The chosen size is the largest the text gets;
@@ -14,6 +22,14 @@ export const optionSchema = z.object({
   html: z.string().optional(),
   // Chosen font size. Missing = OPTION_FONT_SIZE.
   fontSize: fontSizeSchema.optional(),
+});
+
+// A photo in our own storage (only there — see PHOTO_URL_PREFIX), with its real size in px to keep its shape.
+// Used by photo elements and by the teacher's "My photos" list (the photos table).
+export const photoSchema = z.object({
+  src: z.string().max(300).startsWith(PHOTO_URL_PREFIX),
+  width: z.number().int().positive().max(PHOTO_MAX_SIDE),
+  height: z.number().int().positive().max(PHOTO_MAX_SIDE),
 });
 
 export const svgElementSchema = z.object({
@@ -65,6 +81,9 @@ export const svgElementSchema = z.object({
   // Only used by custom drawings (assetId CUSTOM_SVG_ID, e.g. drawn by Claude): the SVG markup. Shown
   // as an image, so nothing inside it can run.
   svg: z.string().optional(),
+  // Only used by photos (assetId PHOTO_ID) a teacher uploaded or added from a link: the copy in our own
+  // storage, and the photo's real size (to keep its shape). Only our own storage is allowed.
+  image: photoSchema.optional(),
   // Mirrored left to right (flipX) or top to bottom (flipY). Only the picture is mirrored, not the box.
   // Missing = not flipped. Text boxes are never flipped.
   flipX: z.boolean().optional(),
@@ -255,6 +274,7 @@ export const presentationSchema = z.object({
 
 export type Option = z.infer<typeof optionSchema>;
 export type SvgElement = z.infer<typeof svgElementSchema>;
+export type Photo = z.infer<typeof photoSchema>;
 export type Slide = z.infer<typeof slideSchema>;
 export type SlideType = NonNullable<Slide["type"]>;
 

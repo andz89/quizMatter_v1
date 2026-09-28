@@ -187,7 +187,8 @@ export function SelectedElementToolbar({ showColor = true }: { showColor?: boole
       )}
       <div className="h-5 w-px bg-border-default" />
 
-      {showColor && (
+      {/* Photos have no color of their own to change. */}
+      {showColor && !elements.every((el) => el.image) && (
         <>
           <button
             type="button"

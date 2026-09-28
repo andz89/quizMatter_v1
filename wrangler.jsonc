@@ -22,5 +22,8 @@
       "remote": true
     }
   ],
+  // Photos teachers upload (or add from a link), served to everyone from images.quizmatter.com.
+  // "remote": local dev uses this live bucket too, like the drafts database above.
+  "r2_buckets": [{ "binding": "PHOTOS_BUCKET", "bucket_name": "quizmatter-images", "remote": true }],
   "observability": { "enabled": true }
 }

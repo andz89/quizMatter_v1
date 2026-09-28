@@ -1,10 +1,16 @@
 import { useRef, useState } from "react";
 import { useEditorStore } from "./store";
-import { ELEMENT_DRAG_MIME } from "./constants";
+import { ELEMENT_DRAG_MIME, PHOTO_DRAG_MIME } from "./constants";
+import { addPhotoToSlide, uploadPhoto } from "./photos";
+import { photoSchema } from "./schema";
+import { PHOTO_ID } from "./svgLibrary";
+
+// How far apart (px) several photos dropped at once land, so they don't hide each other.
+const PHOTO_DROP_OFFSET = 24;
 
 /**
  * Drag-enter/leave/drop handlers that turn a container into a drop target for an element asset
- * dragged from the Elements panel. `isDragOver` drives the hover highlight while something compatible
+ * dragged from the Elements panel, a photo from the Photos panel, or photo files dragged from the computer. `isDragOver` drives the hover highlight while something compatible
  * is being dragged over it; a depth counter (rather than a plain boolean) keeps that highlight stable
  * while the pointer moves across the container's own children, which fire their own drag-leave/enter.
  */
@@ -14,7 +20,8 @@ export function useElementDropTarget(slideId: string, containerId: string | null
   const dragDepth = useRef(0);
   const [isDragOver, setIsDragOver] = useState(false);
 
-  const isElementDrag = (e: React.DragEvent) => e.dataTransfer.types.includes(ELEMENT_DRAG_MIME);
+  const isElementDrag = (e: React.DragEvent) =>
+    [ELEMENT_DRAG_MIME, PHOTO_DRAG_MIME, "Files"].some((type) => e.dataTransfer.types.includes(type));
 
   return {
     isDragOver,
@@ -36,7 +43,11 @@ export function useElementDropTarget(slideId: string, containerId: string | null
       },
       onDrop: (e: React.DragEvent) => {
         const assetId = e.dataTransfer.getData(ELEMENT_DRAG_MIME);
-        if (!assetId) return;
+        const photoJson = e.dataTransfer.getData(PHOTO_DRAG_MIME);
+        // Anything that isn't a photo is still dropped here (so the browser doesn't open it), and
+        // uploadPhoto says it can't be added.
+        const files = [...e.dataTransfer.files];
+        if (!assetId && !photoJson && files.length === 0) return;
         e.preventDefault();
         e.stopPropagation();
         dragDepth.current = 0;
@@ -45,9 +56,17 @@ export function useElementDropTarget(slideId: string, containerId: string | null
         // The slide itself is measured whole: the layer inside it belongs to its question box.
         const layer = (containerId !== null && e.currentTarget.querySelector("[data-element-layer]")) || e.currentTarget;
         const rect = layer.getBoundingClientRect();
-        addElement(slideId, assetId, containerId, {
-          x: (e.clientX - rect.left) / zoom,
-          y: (e.clientY - rect.top) / zoom,
+        const position = { x: (e.clientX - rect.left) / zoom, y: (e.clientY - rect.top) / zoom };
+        if (assetId) return addElement(slideId, assetId, containerId, position);
+        if (photoJson) {
+          // Already uploaded, so it's placed at once.
+          const photo = photoSchema.safeParse(JSON.parse(photoJson));
+          if (photo.success) addElement(slideId, PHOTO_ID, containerId, position, undefined, photo.data);
+          return;
+        }
+        files.forEach((file, i) => {
+          const at = { x: position.x + i * PHOTO_DROP_OFFSET, y: position.y + i * PHOTO_DROP_OFFSET };
+          addPhotoToSlide(() => uploadPhoto(file), { slideId, containerId, position: at });
         });
       },
     },

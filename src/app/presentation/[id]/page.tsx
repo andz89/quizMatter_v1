@@ -1,5 +1,7 @@
 import { notFound } from "next/navigation";
 import { fetchPresentation } from "@/lib/fetchPresentation";
+import { usesPeopleArt } from "@/lib/peopleArt";
+import { PeopleArtGate } from "@/components/PeopleArtGate";
 import { PresentationPreview } from "./PresentationPreview";
 
 /** A presentation to look at, not edit: mostly other teachers' published presentations (opened from the home page). */
@@ -9,5 +11,9 @@ export default async function PresentationPage({ params }: PageProps<"/presentat
   // Someone else's private presentation is hidden by the database, so it looks like it doesn't exist.
   if (!result) notFound();
 
-  return <PresentationPreview presentation={result.presentation} isMine={result.isMine} />;
+  return (
+    <PeopleArtGate needed={usesPeopleArt(result.presentation.slides)}>
+      <PresentationPreview presentation={result.presentation} isMine={result.isMine} />
+    </PeopleArtGate>
+  );
 }

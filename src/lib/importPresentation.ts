@@ -610,6 +610,12 @@ How they look:
 - Settings like "clockTime", "fraction", "numberLine", "tenFrame", "baseTen", "thermometer", "barGraph" and "protractor" only work on the pictures named in their description.
 - Keep "elements" useful: they should help answer the question or explain the topic. Decoration goes in "design".
 
+Real photos:
+- You can't add photos yourself: "elements" only take pictures from the app's list ("asset"). There is no "photo" asset.
+- The teacher can add their own photos in the editor, with the Photos button: upload one from their computer, or paste a photo link (JPG, PNG or WebP). The app keeps its own copy, so the photo never breaks, and it stays in their "My photos" list to use again.
+- When a slide really needs a real photo (a real volcano, a map, a famous person, the class's own picture), leave room for it (e.g. a blank slide with "layout": "text-left" and no pictures on the right), and tell the user in your reply which slides need a photo and what it should show.
+- For one photo that fills the whole slide, use an "image" embed slide instead, but only with a link the user gave you.
+
 Placing them yourself:
 - The app places, centers and sizes pictures itself. To choose the spot yourself, give "position": { x, y, width, height } in px (x, y = top-left corner). Only with count 1.
   - Blank, title and custom slides: on the 1280 × 720 slide.
@@ -670,7 +676,7 @@ Opacity: you choose how solid decorations, patterns, background artwork and pict
 Your own drawings (SVG) — for blank and title slide design only:
 - In "design", give "svg" instead of "asset" to draw your own decoration for a spot (square viewBox, e.g. "0 0 100 100").
 - Rules: one <svg>…</svg>, under 20,000 characters. Use shapes, paths and gradients (path, circle, ellipse, rect, polygon, line, g, defs, linearGradient, radialGradient, stop). No images, scripts or links — they won't show.
-- Teaching pictures (the ones in "elements") always come from "asset", never your own drawings.
+- Teaching pictures (the ones in "elements") always come from "asset", never your own drawings or photos (see Real photos above).
 
 Example:
 {

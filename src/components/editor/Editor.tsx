@@ -9,6 +9,7 @@ import { EditorTopBar } from "./EditorTopBar";
 import { IconRail } from "./IconRail";
 import { Workspace } from "./Workspace";
 import { ElementsPanel } from "./ElementsPanel";
+import { PhotosPanel } from "./PhotosPanel";
 import { ColorPanel } from "./ColorPanel";
 import { BackgroundPanel } from "./BackgroundPanel";
 import { DetailsPanel } from "./DetailsPanel";
@@ -43,6 +44,7 @@ export function Editor({ presentation, draft }: { presentation: Presentation; dr
   const isPresenting = useEditorStore((s) => s.isPresenting);
   const isGridViewOpen = useEditorStore((s) => s.isGridViewOpen);
   const isElementsPanelOpen = useEditorStore((s) => s.isElementsPanelOpen);
+  const isPhotosPanelOpen = useEditorStore((s) => s.isPhotosPanelOpen);
   const isColorPanelOpen = useEditorStore((s) => s.isColorPanelOpen);
   const isBackgroundPanelOpen = useEditorStore((s) => s.isBackgroundPanelOpen);
   const isDetailsPanelOpen = useEditorStore((s) => s.isDetailsPanelOpen);
@@ -77,6 +79,19 @@ export function Editor({ presentation, draft }: { presentation: Presentation; dr
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [hasUnsavedChanges]);
 
+  // A file dropped outside the slide's drop spots would make the browser open it, leaving the editor.
+  useEffect(() => {
+    const ignoreFileDrop = (e: DragEvent) => {
+      if (e.dataTransfer?.types.includes("Files")) e.preventDefault();
+    };
+    window.addEventListener("dragover", ignoreFileDrop);
+    window.addEventListener("drop", ignoreFileDrop);
+    return () => {
+      window.removeEventListener("dragover", ignoreFileDrop);
+      window.removeEventListener("drop", ignoreFileDrop);
+    };
+  }, []);
+
   // Clicking anywhere except a selected SVG element/toolbar or a selected container deselects them.
   useEffect(() => {
     if (selectedElementIds.length === 0 && selectedContainerId === null) return;
@@ -102,6 +117,7 @@ export function Editor({ presentation, draft }: { presentation: Presentation; dr
       <div className="flex flex-1 overflow-hidden">
         <IconRail />
         {isElementsPanelOpen && <ElementsPanel />}
+        {isPhotosPanelOpen && <PhotosPanel />}
         {isColorPanelOpen && <ColorPanel />}
         {isBackgroundPanelOpen && <BackgroundPanel />}
         {isDetailsPanelOpen && <DetailsPanel />}
