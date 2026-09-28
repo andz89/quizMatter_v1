@@ -27,6 +27,7 @@ import {
 import { clamp, fitInBox, getOuterEdges } from "./geometry";
 import { withBackground, type BackgroundPatch } from "./slideBackground";
 import { savePresentationToDb } from "./presentations";
+import { finishDraft } from "@/app/actions";
 import { isEmbedSlide } from "./embed";
 import type { PresentationDetails, Presentation, Slide, SlideType, SvgElement } from "./schema";
 import { MAX_ITEM_COUNT } from "./schema";
@@ -230,6 +231,8 @@ interface EditorState {
   // The presentation as it was last saved. Any edit makes a new presentation object, so `presentation !== savedPresentation` means unsaved changes.
   savedPresentation: Presentation | null;
   saveStatus: "idle" | "saving" | "error";
+  // True while the presentation is a draft from Claude that hasn't been saved yet (see /presentation/new).
+  fromDraft: boolean;
   savePresentation: () => Promise<void>;
   // Undo/redo history of the presentation content only (not selection, zoom or open panels). Filled
   // automatically by the store subscription at the bottom of this file.
@@ -454,6 +457,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         presentation,
         savedPresentation: presentation,
         saveStatus: "idle",
+        fromDraft: false,
         past: [],
         future: [],
         selectedSlideId: presentation.slides[0].id,
@@ -467,15 +471,19 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   savedPresentation: null,
   saveStatus: "idle",
+  fromDraft: false,
 
   savePresentation: async () => {
-    const { presentation, saveStatus } = get();
+    const { presentation, saveStatus, fromDraft } = get();
     if (saveStatus === "saving") return;
     set({ saveStatus: "saving" });
     try {
       await savePresentationToDb(presentation);
       // Edits made while saving aren't in the database yet, so they still count as unsaved.
-      set({ savedPresentation: presentation, saveStatus: "idle" });
+      set({ savedPresentation: presentation, saveStatus: "idle", fromDraft: false });
+      // Claude's draft is now a saved presentation, so the draft goes: Claude's next send makes a new draft
+      // (with a new link) instead of updating one nobody can open anymore. If this fails, the save still counts.
+      if (fromDraft) finishDraft(presentation.id).catch(() => {});
     } catch {
       set({ saveStatus: "error" });
     }

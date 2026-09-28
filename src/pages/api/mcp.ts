@@ -24,7 +24,8 @@ function createServer(appUrl: string) {
       name,
       {
         description:
-          "Returns the JSON format for quizMatter slides (blank, title, question, and video / slide deck / picture slides), with notes and an example. Call this before send_presentation.",
+          "Returns the JSON format for quizMatter slides (blank, title, question, and video / slide deck / picture slides), with notes and an example. Call this before send_presentation. " +
+          "If the user gives you a reference (a module, book lesson, worksheet, file or link), first ask whether to use all its short quizzes and activities as question slides, or only the final assessment.",
         annotations: { readOnlyHint: true },
       },
       async () => ({ content: [{ type: "text", text: getClaudeFormat() }] }),
@@ -51,7 +52,10 @@ function createServer(appUrl: string) {
             .boolean()
             .default(true)
             .describe("false = a version to check (no link for the user yet); true = the finished presentation, with a link for the user."),
-          draftId: z.uuid().optional().describe("The draftId from your earlier send of this presentation. Your new version replaces that draft."),
+          draftId: z.uuid().optional().describe(
+              "The draftId from your earlier send of this presentation. Your new version replaces that draft. " +
+                "Once the user has saved it, it can't be replaced: the send makes a new presentation with a new link.",
+            ),
         },
       },
       async ({ details = {}, slides, final, draftId }) => {
@@ -70,6 +74,14 @@ function createServer(appUrl: string) {
         const replaced = draftId !== undefined && (await replaceDraft(draftId, draft));
         const id = replaced ? draftId : await saveDraft(draft);
         const title = details.title || "Untitled presentation";
+        // The old draft is gone once the user saved it (or after a day), so this send became a new one.
+        const newDraftNote =
+          draftId !== undefined && !replaced
+            ? [
+                `Draft ${draftId} is gone: the user already saved it (or it expired), so this was sent as a NEW presentation with a NEW link and draftId.`,
+                "Their saved copy was not changed. Use the new link and draftId from now on.",
+              ]
+            : [];
         const intro = final
           ? [
               `Sent the final version of "${title}" (${slides.length} slides). Give the user this link: ${appUrl}/presentation/new?draft=${id}`,
@@ -81,6 +93,7 @@ function createServer(appUrl: string) {
               `with final: true and draftId "${id}". If you don't within 10 minutes, the user sees it as "Not finished" and can open this version.`,
             ];
         const text = [
+          ...newDraftNote,
           ...intro,
           `Draft id: ${id}`,
           "",

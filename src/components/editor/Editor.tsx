@@ -66,6 +66,7 @@ export function Editor({ presentation, draft }: { presentation: Presentation; dr
     const result = buildSlides(draft);
     if ("errors" in result) alert(`Couldn't load the slides from Claude:\n\n${result.errors.join("\n")}`);
     else store.importSlides(result.slides);
+    useEditorStore.setState({ fromDraft: true });
   }, [presentation, draft]);
 
   // Closing or reloading the tab with unsaved changes makes the browser ask "Leave page?" first.

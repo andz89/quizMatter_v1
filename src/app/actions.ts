@@ -34,6 +34,14 @@ export async function removePresentations(presentationIds: string[], draftIds: s
   return true;
 }
 
+/**
+ * Removes Claude's draft once the user has saved it as a presentation (it took the draft's id). Then Claude's
+ * next send can't update a draft nobody can open anymore: it gets a new draft with a new link instead.
+ */
+export async function finishDraft(id: string) {
+  await deleteDrafts([z.uuid().parse(id)]);
+}
+
 /** A whole saved presentation with its slides, so the home page can present it. null if it can't be read. */
 export async function getPresentation(id: string): Promise<Presentation | null> {
   if (!z.string().min(1).max(100).safeParse(id).success) return null;
