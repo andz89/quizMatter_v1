@@ -7,6 +7,7 @@ import { DETAIL_MAX_LENGTH } from "@/lib/schema";
 import { SelectedElementToolbar } from "./SelectedElementToolbar";
 import { TextFormatToolbar } from "./TextFormatToolbar";
 import { ShapeBoxToolbar } from "./ShapeBoxToolbar";
+import { Spinner } from "@/components/Spinner";
 import { ChevronLeftIcon, PlayIcon, Redo2Icon, Undo2Icon } from "lucide-react";
 
 /** Opens the presentation, fullscreen when the browser allows it. */
@@ -104,11 +105,12 @@ function SaveButton() {
   return (
     <button
       type="button"
-      onClick={savePresentation}
+      onClick={() => savePresentation()}
       disabled={saveStatus === "saving" || !hasUnsavedChanges}
       title="Save (Ctrl+S)"
       className="ml-auto flex items-center gap-2 rounded-button border border-border-default px-4 py-2 text-sm font-semibold text-text-primary transition-colors hover:bg-bg-page disabled:hover:bg-transparent"
     >
+      {saveStatus === "saving" && <Spinner size={14} />}
       {hasUnsavedChanges && saveStatus !== "saving" && (
         <span className={`h-2 w-2 rounded-full ${saveStatus === "error" ? "bg-danger" : "bg-highlight"}`} />
       )}

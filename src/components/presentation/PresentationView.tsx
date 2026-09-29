@@ -132,8 +132,8 @@ export function PresentationView() {
       style={{ background: "var(--text-primary)" }}
       onClick={handleScreenClick}
     >
-      {/* Right to left: Exit, All slides, Reveal. */}
-      <div className={`absolute right-5 top-12 z-10 flex flex-row-reverse gap-2 ${buttonsClass}`}>
+      {/* Bottom left. Left to right: Exit, All slides, Reveal. Reveal is last, so when it hides the other buttons don't move. */}
+      <div className={`absolute bottom-5 left-5 z-10 flex gap-2 ${buttonsClass}`}>
         <button
           type="button"
           onClick={(e) => {

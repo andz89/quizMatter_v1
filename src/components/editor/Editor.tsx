@@ -69,7 +69,8 @@ export function Editor({ presentation, draft }: { presentation: Presentation; dr
     const result = buildSlides(draft);
     if ("errors" in result) alert(`Couldn't load the slides from Claude:\n\n${result.errors.join("\n")}`);
     else store.importSlides(result.slides);
-    useEditorStore.setState({ fromDraft: true });
+    // Not in the database yet: its first save sends every slide, and fails if another tab saved it first.
+    useEditorStore.setState({ fromDraft: true, savedAt: null });
   }, [presentation, draft]);
 
   // Closing or reloading the tab with unsaved changes makes the browser ask "Leave page?" first.

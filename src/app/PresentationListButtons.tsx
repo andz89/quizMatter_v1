@@ -3,7 +3,9 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createBlankPresentation } from "@/lib/factories";
-import { savePresentationToDb } from "@/lib/presentations";
+import { toast } from "sonner";
+import { Spinner } from "@/components/Spinner";
+import { saveErrorMessage, savePresentationToDb } from "@/lib/presentations";
 
 /**
  * Makes a blank presentation, saves it right away (so it has a row to open), then opens it in the editor.
@@ -20,8 +22,8 @@ export function NewPresentationButton({ author, fromAdmin = false }: { author: s
     try {
       await savePresentationToDb(presentation);
       router.push(`/presentation/${presentation.id}/edit`);
-    } catch {
-      alert("Couldn't create the presentation. Please try again.");
+    } catch (error) {
+      toast.error(saveErrorMessage(error, "create the presentation"));
       setIsCreating(false);
     }
   };
@@ -31,8 +33,9 @@ export function NewPresentationButton({ author, fromAdmin = false }: { author: s
       type="button"
       onClick={createPresentation}
       disabled={isCreating}
-      className="rounded-button bg-accent btn-press px-4 py-2 text-sm font-semibold text-white hover:bg-accent-hover disabled:opacity-60"
+      className="inline-flex items-center gap-2 rounded-button bg-accent btn-press px-4 py-2 text-sm font-semibold text-white hover:bg-accent-hover disabled:opacity-60"
     >
+      {isCreating && <Spinner size={14} />}
       {isCreating ? "Creating…" : "+ New presentation"}
     </button>
   );

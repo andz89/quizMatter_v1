@@ -15,7 +15,8 @@ export type PresentationCardData = {
   // Drawn as the card's picture. null = no picture (Claude's drafts, or a slide that didn't pass the schema).
   firstSlide: Slide | null;
   // "checking" = a draft Claude is still checking (not openable yet); "unfinished" = Claude didn't send its final version.
-  badge?: "draft" | "published" | "checking" | "unfinished";
+  // "hidden" = an admin hid it (Admin → Reports), so other teachers can't see it.
+  badge?: "draft" | "published" | "hidden" | "checking" | "unfinished";
   // "By <author> · Published by <name>" on other teachers' presentations (parts not filled in are left out).
   byline?: string;
   // Adds "Move to QuizMatter" to the card's menu (an admin's own saved presentations only).
@@ -45,7 +46,11 @@ export function PresentationCard({ card, showMenu = false }: { card: Presentatio
         ) : (
           <div className="flex h-full items-center justify-center gap-2 bg-bg-page text-[13px] text-text-secondary">
             {isChecking && <Spinner size={14} />}
-            {isChecking ? "Claude is checking the layout…" : card.badge ? "From Claude" : "No preview"}
+            {isChecking
+              ? "Claude is checking the layout…"
+              : card.badge === "draft" || card.badge === "unfinished"
+                ? "From Claude"
+                : "No preview"}
           </div>
         )}
         {/* In the middle of the picture, on a white circle so it shows on any slide. */}
@@ -88,6 +93,7 @@ export function PresentationCard({ card, showMenu = false }: { card: Presentatio
 const KICKERS: Record<NonNullable<PresentationCardData["badge"]>, { label: string; className: string }> = {
   draft: { label: "Draft", className: "text-highlight-strong" },
   published: { label: "Published", className: "text-success-strong" },
+  hidden: { label: "Hidden by QuizMatter", className: "text-danger-strong" },
   checking: { label: "Checking…", className: "text-text-secondary" },
   unfinished: { label: "Not finished", className: "text-text-secondary" },
 };

@@ -15,11 +15,22 @@ import { EMBED_SLIDE_TYPES, MAX_EMBED_URL_LENGTH, isEmbedSlide, readEmbedLink, t
 export const FONT_SIZE_RANGE = { min: 12, max: 96 };
 const fontSizeSchema = z.number().int().min(FONT_SIZE_RANGE.min).max(FONT_SIZE_RANGE.max);
 
+// Size limits for slide content. They're far above what the editor or Claude ever make (Claude's drawings are
+// at most 20,000 characters), so they only stop broken or huge data. Saved presentations are checked with this
+// schema when they open too, so lowering a limit could stop an old presentation from opening.
+export const MAX_SLIDES = 300;
+const MAX_ELEMENTS = 1000;
+const idSchema = z.string().max(100);
+const colorSchema = z.string().max(100);
+const plainTextSchema = z.string().max(5_000);
+const htmlSchema = z.string().max(50_000);
+const svgSchema = z.string().max(200_000);
+
 export const optionSchema = z.object({
-  id: z.string(),
-  text: z.string(),
+  id: idSchema,
+  text: plainTextSchema,
   // Styled version of `text` (bold, color…), as HTML from the text editor. Missing on older presentations.
-  html: z.string().optional(),
+  html: htmlSchema.optional(),
   // Chosen font size. Missing = OPTION_FONT_SIZE.
   fontSize: fontSizeSchema.optional(),
 });
@@ -80,19 +91,19 @@ export function toSharedPhoto({
 export const photoCategoryNameSchema = z.string().trim().min(1, "Type a category name.").max(40, "The category name is too long.");
 
 export const svgElementSchema = z.object({
-  id: z.string(),
-  assetId: z.string(),
+  id: idSchema,
+  assetId: idSchema,
   x: z.number(),
   y: z.number(),
   width: z.number(),
   height: z.number(),
-  color: z.string(),
+  color: colorSchema,
   // null = freely placed on the canvas; "question" or an option's id = bound to that
   // container, positioned relative to it, and moves with it (e.g. on option reorder).
-  containerId: z.string().nullable(),
+  containerId: idSchema.nullable(),
   // Elements sharing a groupId are one group: a click selects them all. Members are always in the
   // same container. Missing = not grouped.
-  groupId: z.string().optional(),
+  groupId: idSchema.optional(),
   // Only used by solid (3D) shapes: tilt (x) and turn (y) in degrees. Missing = the default angle.
   rotation3d: z.object({ x: z.number(), y: z.number() }).optional(),
   // Flat (2D) spin in degrees around the element's center. Missing = 0. Not used by solids.
@@ -108,7 +119,7 @@ export const svgElementSchema = z.object({
   // Only used by number lines: first number, how much each tick counts up by, and which tick
   // positions show an empty box instead of a number. Centered (integer) lines ignore `start`.
   // Missing = start 0, step 1, nothing hidden.
-  numberLine: z.object({ start: z.number(), step: z.number(), hidden: z.array(z.number()) }).optional(),
+  numberLine: z.object({ start: z.number(), step: z.number(), hidden: z.array(z.number()).max(100) }).optional(),
   // Only used by fraction bars/circles: equal parts and how many are shaded. Missing = 4 parts, 1 shaded.
   fraction: z.object({ parts: z.number(), shaded: z.number() }).optional(),
   // Only used by the counting frame: how many dots, and the grid size (missing rows/columns = 2×5).
@@ -119,15 +130,15 @@ export const svgElementSchema = z.object({
   // Only used by the thermometer: the temperature shown, in °C (-20 to 50).
   thermometer: z.object({ value: z.number() }).optional(),
   // Only used by the bar graph: one entry per bar, left to right; values are 0–10.
-  barGraph: z.object({ bars: z.array(z.object({ label: z.string(), value: z.number() })) }).optional(),
+  barGraph: z.object({ bars: z.array(z.object({ label: z.string().max(100), value: z.number() })).max(50) }).optional(),
   // Only used by the protractor: the angle between its two lines, 0–180°.
   protractor: z.object({ angle: z.number() }).optional(),
   // Only used by the text box: its styled text, as HTML from the text editor (empty string = no
   // text), and its chosen font size (missing = TEXT_BOX_FONT_SIZE).
-  text: z.object({ html: z.string(), fontSize: fontSizeSchema.optional() }).optional(),
+  text: z.object({ html: htmlSchema, fontSize: fontSizeSchema.optional() }).optional(),
   // Only used by custom drawings (assetId CUSTOM_SVG_ID, e.g. drawn by Claude): the SVG markup. Shown
   // as an image, so nothing inside it can run.
-  svg: z.string().optional(),
+  svg: svgSchema.optional(),
   // Only used by photos (assetId PHOTO_ID) a teacher uploaded or added from a link: the copy in our own
   // storage, and the photo's real size (to keep its shape). Only our own storage is allowed.
   image: photoSchema.optional(),
@@ -170,7 +181,7 @@ export function embedLinkSchema(kind: EmbedKind) {
 }
 
 export const slideSchema = z.object({
-  id: z.string(),
+  id: idSchema,
   // choice = 4 options to pick from; true-false = 2 options ("True" and "False", editable), kept in the
   // first 2 option slots (the other 2 stay empty and hidden); short-answer = no options, the teacher types the correct answer;
   // blank = a blank slide for teaching (free-placed elements only, no question, no number).
@@ -192,10 +203,10 @@ export const slideSchema = z.object({
   itemCount: z.number().int().min(1).max(MAX_ITEM_COUNT).optional(),
   // Name the teacher gave the slide. Question slides show it after their number ("Q1 · Fractions");
   // blank slides show it instead of "Slide 1". Missing = no name.
-  name: z.string().optional(),
-  question: z.string(),
+  name: plainTextSchema.optional(),
+  question: plainTextSchema,
   // Styled version of `question`, as HTML from the text editor. Missing on older presentations.
-  questionHtml: z.string().optional(),
+  questionHtml: htmlSchema.optional(),
   // Chosen font size for the question. Missing = QUESTION_FONT_SIZE.
   questionFontSize: fontSizeSchema.optional(),
   // grid = 2x2 options; list = 4 stacked rows; list-side = 4 rows on the left and a box for
@@ -207,27 +218,28 @@ export const slideSchema = z.object({
   // Height of that strip, set by dragging its bottom edge. Missing = DEFAULT_SHAPE_STRIP_HEIGHT.
   shapeStripHeight: z.number().optional(),
   // Shape box fill and border color. Missing = none (a plain box in fullscreen).
-  shapeBoxFill: z.string().optional(),
-  shapeBoxBorder: z.string().optional(),
+  shapeBoxFill: colorSchema.optional(),
+  shapeBoxBorder: colorSchema.optional(),
   // The slide's background color, behind everything. Missing = the plain white surface.
-  background: z.string().optional(),
+  background: colorSchema.optional(),
   // Full-slide artwork (SVG markup) drawn over the background color, behind everything else. Shown
   // as an image, so nothing inside it can run. Missing = none.
-  backgroundSvg: z.string().optional(),
+  backgroundSvg: svgSchema.optional(),
   // Which library pattern `backgroundSvg` was drawn from (e.g. "background-dots"), so it can be
   // redrawn when the color changes. Missing = no pattern (the artwork, if any, is Claude's own).
-  backgroundPattern: z.string().optional(),
+  backgroundPattern: idSchema.optional(),
   // How solid that pattern is, in percent. Missing = DEFAULT_PATTERN_OPACITY.
   backgroundOpacity: z.number().optional(),
   options: z.tuple([optionSchema, optionSchema, optionSchema, optionSchema]),
-  correctOptionId: z.string().nullable(),
+  correctOptionId: idSchema.nullable(),
   // Short-answer, custom and blank slides only: the answer the teacher expects. (Their options stay empty and aren't shown.)
-  correctAnswer: z.string().optional(),
+  // The answer box stops at MAX_ANSWER_LENGTH; this looser limit keeps older answers opening.
+  correctAnswer: plainTextSchema.optional(),
   // Short-answer, custom and blank slides only: which answer is shown — the typed `correctAnswer`, or a canvas
   // of elements (those with containerId ANSWER_CONTAINER_ID). Both are kept, so switching loses nothing.
   // Missing = "text".
   answerType: z.enum(["text", "canvas"]).optional(),
-  elements: z.array(svgElementSchema),
+  elements: z.array(svgElementSchema).max(MAX_ELEMENTS),
   questionHeight: z.number(),
   // Short-answer slides only: where the teacher moved the question box, and how wide they made it,
   // in slide px (its height is `questionHeight`). It always stays inside the slide. Missing =
@@ -299,7 +311,7 @@ export const referenceSchema = z
 export const MAX_REFERENCE_LINKS = 20;
 
 export const presentationSchema = z.object({
-  id: z.string(),
+  id: idSchema,
   title: z.string().max(DETAIL_MAX_LENGTH.title),
   // Presentation details, all optional ("" when not filled in).
   description: z.string().max(DETAIL_MAX_LENGTH.description),
@@ -317,9 +329,24 @@ export const presentationSchema = z.object({
   // Made by an admin on Admin → Presentations: once shared, every teacher gets it under "From QuizMatter".
   // Saved only on the first save (and only an admin may save true), so it can't be changed later.
   fromAdmin: z.boolean(),
-  slides: z.array(slideSchema),
+  slides: z.array(slideSchema).max(MAX_SLIDES, `A presentation can have ${MAX_SLIDES} slides at most.`),
   createdAt: z.number(),
   updatedAt: z.number(),
+});
+
+// Why a teacher reports another teacher's published presentation (the presentation_reports table).
+export const REPORT_REASON_LABELS = {
+  unsafe: "Rude or unsafe",
+  spam: "Spam",
+  copied: "Copied without credit",
+  other: "Other",
+} as const;
+export type ReportReason = keyof typeof REPORT_REASON_LABELS;
+
+export const reportSchema = z.object({
+  presentation_id: idSchema.min(1),
+  reason: z.enum(["unsafe", "spam", "copied", "other"]),
+  note: z.string().trim().max(500, "The note is too long (500 characters at most)."),
 });
 
 export type Option = z.infer<typeof optionSchema>;

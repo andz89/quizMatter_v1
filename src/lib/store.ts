@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { toast } from "sonner";
 import type { Editor } from "@tiptap/react";
 import { createBlankPresentation, createBlankSlide, duplicateSlide as cloneSlide } from "./factories";
 import { createId } from "./id";
@@ -26,7 +27,7 @@ import {
 } from "./constants";
 import { clamp, fitInBox, getOuterEdges } from "./geometry";
 import { withBackground, type BackgroundPatch } from "./slideBackground";
-import { savePresentationToDb } from "./presentations";
+import { SaveRefusedError, saveErrorMessage, savePresentationToDb } from "./presentations";
 import { finishDraft } from "@/app/actions";
 import { isEmbedSlide } from "./embed";
 import type { Photo, PresentationDetails, Presentation, Slide, SlideType, SvgElement } from "./schema";
@@ -233,10 +234,15 @@ interface EditorState {
   loadPresentation: (presentation: Presentation) => void;
   // The presentation as it was last saved. Any edit makes a new presentation object, so `presentation !== savedPresentation` means unsaved changes.
   savedPresentation: Presentation | null;
+  // When the database copy was last saved (Unix ms), so a save can tell if someone saved in between. null = not
+  // in the database yet (a draft from Claude).
+  savedAt: number | null;
   saveStatus: "idle" | "saving" | "error";
   // True while the presentation is a draft from Claude that hasn't been saved yet (see /presentation/new).
   fromDraft: boolean;
-  savePresentation: () => Promise<void>;
+  // Saves the whole presentation and shows a toast (not when `quiet`). Resolves true if it's saved (or had
+  // nothing new to save), false if it failed or another save is still running.
+  savePresentation: (options?: { quiet?: boolean }) => Promise<boolean>;
   // Undo/redo history of the presentation content only (not selection, zoom or open panels). Filled
   // automatically by the store subscription at the bottom of this file.
   past: Presentation[];
@@ -465,6 +471,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       set({
         presentation,
         savedPresentation: presentation,
+        // Loaded from the database, so its updatedAt is the database's save time.
+        savedAt: presentation.updatedAt,
         saveStatus: "idle",
         fromDraft: false,
         past: [],
@@ -479,22 +487,42 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     ),
 
   savedPresentation: null,
+  savedAt: null,
   saveStatus: "idle",
   fromDraft: false,
 
-  savePresentation: async () => {
-    const { presentation, saveStatus, fromDraft } = get();
-    if (saveStatus === "saving") return;
+  savePresentation: async ({ quiet = false } = {}) => {
+    const { presentation, savedPresentation, savedAt, saveStatus, fromDraft } = get();
+    if (saveStatus === "saving") return false;
+    // Nothing new to save (Ctrl+S works even when the Save button is greyed out).
+    if (presentation === savedPresentation) return true;
     set({ saveStatus: "saving" });
+    // If another presentation is opened while this one saves, loadPresentation replaces savedPresentation.
+    // Then this save's result belongs to the old presentation and must not touch the new one.
+    const isStillOpen = () => get().savedPresentation === savedPresentation;
     try {
-      await savePresentationToDb(presentation);
-      // Edits made while saving aren't in the database yet, so they still count as unsaved.
-      set({ savedPresentation: presentation, saveStatus: "idle", fromDraft: false });
+      // Only the slides changed since the last save are sent. Never saved yet = there's nothing to compare with.
+      const newSavedAt = await savePresentationToDb(presentation, {
+        baseUpdatedAt: savedAt,
+        savedSlides: savedAt === null ? undefined : savedPresentation?.slides,
+      });
       // Claude's draft is now a saved presentation, so the draft goes: Claude's next send makes a new draft
       // (with a new link) instead of updating one nobody can open anymore. If this fails, the save still counts.
       if (fromDraft) finishDraft(presentation.id).catch(() => {});
-    } catch {
-      set({ saveStatus: "error" });
+      if (!quiet) toast.success("Presentation saved.");
+      // Edits made while saving aren't in the database yet, so they still count as unsaved.
+      if (isStillOpen()) set({ savedPresentation: presentation, savedAt: newSavedAt, saveStatus: "idle", fromDraft: false });
+      return true;
+    } catch (error) {
+      console.error("Couldn't save the presentation", error);
+      // A refused save is shown even when quiet: it says why, and a conflict stays until the user reloads.
+      if (error instanceof SaveRefusedError || !quiet) {
+        toast.error(saveErrorMessage(error, "save"), {
+          duration: error instanceof SaveRefusedError && error.isConflict ? Infinity : undefined,
+        });
+      }
+      if (isStillOpen()) set({ saveStatus: "error" });
+      return false;
     }
   },
 
@@ -888,11 +916,13 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setPublished: async (isPublished) => {
     const { presentation, saveStatus, setPresentationDetails, savePresentation } = get();
     if (saveStatus === "saving") return false;
-    const wasPublished = presentation.isPublished;
     setPresentationDetails({ isPublished });
-    await savePresentation();
-    if (get().saveStatus !== "error") return true;
-    setPresentationDetails({ isPublished: wasPublished });
+    const switched = get().presentation;
+    // Quiet: the Details panel shows its own message (published / private / couldn't change it).
+    if (await savePresentation({ quiet: true })) return true;
+    // Switch back. With no other edits since, put the old presentation object back, so it doesn't count as unsaved.
+    if (get().presentation === switched) withoutHistory(() => set({ presentation }));
+    else setPresentationDetails({ isPublished: presentation.isPublished });
     return false;
   },
 

@@ -21,7 +21,8 @@ export function SlideThumbnailPreview({
 }) {
   return (
     <div
-      className="pointer-events-none overflow-hidden rounded-dropdown"
+      // Reset text alignment and color, so a parent (e.g. a <button>, which centers text) can't change the slide.
+      className="pointer-events-none overflow-hidden rounded-dropdown text-left text-text-primary"
       style={{ width: THUMB_WIDTH, aspectRatio: `${CANVAS_WIDTH} / ${CANVAS_HEIGHT}` }}
     >
       <div style={{ width: CANVAS_WIDTH, height: CANVAS_HEIGHT, transform: `scale(${SCALE})`, transformOrigin: "top left" }}>

@@ -19,7 +19,7 @@ const SEARCH_LIMIT = 50;
 
 // Each presentation's first slide only (for the card's picture), not all of them, to keep the page light.
 const CARD_COLUMNS =
-  "id, owner_id, title, grade, subject, author, is_published, created_at, updated_at, slides(count), first_slide:slides(data, position)";
+  "id, owner_id, title, grade, subject, author, is_published, hidden_at, created_at, updated_at, slides(count), first_slide:slides(data, position)";
 
 export default async function HomePage({ searchParams }: PageProps<"/">) {
   const search = parseHomeSearch(await searchParams);
@@ -33,10 +33,11 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
   const sections = {
     // QuizMatter presentations an admin made are on Admin → Presentations, not in "mine".
     mine: () => supabase.from("presentations").select(CARD_COLUMNS).eq("owner_id", myId).eq("from_admin", false),
+    // Hidden ones are already left out by the database, except for admins (who can see them on Admin → Reports).
     quizmatter: () =>
-      supabase.from("presentations").select(CARD_COLUMNS).eq("is_published", true).eq("from_admin", true).neq("owner_id", myId),
+      supabase.from("presentations").select(CARD_COLUMNS).eq("is_published", true).is("hidden_at", null).eq("from_admin", true).neq("owner_id", myId),
     teachers: () =>
-      supabase.from("presentations").select(CARD_COLUMNS).eq("is_published", true).eq("from_admin", false).neq("owner_id", myId),
+      supabase.from("presentations").select(CARD_COLUMNS).eq("is_published", true).is("hidden_at", null).eq("from_admin", false).neq("owner_id", myId),
   };
   // A section the search's "Look in" leaves out is simply empty.
   const isLeftOut = (section: keyof typeof sections) => isSearching && search.in !== "all" && search.in !== section;
@@ -149,6 +150,7 @@ type CardPresentation = {
   subject: string;
   author: string;
   is_published: boolean;
+  hidden_at: string | null;
   created_at: string;
   updated_at: string;
   slides: { count: number }[];
@@ -173,7 +175,8 @@ function buildCards(
   const myCards: (PresentationCardData & { createdAt: number; updatedAt: number })[] = [
     ...mine.map((presentation) => ({
       ...toCard(presentation, `/presentation/${presentation.id}/edit`, now),
-      badge: presentation.is_published ? ("published" as const) : undefined,
+      // Hidden by an admin: other teachers can't see it, even if it's published.
+      badge: presentation.hidden_at ? ("hidden" as const) : presentation.is_published ? ("published" as const) : undefined,
       canMoveToQuizMatter: isAdmin,
       createdAt: Date.parse(presentation.created_at),
       updatedAt: Date.parse(presentation.updated_at),

@@ -61,6 +61,8 @@ export function PresentationsPanel() {
       .from("presentations")
       .select("id, owner_id, title, grade, subject, author, slides(count), first_slide:slides(data, position)")
       .eq("is_published", true)
+      // Already left out by the database, except for admins.
+      .is("hidden_at", null)
       .neq("id", presentationId)
       .order("updated_at", { ascending: false })
       .order("position", { referencedTable: "first_slide" })

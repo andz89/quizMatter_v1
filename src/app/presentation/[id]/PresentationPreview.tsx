@@ -4,16 +4,18 @@ import { useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { CANVAS_WIDTH, CANVAS_HEIGHT, getSlideNumbers } from "@/lib/constants";
 import { createId } from "@/lib/id";
 import { joinParts, publishedByLine, slideCountLabel } from "@/lib/format";
-import { savePresentationToDb } from "@/lib/presentations";
+import { saveErrorMessage, savePresentationToDb } from "@/lib/presentations";
 import { DETAIL_MAX_LENGTH, isWebLink, type Presentation } from "@/lib/schema";
 import { useEditorStore } from "@/lib/store";
 import { LinkPending } from "@/components/LinkPending";
 import { Spinner } from "@/components/Spinner";
 import { TopLoadingBar } from "@/components/TopLoadingBar";
 import { FluidSlidePreview } from "@/components/presentation/FluidSlidePreview";
+import { ReportButton } from "./ReportButton";
 
 // Only downloaded when the teacher clicks Present.
 const PresentationView = dynamic(() =>
@@ -22,7 +24,8 @@ const PresentationView = dynamic(() =>
 
 /**
  * A presentation's details and all its slides, view only. Present shows it fullscreen (the same view as the
- * editor's Present button); "Make a copy" saves a private copy for me and opens it in the editor.
+ * editor's Present button); "Make a copy" saves a private copy for me and opens it in the editor. "Report" sends
+ * someone else's presentation to the admins.
  */
 export function PresentationPreview({
   presentation,
@@ -61,8 +64,8 @@ export function PresentationPreview({
       await savePresentationToDb(copy);
       // isCopying stays true, so the spinner and top line keep showing until the editor opens.
       router.push(`/presentation/${copy.id}/edit`);
-    } catch {
-      alert("Couldn't make a copy. Please try again.");
+    } catch (error) {
+      toast.error(saveErrorMessage(error, "make a copy"));
       setIsCopying(false);
     }
   };
@@ -88,6 +91,7 @@ export function PresentationPreview({
           </p>
         </div>
         <div className="ml-auto flex items-center gap-2">
+          {!isMine && <ReportButton presentationId={presentation.id} className={secondaryButtonClass} />}
           {isMine ? (
             <Link href={`/presentation/${presentation.id}/edit`} className={secondaryButtonClass}>
               Edit

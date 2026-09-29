@@ -8,6 +8,7 @@ import { LinkPending } from "@/components/LinkPending";
 const ITEMS = [
   { href: "/admin", label: "Photos" },
   { href: "/admin/presentations", label: "Presentations" },
+  { href: "/admin/reports", label: "Reports" },
   { href: "/admin/cleanup", label: "Photo cleanup" },
 ];
 

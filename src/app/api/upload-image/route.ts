@@ -58,6 +58,13 @@ export async function POST(request: Request) {
   const source = shared ? sharedPhotoInfoSchema.shape.source.safeParse(searchParams.get("source") ?? "") : null;
   if (source && !source.success) return Response.json({ error: source.error.issues[0].message }, { status: 400 });
 
+  // At most 30 photos a minute per teacher (admins: no limit), counted before the file takes up storage.
+  const { error: rateError } = await supabase.rpc("count_write", { kind: "photos" });
+  if (rateError?.code === "QM429") {
+    return Response.json({ error: "You're adding photos too fast. Wait a minute and try again." }, { status: 429 });
+  }
+  if (rateError) return Response.json({ error: "Couldn't upload the photo. Please try again." }, { status: 500 });
+
   const bucket = getCloudflareContext().env.PHOTOS_BUCKET;
   const key = `uploads/${fileName}`;
   if (!(await bucket.head(key))) {
