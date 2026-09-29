@@ -112,7 +112,7 @@ export function useEditorShortcuts() {
         const step = e.shiftKey ? ARROW_STEP_SHIFT : ARROW_STEP;
         let dx = ARROW_DIRECTIONS[e.key].x * step;
         let dy = ARROW_DIRECTIONS[e.key].y * step;
-        // Shrink the move so no element leaves its box (on the slide: keeps at least 10% on it); all
+        // Shrink the move so no element leaves its box (on the slide: keeps at least 50% on it); all
         // move by the same amount to keep their spacing.
         for (const el of elements) {
           const bounds = getContainerBounds(el.containerId, slide);

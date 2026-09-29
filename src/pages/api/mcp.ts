@@ -1,9 +1,11 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
+import { createClient } from "@supabase/supabase-js";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { z } from "zod";
 import { buildSlides, getClaudeFormat, claudeDetailsSchema } from "@/lib/importPresentation";
 import { replaceDraft, saveDraft } from "@/lib/drafts";
+import type { Photo, Slide } from "@/lib/schema";
 
 /**
  * The MCP server Claude chat connects to (added in claude.ai as a custom connector with this URL).
@@ -31,6 +33,31 @@ function createServer(appUrl: string) {
       async () => ({ content: [{ type: "text", text: getClaudeFormat() }] }),
     );
   }
+
+  server.registerTool(
+    "find_photos",
+    {
+      description:
+        "Searches quizMatter's shared photo library (real photos the admins uploaded, each with a file name, description and tags). " +
+        'Give a few words about what the photo should show, e.g. "frog rainforest". Returns up to 20 photos (best matches first) ' +
+        'with their file name, description, tags, category and source (who owns it or where it came from, to credit it), plus every category name. To put one on a slide, use { "asset": "photo", "photo": { src, width, height } } in "elements".',
+      inputSchema: { query: z.string().max(200).describe("Words about what the photo should show. Empty = the newest photos.") },
+      annotations: { readOnlyHint: true },
+    },
+    async ({ query }) => {
+      const supabase = createAdminClient();
+      if (!supabase) return { isError: true, content: [{ type: "text", text: "The photo library isn't available right now." }] };
+      const [photos, categories] = await Promise.all([
+        supabase.rpc("search_shared_photos", { query }),
+        supabase.from("photo_categories").select("name").order("name"),
+      ]);
+      if (photos.error || categories.error) {
+        return { isError: true, content: [{ type: "text", text: "Couldn't search the photo library. Try again." }] };
+      }
+      const text = JSON.stringify({ photos: photos.data, categories: categories.data.map((c) => c.name) }, null, 2);
+      return { content: [{ type: "text", text }] };
+    },
+  );
 
   for (const name of ["send_presentation", "send_lesson", "send_quiz"]) {
     server.registerTool(
@@ -63,8 +90,10 @@ function createServer(appUrl: string) {
         // the slides again from the same recipe (same positions), and also draws the background patterns, which can't
         // be drawn on Cloudflare.
         const result = buildSlides({ slides }, { drawPatterns: false });
-        if ("errors" in result) {
-          const text = `The presentation has mistakes. Fix them and send again:\n\n${result.errors.join("\n")}`;
+        // Photos are checked against the library only once the slides themselves are right.
+        const errors = "errors" in result ? result.errors : await checkPhotos(result.slides);
+        if ("errors" in result || errors.length) {
+          const text = `The presentation has mistakes. Fix them and send again:\n\n${errors.join("\n")}`;
           return { isError: true, content: [{ type: "text", text }] };
         }
         // A checking version is marked, so the presentation lists show it as "Checking…" and don't open it.
@@ -108,6 +137,45 @@ function createServer(appUrl: string) {
   }
 
   return server;
+}
+
+/**
+ * Supabase with the secret key, for the shared photo library: this route has no logged-in user. The key only
+ * lives on the server (a Cloudflare secret, also used by the photo cleanup). null if it isn't set.
+ */
+function createAdminClient() {
+  const key = process.env.SUPABASE_SECRET_KEY;
+  return key ? createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, key, { auth: { persistSession: false } }) : null;
+}
+
+/** Every photo on the slides must be a shared photo, with its real size (as find_photos gave it). The problems, if any. */
+async function checkPhotos(slides: Slide[]): Promise<string[]> {
+  // Photos sit in their element's "image", wherever the element is (a box, the answer canvas…).
+  const used: Photo[] = [];
+  JSON.parse(JSON.stringify(slides), (key, value) => {
+    if (key === "image") used.push(value);
+    return value;
+  });
+  if (used.length === 0) return [];
+
+  const supabase = createAdminClient();
+  if (!supabase) return ["Photos can't be checked right now, so leave them out."];
+  const { data, error } = await supabase
+    .from("shared_photos")
+    .select("src, width, height")
+    .in("src", [...new Set(used.map((photo) => photo.src))]);
+  if (error) return ["Couldn't check the photos. Send again, or leave them out."];
+
+  const known = new Map(data.map((photo) => [photo.src, photo]));
+  const problems = used.map((photo) => {
+    const real = known.get(photo.src);
+    if (!real) return `${photo.src} isn't a shared photo. Only use photos from find_photos.`;
+    if (real.width !== photo.width || real.height !== photo.height) {
+      return `${photo.src} is ${real.width}×${real.height}, not ${photo.width}×${photo.height}. Copy "photo" exactly as find_photos gave it.`;
+    }
+    return "";
+  });
+  return [...new Set(problems.filter(Boolean))];
 }
 
 // Stateless: every request gets a fresh server and transport, so nothing has to be kept between requests.

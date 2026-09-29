@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { CANVAS_WIDTH, CANVAS_HEIGHT, getSlideNumbers } from "@/lib/constants";
-import { joinParts } from "@/lib/format";
 import { LinkPending } from "@/components/LinkPending";
 import { Spinner } from "@/components/Spinner";
 import { FluidSlidePreview } from "@/components/presentation/FluidSlidePreview";
@@ -17,7 +16,7 @@ export type PresentationCardData = {
   firstSlide: Slide | null;
   // "checking" = a draft Claude is still checking (not openable yet); "unfinished" = Claude didn't send its final version.
   badge?: "draft" | "published" | "checking" | "unfinished";
-  // "By <author>" on other teachers' presentations, when the author is filled in.
+  // "By <author> · Published by <name>" on other teachers' presentations (parts not filled in are left out).
   byline?: string;
 };
 
@@ -27,36 +26,44 @@ export type PresentationCardData = {
  */
 export function PresentationCard({ card, showMenu = false }: { card: PresentationCardData; showMenu?: boolean }) {
   const isChecking = card.badge === "checking";
+  // Like the design's card: picture, then a small status label, the title and a gray details line, all inside.
   const body = (
-    <>
+    <div
+      className={`rounded-card border border-border-default bg-bg-surface p-3 transition-colors ${
+        isChecking ? "" : "group-hover:border-accent"
+      }`}
+    >
       <div
-        className={`relative rounded-card border border-border-default bg-bg-surface p-3 transition-colors ${
-          isChecking ? "" : "group-hover:border-text-secondary"
-        }`}
+        className="relative overflow-hidden rounded-dropdown border border-border-default"
+        style={{ aspectRatio: `${CANVAS_WIDTH} / ${CANVAS_HEIGHT}` }}
       >
-        <div
-          className="overflow-hidden rounded-dropdown border border-border-default"
-          style={{ aspectRatio: `${CANVAS_WIDTH} / ${CANVAS_HEIGHT}` }}
-        >
-          {card.firstSlide ? (
-            // The presentation's first slide, so a question there is number 1 (unless taken out of the numbers).
-            <FluidSlidePreview slide={card.firstSlide} questionNumber={getSlideNumbers([card.firstSlide]).get(card.firstSlide.id)} />
-          ) : (
-            <div className="flex h-full items-center justify-center gap-2 bg-bg-page text-[13px] text-text-secondary">
-              {isChecking && <Spinner size={14} />}
-              {isChecking ? "Claude is checking the layout…" : card.badge ? "From Claude" : "No preview"}
-            </div>
-          )}
-        </div>
-        {card.badge && <Badge badge={card.badge} />}
+        {card.firstSlide ? (
+          // The presentation's first slide, so a question there is number 1 (unless taken out of the numbers).
+          <FluidSlidePreview slide={card.firstSlide} questionNumber={getSlideNumbers([card.firstSlide]).get(card.firstSlide.id)} />
+        ) : (
+          <div className="flex h-full items-center justify-center gap-2 bg-bg-page text-[13px] text-text-secondary">
+            {isChecking && <Spinner size={14} />}
+            {isChecking ? "Claude is checking the layout…" : card.badge ? "From Claude" : "No preview"}
+          </div>
+        )}
         {/* In the middle of the picture, on a white circle so it shows on any slide. */}
         {!isChecking && (
           <LinkPending spinnerClassName="absolute top-1/2 left-1/2 h-10 w-10 -translate-x-1/2 -translate-y-1/2 rounded-full bg-bg-surface" />
         )}
       </div>
-      <p className={`mt-2 truncate text-sm font-semibold ${isChecking ? "text-text-secondary" : "text-text-primary"}`}>{card.title}</p>
-      <p className="mt-0.5 truncate text-[13px] text-text-secondary">{joinParts([card.byline, card.meta])}</p>
-    </>
+      <div className="flex flex-col gap-1 px-1 pt-3 pb-1">
+        {card.badge && <Kicker badge={card.badge} />}
+        <p
+          className={`truncate font-heading text-[15px] font-extrabold tracking-[-0.02em] ${
+            isChecking ? "text-text-secondary" : "text-text-primary"
+          }`}
+        >
+          {card.title}
+        </p>
+        {card.byline && <p className="truncate text-xs font-semibold text-text-secondary">{card.byline}</p>}
+        <p className="truncate text-xs text-text-secondary">{card.meta}</p>
+      </div>
+    </div>
   );
 
   // The menu sits next to the link, not in it (a button can't go inside a link), placed over the picture.
@@ -75,16 +82,15 @@ export function PresentationCard({ card, showMenu = false }: { card: Presentatio
   );
 }
 
-const BADGES: Record<NonNullable<PresentationCardData["badge"]>, { label: string; className: string }> = {
-  draft: { label: "Draft", className: "bg-accent-orange text-white" },
-  published: { label: "Published", className: "bg-accent-green text-white" },
-  checking: { label: "Checking…", className: "border border-border-default bg-bg-surface text-text-secondary" },
-  unfinished: { label: "Not finished", className: "bg-accent-gray text-white" },
+// The status as the card's small uppercase label, colored by meaning (dark shades, so the small text reads well).
+const KICKERS: Record<NonNullable<PresentationCardData["badge"]>, { label: string; className: string }> = {
+  draft: { label: "Draft", className: "text-highlight-strong" },
+  published: { label: "Published", className: "text-success-strong" },
+  checking: { label: "Checking…", className: "text-text-secondary" },
+  unfinished: { label: "Not finished", className: "text-text-secondary" },
 };
 
-function Badge({ badge }: { badge: NonNullable<PresentationCardData["badge"]> }) {
-  const { label, className } = BADGES[badge];
-  return (
-    <span className={`absolute top-5 left-5 rounded-dropdown px-2 py-1 text-xs leading-none font-semibold ${className}`}>{label}</span>
-  );
+function Kicker({ badge }: { badge: NonNullable<PresentationCardData["badge"]> }) {
+  const { label, className } = KICKERS[badge];
+  return <span className={`text-[11px] leading-none font-semibold tracking-[0.06em] uppercase ${className}`}>{label}</span>;
 }

@@ -17,21 +17,24 @@ export function ToolPanelButton({
   title,
   icon,
   wide = false,
-  buttonClassName = "h-8 w-8",
+  buttonClassName = "h-8 w-8 rounded-dropdown text-text-primary hover:bg-bg-page aria-expanded:bg-bg-page",
   panelWidthClassName,
   closeOnAnyClick = false,
+  openAbove = false,
   children,
 }: {
   title: string;
   icon: ReactNode;
   // Wider panel for controls that need more room (e.g. rows of number chips).
   wide?: boolean;
-  // Button size, for toolbars that use bigger buttons.
+  // Button size and look (e.g. a big card button); aria-expanded: styles it while the panel is open.
   buttonClassName?: string;
   // Overrides the panel's width (e.g. "w-auto" to fit its content).
   panelWidthClassName?: string;
   // Close on the next click anywhere, even inside the panel — for pick-one menus (e.g. Add slide).
   closeOnAnyClick?: boolean;
+  // Always open just above the button — for a button at the bottom of its area (e.g. the workspace's Add slide).
+  openAbove?: boolean;
   children: ReactNode;
 }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -44,7 +47,7 @@ export function ToolPanelButton({
   // button when it fits. If not, it moves up to sit 25px below the top of the box that cuts it off
   // (e.g. the scrolling slide area).
   useLayoutEffect(() => {
-    if (!isOpen) {
+    if (!isOpen || openAbove) {
       setPanelTop(null);
       return;
     }
@@ -65,7 +68,7 @@ export function ToolPanelButton({
     const below = b.bottom + PANEL_EDGE_GAP;
     const fitsBelow = below + panel.offsetHeight + PANEL_EDGE_GAP <= clipBottom;
     setPanelTop((fitsBelow ? below : clipTop + PANEL_TOP_GAP) - b.top);
-  }, [isOpen]);
+  }, [isOpen, openAbove]);
 
   // Opening this panel closes the one that was open before it.
   useEffect(() => {
@@ -94,15 +97,20 @@ export function ToolPanelButton({
         ref={buttonRef}
         type="button"
         title={title}
+        aria-expanded={isOpen}
         onClick={() => setIsOpen((open) => !open)}
-        className={`flex ${buttonClassName} shrink-0 items-center justify-center rounded-dropdown text-text-primary hover:bg-bg-page ${isOpen ? "bg-bg-page" : ""}`}
+        className={`flex shrink-0 items-center justify-center ${buttonClassName}`}
       >
         {icon}
       </button>
       {isOpen && (
         <div
           ref={panelRef}
-          style={{ top: panelTop ?? `calc(100% + ${PANEL_EDGE_GAP}px)` }}
+          style={
+            openAbove
+              ? { bottom: `calc(100% + ${PANEL_EDGE_GAP}px)` }
+              : { top: panelTop ?? `calc(100% + ${PANEL_EDGE_GAP}px)` }
+          }
           className={`absolute left-1/2 z-30 flex -translate-x-1/2 flex-col gap-3 rounded-card border border-border-default bg-bg-surface px-4 py-3 ${panelWidthClassName ?? (wide ? "w-72" : "w-60")}`}
         >
           {children}
@@ -124,7 +132,7 @@ export function PanelReadout({ children }: { children: ReactNode }) {
 
 export function ResetButton({ onClick }: { onClick: () => void }) {
   return (
-    <button type="button" onClick={onClick} className="self-end text-xs font-semibold text-accent-green hover:opacity-80">
+    <button type="button" onClick={onClick} className="self-end text-xs font-semibold text-accent hover:opacity-80">
       Reset
     </button>
   );
@@ -156,13 +164,13 @@ export function PanelSlider({ label, value, min, max, unit = "°", onChange }: P
         max={max}
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
-        className="w-full accent-[var(--accent-navy)]"
+        className="w-full accent-[var(--accent)]"
       />
     </label>
   );
 }
 
-/** A small pill button that's filled navy while on — used for AM/PM, step sizes, hidden numbers, etc. */
+/** A small pill button that's filled violet while on — used for AM/PM, step sizes, hidden numbers, etc. */
 export function ToggleChip({
   active,
   onClick,
@@ -179,7 +187,7 @@ export function ToggleChip({
       type="button"
       onClick={onClick}
       className={`rounded-dropdown border py-1 text-xs font-semibold ${
-        active ? "border-accent-navy bg-accent-navy text-white" : "border-border-default text-text-primary hover:bg-bg-page"
+        active ? "border-accent bg-accent text-white" : "border-border-default text-text-primary hover:bg-bg-page"
       } ${className}`}
     >
       {children}

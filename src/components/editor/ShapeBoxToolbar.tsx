@@ -15,9 +15,9 @@ export function ShapeBoxToolbar() {
 
   if (!slide || selectedContainerId !== SIDE_CONTAINER_ID) return null;
 
-  // Navy ring on the swatch whose color the panel is editing.
+  // Violet ring on the swatch whose color the panel is editing.
   const outline = (target: "fill" | "border") => ({
-    outline: isColorPanelOpen && shapeBoxColorTarget === target ? "2px solid var(--accent-navy)" : "2px solid transparent",
+    outline: isColorPanelOpen && shapeBoxColorTarget === target ? "2px solid var(--accent)" : "2px solid transparent",
     outlineOffset: 2,
   });
 

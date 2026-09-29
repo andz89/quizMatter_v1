@@ -1,11 +1,15 @@
 import { createClient } from "./supabase/server";
+import { loadPublisherNames } from "./publishers";
 import { presentationSchema, type Presentation } from "./schema";
 
 /**
  * The whole presentation (details + every slide, in order) and who owns it, or null if there's none the user
- * can read: their own presentations, and other people's published ones. Server-only.
+ * can read: their own presentations, and other people's published ones. `publisherName` is the owner's display
+ * name, only looked up for other people's presentations ("" if they have none). Server-only.
  */
-export async function fetchPresentation(id: string): Promise<{ presentation: Presentation; isMine: boolean } | null> {
+export async function fetchPresentation(
+  id: string,
+): Promise<{ presentation: Presentation; isMine: boolean; publisherName: string } | null> {
   const supabase = await createClient();
   const [{ data, error }, { data: claims }] = await Promise.all([
     supabase
@@ -37,5 +41,7 @@ export async function fetchPresentation(id: string): Promise<{ presentation: Pre
     updatedAt: Date.parse(data.updated_at),
     slides: data.slides.map((slide: { data: unknown }) => slide.data),
   });
-  return { presentation, isMine: data.owner_id === claims?.claims.sub };
+  const isMine = data.owner_id === claims?.claims.sub;
+  const publisherName = isMine ? "" : ((await loadPublisherNames(supabase, [data.owner_id])).get(data.owner_id) ?? "");
+  return { presentation, isMine, publisherName };
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEditorStore } from "@/lib/store";
-import { EraserIcon } from "@/components/icons/EraserIcon";
+import { EraserIcon } from "lucide-react";
 
 interface ContainerClearButtonProps {
   slideId: string;

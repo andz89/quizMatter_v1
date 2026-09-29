@@ -9,8 +9,8 @@ import { GroupSelectionOverlay } from "./GroupSelectionOverlay";
 import { SnapGuides } from "./SnapGuides";
 import { ContainerClearButton } from "./ContainerClearButton";
 import { ResizeHandle } from "./ResizeHandle";
-import { CloseIcon } from "@/components/icons/CloseIcon";
 import type { Slide } from "@/lib/schema";
+import { XIcon } from "lucide-react";
 
 /**
  * The elements-only shape box of a choice slide: to the right of the option rows in the "list-side"
@@ -46,8 +46,8 @@ export function SideContainer({ slide }: { slide: Slide }) {
       className={`group/box relative rounded-button border transition-colors ${slide.shapeBoxBorder || isSelected ? "" : "border-dashed"} ${isStrip ? "-my-[14px] shrink-0" : "min-h-0 flex-1"}`}
       style={{
         height: isStrip ? getShapeStripHeight(slide) : undefined,
-        borderColor: isSelected ? "var(--accent-navy)" : (slide.shapeBoxBorder ?? "var(--border-default)"),
-        background: isDragOver || isElementDragOver ? "rgba(25, 26, 44, 0.08)" : slide.shapeBoxFill ? toCssBackground(slide.shapeBoxFill) : "transparent",
+        borderColor: isSelected ? "var(--accent)" : (slide.shapeBoxBorder ?? "var(--border-default)"),
+        background: isDragOver || isElementDragOver ? "color-mix(in srgb, var(--accent) 8%, transparent)" : slide.shapeBoxFill ? toCssBackground(slide.shapeBoxFill) : "transparent",
       }}
     >
       {boundElements.length === 0 && (
@@ -90,7 +90,7 @@ export function SideContainer({ slide }: { slide: Slide }) {
           }}
           className="absolute right-1 top-1 z-10 flex h-12 w-12 items-center justify-center rounded-dropdown text-text-primary opacity-0 transition-opacity hover:bg-bg-surface group-hover/box:opacity-100"
         >
-          <CloseIcon size={28} />
+          <XIcon size={28} />
         </button>
       )}
 

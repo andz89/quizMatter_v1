@@ -16,10 +16,10 @@ export function SnapGuides({ slideId, containerId }: SnapGuidesProps) {
   return (
     <>
       {guides.xs.map((x) => (
-        <div key={`x${x}`} className="absolute inset-y-0 z-40 w-px -translate-x-1/2 bg-[#7CC4FA]" style={{ left: x }} />
+        <div key={`x${x}`} className="absolute inset-y-0 z-40 w-px -translate-x-1/2 bg-accent" style={{ left: x }} />
       ))}
       {guides.ys.map((y) => (
-        <div key={`y${y}`} className="absolute inset-x-0 z-40 h-px -translate-y-1/2 bg-[#7CC4FA]" style={{ top: y }} />
+        <div key={`y${y}`} className="absolute inset-x-0 z-40 h-px -translate-y-1/2 bg-accent" style={{ top: y }} />
       ))}
     </>
   );

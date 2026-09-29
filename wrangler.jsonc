@@ -28,6 +28,7 @@
   "r2_buckets": [{ "binding": "PHOTOS_BUCKET", "bucket_name": "quizmatter-images", "remote": true }],
   // Every Sunday at 3:00 AM (UTC), delete photo files nothing uses anymore (see docs/photo-cleanup.md).
   // It also needs the secret SUPABASE_SECRET_KEY, added in the Cloudflare dashboard.
+  // If you change the time, change nextCleanupRun() in src/lib/cleanupPhotos.ts too (the admin page shows it).
   "triggers": { "crons": ["0 3 * * SUN"] },
   // For the photo cleanup. Not secret: the browser already knows it.
   "vars": { "SUPABASE_URL": "https://zmmkqncfbjkmwfyngaha.supabase.co" },

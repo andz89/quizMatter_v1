@@ -1,7 +1,18 @@
 import { toast } from "sonner";
 import { Spinner } from "@/components/Spinner";
 import { MAX_PHOTO_FILE_BYTES, PHOTO_MAX_SIDE } from "./constants";
-import { photoSchema, type Photo } from "./schema";
+import {
+  SHARED_PHOTO_COLUMNS,
+  photoCategoryNameSchema,
+  photoSchema,
+  sharedPhotoInfoSchema,
+  sharedPhotoSchema,
+  toSharedPhoto,
+  type Photo,
+  type PhotoCategory,
+  type SharedPhotoInfo,
+  type SharedPhotoWithInfo,
+} from "./schema";
 import { useEditorStore } from "./store";
 import { createClient } from "./supabase/client";
 import { PHOTO_ID } from "./svgLibrary";
@@ -14,12 +25,18 @@ export const PHOTO_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const PHOTO_QUALITY = 0.85;
 // How many photos the "My photos" list shows (the newest ones).
 const MY_PHOTOS_LIMIT = 60;
+// How many shared photos are loaded (the newest ones). All at once, so switching category is instant.
+const SHARED_PHOTOS_LIMIT = 500;
 
 // A problem the teacher should read as-is (other errors get a general message).
 class PhotoError extends Error {}
 
-/** Shrinks the photo (longest side PHOTO_MAX_SIDE), uploads it (adding it to "My photos"), and returns the stored copy. */
-export async function uploadPhoto(file: Blob): Promise<Photo> {
+/**
+ * Shrinks the photo (longest side PHOTO_MAX_SIDE), uploads it (adding it to "My photos"), and returns the stored copy.
+ * With `shared` (admins only) it's shared with every teacher in that category instead, with that source (who
+ * owns it or where it came from), and must be WebP.
+ */
+export async function uploadPhoto(file: Blob, shared?: { categoryId: string; source: string }): Promise<Photo> {
   if (!PHOTO_TYPES.includes(file.type)) throw new PhotoError("Only JPG, PNG and WebP photos can be added.");
   if (file.size > MAX_PHOTO_FILE_BYTES) throw new PhotoError("This photo is too big (20 MB at most).");
 
@@ -35,10 +52,19 @@ export async function uploadPhoto(file: Blob): Promise<Photo> {
 
   // Safari can't make WebP (it hands back a PNG instead), so it sends a JPEG.
   let shrunk = await toBlob(canvas, "image/webp");
-  if (shrunk?.type !== "image/webp") shrunk = await toBlob(canvas, "image/jpeg");
+  if (shrunk?.type !== "image/webp") {
+    if (shared) throw new PhotoError("This browser can't make WebP photos. Please use Chrome, Edge or Firefox.");
+    shrunk = await toBlob(canvas, "image/jpeg");
+  }
   if (!shrunk) throw new PhotoError("This file couldn't be opened as a photo.");
 
   const size = new URLSearchParams({ width: String(canvas.width), height: String(canvas.height) });
+  if (shared) {
+    size.set("category", shared.categoryId);
+    size.set("source", shared.source);
+    // A shared photo keeps the name it had on the admin's computer (to show and search).
+    if (file instanceof File) size.set("name", file.name);
+  }
   const response = await fetch(`/api/upload-image?${size}`, { method: "POST", body: shrunk, headers: { "Content-Type": shrunk.type } });
   const result = await response.json().catch(() => null);
   const photo = photoSchema.safeParse(result);
@@ -98,6 +124,127 @@ export async function loadMyPhotos(): Promise<Photo[]> {
 /** Takes a photo off the teacher's list. Slides that use it keep it (the file stays). Throws if it fails. */
 export async function removeMyPhoto(src: string) {
   const { error } = await createClient().from("photos").delete().eq("src", src);
+  if (error) throw error;
+}
+
+// ─── Shared photos: uploaded by admins, for every teacher, in categories (tables shared_photos, photo_categories).
+
+// Defined in schema.ts, so the admin page (a server page) can use them without this file's editor code.
+export type { PhotoCategory, SharedPhoto, SharedPhotoWithInfo } from "./schema";
+
+/** Every shared photo (newest first, with its name and words, for searching) and every category, by name. Throws if they can't be loaded. */
+export async function loadSharedPhotos(): Promise<{ photos: SharedPhotoWithInfo[]; categories: PhotoCategory[] }> {
+  const supabase = createClient();
+  const [photos, categories] = await Promise.all([
+    supabase
+      .from("shared_photos")
+      .select(SHARED_PHOTO_COLUMNS)
+      .order("created_at", { ascending: false })
+      .limit(SHARED_PHOTOS_LIMIT),
+    supabase.from("photo_categories").select("id, name").order("name"),
+  ]);
+  if (photos.error) throw photos.error;
+  if (categories.error) throw categories.error;
+  return { photos: photos.data.map(toSharedPhoto), categories: categories.data };
+}
+
+/**
+ * Whether a shared photo matches what was typed in a search box: every word must be in its name, description,
+ * tags, or `alsoIn` (e.g. its category name), in any case.
+ */
+export function matchesSearch(shared: SharedPhotoWithInfo, search: string, alsoIn: string): boolean {
+  const text = `${shared.file_name} ${shared.description} ${shared.tags.join(" ")} ${alsoIn}`.toLowerCase();
+  return search
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(Boolean)
+    .every((word) => text.includes(word));
+}
+
+/** Whether the logged-in user is an admin (can share photos and change categories). false if unsure. */
+export async function checkIsAdmin(): Promise<boolean> {
+  const { data } = await createClient().rpc("is_admin");
+  return data === true;
+}
+
+/** The category with this name (any case), made first if it's new. Shows what went wrong and returns null if it fails. */
+export async function findOrAddCategory(name: string, categories: PhotoCategory[]): Promise<PhotoCategory | null> {
+  const parsed = photoCategoryNameSchema.safeParse(name);
+  if (!parsed.success) {
+    toast.error(parsed.error.issues[0].message);
+    return null;
+  }
+  const found = categories.find((c) => c.name.toLowerCase() === parsed.data.toLowerCase());
+  if (found) return found;
+  const { data, error } = await createClient().from("photo_categories").insert({ name: parsed.data }).select("id, name").single();
+  if (error) toast.error("Couldn't add the category. Please try again.");
+  return data;
+}
+
+/** Uploads a photo for every teacher, in this category, with its source. Shows what went wrong and returns null if it fails. */
+export async function sharePhoto(file: Blob, categoryId: string, source: string): Promise<Photo | null> {
+  try {
+    return await uploadPhoto(file, { categoryId, source });
+  } catch (error) {
+    toast.error(error instanceof PhotoError ? error.message : "Couldn't upload the photo. Please try again.");
+    return null;
+  }
+}
+
+/** Renames a category. Returns an error message, or null if it worked. */
+export async function renameCategory(id: string, name: string): Promise<string | null> {
+  const parsed = photoCategoryNameSchema.safeParse(name);
+  if (!parsed.success) return parsed.error.issues[0].message;
+  const { error } = await createClient().from("photo_categories").update({ name: parsed.data }).eq("id", id);
+  if (error?.code === "23505") return "A category with this name already exists.";
+  return error ? "Couldn't rename the category. Please try again." : null;
+}
+
+/** Deletes a category (only an empty one: the database refuses otherwise). Throws if it fails. */
+export async function deleteCategory(id: string) {
+  const { error } = await createClient().from("photo_categories").delete().eq("id", id);
+  if (error) throw error;
+}
+
+/** Moves a shared photo to another category. Throws if it fails, or if no photo was changed. */
+export async function moveSharedPhoto(src: string, categoryId: string) {
+  const category_id = sharedPhotoSchema.shape.category_id.parse(categoryId);
+  // The changed row is asked back: the database rules skip a blocked change without an error.
+  const { data, error } = await createClient().from("shared_photos").update({ category_id }).eq("src", src).select("src");
+  if (error) throw error;
+  if (data.length === 0) throw new Error("The photo wasn't moved.");
+}
+
+/**
+ * Saves a file the weekly cleanup would delete (admin page "Photo cleanup"), so something uses it: a WebP one
+ * becomes a shared photo in this category; a JPEG one (shared photos must be WebP) goes to the admin's own
+ * "My photos". Throws if it fails.
+ */
+export async function keepPhoto(photo: Photo, categoryId: string | null) {
+  const supabase = createClient();
+  const { error } = photo.src.endsWith(".webp")
+    ? await supabase.from("shared_photos").insert(sharedPhotoSchema.parse({ ...photo, category_id: categoryId }))
+    : await supabase.from("photos").insert(photoSchema.parse(photo));
+  if (error) throw error;
+}
+
+/** Tags typed as one text, e.g. "Frog, rainforest,  animal" → ["frog", "rainforest", "animal"] (no repeats). */
+export function parseTags(text: string): string[] {
+  return [...new Set(text.split(",").map((tag) => tag.trim().toLowerCase()).filter(Boolean))];
+}
+
+/** Saves a shared photo's description and/or tags. Returns an error message, or null if it worked. */
+export async function saveSharedPhotoInfo(src: string, info: Partial<SharedPhotoInfo>): Promise<string | null> {
+  const parsed = sharedPhotoInfoSchema.partial().safeParse(info);
+  if (!parsed.success) return parsed.error.issues[0].message;
+  // The changed row is asked back: the database rules skip a blocked change without an error.
+  const { data, error } = await createClient().from("shared_photos").update(parsed.data).eq("src", src).select("src");
+  return error || data.length === 0 ? "Couldn't save. Please try again." : null;
+}
+
+/** Takes a photo off the shared list. Slides that use it keep it (the file stays). Throws if it fails. */
+export async function removeSharedPhoto(src: string) {
+  const { error } = await createClient().from("shared_photos").delete().eq("src", src);
   if (error) throw error;
 }
 

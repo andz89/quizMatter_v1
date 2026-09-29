@@ -4,12 +4,12 @@ import { useEffect, useRef, useState } from "react";
 import { useEditorStore, isPanelEscape } from "@/lib/store";
 import { createClient } from "@/lib/supabase/client";
 import { CANVAS_WIDTH, CANVAS_HEIGHT, SLIDE_DRAG_MIME, getSlideNumbers } from "@/lib/constants";
-import { joinParts, slideCountLabel } from "@/lib/format";
+import { joinParts, publishedByLine, slideCountLabel } from "@/lib/format";
+import { loadPublisherNames } from "@/lib/publishers";
 import { parseSlide, type Slide } from "@/lib/schema";
 import { Spinner } from "@/components/Spinner";
-import { CloseIcon } from "@/components/icons/CloseIcon";
-import { BackIcon } from "@/components/icons/BackIcon";
 import { FluidSlidePreview } from "@/components/presentation/FluidSlidePreview";
+import { ChevronLeftIcon, XIcon } from "lucide-react";
 
 // How many published presentations the list shows (newest first).
 const PRESENTATION_LIMIT = 50;
@@ -19,7 +19,7 @@ const DRAG_IMAGE_WIDTH = 180;
 type PresentationSummary = {
   id: string;
   title: string;
-  // By author, grade, subject, slide count ("" parts left out). Searched too.
+  // By author, published by, grade, subject, slide count ("" parts left out). Searched too.
   meta: string;
   firstSlide: Slide | null;
 };
@@ -56,24 +56,29 @@ export function PresentationsPanel() {
   useEffect(() => {
     if (cache?.presentationId === presentationId) return;
     let cancelled = false;
-    createClient()
+    const supabase = createClient();
+    supabase
       .from("presentations")
-      .select("id, title, grade, subject, author, slides(count), first_slide:slides(data, position)")
+      .select("id, owner_id, title, grade, subject, author, slides(count), first_slide:slides(data, position)")
       .eq("is_published", true)
       .neq("id", presentationId)
       .order("updated_at", { ascending: false })
       .order("position", { referencedTable: "first_slide" })
       .limit(1, { referencedTable: "first_slide" })
       .limit(PRESENTATION_LIMIT)
-      .then(({ data, error }) => {
+      .then(async ({ data, error }) => {
+        if (error) {
+          if (!cancelled) setListError(true);
+          return;
+        }
+        const publisherNames = await loadPublisherNames(supabase, data.map((presentation) => presentation.owner_id));
         if (cancelled) return;
-        if (error) return setListError(true);
         setPresentations(
           data.map((presentation) => ({
             id: presentation.id,
             title: presentation.title || "Untitled presentation",
             meta: joinParts([
-              presentation.author && `By ${presentation.author}`,
+              publishedByLine(presentation.author, publisherNames.get(presentation.owner_id)),
               presentation.grade,
               presentation.subject,
               slideCountLabel(presentation.slides[0]?.count ?? 0),
@@ -176,10 +181,10 @@ export function PresentationsPanel() {
               title="Back"
               className="flex h-8 w-8 shrink-0 items-center justify-center rounded-dropdown text-text-primary hover:bg-bg-page"
             >
-              <BackIcon />
+              <ChevronLeftIcon size={16} />
             </button>
           )}
-          <h2 className="truncate text-[15px] font-semibold text-text-primary">{openPresentation ? openPresentation.title : "Presentations"}</h2>
+          <h2 className="truncate text-[15px] font-extrabold text-text-primary">{openPresentation ? openPresentation.title : "Presentations"}</h2>
         </div>
         <button
           type="button"
@@ -187,7 +192,7 @@ export function PresentationsPanel() {
           title="Close (Esc)"
           className="flex h-8 w-8 shrink-0 items-center justify-center rounded-dropdown text-text-primary hover:bg-bg-page"
         >
-          <CloseIcon />
+          <XIcon size={16} />
         </button>
       </div>
       <p className="mb-4 text-xs text-text-secondary">

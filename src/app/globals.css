@@ -1,21 +1,37 @@
 @import "tailwindcss";
 
+/* QuizMatter brand colors (from the "Modernist" design in Claude Design). */
 :root {
   /* Background & surfaces */
-  --bg-page: #faf9f6;
+  --bg-page: #faf8ff; /* Paper */
   --bg-surface: #ffffff;
-  --border-default: #e8e6e1;
+  --border-default: #e6e1f5;
 
   /* Text */
-  --text-primary: #1f1f1f;
-  --text-secondary: #9b9994;
-  --text-header: #a8a6a1;
+  --text-primary: #1b1530; /* Ink */
+  --text-secondary: #756e8e;
+  --text-header: #9790ad;
 
-  /* Accent / brand */
-  --accent-navy: #191a2c;
-  --accent-green: #1e8e4f;
-  --accent-orange: #f2a93b;
-  --accent-gray: #a8a6a1;
+  /* Quiz Violet: brand, main buttons, selected things */
+  --accent: #6b3df5;
+  --accent-hover: #5a2ce0;
+  --accent-edge: #4b22c9; /* the "key" edge under main buttons */
+  --accent-soft: #f3efff;
+
+  /* Sunny: highlights, stars, drafts. Always ink text on it, never white. */
+  --highlight: #ffc233;
+  --highlight-soft: #fff8e5;
+  --highlight-strong: #7a5500;
+
+  /* Mint: correct answers, success. Never white text on it. */
+  --success: #14c8a0;
+  --success-soft: #e3faf4;
+  --success-strong: #06634f;
+
+  /* Coral: wrong answers, errors, deleting */
+  --danger: #ff5a5f;
+  --danger-soft: #ffe9ea;
+  --danger-strong: #9e1c21;
 
   /* Spacing */
   --space-card-x: 20px;
@@ -33,21 +49,38 @@
   --color-text-secondary: var(--text-secondary);
   --color-text-header: var(--text-header);
 
-  --color-accent-navy: var(--accent-navy);
-  --color-accent-green: var(--accent-green);
-  --color-accent-orange: var(--accent-orange);
-  --color-accent-gray: var(--accent-gray);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-edge: var(--accent-edge);
+  --color-accent-soft: var(--accent-soft);
 
-  --font-sans: var(--font-inter);
+  --color-highlight: var(--highlight);
+  --color-highlight-soft: var(--highlight-soft);
+  --color-highlight-strong: var(--highlight-strong);
+
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-success-strong: var(--success-strong);
+
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-danger-strong: var(--danger-strong);
+
+  /* Lexend for all text, Bricolage Grotesque for headings (font-heading). */
+  --font-sans: var(--font-lexend);
+  --font-heading: var(--font-bricolage);
 }
 
 /* Radius — plain values here (not in :root) so Tailwind builds rounded-card etc. and still
    exposes them as --radius-* variables. */
 @theme {
-  --radius-card: 14px;
-  --radius-button: 10px;
+  --radius-card: 24px;
+  --radius-button: 14px;
   --radius-dropdown: 8px;
-  --radius-input: 8px;
+  --radius-input: 14px;
+
+  /* Plain `border` is 1.5px, the soft border the brand uses everywhere. */
+  --default-border-width: 1.5px;
 
   /* The top loading line: grows fast at first, then slows down and stops at 90%, like YouTube. */
   --animate-top-bar: top-bar 8s cubic-bezier(0.1, 0.8, 0.2, 1) forwards;
@@ -67,6 +100,29 @@ body {
   color: var(--text-primary);
 }
 
+/* Headings use the brand's display font with tight letter spacing. In the base layer, so a
+   class on the heading can still change it. */
+@layer base {
+  h1,
+  h2 {
+    font-family: var(--font-bricolage);
+    letter-spacing: -0.02em;
+  }
+}
+
+/* Main buttons: a solid violet edge under the button, like a keyboard key, that sinks when pressed. */
+@utility btn-press {
+  box-shadow: 0 4px 0 var(--accent-edge);
+  transition:
+    transform 0.08s ease,
+    box-shadow 0.08s ease,
+    background-color 0.12s ease;
+  &:active:not(:disabled) {
+    transform: translateY(2px);
+    box-shadow: 0 2px 0 var(--accent-edge);
+  }
+}
+
 .zoom-slider {
   -webkit-appearance: none;
   appearance: none;
@@ -81,7 +137,7 @@ body {
   width: 13px;
   height: 13px;
   border-radius: 999px;
-  background: var(--accent-navy);
+  background: var(--accent);
   cursor: pointer;
   border: none;
 }
@@ -90,7 +146,7 @@ body {
   width: 13px;
   height: 13px;
   border-radius: 999px;
-  background: var(--accent-navy);
+  background: var(--accent);
   cursor: pointer;
   border: none;
 }

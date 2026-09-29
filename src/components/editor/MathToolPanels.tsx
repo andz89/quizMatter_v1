@@ -29,6 +29,7 @@ import {
 import { getContainerBounds, type BoxLayout } from "@/lib/constants";
 import type { SvgElement } from "@/lib/schema";
 import { PanelLabel, PanelReadout, PanelSlider, ResetButton, ToggleChip, ToolPanelButton } from "./PanelControls";
+import { BlocksIcon, ChartColumnIcon, ChartPieIcon, GaugeIcon, Grid3x3Icon, MoveHorizontalIcon, ThermometerIcon } from "lucide-react";
 
 type Update = (patch: Partial<Omit<SvgElement, "id" | "assetId">>) => void;
 
@@ -127,7 +128,7 @@ function NumberLineControls({
   const [startText, setStartText] = useState(String(settings.start));
 
   return (
-    <ToolPanelButton title="Edit numbers" icon={<NumberLineIcon />} wide>
+    <ToolPanelButton title="Edit numbers" icon={<MoveHorizontalIcon size={16} />} wide>
       {/* Centered (integer) lines always keep 0 in the middle, so they have no start. */}
       {!shape.centered && (
         <label className="flex items-center justify-between gap-3">
@@ -189,7 +190,7 @@ function FractionControls({ element, update }: { element: SvgElement; update: Up
   };
 
   return (
-    <ToolPanelButton title="Edit fraction" icon={<FractionIcon />}>
+    <ToolPanelButton title="Edit fraction" icon={<ChartPieIcon size={16} />}>
       <PanelReadout>
         {fraction.shaded}/{fraction.parts}
       </PanelReadout>
@@ -206,7 +207,7 @@ function FractionNumberControls({ element, update }: { element: SvgElement; upda
   const set = (patch: Partial<typeof fraction>) => update({ fraction: { ...fraction, ...patch } });
 
   return (
-    <ToolPanelButton title="Edit fraction" icon={<FractionIcon />}>
+    <ToolPanelButton title="Edit fraction" icon={<ChartPieIcon size={16} />}>
       <PanelReadout>
         {fraction.shaded}/{fraction.parts}
       </PanelReadout>
@@ -274,7 +275,7 @@ function TenFrameControls({ element, box, update }: { element: SvgElement; box: 
   };
 
   return (
-    <ToolPanelButton title="Edit count" icon={<TenFrameIcon />}>
+    <ToolPanelButton title="Edit count" icon={<Grid3x3Icon size={16} />}>
       <div className="flex gap-2">
         {FRAME_PRESETS.map((preset) => (
           <ToggleChip
@@ -304,7 +305,7 @@ function BaseTenControls({ element, box, update }: { element: SvgElement; box: B
   };
 
   return (
-    <ToolPanelButton title="Edit blocks" icon={<BaseTenIcon />}>
+    <ToolPanelButton title="Edit blocks" icon={<BlocksIcon size={16} />}>
       <PanelReadout>{blocks.hundreds * 100 + blocks.tens * 10 + blocks.ones}</PanelReadout>
       <PanelSlider label="Hundreds" value={blocks.hundreds} min={0} max={BASE_TEN_MAX} unit="" onChange={(hundreds) => set({ hundreds })} />
       <PanelSlider label="Tens" value={blocks.tens} min={0} max={BASE_TEN_MAX} unit="" onChange={(tens) => set({ tens })} />
@@ -319,7 +320,7 @@ function ThermometerControls({ element, update }: { element: SvgElement; update:
   const set = (value: number) => update({ thermometer: { value } });
 
   return (
-    <ToolPanelButton title="Set temperature" icon={<ThermometerIcon />}>
+    <ToolPanelButton title="Set temperature" icon={<ThermometerIcon size={16} />}>
       <PanelSlider label="Temperature" value={value} min={THERMOMETER_MIN} max={THERMOMETER_MAX} unit=" °C" onChange={set} />
       <ResetButton onClick={() => set(DEFAULT_THERMOMETER.value)} />
     </ToolPanelButton>
@@ -338,7 +339,7 @@ function BarGraphControls({ element, update }: { element: SvgElement; update: Up
     );
 
   return (
-    <ToolPanelButton title="Edit graph" icon={<BarGraphIcon />} wide>
+    <ToolPanelButton title="Edit graph" icon={<ChartColumnIcon size={16} />} wide>
       <div className="flex flex-col gap-1.5">
         <PanelLabel>Bars</PanelLabel>
         <div className="flex gap-1.5">
@@ -364,7 +365,7 @@ function BarGraphControls({ element, update }: { element: SvgElement; update: Up
             max={BAR_GRAPH_MAX}
             value={bar.value}
             onChange={(e) => setBar(i, { value: Number(e.target.value) })}
-            className="min-w-0 flex-1 accent-[var(--accent-navy)]"
+            className="min-w-0 flex-1 accent-[var(--accent)]"
           />
           <span className="w-5 text-right text-xs text-text-secondary tabular-nums">{bar.value}</span>
         </div>
@@ -379,75 +380,9 @@ function ProtractorControls({ element, update }: { element: SvgElement; update: 
   const set = (angle: number) => update({ protractor: { angle } });
 
   return (
-    <ToolPanelButton title="Set angle" icon={<ProtractorIcon />}>
+    <ToolPanelButton title="Set angle" icon={<GaugeIcon size={16} />}>
       <PanelSlider label="Angle" value={angle} min={0} max={180} onChange={set} />
       <ResetButton onClick={() => set(DEFAULT_PROTRACTOR.angle)} />
     </ToolPanelButton>
-  );
-}
-
-function NumberLineIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round">
-      <path d="M1.5 8h13M3 6.5 1.5 8 3 9.5M13 6.5 14.5 8 13 9.5M5 6v4M8 6v4M11 6v4" />
-    </svg>
-  );
-}
-
-function FractionIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round">
-      <circle cx="8" cy="8" r="6.3" />
-      <path d="M8 1.7V8h6.3" />
-      <path d="M8 1.7a6.3 6.3 0 0 1 6.3 6.3H8Z" fill="currentColor" />
-    </svg>
-  );
-}
-
-function TenFrameIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3">
-      <rect x="1.5" y="4" width="13" height="8" rx="1" />
-      <path d="M1.5 8h13M4.1 4v8M6.7 4v8M9.3 4v8M11.9 4v8" />
-    </svg>
-  );
-}
-
-function BaseTenIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round">
-      <rect x="1.5" y="3" width="7" height="10" />
-      <rect x="10" y="3" width="2" height="10" />
-      <rect x="13.5" y="11" width="2" height="2" />
-    </svg>
-  );
-}
-
-function ThermometerIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round">
-      <path d="M6.5 9.5V3a1.5 1.5 0 0 1 3 0v6.5a3 3 0 1 1-3 0Z" />
-      <path d="M8 6v5" />
-    </svg>
-  );
-}
-
-function BarGraphIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round">
-      <path d="M2 2v12h12" />
-      <rect x="4.5" y="8" width="2" height="6" />
-      <rect x="8" y="4" width="2" height="10" />
-      <rect x="11.5" y="10" width="2" height="4" />
-    </svg>
-  );
-}
-
-function ProtractorIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round">
-      <path d="M1.5 12.5a6.5 6.5 0 0 1 13 0Z" />
-      <path d="M8 12.5 11.5 7" />
-    </svg>
   );
 }

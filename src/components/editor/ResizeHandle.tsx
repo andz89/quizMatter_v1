@@ -41,7 +41,7 @@ export function ResizeHandle({ height, onResize }: ResizeHandleProps) {
       title="Drag to resize"
       className="group absolute -bottom-1.5 left-1/2 z-20 flex h-3 w-16 -translate-x-1/2 cursor-ns-resize items-center justify-center"
     >
-      <div className="h-1 w-10 rounded-full bg-border-default transition-colors group-hover:bg-accent-navy" />
+      <div className="h-1 w-10 rounded-full bg-border-default transition-colors group-hover:bg-accent" />
     </div>
   );
 }

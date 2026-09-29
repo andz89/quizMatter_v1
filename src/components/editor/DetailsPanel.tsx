@@ -6,8 +6,8 @@ import { useEditorStore, isPanelEscape } from "@/lib/store";
 import { createClient } from "@/lib/supabase/client";
 import { DETAIL_MAX_LENGTH, GRADES, MAX_REFERENCE_LINKS, isWebLink, referenceSchema, type PresentationDetails } from "@/lib/schema";
 import { PanelLabel } from "./PanelControls";
-import { CloseIcon } from "@/components/icons/CloseIcon";
 import { Spinner } from "@/components/Spinner";
+import { ExternalLinkIcon, XIcon } from "lucide-react";
 
 /**
  * Sidebar panel for the presentation as a whole: title, description, grade, subject, curriculum,
@@ -71,14 +71,14 @@ export function DetailsPanel() {
       className="flex w-80 shrink-0 flex-col gap-5 overflow-y-auto border-r border-border-default bg-bg-surface p-5"
     >
       <div className="flex items-center justify-between">
-        <h2 className="text-[15px] font-semibold text-text-primary">Presentation details</h2>
+        <h2 className="text-[15px] font-extrabold text-text-primary">Presentation details</h2>
         <button
           type="button"
           onClick={closeDetailsPanel}
           title="Close (Esc)"
           className="flex h-8 w-8 items-center justify-center rounded-dropdown text-text-primary hover:bg-bg-page"
         >
-          <CloseIcon />
+          <XIcon size={16} />
         </button>
       </div>
 
@@ -169,7 +169,7 @@ function ReferenceLinks({ links, onChange }: { links: string[]; onChange: (links
                   title="Open link"
                   className="flex h-8 w-8 shrink-0 items-center justify-center rounded-dropdown text-text-primary hover:bg-bg-page"
                 >
-                  <OpenLinkIcon />
+                  <ExternalLinkIcon size={16} />
                 </a>
               )}
               <button
@@ -178,10 +178,10 @@ function ReferenceLinks({ links, onChange }: { links: string[]; onChange: (links
                 title="Remove link"
                 className="flex h-8 w-8 shrink-0 items-center justify-center rounded-dropdown text-text-primary hover:bg-bg-page"
               >
-                <CloseIcon />
+                <XIcon size={16} />
               </button>
             </div>
-            {!isValid && <p className="text-[13px] text-red-600">A link must start with http:// or https://</p>}
+            {!isValid && <p className="text-[13px] text-danger-strong">A link must start with http:// or https://</p>}
           </div>
         );
       })}
@@ -189,20 +189,12 @@ function ReferenceLinks({ links, onChange }: { links: string[]; onChange: (links
         <button
           type="button"
           onClick={() => onChange([...links, ""])}
-          className="w-fit text-sm font-semibold text-accent-green hover:opacity-80"
+          className="w-fit text-sm font-semibold text-accent hover:opacity-80"
         >
           + Add reference
         </button>
       )}
     </div>
-  );
-}
-
-function OpenLinkIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M9 3h4v4M13 3L7.5 8.5M11.5 9.5v3a1 1 0 0 1-1 1h-7a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1h3" />
-    </svg>
   );
 }
 

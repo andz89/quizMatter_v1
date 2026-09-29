@@ -78,8 +78,8 @@ export function QuestionNumberBadge({
     "pointer-events-none flex h-12 min-w-12 items-center justify-center whitespace-nowrap rounded-full border-2 bg-white px-2 text-2xl font-bold";
   const style = {
     borderColor: fullscreen ? "transparent" : "var(--border-default)",
-    background: fullscreen ? "#ECEDF3" : undefined,
-    color: fullscreen ? "var(--accent-navy)" : "#000000",
+    background: fullscreen ? "var(--accent-soft)" : undefined,
+    color: fullscreen ? "var(--accent)" : "#000000",
   };
   const label = count > 1 ? `${number}–${number + count - 1}` : number;
 
@@ -180,7 +180,7 @@ export function SlideStaticView({ slide, questionNumber, revealAnswer = false, f
             <div className={`grid min-h-0 flex-1 ${getOptionsGridClasses(slide)}`}>
               {getShownOptions(slide).map((option, index) => {
                 const isCorrect = revealAnswer && option.id === slide.correctOptionId;
-                const textColor = isCorrect ? "var(--accent-green)" : fullscreen ? "var(--accent-navy)" : "#000000";
+                const textColor = isCorrect ? "var(--success-strong)" : fullscreen ? "var(--accent)" : "#000000";
                 return (
                 <div
                   key={option.id}
@@ -189,11 +189,11 @@ export function SlideStaticView({ slide, questionNumber, revealAnswer = false, f
                   <span
                     // Just outside the card on its left, 10px below its top.
                     // Solid fill so the letter stays readable on any slide background. Full screen uses a soft
-                    // tint (pale navy, or pale green once revealed) with no ring, so the label stands out gently.
+                    // tint (pale violet, or pale mint once revealed) with no ring, so the label stands out gently.
                     className="absolute right-full top-4 z-20 mr-2 flex h-12 w-12 items-center justify-center rounded-full border-2 bg-white text-2xl font-bold"
                     style={{
-                      borderColor: fullscreen ? "transparent" : isCorrect ? "var(--accent-green)" : lineColor,
-                      background: fullscreen ? (isCorrect ? "#E3F2EA" : "#ECEDF3") : undefined,
+                      borderColor: fullscreen ? "transparent" : isCorrect ? "var(--success)" : lineColor,
+                      background: fullscreen ? (isCorrect ? "var(--success-soft)" : "var(--accent-soft)") : undefined,
                       color: textColor,
                     }}
                   >

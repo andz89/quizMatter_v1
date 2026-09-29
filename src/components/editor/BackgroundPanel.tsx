@@ -14,7 +14,7 @@ import { ElementSvg } from "./ElementSvg";
 import { NONE_SWATCH } from "./ColorPanel";
 import { PanelLabel, PanelSlider } from "./PanelControls";
 import { SlideThumbnailPreview } from "./SlideThumbnailPreview";
-import { CloseIcon } from "@/components/icons/CloseIcon";
+import { XIcon } from "lucide-react";
 
 /**
  * Sidebar panel for the selected slide's background: a soft color and an optional pattern frame with
@@ -43,14 +43,14 @@ export function BackgroundPanel() {
       className="flex w-72 shrink-0 flex-col gap-6 overflow-y-auto border-r border-border-default bg-bg-surface p-5"
     >
       <div className="flex items-center justify-between">
-        <h2 className="text-[15px] font-semibold text-text-primary">Background</h2>
+        <h2 className="text-[15px] font-extrabold text-text-primary">Background</h2>
         <button
           type="button"
           onClick={closeBackgroundPanel}
           title="Close (Esc)"
           className="flex h-8 w-8 items-center justify-center rounded-dropdown text-text-primary hover:bg-bg-page"
         >
-          <CloseIcon />
+          <XIcon size={16} />
         </button>
       </div>
 
@@ -113,7 +113,7 @@ export function BackgroundPanel() {
       <button
         type="button"
         onClick={() => applyBackgroundToAll(slide.id)}
-        className="rounded-button border border-border-default px-4 py-2.5 text-sm font-semibold text-text-primary transition-colors hover:border-accent-navy"
+        className="rounded-button border border-border-default px-4 py-2.5 text-sm font-semibold text-text-primary transition-colors hover:border-accent"
       >
         Apply to all slides
       </button>
@@ -139,8 +139,8 @@ function Tile({
       type="button"
       title={title}
       onClick={onClick}
-      className={`rounded-dropdown border bg-bg-page p-0.5 transition-colors hover:border-accent-navy ${wide ? "h-12 w-full" : "h-9 w-9"}`}
-      style={{ borderColor: selected ? "var(--accent-navy)" : "var(--border-default)", borderWidth: selected ? 2 : 1 }}
+      className={`rounded-dropdown border bg-bg-page p-0.5 transition-colors hover:border-accent ${wide ? "h-12 w-full" : "h-9 w-9"}`}
+      style={{ borderColor: selected ? "var(--accent)" : "var(--border-default)", borderWidth: selected ? 2 : 1 }}
     >
       {children}
     </button>

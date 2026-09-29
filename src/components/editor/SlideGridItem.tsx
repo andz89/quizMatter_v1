@@ -5,7 +5,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { useEditorStore } from "@/lib/store";
 import type { Slide } from "@/lib/schema";
 import { SlideThumbnailPreview } from "./SlideThumbnailPreview";
-import { GripIcon } from "@/components/icons/GripIcon";
+import { GripVerticalIcon } from "lucide-react";
 
 interface SlideGridItemProps {
   slide: Slide;
@@ -35,7 +35,7 @@ export function SlideGridItem({ slide, questionNumber, index, isActive, canDelet
       >
         <div
           className="overflow-hidden rounded-dropdown"
-          style={{ outline: isActive ? "2px solid var(--accent-navy)" : "2px solid transparent", outlineOffset: 2 }}
+          style={{ outline: isActive ? "2px solid var(--accent)" : "2px solid transparent", outlineOffset: 2 }}
         >
           <SlideThumbnailPreview slide={slide} questionNumber={questionNumber} />
         </div>
@@ -48,7 +48,7 @@ export function SlideGridItem({ slide, questionNumber, index, isActive, canDelet
         title="Drag to reorder"
         className="absolute right-2.5 top-2.5 flex h-9 w-9 cursor-grab items-center justify-center rounded-dropdown bg-bg-surface/90 text-text-primary opacity-0 group-hover:opacity-100 active:cursor-grabbing"
       >
-        <GripIcon size={16} />
+        <GripVerticalIcon size={16} />
       </div>
 
       <div className="absolute bottom-7 left-2.5 flex items-center gap-2 opacity-0 group-hover:opacity-100">
@@ -69,7 +69,7 @@ export function SlideGridItem({ slide, questionNumber, index, isActive, canDelet
               e.stopPropagation();
               deleteSlide(slide.id);
             }}
-            className="rounded-dropdown bg-bg-surface/90 px-2 py-0.5 text-xs text-text-secondary hover:text-accent-orange"
+            className="rounded-dropdown bg-bg-surface/90 px-2 py-0.5 text-xs text-text-secondary hover:text-danger"
           >
             Delete
           </button>

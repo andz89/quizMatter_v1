@@ -11,8 +11,8 @@ import { GroupSelectionOverlay } from "./GroupSelectionOverlay";
 import { SnapGuides } from "./SnapGuides";
 import { ContainerClearButton } from "./ContainerClearButton";
 import { ElementContextMenu } from "./ElementContextMenu";
-import { CloseIcon } from "@/components/icons/CloseIcon";
 import { MAX_ANSWER_LENGTH, type Slide } from "@/lib/schema";
+import { XIcon } from "lucide-react";
 
 const ANSWER_TYPES: { value: NonNullable<Slide["answerType"]>; label: string }[] = [
   { value: "text", label: "Text" },
@@ -67,7 +67,7 @@ export function AnswerArea({ slide, onClose }: AnswerAreaProps) {
       >
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-3">
-            <span className="text-xs font-semibold uppercase tracking-[0.05em] text-accent-green">{hasReveal(slide) ? "Reveal" : "Answer"}</span>
+            <span className="text-xs font-semibold uppercase tracking-[0.05em] text-success-strong">{hasReveal(slide) ? "Reveal" : "Answer"}</span>
             {/* Filled pill for the chosen kind of answer. */}
             <div className="flex items-center gap-0.5 rounded-dropdown bg-bg-page p-0.5">
               {ANSWER_TYPES.map((type) => (
@@ -77,7 +77,7 @@ export function AnswerArea({ slide, onClose }: AnswerAreaProps) {
                   onClick={() => setAnswerType(slide.id, type.value)}
                   className={`h-7 rounded-[6px] px-3 text-sm font-semibold ${
                     answerType === type.value
-                      ? "bg-accent-green text-white"
+                      ? "bg-success text-text-primary"
                       : "text-text-primary hover:bg-bg-surface"
                   }`}
                 >
@@ -92,7 +92,7 @@ export function AnswerArea({ slide, onClose }: AnswerAreaProps) {
             title={hasReveal(slide) ? "Close reveal" : "Close answer"}
             className="flex h-8 w-8 items-center justify-center rounded-dropdown text-text-primary hover:bg-bg-page"
           >
-            <CloseIcon size={16} />
+            <XIcon size={16} />
           </button>
         </div>
 
@@ -105,9 +105,9 @@ export function AnswerArea({ slide, onClose }: AnswerAreaProps) {
               value={answer}
               onChange={(e) => updateCorrectAnswer(slide.id, e.target.value)}
               placeholder="Type the answer…"
-              // Google Forms look: light gray fill, a single bottom line, which gets thicker on focus.
+              // A soft fill and a single bottom line, which turns violet and thicker on focus.
               // The line is an inset shadow so the thicker one doesn't push the text.
-              className="resize-none rounded-t-[4px] bg-[#F8F9FA] px-4 py-3 text-base font-normal text-[#202124] shadow-[inset_0_-1px_0_#80868B] outline-none placeholder:text-[#70757A] focus:shadow-[inset_0_-2px_0_var(--accent-navy)]"
+              className="resize-none rounded-t-dropdown bg-bg-page px-4 py-3 text-base font-normal text-text-primary shadow-[inset_0_-1.5px_0_var(--text-header)] outline-none placeholder:text-text-secondary focus:shadow-[inset_0_-2px_0_var(--accent)]"
             />
             <span className="self-end text-xs text-text-secondary tabular-nums">
               {answer.length} / {MAX_ANSWER_LENGTH}
@@ -157,8 +157,8 @@ function AnswerCanvas({ slide }: { slide: Slide }) {
       data-container-id={ANSWER_CONTAINER_ID}
       className="group/box relative h-full w-full select-none overflow-hidden rounded-card border bg-bg-surface"
       style={{
-        borderColor: isHighlighted ? "var(--accent-navy)" : "var(--border-default)",
-        background: isDragOver ? "rgba(25, 26, 44, 0.04)" : undefined,
+        borderColor: isHighlighted ? "var(--accent)" : "var(--border-default)",
+        background: isDragOver ? "color-mix(in srgb, var(--accent) 4%, transparent)" : undefined,
       }}
       {...dropHandlers}
       {...pointerHandlers}
@@ -199,8 +199,8 @@ function AnswerCanvas({ slide }: { slide: Slide }) {
 
       {marqueeBox && (
         <div
-          className="pointer-events-none absolute z-40 border border-accent-navy"
-          style={{ ...marqueeBox, background: "rgba(25, 26, 44, 0.08)" }}
+          className="pointer-events-none absolute z-40 border border-accent"
+          style={{ ...marqueeBox, background: "color-mix(in srgb, var(--accent) 8%, transparent)" }}
         />
       )}
 

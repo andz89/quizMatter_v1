@@ -6,7 +6,7 @@ import { useEditorStore, type TextEditorEntry, type TextTarget } from "@/lib/sto
 import { DEFAULT_TEXT_COLOR, formatChain } from "@/lib/richText";
 import { OPTION_FONT_SIZE, QUESTION_CONTAINER_ID, QUESTION_FONT_SIZE, TEXT_BOX_FONT_SIZE } from "@/lib/constants";
 import type { Presentation } from "@/lib/schema";
-import { EraserIcon } from "@/components/icons/EraserIcon";
+import { EraserIcon, TextAlignCenterIcon, TextAlignEndIcon, TextAlignStartIcon } from "lucide-react";
 
 type Align = "left" | "center" | "right";
 
@@ -104,7 +104,7 @@ export function TextFormatToolbar({ texts }: { texts: TextEditorEntry[] }) {
           className="h-6 w-6 rounded-full"
           style={{
             background: state.color,
-            outline: isColorPanelOpen ? "2px solid var(--accent-navy)" : "2px solid transparent",
+            outline: isColorPanelOpen ? "2px solid var(--accent)" : "2px solid transparent",
             outlineOffset: 2,
           }}
         />
@@ -139,7 +139,7 @@ function ToolButton({
       title={title}
       onClick={onClick}
       className={`flex h-8 w-8 items-center justify-center rounded-dropdown text-sm ${
-        active ? "bg-accent-navy text-white" : "text-text-primary hover:bg-bg-page"
+        active ? "bg-accent text-white" : "text-text-primary hover:bg-bg-page"
       }`}
     >
       {children}
@@ -193,7 +193,7 @@ function FontSizePicker({ targets }: { targets: TextTarget[] }) {
               type="button"
               onClick={() => choose(option)}
               className={`rounded-dropdown py-1.5 text-sm tabular-nums ${
-                option === size ? "bg-accent-navy font-semibold text-white" : "text-text-primary hover:bg-bg-page"
+                option === size ? "bg-accent font-semibold text-white" : "text-text-primary hover:bg-bg-page"
               }`}
             >
               {option}
@@ -222,12 +222,9 @@ function Divider() {
   return <div className="mx-1 h-5 w-px bg-border-default" />;
 }
 
+const ALIGN_ICONS = { left: TextAlignStartIcon, center: TextAlignCenterIcon, right: TextAlignEndIcon };
+
 function AlignIcon({ align }: { align: Align }) {
-  // Three lines: full, short, full — the short one shows which side the text hugs.
-  const short = align === "left" ? "M2 7h6" : align === "center" ? "M4 7h6" : "M6 7h6";
-  return (
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5">
-      <path d={`M2 3h10 ${short} M2 11h10`} strokeLinecap="round" />
-    </svg>
-  );
+  const Icon = ALIGN_ICONS[align];
+  return <Icon size={16} />;
 }

@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useEditorStore } from "@/lib/store";
 import { PresentationCard, type PresentationCardData } from "./PresentationCard";
+import { SearchIcon } from "lucide-react";
 
 // Only downloaded when the teacher clicks Present on a card.
 const PresentationView = dynamic(() =>
@@ -31,7 +32,7 @@ export function PresentationHome({ myCards, otherCards }: { myCards: Presentatio
     <>
       <label className="relative mx-auto mb-10 block w-full max-w-xl">
         <span className="pointer-events-none absolute top-1/2 left-4 -translate-y-1/2 text-text-primary">
-          <SearchIcon />
+          <SearchIcon size={16} />
         </span>
         <input
           type="search"
@@ -58,12 +59,9 @@ export function PresentationHome({ myCards, otherCards }: { myCards: Presentatio
             {query ? `None of your presentations match “${search.trim()}”.` : "No presentations yet. Click “+ New presentation” to make one, or ask Claude to send you one."}
           </Empty>
         ) : (
-          // On phones the row scrolls sideways; on bigger screens it's a grid.
-          <div className="-mx-4 flex snap-x gap-4 overflow-x-auto px-4 pb-2 sm:mx-0 sm:grid sm:grid-cols-3 sm:overflow-visible sm:px-0 lg:grid-cols-5">
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
             {mine.map((card) => (
-              <div key={card.id} className="w-44 shrink-0 snap-start sm:w-auto">
-                <PresentationCard card={card} showMenu />
-              </div>
+              <PresentationCard key={card.id} card={card} showMenu />
             ))}
           </div>
         )}
@@ -90,7 +88,7 @@ function Section({ title, action, children }: { title: string; action?: ReactNod
   return (
     <section className="mb-10">
       <div className="mb-3 flex items-center gap-3">
-        <h2 className="text-[15px] font-semibold text-text-primary">{title}</h2>
+        <h2 className="text-[15px] font-extrabold text-text-primary">{title}</h2>
         <span className="ml-auto">{action}</span>
       </div>
       {children}
@@ -103,14 +101,5 @@ function Empty({ children }: { children: ReactNode }) {
     <p className="rounded-card border border-border-default bg-bg-surface px-5 py-8 text-center text-sm text-text-secondary">
       {children}
     </p>
-  );
-}
-
-function SearchIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-      <circle cx="7" cy="7" r="4.5" />
-      <path d="M10.5 10.5L14 14" />
-    </svg>
   );
 }

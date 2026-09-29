@@ -5,11 +5,11 @@ import { useEditorStore, selectedIdsOn } from "@/lib/store";
 import { OPTION_FONT_SIZE, OPTION_LABELS, getContainerBounds, type BoxLayout } from "@/lib/constants";
 import { useElementDropTarget } from "@/lib/useElementDropTarget";
 import { EditableText } from "./EditableText";
-import { GripIcon } from "@/components/icons/GripIcon";
 import { SvgElementItem } from "./SvgElementItem";
 import { GroupSelectionOverlay } from "./GroupSelectionOverlay";
 import { SnapGuides } from "./SnapGuides";
 import type { Option, SvgElement } from "@/lib/schema";
+import { GripVerticalIcon } from "lucide-react";
 
 interface OptionCardProps {
   slideId: string;
@@ -46,8 +46,8 @@ export function OptionCard({ slideId, option, index, isCorrect, elements, box }:
     : undefined;
 
   // No border or fill by default — only while selected or while something is dragged onto it.
-  const borderColor = isSelectedContainer ? "var(--accent-navy)" : "transparent";
-  const background = isDragOver || isElementDragOver ? "rgba(25, 26, 44, 0.08)" : undefined;
+  const borderColor = isSelectedContainer ? "var(--accent)" : "transparent";
+  const background = isDragOver || isElementDragOver ? "color-mix(in srgb, var(--accent) 8%, transparent)" : undefined;
 
   return (
     <div
@@ -79,7 +79,7 @@ export function OptionCard({ slideId, option, index, isCorrect, elements, box }:
           title="Drag to reorder"
           className="flex h-7 w-9 cursor-grab items-center justify-center rounded-dropdown text-text-primary opacity-0 transition-opacity hover:bg-bg-surface group-hover/box:opacity-100 active:cursor-grabbing"
         >
-          <GripIcon size={14} />
+          <GripVerticalIcon size={14} />
         </div>
       </div>
 
@@ -93,8 +93,8 @@ export function OptionCard({ slideId, option, index, isCorrect, elements, box }:
         title="Mark as correct answer"
         className="absolute right-full top-4 z-20 mr-2 flex h-10 w-10 items-center justify-center rounded-full border-2 bg-white text-lg font-bold transition-colors"
         style={{
-          borderColor: isCorrect ? "var(--accent-green)" : "var(--border-default)",
-          color: isCorrect ? "var(--accent-green)" : "#000000",
+          borderColor: isCorrect ? "var(--success)" : "var(--border-default)",
+          color: isCorrect ? "var(--success-strong)" : "#000000",
         }}
       >
         {isCorrect ? "✓" : OPTION_LABELS[index]}

@@ -32,6 +32,53 @@ export const photoSchema = z.object({
   height: z.number().int().positive().max(PHOTO_MAX_SIDE),
 });
 
+// A photo an admin shared with every teacher (the shared_photos table), in one category.
+export const sharedPhotoSchema = photoSchema.extend({
+  src: photoSchema.shape.src.endsWith(".webp"),
+  category_id: z.uuid(),
+});
+
+// What a shared photo shows, in words (admins type it; Claude searches it with find_photos).
+export const SHARED_PHOTO_TAG_MAX = 10;
+export const sharedPhotoInfoSchema = z.object({
+  // Starts as the uploaded file's name; admins can change it. Only a name to show and search.
+  file_name: z.string().trim().max(200, "The file name is too long (200 characters at most)."),
+  description: z.string().trim().max(300, "The description is too long (300 characters at most)."),
+  tags: z
+    .array(z.string().trim().toLowerCase().min(1).max(30, "A tag is too long (30 characters at most)."))
+    .max(SHARED_PHOTO_TAG_MAX, `Use ${SHARED_PHOTO_TAG_MAX} tags at most.`),
+  // Who owns the photo or where it came from, e.g. "Photo by Juan Cruz, Pexels" or a link. Required.
+  // (Photos shared before it was added have none; the admin page lists them under "No source".)
+  source: z
+    .string()
+    .trim()
+    .min(1, "Add the source: who owns the photo or where it came from.")
+    .max(300, "The source is too long (300 characters at most)."),
+});
+export type SharedPhotoInfo = z.infer<typeof sharedPhotoInfoSchema>;
+
+export type SharedPhoto = { photo: Photo; categoryId: string };
+export type PhotoCategory = { id: string; name: string };
+// A shared photo with its name and what it shows, in words (for searching, and for admins to edit).
+export type SharedPhotoWithInfo = SharedPhoto & SharedPhotoInfo;
+
+// The shared_photos columns a SharedPhotoWithInfo is made from (the editor's Photos panel and the admin page load them).
+export const SHARED_PHOTO_COLUMNS = "src, width, height, category_id, file_name, description, tags, source";
+
+export function toSharedPhoto({
+  category_id,
+  file_name,
+  description,
+  tags,
+  source,
+  ...photo
+}: Photo & SharedPhotoInfo & { category_id: string }): SharedPhotoWithInfo {
+  return { photo, categoryId: category_id, file_name, description, tags, source };
+}
+
+// A category of shared photos (the photo_categories table).
+export const photoCategoryNameSchema = z.string().trim().min(1, "Type a category name.").max(40, "The category name is too long.");
+
 export const svgElementSchema = z.object({
   id: z.string(),
   assetId: z.string(),

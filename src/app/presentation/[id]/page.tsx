@@ -13,7 +13,7 @@ export default async function PresentationPage({ params }: PageProps<"/presentat
 
   return (
     <PeopleArtGate needed={usesPeopleArt(result.presentation.slides)}>
-      <PresentationPreview presentation={result.presentation} isMine={result.isMine} />
+      <PresentationPreview presentation={result.presentation} isMine={result.isMine} publisherName={result.publisherName} />
     </PeopleArtGate>
   );
 }

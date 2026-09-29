@@ -4,8 +4,8 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import { LinkPending } from "@/components/LinkPending";
 import { Spinner } from "@/components/Spinner";
-import { GlobeIcon } from "@/components/icons/GlobeIcon";
 import { removePresentations } from "../actions";
+import { GlobeIcon, SearchIcon, Trash2Icon } from "lucide-react";
 
 export type PresentationRow = {
   id: string;
@@ -102,7 +102,7 @@ export function PresentationList({ rows }: { rows: PresentationRow[] }) {
 
         <label className="relative ml-auto w-full sm:w-64">
           <span className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-text-primary">
-            <SearchIcon />
+            <SearchIcon size={16} />
           </span>
           <input
             type="search"
@@ -130,7 +130,7 @@ export function PresentationList({ rows }: { rows: PresentationRow[] }) {
             type="button"
             onClick={deleteChecked}
             disabled={isDeleting}
-            className="ml-auto flex items-center gap-2 rounded-button bg-accent-navy px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
+            className="ml-auto flex items-center gap-2 rounded-button bg-accent btn-press px-4 py-2 text-sm font-semibold text-white hover:bg-accent-hover disabled:opacity-60"
           >
             {isDeleting && <Spinner size={14} />}
             {isDeleting ? "Deleting…" : "Delete"}
@@ -152,7 +152,7 @@ export function PresentationList({ rows }: { rows: PresentationRow[] }) {
             onChange={toggleAll}
             disabled={shown.length === 0 || isDeleting}
             aria-label="Select all presentations"
-            className="h-4 w-4 accent-accent-navy"
+            className="h-4 w-4 accent-accent"
           />
           <span>Title</span>
           <span className="hidden sm:block">Status</span>
@@ -218,7 +218,7 @@ function PresentationListRow({
         onChange={onToggle}
         disabled={isBeingDeleted}
         aria-label={`Select ${row.title}`}
-        className="relative z-10 h-4 w-4 accent-accent-navy"
+        className="relative z-10 h-4 w-4 accent-accent"
       />
       <div className="min-w-0">
         {row.checking ? (
@@ -235,7 +235,7 @@ function PresentationListRow({
             {row.meta}
             {row.meta && row.isPublished && " ·"}
             {row.isPublished && (
-              <span className="inline-flex items-center gap-1 font-semibold text-accent-green">
+              <span className="inline-flex items-center gap-1 font-semibold text-success-strong">
                 <GlobeIcon size={12} />
                 Published
               </span>
@@ -266,7 +266,7 @@ function PresentationListRow({
               aria-label={`${isDraft ? "Discard" : "Delete"} ${row.title}`}
               className="rounded-dropdown p-1.5 text-text-primary transition-colors hover:bg-border-default"
             >
-              <TrashIcon />
+              <Trash2Icon size={16} />
             </button>
           )}
         </span>
@@ -278,8 +278,8 @@ function PresentationListRow({
 function StatusPill({ status }: { status: PresentationRow["status"] }) {
   return (
     <span
-      className={`inline-flex w-fit items-center rounded-dropdown px-2.5 py-1 text-[13px] leading-none font-semibold text-white ${
-        status === "saved" ? "bg-accent-green" : "bg-accent-orange"
+      className={`inline-flex w-fit items-center rounded-dropdown px-2.5 py-1 text-[13px] leading-none font-semibold ${
+        status === "saved" ? "bg-success-soft text-success-strong" : "bg-highlight-soft text-highlight-strong"
       }`}
     >
       {status === "saved" ? "Saved" : "Draft"}
@@ -309,22 +309,5 @@ function EmptyState({ hasPresentations, search }: { hasPresentations: boolean; s
           : "Click “+ New presentation” to make one, or ask Claude to send you one."}
       </p>
     </div>
-  );
-}
-
-function SearchIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-      <circle cx="7" cy="7" r="4.5" />
-      <path d="M10.5 10.5L14 14" />
-    </svg>
-  );
-}
-
-function TrashIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M2.5 4h11M6.5 4V2.5h3V4M4 4l.7 9.5h6.6L12 4M6.75 6.75v4M9.25 6.75v4" />
-    </svg>
   );
 }

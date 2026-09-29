@@ -6,7 +6,7 @@ import { SortableContext, rectSortingStrategy } from "@dnd-kit/sortable";
 import { useEditorStore } from "@/lib/store";
 import { getSlideNumbers } from "@/lib/constants";
 import { SlideGridItem } from "./SlideGridItem";
-import { CloseIcon } from "@/components/icons/CloseIcon";
+import { XIcon } from "lucide-react";
 
 export function SlideGridModal() {
   const presentation = useEditorStore((s) => s.presentation);
@@ -50,14 +50,14 @@ export function SlideGridModal() {
     >
       <div className="flex h-[85vh] w-[90vw] max-w-6xl flex-col rounded-card bg-bg-surface p-6">
         <div className="mb-4 flex shrink-0 items-center justify-between">
-          <h2 className="text-[15px] font-semibold text-text-primary">All slides ({presentation.slides.length})</h2>
+          <h2 className="text-[15px] font-extrabold text-text-primary">All slides ({presentation.slides.length})</h2>
           <button
             type="button"
             onClick={closeGridView}
             title="Close (Esc)"
             className="flex h-8 w-8 items-center justify-center rounded-dropdown text-text-primary hover:bg-bg-page"
           >
-            <CloseIcon />
+            <XIcon size={16} />
           </button>
         </div>
 

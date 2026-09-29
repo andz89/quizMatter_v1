@@ -2,6 +2,9 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { DRAFT_LIFETIME_MS, listDrafts, type DraftSummary } from "@/lib/drafts";
 import { joinParts, timeAgo } from "@/lib/format";
+import { LinkPending } from "@/components/LinkPending";
+import { NavBar, navLinkClass } from "@/components/NavBar";
+import { getAccount } from "@/lib/account";
 import { NewPresentationButton } from "../PresentationListButtons";
 import { PresentationList, type PresentationRow } from "./PresentationList";
 
@@ -9,7 +12,7 @@ import { PresentationList, type PresentationRow } from "./PresentationList";
 export default async function AllPresentationsPage() {
   const supabase = await createClient();
   const { data: claims } = await supabase.auth.getClaims();
-  const [{ data: presentations, error }, drafts] = await Promise.all([
+  const [{ data: presentations, error }, drafts, account] = await Promise.all([
     supabase
       .from("presentations")
       .select("id, title, grade, subject, is_published, updated_at, slides(count)")
@@ -17,28 +20,33 @@ export default async function AllPresentationsPage() {
       .eq("owner_id", claims?.claims.sub ?? "")
       .order("updated_at", { ascending: false }),
     listDrafts(),
+    getAccount(),
   ]);
   if (error) throw error;
 
   const rows = buildRows(presentations, drafts);
 
   return (
-    <main className="mx-auto w-full max-w-4xl px-4 py-10 sm:py-14">
-      <header className="mb-6 flex flex-wrap items-center gap-3">
-        <div>
-          <Link href="/" className="text-sm text-text-secondary transition-colors hover:text-text-primary">
-            ← Home
-          </Link>
-          <h1 className="mt-2 text-base font-semibold text-text-primary">All my presentations</h1>
-          <p className="mt-0.5 text-sm text-text-secondary">Your saved presentations, and the ones Claude sent you.</p>
-        </div>
-        <div className="ml-auto">
-          <NewPresentationButton />
-        </div>
-      </header>
+    <>
+      <NavBar>
+        <Link href="/" className={navLinkClass}>
+          Home
+          <LinkPending />
+        </Link>
+      </NavBar>
 
-      <PresentationList rows={rows} />
-    </main>
+      <main className="mx-auto w-full max-w-4xl px-4 py-8 sm:py-10">
+        <header className="mb-6 flex flex-wrap items-center gap-4">
+          <div className="mr-auto">
+            <h1 className="text-2xl font-extrabold text-text-primary">All my presentations</h1>
+            <p className="mt-1 text-sm text-text-secondary">Your saved presentations, and the ones Claude sent you.</p>
+          </div>
+          <NewPresentationButton author={account.displayName} />
+        </header>
+
+        <PresentationList rows={rows} />
+      </main>
+    </>
   );
 }
 

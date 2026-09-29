@@ -19,11 +19,11 @@ export function clamp(value: number, min: number, max: number) {
 
 /**
  * How much of an element (0–1) may stick out past its box's edges. Elements placed straight on the
- * slide (containerId null) may go 90% past it, so at least 10% stays on the slide to grab it again.
+ * slide (containerId null) may go 50% past it, so at least half stays on the slide to grab it again.
  * Elements in a question/option/shape box stay fully inside it.
  */
 export function overhangFor(containerId: string | null) {
-  return containerId === null ? 0.9 : 0;
+  return containerId === null ? 0.5 : 0;
 }
 
 /** Lowest and highest x (or y) for something `size` long in a box `boxSize` long, when `overhang` of it may stick out. */

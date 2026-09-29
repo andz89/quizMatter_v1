@@ -6,10 +6,8 @@ import { ELEMENT_LIBRARY, ELEMENT_CATEGORY_LABELS, ELEMENT_PANEL_CATEGORIES, get
 import { loadFavoriteCategories, saveFavoriteCategories } from "@/lib/userSettings";
 import { ELEMENT_DRAG_MIME } from "@/lib/constants";
 import { ElementSvg } from "./ElementSvg";
-import { CloseIcon } from "@/components/icons/CloseIcon";
-import { BackIcon } from "@/components/icons/BackIcon";
-import { StarIcon } from "@/components/icons/StarIcon";
 import { Spinner } from "@/components/Spinner";
+import { ChevronLeftIcon, StarIcon, XIcon } from "lucide-react";
 
 export function ElementsPanel() {
   const closeElementsPanel = useEditorStore((s) => s.closeElementsPanel);
@@ -92,10 +90,10 @@ export function ElementsPanel() {
               title="Back"
               className="flex h-8 w-8 items-center justify-center rounded-dropdown text-text-primary hover:bg-bg-page"
             >
-              <BackIcon />
+              <ChevronLeftIcon size={16} />
             </button>
           )}
-          <h2 className="text-[15px] font-semibold text-text-primary">
+          <h2 className="text-[15px] font-extrabold text-text-primary">
             {openCategory ? ELEMENT_CATEGORY_LABELS[openCategory] : "Elements"}
           </h2>
           {openCategory && favoriteCategories !== null && (
@@ -106,7 +104,7 @@ export function ElementsPanel() {
               title={favoriteCategories.includes(openCategory) ? "Remove from favorites" : "Add to favorites"}
               className="flex h-8 w-8 items-center justify-center rounded-dropdown text-text-primary hover:bg-bg-page"
             >
-              {isSavingFavorite ? <Spinner size={14} /> : <StarIcon filled={favoriteCategories.includes(openCategory)} />}
+              {isSavingFavorite ? <Spinner size={14} /> : <StarIcon size={16} fill={favoriteCategories.includes(openCategory) ? "currentColor" : "none"} />}
             </button>
           )}
         </div>
@@ -116,7 +114,7 @@ export function ElementsPanel() {
           title="Close (Esc)"
           className="flex h-8 w-8 items-center justify-center rounded-dropdown text-text-primary hover:bg-bg-page"
         >
-          <CloseIcon />
+          <XIcon size={16} />
         </button>
       </div>
       <p className="mb-4 text-xs text-text-secondary">Drag an element onto a box, or click it to add it.</p>
@@ -129,12 +127,12 @@ export function ElementsPanel() {
               draggable
               onDragStart={(e) => handleDragStart(e, "text-box")}
               onClick={() => insertElement("text-box")}
-              className="flex cursor-grab items-center justify-center gap-2 whitespace-nowrap rounded-card border border-transparent bg-[#E7F1FD] p-2 text-[13px] font-semibold text-text-primary transition-colors hover:border-[#2F80ED]"
+              className="flex cursor-grab items-center justify-center gap-2 whitespace-nowrap rounded-card border border-transparent bg-accent-soft p-2 text-[13px] font-semibold text-text-primary transition-colors hover:border-accent"
             >
               {/* The colored square is the drag image, so the ghost shows the icon, not a white "T". */}
               <span
                 data-drag-image
-                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-button bg-linear-to-br from-[#1FA2F2] to-[#2F6BED] text-white"
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-button bg-accent text-white"
               >
                 <span className="block h-4 w-4">
                   <ElementSvg assetId="text-box" color="currentColor" />
@@ -147,11 +145,11 @@ export function ElementsPanel() {
               draggable
               onDragStart={(e) => handleDragStart(e, "rectangle")}
               onClick={() => insertElement("rectangle")}
-              className="flex cursor-grab items-center justify-center gap-2 whitespace-nowrap rounded-card border border-transparent bg-[#FDEBE1] p-2 text-[13px] font-semibold text-text-primary transition-colors hover:border-[#F2743B]"
+              className="flex cursor-grab items-center justify-center gap-2 whitespace-nowrap rounded-card border border-transparent bg-accent-soft p-2 text-[13px] font-semibold text-text-primary transition-colors hover:border-accent"
             >
               <span
                 data-drag-image
-                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-button bg-linear-to-br from-[#F79A4B] to-[#EE5A2F] text-white"
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-button bg-accent text-white"
               >
                 <span className="block h-4 w-4">
                   <ElementSvg assetId="rectangle" color="currentColor" />
@@ -214,7 +212,7 @@ function CategoryTile({ category, onOpen }: { category: ElementCategory; onOpen:
   const previewAsset = ELEMENT_LIBRARY.find((asset) => asset.category === category);
   return (
     <button type="button" onClick={() => onOpen(category)} className="flex flex-col items-center gap-2">
-      <span className="flex h-14 w-14 items-center justify-center rounded-card border border-border-default bg-bg-page p-3 text-text-primary transition-colors hover:border-accent-navy">
+      <span className="flex h-14 w-14 items-center justify-center rounded-card border border-border-default bg-bg-page p-3 text-text-primary transition-colors hover:border-accent">
         {previewAsset && <ElementSvg assetId={previewAsset.id} color={previewAsset.defaultColor ?? "currentColor"} />}
       </span>
       <span className="text-xs font-medium text-text-primary">{ELEMENT_CATEGORY_LABELS[category]}</span>
@@ -241,7 +239,7 @@ function ElementButton({
       onDragStart={(e) => onDragStart(e, assetId)}
       onClick={() => onClick(assetId)}
       title={label}
-      className={`flex cursor-grab items-center justify-center rounded-dropdown border border-border-default bg-bg-page text-text-primary transition-colors hover:border-accent-navy ${
+      className={`flex cursor-grab items-center justify-center rounded-dropdown border border-border-default bg-bg-page text-text-primary transition-colors hover:border-accent ${
         // People are tall and thin: bigger tiles with little padding so they're easy to see.
         // Shapes also get less padding so they fill more of the tile.
         asset?.category === "person"

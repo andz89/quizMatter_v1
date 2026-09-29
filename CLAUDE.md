@@ -46,120 +46,79 @@ When the user clicks something that opens another page, show a thin line at the 
 
 When explaining things to the user (in chat replies, comments, or docs), use plain, simple, basic English — short words and short sentences over technical jargon. If a difficult or technical term is unavoidable, add a simpler synonym right after it and give a concrete example. For instance: "memoize (means: remember a result so it doesn't have to be recalculated) — e.g. caching a math answer instead of redoing the calculation every time."
 
-# Task Tracker — Design System
+# QuizMatter — Design System
 
-Extracted from the reference screenshot: colors, spacing, radius, and typography.
+**REQUIRED:** Every new feature, page, button, panel, modal, form, card, and any other part of the app MUST use this design system. This also applies to changes to existing parts. No exceptions: don't invent new colors, fonts, radii, shadows, or icon styles, and don't copy a look from somewhere else. If something you need isn't covered here, add it to `src/app/globals.css` (and to this section) in the same style, instead of hard-coding it in one place.
+
+The source of truth is the "Modernist" design-system project in Claude Design (claude.ai/design), in its `brand/QuizMatter Brand.html`, `styles.css` and `readme.md`. In the code, every value lives in `src/app/globals.css` as a CSS variable and a Tailwind class (`bg-accent`, `rounded-card`, …). Always use those classes; never hard-code a color, radius or font in a component.
 
 ## Overall Style
 
-Simple but elegant — minimal, uncluttered, and calm rather than flashy:
+Bright, rounded and friendly for kids, but clean enough to feel credible to teachers:
 
-- **Low visual noise:** almost no shadows or gradients; elevation comes purely from a white card sitting on a warm cream background, not from heavy drop shadows
-- **Soft, not sharp:** consistently rounded corners (8–14px) everywhere — cards, buttons, pills, inputs — nothing sharp-edged, which keeps it feeling friendly and light
-- **Restrained color palette:** mostly neutral grays/creams/whites, with color used sparingly and only for meaning (green = success, orange = in-progress, navy = primary action) — not for decoration
-- **Generous whitespace:** comfortable padding and row height rather than a dense, cramped table — gives it a breathable, premium feel
-- **Quiet typography:** no bold/loud headlines; hierarchy is built with small size and weight shifts (12px uppercase labels vs. 14px body vs. 15-16px headings) instead of big contrast jumps
-- **Consistent, thin iconography:** all icons share the same thin stroke weight and use `--text-primary` (near-black), so they read clearly instead of washing out — muted gray was tried and felt too low-contrast
-- **Function over decoration:** every visual element (pill colors, icons, spacing) serves to communicate status or structure — nothing is purely ornamental
-
-This restraint is what reads as "elegant" — it's a plain, muted palette and simple shapes, but applied with consistency and enough whitespace that it doesn't feel cheap or cluttered.
+- **One confident violet** for the brand and main actions, a **sunny yellow** for highlights, and clear **right/wrong** colors (mint/coral). Color always means something; it is never decoration.
+- **Soft and round:** 1.5px soft borders and rounded corners everywhere (8 / 14 / 24px). No square corners.
+- **Chunky main buttons:** violet with a solid 4px "key" edge underneath that sinks when pressed (the `btn-press` class).
+- **Easy-to-read type:** Lexend for all text; Bricolage Grotesque (extra bold, tight spacing) for headings.
+- **Generous whitespace** and white cards on the light Paper background.
 
 ## Colors
 
-### Background & Surfaces
-| Token | Value | Usage |
+| Tailwind class / CSS variable | Value | Usage |
 |---|---|---|
-| `--bg-page` | `#FAF9F6` | Page background (warm off-white, not pure white) |
-| `--bg-surface` | `#FFFFFF` | Card / table surface |
-| `--border-default` | `#E8E6E1` | Row dividers, input borders |
+| `bg-page` / `--bg-page` | `#FAF8FF` | Page background (Paper) |
+| `bg-surface` / `--bg-surface` | `#FFFFFF` | Cards, panels |
+| `border-default` / `--border-default` | `#E6E1F5` | Borders, dividers |
+| `text-primary` / `--text-primary` | `#1B1530` | Text, icons (Ink) |
+| `text-secondary` / `--text-secondary` | `#756E8E` | Muted text, placeholders |
+| `text-header` / `--text-header` | `#9790AD` | Uppercase labels, column headers |
+| `accent` / `--accent` | `#6B3DF5` | Quiz Violet: brand, main buttons, selected state, links |
+| `accent-hover` / `accent-edge` / `accent-soft` | `#5A2CE0` / `#4B22C9` / `#F3EFFF` | Hover, button key edge, soft violet fill |
+| `highlight` (+ `-soft`, `-strong`) | `#FFC233` | Sunny: stars, rewards, drafts, unsaved |
+| `success` (+ `-soft`, `-strong`) | `#14C8A0` | Mint: correct answers, saved, published |
+| `danger` (+ `-soft`, `-strong`) | `#FF5A5F` | Coral: wrong answers, errors, deleting |
 
-### Text
-| Token | Value | Usage |
-|---|---|---|
-| `--text-primary` | `#1F1F1F` | Headings, primary content |
-| `--text-secondary` | `#9B9994` | Placeholders, muted values ("—") |
-| `--text-header` | `#A8A6A1` | Column headers (uppercase) |
-
-### Accent / Brand
-| Token | Value | Usage |
-|---|---|---|
-| `--accent-navy` | `#191A2C` | Primary buttons ("+ Add Task") |
-| `--accent-green` | `#1E8E4F` | Success states, "+ Add Group" text link |
-| `--accent-orange` | `#F2A93B` | "In Progress" status pill |
-| `--accent-gray` | `#A8A6A1` | "Not Started" status pill |
+- For a pill or label, use the `-soft` fill with `-strong` text (e.g. `bg-success-soft text-success-strong`).
+- **Never white text on Sunny or Mint**: use ink (`text-text-primary`) or the `-strong` color.
+- Use Mint and Coral only for right/wrong, success/error and delete, so they keep their meaning.
+- Don't use more than two accent colors in one component.
+- Slide content (colors people pick, clipart, the SVG library) is the user's own work and doesn't follow these colors.
 
 ## Typography
 
-- **Font family:** Humanist sans-serif (Inter / system-ui)
+- **Body/UI:** Lexend (`font-sans`, the default), 14px body, 600 weight for buttons.
+- **Headings:** `h1`/`h2` get Bricolage Grotesque automatically (in `globals.css`); use `font-extrabold` on them. Use `font-heading` for other display text (e.g. the logo word).
+- **Labels:** 11–12px, bold, uppercase, `tracking-[0.05em]`, `text-text-header`.
 
-| Element | Weight | Size | Notes |
-|---|---|---|---|
-| Page/group heading | Semibold | 15–16px | e.g. "Ungrouped tasks" |
-| Column headers | Bold | 11–12px | Uppercase, `letter-spacing: 0.05em`, gray |
-| Body / table text | Regular | 14px | Default cell text |
-| Buttons | Semibold | 14px | "+ Add Task", "+ Add Group" |
-| Status pill text | Semibold | 13px | Inside dropdown pills |
-| Count badges | Regular | 14px | e.g. "(2)", "(3)", muted gray |
+## Shape
+
+| Class | Radius | Usage |
+|---|---|---|
+| `rounded-card` | 24px | Cards, panels, modals |
+| `rounded-button` | 14px | Buttons |
+| `rounded-input` | 14px | Inputs |
+| `rounded-dropdown` | 8px | Small buttons, pills, menus |
+
+- Plain `border` is 1.5px (set by `--default-border-width`).
+- Shadows: almost none. The main-button key edge (`btn-press`) is the one exception.
+- Main button: `rounded-button bg-accent btn-press px-4 py-2 text-sm font-semibold text-white hover:bg-accent-hover`.
+
+## Icons
+
+- **Lucide only** (`lucide-react`). Import the `…Icon` name, e.g. `import { XIcon } from "lucide-react"`, and always pass `size`. Keep Lucide's default 2px stroke. Icons take the text color (`currentColor`), usually `text-text-primary`.
+- Never draw a UI icon by hand as inline SVG, and don't add another icon package.
+
+## Logo
+
+- `src/components/Logo.tsx` is the one logo: the "Q-Check" mark (a violet square with a white Q whose tail is a sunny check mark) plus "Quiz**Matter**". Always reuse it. `src/app/icon.svg` is the same mark for the browser tab.
+- Don't recolor, rotate or outline the mark. The app name is written **QuizMatter**.
 
 ## Spacing & Layout
 
-- Card padding: **16–20px** horizontal, **12–14px** vertical
-- Row height: **48–56px**
-- Vertical gutter between sections: **16–20px**
-- Icon-to-label gap: **12px**
-
-## Corner Radius
-
-| Element | Radius |
-|---|---|
-| Cards / table containers | 12–14px |
-| Buttons | 8–10px |
-| Status dropdowns | 6–8px |
-| Search inputs | 8px |
-| Small icon buttons | ~0px (icon only) |
-
-## Other Details
-
-- **Borders:** 1px solid hairline, `--border-default`, used for row separators and input outlines
-- **Shadows:** none/minimal — elevation comes from white-card-on-cream contrast
-- **Icons:** thin stroke (~1.5px), `--text-primary` color, ~16px size
-- **Drag handles:** dotted grip icon, light gray, left-aligned
-- **Status dropdowns:** filled background matching status color (not outlined)
-- **Expand/collapse chevrons:** simple caret, gray, rotates on toggle
-
-## CSS Variables Reference
-
-```css
-:root {
-  /* Colors */
-  --bg-page: #FAF9F6;
-  --bg-surface: #FFFFFF;
-  --border-default: #E8E6E1;
-
-  --text-primary: #1F1F1F;
-  --text-secondary: #9B9994;
-  --text-header: #A8A6A1;
-
-  --accent-navy: #191A2C;
-  --accent-green: #1E8E4F;
-  --accent-orange: #F2A93B;
-  --accent-gray: #A8A6A1;
-
-  /* Radius */
-  --radius-card: 14px;
-  --radius-button: 10px;
-  --radius-dropdown: 8px;
-  --radius-input: 8px;
-
-  /* Spacing */
-  --space-card-x: 20px;
-  --space-card-y: 14px;
-  --row-height: 52px;
-  --gutter-section: 20px;
-}
-```
-
-<!-- BEGIN:nextjs-agent-rules -->
+- Card padding: 16–20px horizontal, 12–14px vertical
+- Row height: 48–56px
+- Gap between sections: 16–20px
+- Icon-to-label gap: 8–12px
 
 # This is NOT the Next.js you know
 

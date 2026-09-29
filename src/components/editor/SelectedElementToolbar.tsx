@@ -7,17 +7,15 @@ import { CORNER_RADIUS_MAX, getContainerBounds, OPACITY_MIN } from "@/lib/consta
 import { boxForShownPart, getCropFrame } from "@/lib/crop";
 import { fitInBox } from "@/lib/geometry";
 import { toCssBackground } from "./ElementSvg";
-import { RotateIcon } from "./SvgElementItem";
 import { ArrangePanel } from "./ArrangePanel";
 import { MathToolControls } from "./MathToolPanels";
 import { PanelReadout, PanelSlider, ResetButton, ToggleChip, ToolPanelButton } from "./PanelControls";
-import { DuplicateIcon } from "@/components/icons/DuplicateIcon";
-import { TrashIcon } from "@/components/icons/TrashIcon";
+import { BlendIcon, ClockIcon, CopyIcon, CropIcon, FlipHorizontal2Icon, FullscreenIcon, GroupIcon, LayersIcon, Rotate3dIcon, RotateCwIcon, SquareRoundCornerIcon, Trash2Icon, UngroupIcon } from "lucide-react";
 
 // Quick angles shown above the Rotate slider.
 const ANGLE_PRESETS = [-90, -45, 0, 45, 90, 180];
 
-const MIXED_COLOR_SWATCH = "conic-gradient(#191A2C, #1E8E4F, #F2A93B, #A8A6A1, #1F1F1F, #191A2C)";
+const MIXED_COLOR_SWATCH = "conic-gradient(#6B3DF5, #14C8A0, #FFC233, #FF5A5F, #2F9BFF, #6B3DF5)";
 
 /**
  * Header container for the selected SVG element(s)' color, duplicate, and delete controls.
@@ -135,7 +133,7 @@ export function SelectedElementToolbar({ showColor = true }: { showColor?: boole
               onClick={groupSelectedElements}
               className="flex h-8 w-8 shrink-0 items-center justify-center rounded-dropdown text-text-primary hover:bg-bg-page"
             >
-              <GroupIcon />
+              <GroupIcon size={18} />
             </button>
           )}
           {canUngroup && (
@@ -145,13 +143,13 @@ export function SelectedElementToolbar({ showColor = true }: { showColor?: boole
               onClick={ungroupSelectedElements}
               className="flex h-8 w-8 shrink-0 items-center justify-center rounded-dropdown text-text-primary hover:bg-bg-page"
             >
-              <UngroupIcon />
+              <UngroupIcon size={18} />
             </button>
           )}
         </>
       )}
       {slide && (
-        <ToolPanelButton title="Arrange" icon={<ArrangeIcon />} panelWidthClassName="w-64">
+        <ToolPanelButton title="Arrange" icon={<LayersIcon size={18} />} panelWidthClassName="w-64">
           <ArrangePanel slideId={selectedSlideId} box={slide} elements={elements} />
         </ToolPanelButton>
       )}
@@ -162,7 +160,7 @@ export function SelectedElementToolbar({ showColor = true }: { showColor?: boole
           onClick={() => fitElementsToContainer(selectedSlideId, elements.map((el) => el.id))}
           className="flex h-8 w-8 shrink-0 items-center justify-center rounded-dropdown text-text-primary hover:bg-bg-page"
         >
-          <FitToBoxIcon />
+          <FullscreenIcon size={18} />
         </button>
       )}
       {croppable && (
@@ -172,7 +170,7 @@ export function SelectedElementToolbar({ showColor = true }: { showColor?: boole
           onClick={() => setCroppingElementId(isCropping ? null : croppable.id)}
           className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-dropdown text-text-primary hover:bg-bg-page ${isCropping ? "bg-bg-page" : ""}`}
         >
-          <CropIcon />
+          <CropIcon size={18} />
         </button>
       )}
       {croppable?.crop && (
@@ -197,32 +195,32 @@ export function SelectedElementToolbar({ showColor = true }: { showColor?: boole
             className="h-6 w-6 shrink-0 rounded-full"
             style={{
               background: commonColor ? toCssBackground(commonColor) : MIXED_COLOR_SWATCH,
-              outline: isColorPanelOpen ? "2px solid var(--accent-navy)" : "2px solid transparent",
+              outline: isColorPanelOpen ? "2px solid var(--accent)" : "2px solid transparent",
               outlineOffset: 2,
             }}
           />
           <div className="mx-1 h-5 w-px bg-border-default" />
         </>
       )}
-      <ToolPanelButton title="Opacity" icon={<OpacityIcon />}>
+      <ToolPanelButton title="Opacity" icon={<BlendIcon size={16} />}>
         <PanelSlider label="Opacity" value={opacity} min={OPACITY_MIN} max={100} unit="%" onChange={setOpacity} />
         <ResetButton onClick={() => setOpacity(100)} />
       </ToolPanelButton>
       {canRoundCorners && (
-        <ToolPanelButton title="Corner radius" icon={<CornerRadiusIcon />}>
+        <ToolPanelButton title="Corner radius" icon={<SquareRoundCornerIcon size={16} />}>
           <PanelSlider label="Corner radius" value={cornerRadius} min={0} max={CORNER_RADIUS_MAX} unit="%" onChange={setCornerRadius} />
           <ResetButton onClick={() => setCornerRadius(0)} />
         </ToolPanelButton>
       )}
       {solid && (
-        <ToolPanelButton title="Rotate 3D" icon={<Rotate3dIcon />}>
+        <ToolPanelButton title="Rotate 3D" icon={<Rotate3dIcon size={16} />}>
           <PanelSlider label="Tilt" value={rotation.x} min={-90} max={90} onChange={(x) => setRotation({ x })} />
           <PanelSlider label="Turn" value={rotation.y} min={-180} max={180} onChange={(y) => setRotation({ y })} />
           <ResetButton onClick={() => setRotation(DEFAULT_ROTATION_3D)} />
         </ToolPanelButton>
       )}
       {clock && (
-        <ToolPanelButton title="Set time" icon={<ClockIcon />}>
+        <ToolPanelButton title="Set time" icon={<ClockIcon size={16} />}>
           <PanelReadout>
             {time.hours}:{String(time.minutes).padStart(2, "0")}
             {clock.assetId === "digital-clock" && ` ${time.pm ? "PM" : "AM"}`}
@@ -246,7 +244,7 @@ export function SelectedElementToolbar({ showColor = true }: { showColor?: boole
         <MathToolControls element={elements[0]} slideId={selectedSlideId} box={slide} />
       )}
       {flippable.length > 0 && (
-        <ToolPanelButton title="Flip" icon={<FlipIcon />} panelWidthClassName="w-48">
+        <ToolPanelButton title="Flip" icon={<FlipHorizontal2Icon size={16} />} panelWidthClassName="w-48">
           {(["flipX", "flipY"] as const).map((axis) => (
             <button
               key={axis}
@@ -255,7 +253,7 @@ export function SelectedElementToolbar({ showColor = true }: { showColor?: boole
               className="flex items-center gap-3 rounded-dropdown px-2 py-1.5 text-sm text-text-primary hover:bg-bg-page"
             >
               <span className={axis === "flipY" ? "rotate-90" : ""}>
-                <FlipIcon />
+                <FlipHorizontal2Icon size={16} />
               </span>
               {axis === "flipX" ? "Flip horizontal" : "Flip vertical"}
             </button>
@@ -263,7 +261,7 @@ export function SelectedElementToolbar({ showColor = true }: { showColor?: boole
         </ToolPanelButton>
       )}
       {flat && (
-        <ToolPanelButton title="Rotate" icon={<RotateIcon />}>
+        <ToolPanelButton title="Rotate" icon={<RotateCwIcon size={18} />}>
           <div className="flex gap-1">
             {ANGLE_PRESETS.map((preset) => (
               <ToggleChip
@@ -286,112 +284,16 @@ export function SelectedElementToolbar({ showColor = true }: { showColor?: boole
         onClick={handleDuplicate}
         className="flex h-8 w-8 shrink-0 items-center justify-center rounded-dropdown text-text-primary hover:bg-bg-page"
       >
-        <DuplicateIcon />
+        <CopyIcon size={16} />
       </button>
       <button
         type="button"
         title="Delete"
         onClick={handleDelete}
-        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-dropdown text-text-primary hover:bg-bg-page hover:text-accent-orange"
+        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-dropdown text-text-primary hover:bg-bg-page hover:text-danger"
       >
-        <TrashIcon />
+        <Trash2Icon size={18} />
       </button>
     </div>
-  );
-}
-
-function Rotate3dIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round">
-      <path d="M8 2.5 12.5 5v5L8 12.5 3.5 10V5Z" />
-      <path d="M3.5 5 8 7.5l4.5-2.5M8 7.5v5" />
-      <path d="M1.5 9.5a7 3 0 0 0 11 3.2" strokeLinecap="round" />
-      <path d="m11 11.4 1.7 1.3-1.4 1.5" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function OpacityIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round">
-      <rect x="2" y="2" width="12" height="12" rx="2" />
-      <path d="M2 8h12M8 2v12" strokeOpacity="0.35" />
-      <path d="M8 2h4a2 2 0 0 1 2 2v4H8ZM2 8h6v6H4a2 2 0 0 1-2-2Z" fill="currentColor" stroke="none" />
-    </svg>
-  );
-}
-
-function CornerRadiusIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round">
-      <path d="M2.5 13.5V8a5.5 5.5 0 0 1 5.5-5.5h5.5" />
-    </svg>
-  );
-}
-
-function ClockIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round">
-      <circle cx="8" cy="8" r="6.3" />
-      <path d="M8 4.5V8l2.5 1.5" />
-    </svg>
-  );
-}
-
-function ArrangeIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round">
-      <path d="M2 1.5v13" />
-      <rect x="4.5" y="3" width="9" height="3.5" rx="1" />
-      <rect x="4.5" y="9.5" width="6" height="3.5" rx="1" />
-    </svg>
-  );
-}
-
-function FlipIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round">
-      <path d="M8 1.5v13" strokeDasharray="1.5 1.5" strokeLinecap="round" />
-      <path d="M6 3.5 1.5 12.5H6Z" />
-      <path d="M10 3.5l4.5 9H10Z" fill="currentColor" />
-    </svg>
-  );
-}
-
-function CropIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M4 1.5V11a1 1 0 0 0 1 1h9.5" />
-      <path d="M1.5 4H11a1 1 0 0 1 1 1v9.5" />
-    </svg>
-  );
-}
-
-function FitToBoxIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M1.5 5V2.5a1 1 0 0 1 1-1H5M11 1.5h2.5a1 1 0 0 1 1 1V5M14.5 11v2.5a1 1 0 0 1-1 1H11M5 14.5H2.5a1 1 0 0 1-1-1V11" />
-      <rect x="5" y="5" width="6" height="6" rx="1" />
-    </svg>
-  );
-}
-
-function GroupIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round">
-      <rect x="1.5" y="1.5" width="13" height="13" rx="2" />
-      <rect x="4" y="4" width="4.5" height="4.5" rx="0.8" />
-      <rect x="7.5" y="7.5" width="4.5" height="4.5" rx="0.8" />
-    </svg>
-  );
-}
-
-function UngroupIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round">
-      <rect x="1.5" y="1.5" width="13" height="13" rx="2" strokeDasharray="2 2" />
-      <rect x="4" y="4" width="4.5" height="4.5" rx="0.8" />
-      <rect x="7.5" y="7.5" width="4.5" height="4.5" rx="0.8" />
-    </svg>
   );
 }

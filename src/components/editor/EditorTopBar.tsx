@@ -7,11 +7,21 @@ import { DETAIL_MAX_LENGTH } from "@/lib/schema";
 import { SelectedElementToolbar } from "./SelectedElementToolbar";
 import { TextFormatToolbar } from "./TextFormatToolbar";
 import { ShapeBoxToolbar } from "./ShapeBoxToolbar";
+import { ChevronLeftIcon, PlayIcon, Redo2Icon, Undo2Icon } from "lucide-react";
+
+/** Opens the presentation, fullscreen when the browser allows it. */
+export async function presentFullscreen() {
+  try {
+    await document.documentElement.requestFullscreen();
+  } catch {
+    // Fullscreen isn't available (unsupported/blocked) — presentation still opens.
+  }
+  useEditorStore.getState().startPresentation();
+}
 
 export function EditorTopBar() {
   const title = useEditorStore((s) => s.presentation.title);
   const setPresentationDetails = useEditorStore((s) => s.setPresentationDetails);
-  const startPresentation = useEditorStore((s) => s.startPresentation);
   const undo = useEditorStore((s) => s.undo);
   const redo = useEditorStore((s) => s.redo);
   const canUndo = useEditorStore((s) => s.past.length > 0);
@@ -19,17 +29,9 @@ export function EditorTopBar() {
   const formatTexts = useFormatTexts();
   const hasSelectedElements = useEditorStore((s) => s.selectedElementIds.length > 0);
 
-  const handlePresent = async () => {
-    try {
-      await document.documentElement.requestFullscreen();
-    } catch {
-      // Fullscreen isn't available (unsupported/blocked) — presentation still opens.
-    }
-    startPresentation();
-  };
-
   return (
-    <header className="relative z-20 flex h-14 shrink-0 items-center gap-3 border-b border-border-default bg-bg-surface px-4">
+    // Below laptop width the bar wraps: the text/element toolbars get their own row under it.
+    <header className="relative z-20 flex min-h-14 shrink-0 flex-wrap items-center gap-x-3 border-b border-border-default bg-bg-surface px-4 py-2.5 lg:h-14 lg:py-0">
       <BackToPresentationsLink />
 
       <input
@@ -37,20 +39,20 @@ export function EditorTopBar() {
         onChange={(e) => setPresentationDetails({ title: e.target.value })}
         placeholder="Untitled presentation"
         maxLength={DETAIL_MAX_LENGTH.title}
-        className="rounded-input px-2 py-1 text-[15px] font-semibold text-text-primary outline-none hover:bg-bg-page focus:bg-bg-page"
+        className="w-40 min-w-0 flex-1 rounded-input px-2 py-1 text-[15px] font-semibold text-text-primary outline-none hover:bg-bg-page focus:bg-bg-page sm:w-auto sm:flex-none"
       />
 
       <div className="flex items-center">
         <button type="button" onClick={undo} disabled={!canUndo} title="Undo (Ctrl+Z)" className={historyButtonClass}>
-          <UndoIcon />
+          <Undo2Icon size={18} />
         </button>
         <button type="button" onClick={redo} disabled={!canRedo} title="Redo (Ctrl+Y)" className={historyButtonClass}>
-          <UndoIcon flipped />
+          <Redo2Icon size={18} />
         </button>
       </div>
 
       {/* A selected text box gets both bars: its text formatting and the element controls. */}
-      <div className="absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center gap-2">
+      <div className="order-last flex w-full flex-wrap items-center justify-center gap-2 pt-2.5 empty:hidden lg:absolute lg:top-1/2 lg:left-1/2 lg:w-auto lg:-translate-x-1/2 lg:-translate-y-1/2 lg:pt-0">
         {formatTexts.length > 0 && <TextFormatToolbar texts={formatTexts} />}
         {hasSelectedElements && <SelectedElementToolbar showColor={formatTexts.length === 0} />}
         {formatTexts.length === 0 && !hasSelectedElements && <ShapeBoxToolbar />}
@@ -60,12 +62,12 @@ export function EditorTopBar() {
 
       <button
         type="button"
-        onClick={handlePresent}
+        onClick={presentFullscreen}
         title="Present (fullscreen)"
-        className="flex items-center gap-2 rounded-button bg-accent-navy px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+        className="flex items-center gap-2 rounded-button bg-accent btn-press px-3 py-2 text-sm font-semibold text-white hover:bg-accent-hover sm:px-4"
       >
-        <PlayIcon />
-        Present
+        <PlayIcon size={14} fill="currentColor" />
+        <span className="hidden sm:inline">Present</span>
       </button>
     </header>
   );
@@ -83,7 +85,7 @@ function BackToPresentationsLink() {
       }}
       className={historyButtonClass}
     >
-      <BackIcon />
+      <ChevronLeftIcon size={18} />
     </Link>
   );
 }
@@ -106,48 +108,12 @@ function SaveButton() {
       className="ml-auto flex items-center gap-2 rounded-button border border-border-default px-4 py-2 text-sm font-semibold text-text-primary transition-colors hover:bg-bg-page disabled:hover:bg-transparent"
     >
       {hasUnsavedChanges && saveStatus !== "saving" && (
-        <span className={`h-2 w-2 rounded-full ${saveStatus === "error" ? "bg-red-600" : "bg-accent-orange"}`} />
+        <span className={`h-2 w-2 rounded-full ${saveStatus === "error" ? "bg-danger" : "bg-highlight"}`} />
       )}
-      <span className={saveStatus === "error" ? "text-red-600" : undefined}>{label}</span>
+      <span className={saveStatus === "error" ? "text-danger-strong" : undefined}>{label}</span>
     </button>
   );
 }
 
 const historyButtonClass =
   "flex h-9 w-9 items-center justify-center rounded-button text-text-primary transition-colors hover:bg-bg-page disabled:opacity-30 disabled:hover:bg-transparent";
-
-/** Curved arrow pointing left (undo); `flipped` mirrors it into redo. */
-function UndoIcon({ flipped = false }: { flipped?: boolean }) {
-  return (
-    <svg
-      width="18"
-      height="18"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      style={flipped ? { transform: "scaleX(-1)" } : undefined}
-    >
-      <path d="M9 14L4 9l5-5" />
-      <path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" />
-    </svg>
-  );
-}
-
-function BackIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M15 18l-6-6 6-6" />
-    </svg>
-  );
-}
-
-function PlayIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor">
-      <path d="M3 2L12 7L3 12V2Z" />
-    </svg>
-  );
-}

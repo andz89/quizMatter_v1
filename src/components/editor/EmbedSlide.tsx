@@ -4,6 +4,7 @@ import { useState, type FormEvent, type ReactNode } from "react";
 import { useEditorStore } from "@/lib/store";
 import { embedLinkSchema, type Slide } from "@/lib/schema";
 import { MAX_EMBED_URL_LENGTH, readEmbedLink, type Embed, type EmbedKind } from "@/lib/embed";
+import { ImageIcon, PencilIcon, PlayIcon, PresentationIcon } from "lucide-react";
 
 // The words each kind of embed slide uses.
 const KIND_TEXT: Record<EmbedKind, { title: string; placeholder: string; hint: string; add: string; empty: string }> = {
@@ -134,10 +135,7 @@ export function EmbedSlideEditor({ slide, kind }: { slide: Slide; kind: EmbedKin
           title="Edit link"
           className="absolute right-4 top-4 flex h-14 w-14 items-center justify-center rounded-button border border-border-default bg-bg-surface text-text-primary hover:bg-bg-page"
         >
-          <svg width="26" height="26" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3">
-            <path d="M10.5 2.5l3 3L5.5 13.5H2.5v-3l8-8Z" strokeLinejoin="round" />
-            <path d="M9 4l3 3" />
-          </svg>
+          <PencilIcon size={26} />
         </button>
       </EmbedFrame>
     );
@@ -199,17 +197,17 @@ function EmbedLinkForm({ kind, initialUrl, onSave, onCancel }: EmbedLinkFormProp
             if (e.key === "Escape") onCancel?.();
           }}
           placeholder={text.placeholder}
-          className="h-16 w-[640px] rounded-input border border-border-default bg-bg-surface px-5 text-2xl text-text-primary outline-none placeholder:text-text-secondary focus:border-accent-navy"
+          className="h-16 w-[640px] rounded-input border border-border-default bg-bg-surface px-5 text-2xl text-text-primary outline-none placeholder:text-text-secondary focus:border-accent"
         />
         <button
           type="submit"
-          className="h-16 whitespace-nowrap rounded-button bg-accent-navy px-8 text-2xl font-semibold text-white hover:opacity-90"
+          className="h-16 whitespace-nowrap rounded-button bg-accent btn-press px-8 text-2xl font-semibold text-white hover:bg-accent-hover"
         >
           {onCancel ? "Save" : text.add}
         </button>
       </form>
       {/* The error takes the hint's place, so the box doesn't jump when a message shows. */}
-      <p className={`-mt-2 text-xl ${error ? "text-red-600" : "text-text-secondary"}`}>{error ?? text.hint}</p>
+      <p className={`-mt-2 text-xl ${error ? "text-danger-strong" : "text-text-secondary"}`}>{error ?? text.hint}</p>
       {onCancel && (
         <button type="button" onClick={onCancel} className="text-xl text-text-secondary hover:text-text-primary">
           Cancel
@@ -220,27 +218,7 @@ function EmbedLinkForm({ kind, initialUrl, onSave, onCancel }: EmbedLinkFormProp
 }
 
 function EmbedKindIcon({ kind, size }: { kind: EmbedKind; size: number }) {
-  if (kind === "video") {
-    return (
-      <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
-        <path d="M8 5.5v13l10.5-6.5L8 5.5Z" />
-      </svg>
-    );
-  }
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round">
-      {kind === "embed-slides" ? (
-        <>
-          <rect x="3" y="4" width="18" height="13" rx="2" />
-          <path d="M12 17v3M8.5 20h7M7.5 9h9M7.5 12.5h5.5" strokeLinecap="round" />
-        </>
-      ) : (
-        <>
-          <rect x="3" y="4" width="18" height="16" rx="2" />
-          <circle cx="8.5" cy="9.5" r="1.75" />
-          <path d="M3.5 17.5l5-5 4 4 3-3 5 5" />
-        </>
-      )}
-    </svg>
-  );
+  if (kind === "video") return <PlayIcon size={size} fill="currentColor" />;
+  if (kind === "embed-slides") return <PresentationIcon size={size} />;
+  return <ImageIcon size={size} />;
 }

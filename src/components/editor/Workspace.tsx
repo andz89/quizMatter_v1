@@ -11,13 +11,13 @@ import { slideSchema } from "@/lib/schema";
 import { SlideWorkspaceItem } from "./SlideWorkspaceItem";
 import { ZoomControls } from "./ZoomControls";
 import { AnswerArea } from "./AnswerArea";
+import { ToolPanelButton } from "./PanelControls";
+import { AddSlideMenu } from "./AddSlideMenu";
 import { useMarqueeSelection } from "@/lib/useMarqueeSelection";
 
 const WORKSPACE_PADDING = 96;
 // Space between one slide and the next slide's toolbar (the toolbar is part of each slide item).
 const SLIDE_GAP = 40;
-// Room the "+ Multiple choice / + Short answer / … / + Title slide" row needs with one-line labels.
-const ADD_ROW_WIDTH = 580;
 // Slides within this distance of the visible area (1.5 screen heights above and below) get the full
 // editable canvas; the rest show the light read-only view, so 100 slides don't all do editor work.
 const NEAR_MARGIN = "150% 0px 150% 0px";
@@ -280,9 +280,6 @@ export function Workspace() {
     else slideNodes.current.delete(slideId);
   }, []);
 
-  // Below the needed width the add row shrinks as a whole (CSS zoom keeps it sharp) instead of wrapping.
-  const addRowScale = Math.min(1, (CANVAS_WIDTH * zoom) / ADD_ROW_WIDTH);
-
   return (
     <div className="relative flex-1 overflow-hidden bg-bg-page" {...slideDropHandlers}>
       <div ref={scrollRef} className="h-full select-none overflow-y-auto" {...marqueeHandlers}>
@@ -314,60 +311,25 @@ export function Workspace() {
             </SortableContext>
           </DndContext>
 
-          <div
-            className="flex shrink-0 gap-4 whitespace-nowrap"
-            style={{ width: (CANVAS_WIDTH * zoom) / addRowScale, height: 96, zoom: addRowScale }}
-          >
-            <button
-              type="button"
-              onClick={() => addSlide(undefined, "choice")}
-              className="flex flex-1 items-center justify-center rounded-card bg-bg-surface text-sm font-semibold text-text-secondary shadow-[0_1px_3px_rgba(0,0,0,0.08)] transition hover:text-accent-navy hover:shadow-[0_2px_8px_rgba(0,0,0,0.1)]"
+          <div className="shrink-0" style={{ width: CANVAS_WIDTH * zoom }}>
+            <ToolPanelButton
+              title="Add slide"
+              buttonClassName="h-24 w-full rounded-card bg-bg-surface text-sm font-semibold text-text-secondary shadow-[0_1px_3px_rgba(0,0,0,0.08)] transition hover:text-accent hover:shadow-[0_2px_8px_rgba(0,0,0,0.1)] aria-expanded:text-accent"
+              panelWidthClassName="w-auto"
+              closeOnAnyClick
+              openAbove
+              icon="+ Add slide"
             >
-              + Multiple choice
-            </button>
-            <button
-              type="button"
-              onClick={() => addSlide(undefined, "short-answer")}
-              className="flex flex-1 items-center justify-center rounded-card bg-bg-surface text-sm font-semibold text-text-secondary shadow-[0_1px_3px_rgba(0,0,0,0.08)] transition hover:text-accent-navy hover:shadow-[0_2px_8px_rgba(0,0,0,0.1)]"
-            >
-              + Short answer
-            </button>
-            <button
-              type="button"
-              onClick={() => addSlide(undefined, "true-false")}
-              className="flex flex-1 items-center justify-center rounded-card bg-bg-surface text-sm font-semibold text-text-secondary shadow-[0_1px_3px_rgba(0,0,0,0.08)] transition hover:text-accent-navy hover:shadow-[0_2px_8px_rgba(0,0,0,0.1)]"
-            >
-              + True or false
-            </button>
-            <button
-              type="button"
-              onClick={() => addSlide(undefined, "custom")}
-              className="flex flex-1 items-center justify-center rounded-card bg-bg-surface text-sm font-semibold text-text-secondary shadow-[0_1px_3px_rgba(0,0,0,0.08)] transition hover:text-accent-navy hover:shadow-[0_2px_8px_rgba(0,0,0,0.1)]"
-            >
-              + Custom question
-            </button>
-            <button
-              type="button"
-              onClick={() => addSlide(undefined, "blank")}
-              className="flex flex-1 items-center justify-center rounded-card bg-bg-surface text-sm font-semibold text-text-secondary shadow-[0_1px_3px_rgba(0,0,0,0.08)] transition hover:text-accent-navy hover:shadow-[0_2px_8px_rgba(0,0,0,0.1)]"
-            >
-              + Blank slide
-            </button>
-            <button
-              type="button"
-              onClick={() => addSlide(undefined, "title")}
-              className="flex flex-1 items-center justify-center rounded-card bg-bg-surface text-sm font-semibold text-text-secondary shadow-[0_1px_3px_rgba(0,0,0,0.08)] transition hover:text-accent-navy hover:shadow-[0_2px_8px_rgba(0,0,0,0.1)]"
-            >
-              + Title slide
-            </button>
+              <AddSlideMenu onPick={(type) => addSlide(undefined, type)} />
+            </ToolPanelButton>
           </div>
         </div>
       </div>
       {/* Drawn over the whole workspace (same top-left as the scroll area), so the slide's edges don't cut it off. */}
       {marqueeBox && (
         <div
-          className="pointer-events-none absolute z-40 border border-accent-navy"
-          style={{ ...marqueeBox, background: "rgba(25, 26, 44, 0.08)" }}
+          className="pointer-events-none absolute z-40 border border-accent"
+          style={{ ...marqueeBox, background: "color-mix(in srgb, var(--accent) 8%, transparent)" }}
         />
       )}
       <ZoomControls />

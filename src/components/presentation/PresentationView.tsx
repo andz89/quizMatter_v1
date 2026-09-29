@@ -5,9 +5,8 @@ import { useEditorStore } from "@/lib/store";
 import { CANVAS_WIDTH, CANVAS_HEIGHT, hasAnswerContent, getSlideNumbers, hasOptions, hasReveal } from "@/lib/constants";
 import { SlideStaticView } from "./SlideStaticView";
 import { AnswerModal } from "@/components/editor/AnswerModal";
-import { EyeIcon } from "@/components/icons/EyeIcon";
 import { SlideThumbnailPreview } from "@/components/editor/SlideThumbnailPreview";
-import { GridIcon } from "@/components/icons/GridIcon";
+import { EyeIcon, LayoutGridIcon, XIcon } from "lucide-react";
 
 // Clicks in the left 25% of the screen go to the previous slide.
 const PREV_ZONE = 0.25;
@@ -144,7 +143,7 @@ export function PresentationView() {
           title="Exit presentation (Esc)"
           className={roundButtonClass}
         >
-          <CloseIcon />
+          <XIcon size={18} />
         </button>
 
         <button
@@ -156,7 +155,7 @@ export function PresentationView() {
           title={showAllSlides ? "Hide all slides" : "Show all slides"}
           className={roundButtonClass}
         >
-          <GridIcon size={18} />
+          <LayoutGridIcon size={18} />
         </button>
 
         {canReveal && !showAllSlides && (
@@ -170,7 +169,7 @@ export function PresentationView() {
             title={hasReveal(slide) ? "Reveal" : isChoice && isAnswerShown ? "Hide answer" : "Show answer"}
             className={roundButtonClass}
           >
-            <EyeIcon />
+            <EyeIcon size={18} />
           </button>
         )}
       </div>
@@ -235,13 +234,5 @@ export function PresentationView() {
         </div>
       )}
     </div>
-  );
-}
-
-function CloseIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5">
-      <path d="M4 4L14 14M14 4L4 14" strokeLinecap="round" />
-    </svg>
   );
 }

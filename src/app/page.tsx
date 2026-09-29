@@ -1,8 +1,11 @@
+import { NavBar } from "@/components/NavBar";
+import { getAccount } from "@/lib/account";
 import { createClient } from "@/lib/supabase/server";
 import { listDrafts, type DraftSummary } from "@/lib/drafts";
-import { joinParts, slideCountLabel, timeAgo } from "@/lib/format";
+import { loadPublisherNames } from "@/lib/publishers";
+import { joinParts, publishedByLine, slideCountLabel, timeAgo } from "@/lib/format";
 import { parseSlide } from "@/lib/schema";
-import { LogoutButton, NewPresentationButton } from "./PresentationListButtons";
+import { NewPresentationButton } from "./PresentationListButtons";
 import { PresentationHome } from "./PresentationHome";
 import type { PresentationCardData } from "./PresentationCard";
 
@@ -11,14 +14,14 @@ const OTHERS_LIMIT = 20;
 
 // Each presentation's first slide only (for the card's picture), not all of them, to keep the page light.
 const CARD_COLUMNS =
-  "id, title, grade, subject, author, is_published, updated_at, slides(count), first_slide:slides(data, position)";
+  "id, owner_id, title, grade, subject, author, is_published, updated_at, slides(count), first_slide:slides(data, position)";
 
 export default async function HomePage() {
   const supabase = await createClient();
   const { data: claims } = await supabase.auth.getClaims();
   const myId = claims?.claims.sub ?? "";
 
-  const [mine, others, drafts] = await Promise.all([
+  const [mine, others, drafts, account] = await Promise.all([
     supabase
       .from("presentations")
       .select(CARD_COLUMNS)
@@ -36,32 +39,36 @@ export default async function HomePage() {
       .limit(1, { referencedTable: "first_slide" })
       .limit(OTHERS_LIMIT),
     listDrafts(),
+    getAccount(),
   ]);
   if (mine.error) throw mine.error;
   if (others.error) throw others.error;
 
-  const { myCards, otherCards } = buildCards(mine.data, others.data, drafts);
+  const publisherNames = await loadPublisherNames(supabase, others.data.map((presentation) => presentation.owner_id));
+  const { myCards, otherCards } = buildCards(mine.data, others.data, drafts, publisherNames);
 
   return (
-    <main className="mx-auto w-full max-w-6xl px-4 py-10 sm:py-14">
-      <header className="mb-6 flex flex-wrap items-center gap-3">
-        <div>
-          <h1 className="text-base font-semibold text-text-primary">Presentations</h1>
-          <p className="mt-0.5 text-sm text-text-secondary">Your presentations, and the ones other teachers published.</p>
-        </div>
-        <div className="ml-auto flex items-center gap-2">
-          <LogoutButton />
-          <NewPresentationButton />
-        </div>
-      </header>
+    <>
+      <NavBar />
 
-      <PresentationHome myCards={myCards} otherCards={otherCards} />
-    </main>
+      <main className="mx-auto w-full max-w-6xl px-4 py-8 sm:py-10">
+        <header className="mb-6 flex flex-wrap items-center gap-4">
+          <div className="mr-auto">
+            <h1 className="text-2xl font-extrabold text-text-primary">Presentations</h1>
+            <p className="mt-1 text-sm text-text-secondary">Your presentations, and the ones other teachers published.</p>
+          </div>
+          <NewPresentationButton author={account.displayName} />
+        </header>
+
+        <PresentationHome myCards={myCards} otherCards={otherCards} />
+      </main>
+    </>
   );
 }
 
 type CardPresentation = {
   id: string;
+  owner_id: string;
   title: string;
   grade: string;
   subject: string;
@@ -73,7 +80,7 @@ type CardPresentation = {
 };
 
 /** My presentations and Claude's drafts (newest first), and other teachers' published presentations, as cards. */
-function buildCards(mine: CardPresentation[], others: CardPresentation[], drafts: DraftSummary[]) {
+function buildCards(mine: CardPresentation[], others: CardPresentation[], drafts: DraftSummary[], publisherNames: Map<string, string>) {
   const now = Date.now();
   const savedIds = new Set(mine.map((presentation) => presentation.id));
   const myCards: (PresentationCardData & { sortTime: number })[] = [
@@ -98,7 +105,7 @@ function buildCards(mine: CardPresentation[], others: CardPresentation[], drafts
 
   const otherCards = others.map((presentation) => ({
     ...toCard(presentation, `/presentation/${presentation.id}`, now),
-    byline: presentation.author ? `By ${presentation.author}` : undefined,
+    byline: publishedByLine(presentation.author, publisherNames.get(presentation.owner_id)),
   }));
 
   return { myCards, otherCards };

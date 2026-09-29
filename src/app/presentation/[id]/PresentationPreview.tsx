@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { CANVAS_WIDTH, CANVAS_HEIGHT, getSlideNumbers } from "@/lib/constants";
 import { createId } from "@/lib/id";
-import { joinParts, slideCountLabel } from "@/lib/format";
+import { joinParts, publishedByLine, slideCountLabel } from "@/lib/format";
 import { savePresentationToDb } from "@/lib/presentations";
 import { DETAIL_MAX_LENGTH, isWebLink, type Presentation } from "@/lib/schema";
 import { useEditorStore } from "@/lib/store";
@@ -24,7 +24,15 @@ const PresentationView = dynamic(() =>
  * A presentation's details and all its slides, view only. Present shows it fullscreen (the same view as the
  * editor's Present button); "Make a copy" saves a private copy for me and opens it in the editor.
  */
-export function PresentationPreview({ presentation, isMine }: { presentation: Presentation; isMine: boolean }) {
+export function PresentationPreview({
+  presentation,
+  isMine,
+  publisherName,
+}: {
+  presentation: Presentation;
+  isMine: boolean;
+  publisherName: string;
+}) {
   const router = useRouter();
   const isPresenting = useEditorStore((s) => s.isPresenting);
   const [isCopying, setIsCopying] = useState(false);
@@ -74,9 +82,9 @@ export function PresentationPreview({ presentation, isMine }: { presentation: Pr
 
       <header className="mt-3 mb-6 flex flex-wrap items-start gap-3">
         <div className="min-w-0">
-          <h1 className="text-base font-semibold text-text-primary">{presentation.title || "Untitled presentation"}</h1>
+          <h1 className="text-base font-extrabold text-text-primary">{presentation.title || "Untitled presentation"}</h1>
           <p className="mt-0.5 text-sm text-text-secondary">
-            {joinParts([presentation.author && `By ${presentation.author}`, presentation.grade, presentation.subject, slideCountLabel(presentation.slides.length)])}
+            {joinParts([publishedByLine(presentation.author, publisherName), presentation.grade, presentation.subject, slideCountLabel(presentation.slides.length)])}
           </p>
         </div>
         <div className="ml-auto flex items-center gap-2">
@@ -100,7 +108,7 @@ export function PresentationPreview({ presentation, isMine }: { presentation: Pr
             <button
               type="button"
               onClick={() => present()}
-              className="rounded-button bg-accent-navy px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+              className="rounded-button bg-accent btn-press px-4 py-2 text-sm font-semibold text-white hover:bg-accent-hover"
             >
               Present
             </button>

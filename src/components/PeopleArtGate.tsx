@@ -31,7 +31,7 @@ export function PeopleArtGate({ needed, children }: { needed: boolean; children:
           <button
             type="button"
             onClick={() => setStatus("loading")}
-            className="rounded-button bg-accent-navy px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+            className="rounded-button bg-accent btn-press px-4 py-2 text-sm font-semibold text-white hover:bg-accent-hover"
           >
             Try again
           </button>

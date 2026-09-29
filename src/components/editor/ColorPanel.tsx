@@ -8,7 +8,7 @@ import { DEFAULT_TEXT_COLOR, formatChain } from "@/lib/richText";
 import { getElementAsset } from "@/lib/svgLibrary";
 import { GRADIENT_PREFIX, toCssBackground } from "./ElementSvg";
 import { SIDE_CONTAINER_ID } from "@/lib/constants";
-import { CloseIcon } from "@/components/icons/CloseIcon";
+import { XIcon } from "lucide-react";
 
 // A simple curated palette: the app's own brand colors first, then a broader range for presentation content.
 const COLORS = [
@@ -127,7 +127,7 @@ export function ColorPanel() {
       className="flex w-72 shrink-0 flex-col overflow-y-auto border-r border-border-default bg-bg-surface p-5"
     >
       <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-[15px] font-semibold text-text-primary">
+        <h2 className="text-[15px] font-extrabold text-text-primary">
           {boxTarget === "fill" ? "Box fill" : boxTarget === "border" ? "Box border" : "Color"}
         </h2>
         <button
@@ -136,7 +136,7 @@ export function ColorPanel() {
           title="Close (Esc)"
           className="flex h-8 w-8 items-center justify-center rounded-dropdown text-text-primary hover:bg-bg-page"
         >
-          <CloseIcon />
+          <XIcon size={16} />
         </button>
       </div>
 
@@ -219,7 +219,7 @@ function Swatch({ title, background, bordered, selected, onClick }: SwatchProps)
       style={{
         background,
         border: bordered ? "1px solid var(--border-default)" : undefined,
-        outline: selected ? "2px solid var(--accent-navy)" : "2px solid transparent",
+        outline: selected ? "2px solid var(--accent)" : "2px solid transparent",
         outlineOffset: 2,
       }}
     />

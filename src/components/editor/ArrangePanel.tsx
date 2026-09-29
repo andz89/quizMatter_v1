@@ -5,6 +5,21 @@ import { moveInLayers, useEditorStore, type LayerMove } from "@/lib/store";
 import { getContainerBounds, type BoxLayout } from "@/lib/constants";
 import { fitInBox, getOuterEdges } from "@/lib/geometry";
 import type { SvgElement } from "@/lib/schema";
+import {
+  AlignCenterHorizontalIcon,
+  AlignCenterVerticalIcon,
+  AlignEndHorizontalIcon,
+  AlignEndVerticalIcon,
+  AlignHorizontalDistributeCenterIcon,
+  AlignStartHorizontalIcon,
+  AlignStartVerticalIcon,
+  AlignVerticalDistributeCenterIcon,
+  ArrowDownIcon,
+  ArrowDownToLineIcon,
+  ArrowUpIcon,
+  ArrowUpToLineIcon,
+  ScalingIcon,
+} from "lucide-react";
 
 type AlignMode = "left" | "center" | "right" | "top" | "middle" | "bottom";
 
@@ -87,11 +102,11 @@ export function ArrangePanel({ slideId, box, elements }: ArrangePanelProps) {
 
   const ids = elements.map((el) => el.id);
   // A button is off when the move would change nothing (e.g. "to front" on the top element).
-  const layerButton = (move: LayerMove, title: string, d: string) => {
+  const layerButton = (move: LayerMove, title: string, icon: ReactNode) => {
     const canMove = !!slideElements && moveInLayers(slideElements, ids, move) !== slideElements;
     return (
       <ToolButton title={title} disabled={!canMove} onClick={() => moveElementsInLayers(slideId, ids, move)}>
-        <AlignIcon d={d} />
+        {icon}
       </ToolButton>
     );
   };
@@ -99,10 +114,10 @@ export function ArrangePanel({ slideId, box, elements }: ArrangePanelProps) {
   return (
     <>
       <Section label="Layer">
-        {layerButton("forward", "Bring forward (Ctrl+])", "M8 13V3M4.5 6.5 8 3l3.5 3.5")}
-        {layerButton("front", "Bring to front (Ctrl+Alt+])", "M8 14V5M4.5 8.5 8 5l3.5 3.5M3 2h10")}
-        {layerButton("backward", "Send backward (Ctrl+[)", "M8 3v10M4.5 9.5 8 13l3.5-3.5")}
-        {layerButton("back", "Send to back (Ctrl+Alt+[)", "M8 2v9M4.5 7.5 8 11l3.5-3.5M3 14h10")}
+        {layerButton("forward", "Bring forward (Ctrl+])", <ArrowUpIcon size={16} />)}
+        {layerButton("front", "Bring to front (Ctrl+Alt+])", <ArrowUpToLineIcon size={16} />)}
+        {layerButton("backward", "Send backward (Ctrl+[)", <ArrowDownIcon size={16} />)}
+        {layerButton("back", "Send to back (Ctrl+Alt+[)", <ArrowDownToLineIcon size={16} />)}
       </Section>
 
       <Section
@@ -116,7 +131,7 @@ export function ArrangePanel({ slideId, box, elements }: ArrangePanelProps) {
                   type="button"
                   onClick={() => setAlignTo(option)}
                   className={`rounded-[6px] px-2 py-0.5 text-xs font-semibold capitalize ${
-                    alignTo === option ? "bg-accent-navy text-white" : "text-text-secondary hover:text-text-primary"
+                    alignTo === option ? "bg-accent text-white" : "text-text-secondary hover:text-text-primary"
                   }`}
                 >
                   {option === "box" ? boxName : option}
@@ -127,22 +142,22 @@ export function ArrangePanel({ slideId, box, elements }: ArrangePanelProps) {
         }
       >
         <ToolButton title={alignHint ?? "Align left"} disabled={!canAlign} onClick={() => align("left")}>
-          <AlignIcon d="M2 1.5v13M4.5 4h8M4.5 10h5" />
+          <AlignStartVerticalIcon size={16} />
         </ToolButton>
         <ToolButton title={alignHint ?? "Align center"} disabled={!canAlign} onClick={() => align("center")}>
-          <AlignIcon d="M8 1.5v13M3.5 4h9M5 10h6" />
+          <AlignCenterVerticalIcon size={16} />
         </ToolButton>
         <ToolButton title={alignHint ?? "Align right"} disabled={!canAlign} onClick={() => align("right")}>
-          <AlignIcon d="M14 1.5v13M3.5 4h8M6.5 10h5" />
+          <AlignEndVerticalIcon size={16} />
         </ToolButton>
         <ToolButton title={alignHint ?? "Align top"} disabled={!canAlign} onClick={() => align("top")}>
-          <AlignIcon d="M1.5 2h13M4 4.5v8M10 4.5v5" />
+          <AlignStartHorizontalIcon size={16} />
         </ToolButton>
         <ToolButton title={alignHint ?? "Align middle"} disabled={!canAlign} onClick={() => align("middle")}>
-          <AlignIcon d="M1.5 8h13M4 3.5v9M10 5v6" />
+          <AlignCenterHorizontalIcon size={16} />
         </ToolButton>
         <ToolButton title={alignHint ?? "Align bottom"} disabled={!canAlign} onClick={() => align("bottom")}>
-          <AlignIcon d="M1.5 14h13M4 3.5v8M10 6.5v5" />
+          <AlignEndHorizontalIcon size={16} />
         </ToolButton>
       </Section>
 
@@ -154,14 +169,14 @@ export function ArrangePanel({ slideId, box, elements }: ArrangePanelProps) {
               disabled={!isSameContainer || elements.length < 3}
               onClick={() => distribute("x")}
             >
-              <AlignIcon d="M1.5 2v12M14.5 2v12M6 5v6M10 5v6" />
+              <AlignHorizontalDistributeCenterIcon size={16} />
             </ToolButton>
             <ToolButton
               title={alignHint ?? (elements.length < 3 ? "Select 3 or more items" : "Space evenly down")}
               disabled={!isSameContainer || elements.length < 3}
               onClick={() => distribute("y")}
             >
-              <AlignIcon d="M2 1.5h12M2 14.5h12M5 6h6M5 10h6" />
+              <AlignVerticalDistributeCenterIcon size={16} />
             </ToolButton>
           </Section>
 
@@ -172,7 +187,7 @@ export function ArrangePanel({ slideId, box, elements }: ArrangePanelProps) {
               onClick={matchSize}
               className="flex h-8 items-center gap-2 rounded-dropdown px-2 text-sm font-semibold text-text-primary hover:bg-bg-page"
             >
-              <AlignIcon d="M2 2h5v5H2zM9 9h5v5H9z" />
+              <ScalingIcon size={16} />
               Same size
             </button>
           </Section>
@@ -214,13 +229,5 @@ function ToolButton({ title, disabled, onClick, children }: ToolButtonProps) {
         {children}
       </button>
     </span>
-  );
-}
-
-function AlignIcon({ d }: { d: string }) {
-  return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d={d} />
-    </svg>
   );
 }

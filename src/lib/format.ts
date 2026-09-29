@@ -19,3 +19,8 @@ export function timeAgo(time: number, now: number): string {
 export function slideCountLabel(count: number): string {
   return `${count} ${count === 1 ? "slide" : "slides"}`;
 }
+
+/** "By Ms. Cruz · Published by andz": who wrote it (the Author detail) and whose account shared it. */
+export function publishedByLine(author: string, publisherName: string | undefined): string {
+  return joinParts([author && `By ${author}`, publisherName && `Published by ${publisherName}`]);
+}

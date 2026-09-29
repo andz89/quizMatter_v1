@@ -189,10 +189,10 @@ export function QuestionContainer({
                 height: slide.questionHeight,
                 marginLeft: QUESTION_NUMBER_INDENT,
               }),
-          borderColor: isSelected ? "var(--accent-navy)" : "transparent",
+          borderColor: isSelected ? "var(--accent)" : "transparent",
           background:
             isDragOver || isElementDragOver
-              ? "rgba(25, 26, 44, 0.05)"
+              ? "color-mix(in srgb, var(--accent) 5%, transparent)"
               : undefined,
         }}
       >
@@ -244,7 +244,7 @@ export function QuestionContainer({
               onClick={(e) => e.stopPropagation()}
               title="Resize"
               className={`absolute z-30 rounded-full border-2 border-white shadow-sm ${handle.className}`}
-              style={{ background: "var(--accent-navy)" }}
+              style={{ background: "var(--accent)" }}
             />
           ))}
         {!isMovable && (

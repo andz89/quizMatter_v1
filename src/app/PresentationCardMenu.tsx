@@ -11,6 +11,7 @@ import type { Presentation } from "@/lib/schema";
 import { loadPeopleArt, usesPeopleArt } from "@/lib/peopleArt";
 import { getDraftPresentation, getPresentation, removePresentations } from "./actions";
 import type { PresentationCardData } from "./PresentationCard";
+import { EllipsisVerticalIcon } from "lucide-react";
 
 const itemClass = "block w-full px-3 py-1.5 text-left text-sm text-text-primary transition-colors hover:bg-bg-page";
 
@@ -92,7 +93,7 @@ export function PresentationCardMenu({ card }: { card: PresentationCardData }) {
         aria-expanded={isOpen}
         className="flex h-7 w-7 items-center justify-center rounded-full border border-border-default bg-bg-surface text-text-primary transition-colors hover:bg-bg-page"
       >
-        <DotsIcon />
+        <EllipsisVerticalIcon size={16} />
       </button>
 
       {/* Opens to the left of the button, so it fits inside the card (the phone row clips anything taller). */}
@@ -126,14 +127,4 @@ async function loadDraft(id: string): Promise<Presentation | null> {
   const built = buildSlides({ slides: draft.slides });
   if ("errors" in built) return null;
   return { ...createBlankPresentation(draft.details), id, slides: built.slides };
-}
-
-function DotsIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-      <circle cx="8" cy="3.5" r="1.25" />
-      <circle cx="8" cy="8" r="1.25" />
-      <circle cx="8" cy="12.5" r="1.25" />
-    </svg>
-  );
 }

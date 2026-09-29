@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Logo } from "@/components/Logo";
 import { createClient } from "@/lib/supabase/client";
 
 // No sign up: users are added by hand in the Supabase dashboard (Authentication → Users).
@@ -29,9 +30,10 @@ export default function LoginPage() {
   };
 
   return (
-    <main className="flex flex-1 items-center justify-center px-4">
+    <main className="flex flex-1 flex-col items-center justify-center gap-6 px-4">
+      <Logo size={36} />
       <form onSubmit={logIn} className="w-full max-w-sm rounded-card border border-border-default bg-bg-surface px-5 py-6">
-        <h1 className="mb-5 text-base font-semibold text-text-primary">Log in to quizMatter</h1>
+        <h1 className="mb-5 text-base font-extrabold text-text-primary">Log in</h1>
 
         <label className="mb-1 block text-[11px] font-bold tracking-[0.05em] text-text-header uppercase">Email</label>
         <input
@@ -53,12 +55,12 @@ export default function LoginPage() {
           className={inputClass}
         />
 
-        {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
+        {error && <p className="mt-3 text-sm text-danger-strong">{error}</p>}
 
         <button
           type="submit"
           disabled={isLoggingIn}
-          className="mt-5 w-full rounded-button bg-accent-navy px-4 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
+          className="mt-5 w-full rounded-button bg-accent btn-press px-4 py-2.5 text-sm font-semibold text-white hover:bg-accent-hover disabled:opacity-60"
         >
           {isLoggingIn ? "Logging in…" : "Log in"}
         </button>

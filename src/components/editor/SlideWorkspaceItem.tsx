@@ -23,7 +23,7 @@ interface SlideWorkspaceItemProps {
   prevSlideId?: string;
   nextSlideId?: string;
   canDelete: boolean;
-  // A slide dragged from the Presentations panel will go right before/after this one: a navy line shows where.
+  // A slide dragged from the Presentations panel will go right before/after this one: a violet line shows where.
   dropSide?: "before" | "after";
   registerNode: (slideId: string, node: HTMLDivElement | null) => void;
 }
@@ -85,7 +85,7 @@ export const SlideWorkspaceItem = memo(function SlideWorkspaceItem({
       {/* In the middle of the 40px gap between slides (Workspace's SLIDE_GAP). */}
       {dropSide && (
         <div
-          className="pointer-events-none absolute inset-x-0 h-[3px] rounded-full bg-accent-navy"
+          className="pointer-events-none absolute inset-x-0 h-[3px] rounded-full bg-accent"
           style={dropSide === "before" ? { top: -22 } : { bottom: -22 }}
         />
       )}

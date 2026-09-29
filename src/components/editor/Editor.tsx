@@ -14,6 +14,7 @@ import { ColorPanel } from "./ColorPanel";
 import { BackgroundPanel } from "./BackgroundPanel";
 import { DetailsPanel } from "./DetailsPanel";
 import { PresentationsPanel } from "./PresentationsPanel";
+import { SmallScreenNote } from "./SmallScreenNote";
 import { Spinner } from "@/components/Spinner";
 import type { Presentation } from "@/lib/schema";
 
@@ -114,16 +115,21 @@ export function Editor({ presentation, draft }: { presentation: Presentation; dr
   return (
     <div className="flex h-screen flex-col">
       <EditorTopBar />
-      <div className="flex flex-1 overflow-hidden">
+      <div className="relative flex flex-1 overflow-hidden">
         <IconRail />
-        {isElementsPanelOpen && <ElementsPanel />}
-        {isPhotosPanelOpen && <PhotosPanel />}
-        {isColorPanelOpen && <ColorPanel />}
-        {isBackgroundPanelOpen && <BackgroundPanel />}
-        {isDetailsPanelOpen && <DetailsPanel />}
-        {isPresentationsPanelOpen && <PresentationsPanel />}
+        {/* On laptops and bigger, an open panel sits beside the slides. On smaller screens it opens over them
+            (next to the icon rail) and is kept narrower than the screen, so the slide isn't squeezed. */}
+        <div className="absolute inset-y-0 left-24 z-30 flex max-w-[calc(100%-6rem)] max-lg:[&>*]:max-w-full lg:static lg:max-w-none">
+          {isElementsPanelOpen && <ElementsPanel />}
+          {isPhotosPanelOpen && <PhotosPanel />}
+          {isColorPanelOpen && <ColorPanel />}
+          {isBackgroundPanelOpen && <BackgroundPanel />}
+          {isDetailsPanelOpen && <DetailsPanel />}
+          {isPresentationsPanelOpen && <PresentationsPanel />}
+        </div>
         <Workspace />
       </div>
+      <SmallScreenNote />
       {isGridViewOpen && <SlideGridModal />}
       {isPresenting && <PresentationView />}
     </div>

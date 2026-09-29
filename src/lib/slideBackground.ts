@@ -26,21 +26,8 @@ export const BACKGROUND_COLORS = [
 // How solid a pattern is, in percent: faint by default so the text on top stays easy to read.
 export const DEFAULT_PATTERN_OPACITY = 25;
 export const PATTERN_OPACITY_RANGE = { min: 5, max: 100 };
-// Text is dark, so backgrounds must stay light (0 = black, 1 = white).
-const MIN_BACKGROUND_LIGHTNESS = 0.85;
 // What a pattern sits on when the slide has no color of its own (the plain white surface).
 const PLAIN_SLIDE_COLOR = "#FFFFFF";
-
-/** A dark color mixed with white until it's light enough to read dark text on. */
-export function lighten(hex: string): string {
-  const rgb = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
-  const lightness = (c: number[]) => (0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2]) / 255;
-  let mixed = rgb;
-  for (let white = 0.1; lightness(mixed) < MIN_BACKGROUND_LIGHTNESS; white += 0.1) {
-    mixed = rgb.map((c) => Math.round(c + (255 - c) * Math.min(1, white)));
-  }
-  return `#${mixed.map((c) => c.toString(16).padStart(2, "0")).join("")}`;
-}
 
 /**
  * A library pattern as slide artwork (SVG markup). The pattern card is repeated 4×4, so its shapes are

@@ -31,6 +31,7 @@ import { EmbedSlideEditor } from "./EmbedSlide";
 import { isEmbedSlide } from "@/lib/embed";
 import { getSlideBackgroundStyle, QuestionNumberBadge } from "@/components/presentation/SlideStaticView";
 import type { Slide } from "@/lib/schema";
+import { PlusIcon } from "lucide-react";
 
 const CANVAS_BOUNDS = { width: CANVAS_WIDTH, height: CANVAS_HEIGHT };
 
@@ -100,7 +101,7 @@ export function SlideCanvas({ slide, questionNumber }: SlideCanvasProps) {
         width: CANVAS_WIDTH,
         height: CANVAS_HEIGHT,
         ...getSlideBackgroundStyle(slide),
-        borderColor: isCanvasDragOver ? "var(--accent-navy)" : "var(--border-default)",
+        borderColor: isCanvasDragOver ? "var(--accent)" : "var(--border-default)",
       }}
       {...(isSlideDropTarget ? canvasDropHandlers : {})}
       onClick={(e) => {
@@ -138,9 +139,7 @@ export function SlideCanvas({ slide, questionNumber }: SlideCanvasProps) {
                 onClick={() => addShapeBox(slide.id)}
                 className="pointer-events-auto absolute -right-[34px] flex h-7 w-7 items-center justify-center rounded-full border border-border-default bg-bg-surface text-text-primary hover:bg-bg-page"
               >
-                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5">
-                  <path d="M7 2.5V11.5M2.5 7H11.5" strokeLinecap="round" />
-                </svg>
+                <PlusIcon size={14} />
               </button>
             </div>
           )}

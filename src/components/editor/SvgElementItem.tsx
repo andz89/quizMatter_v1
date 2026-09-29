@@ -20,6 +20,7 @@ import {
 } from "@/lib/geometry";
 import { boxForShownPart, getCropFrame, toCrop, type CropFrame } from "@/lib/crop";
 import type { SvgElement } from "@/lib/schema";
+import { RotateCwIcon } from "lucide-react";
 
 const ROTATE_SNAP = 15;
 // How close (in screen pixels) an edge or center must get to a line before it snaps onto it.
@@ -259,7 +260,7 @@ export const SvgElementItem = memo(function SvgElementItem({ slideId, element, i
       rawDy += snap.y.shift;
     }
 
-    // Keep the moved selection inside its box (or, on the slide, at least 10% of it on the slide).
+    // Keep the moved selection inside its box (or, on the slide, at least 50% of it on the slide).
     const rangeX = positionRange(maxX - minX, bounds.width, overhang);
     const rangeY = positionRange(maxY - minY, bounds.height, overhang);
     const dx = clamp(rawDx, rangeX.min - minX, rangeX.max - minX);
@@ -611,7 +612,7 @@ export const SvgElementItem = memo(function SvgElementItem({ slideId, element, i
         height: element.height,
         transform: `rotate(${angle}deg)`,
         visibility: isGhosting ? "hidden" : "visible",
-        outline: isOnlySelected && showSelection ? "1.5px dashed var(--accent-gray)" : "1.5px dashed transparent",
+        outline: isOnlySelected && showSelection ? "1.5px dashed var(--text-header)" : "1.5px dashed transparent",
         outlineOffset: 3,
       }}
     >
@@ -625,7 +626,7 @@ export const SvgElementItem = memo(function SvgElementItem({ slideId, element, i
             width: cropFrame.width,
             height: cropFrame.height,
             opacity: 0.35,
-            outline: "1px solid var(--accent-gray)",
+            outline: "1px solid var(--text-header)",
           }}
         >
           <ElementSvg assetId={element.assetId} color={element.color} settings={{ ...element, crop: undefined }} />
@@ -684,7 +685,7 @@ export const SvgElementItem = memo(function SvgElementItem({ slideId, element, i
           title="Rotate (hold Shift to snap)"
           className="pointer-events-auto absolute -top-12 left-1/2 flex h-8 w-8 -translate-x-1/2 cursor-grab items-center justify-center rounded-full border border-border-default bg-bg-surface text-text-primary active:cursor-grabbing"
         >
-          <RotateIcon />
+          <RotateCwIcon size={18} />
         </div>
       )}
 
@@ -701,7 +702,7 @@ export const SvgElementItem = memo(function SvgElementItem({ slideId, element, i
             onClick={(e) => e.stopPropagation()}
             title="Resize"
             className={`pointer-events-auto absolute h-4 w-4 rounded-full border-2 border-white shadow-sm ${corner.className}`}
-            style={{ background: "var(--accent-navy)" }}
+            style={{ background: "var(--accent)" }}
           />
         ))}
 
@@ -720,7 +721,7 @@ export const SvgElementItem = memo(function SvgElementItem({ slideId, element, i
             onClick={(e) => e.stopPropagation()}
             title={handle.axis === "x" ? "Change width" : "Change height"}
             className={`pointer-events-auto absolute rounded-full border-2 border-white shadow-sm ${handle.className}`}
-            style={{ background: "var(--accent-navy)" }}
+            style={{ background: "var(--accent)" }}
           />
         ))}
 
@@ -736,7 +737,7 @@ export const SvgElementItem = memo(function SvgElementItem({ slideId, element, i
             onClick={(e) => e.stopPropagation()}
             title="Crop"
             className={`pointer-events-auto absolute rounded-full border-2 bg-white shadow-sm ${handle.className}`}
-            style={{ borderColor: "var(--accent-navy)" }}
+            style={{ borderColor: "var(--accent)" }}
           />
         ))}
     </div>
@@ -750,12 +751,3 @@ export const SvgElementItem = memo(function SvgElementItem({ slideId, element, i
   prev.part === next.part &&
   prev.bounds.width === next.bounds.width &&
   prev.bounds.height === next.bounds.height);
-
-export function RotateIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M13 8a5 5 0 1 1-1.5-3.55" />
-      <path d="M13 2.5v3h-3" />
-    </svg>
-  );
-}

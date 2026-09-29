@@ -44,7 +44,7 @@ export function GroupSelectionOverlay({ slideId, elements, bounds }: GroupSelect
   if (selected.length < 2 || isGhosting) return null;
 
   const { minX, minY, maxX, maxY } = getOuterEdges(selected);
-  // How much of the group may stick out past its box (0 = none; on the slide, 90%).
+  // How much of the group may stick out past its box (0 = none; on the slide, 50%).
   const overhang = overhangFor(selected[0].containerId);
   // A saved group gets a solid outline; a temporary multi-select keeps the dashed one.
   const isSavedGroup = !!selected[0].groupId && selected.every((el) => el.groupId === selected[0].groupId);
@@ -128,7 +128,7 @@ export function GroupSelectionOverlay({ slideId, elements, bounds }: GroupSelect
         top: minY,
         width: maxX - minX,
         height: maxY - minY,
-        outline: `1.5px ${isSavedGroup ? "solid" : "dashed"} var(--accent-navy)`,
+        outline: `1.5px ${isSavedGroup ? "solid" : "dashed"} var(--accent)`,
         outlineOffset: 6,
       }}
     >
@@ -143,7 +143,7 @@ export function GroupSelectionOverlay({ slideId, elements, bounds }: GroupSelect
           onClick={(e) => e.stopPropagation()}
           title="Resize group"
           className={`pointer-events-auto absolute h-4 w-4 rounded-full border-2 border-white shadow-sm ${corner.className}`}
-          style={{ background: "var(--accent-navy)" }}
+          style={{ background: "var(--accent)" }}
         />
       ))}
     </div>

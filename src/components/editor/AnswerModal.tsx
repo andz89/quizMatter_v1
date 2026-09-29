@@ -2,11 +2,11 @@
 
 import { useEffect } from "react";
 import { createPortal } from "react-dom";
-import { CloseIcon } from "@/components/icons/CloseIcon";
 import { ANSWER_CONTAINER_ID, hasReveal } from "@/lib/constants";
 import { FluidCanvas } from "@/components/presentation/FluidSlidePreview";
 import { StaticElementView } from "./StaticElementView";
 import type { Slide } from "@/lib/schema";
+import { XIcon } from "lucide-react";
 
 interface AnswerModalProps {
   slide: Slide;
@@ -46,7 +46,7 @@ export function AnswerModal({ slide, onClose }: AnswerModalProps) {
         }`}
       >
         <div className="flex items-center justify-between">
-          <span className="text-xs font-semibold uppercase tracking-[0.05em] text-accent-green">
+          <span className="text-xs font-semibold uppercase tracking-[0.05em] text-success-strong">
             {hasReveal(slide) ? "Reveal" : "Answer"}
           </span>
           <button
@@ -55,7 +55,7 @@ export function AnswerModal({ slide, onClose }: AnswerModalProps) {
             title="Close"
             className="flex h-8 w-8 items-center justify-center rounded-dropdown text-text-primary hover:bg-bg-page"
           >
-            <CloseIcon size={16} />
+            <XIcon size={16} />
           </button>
         </div>
 

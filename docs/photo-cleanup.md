@@ -23,6 +23,7 @@ The timer is `"triggers"` in `wrangler.jsonc`.
 1. **Asks Supabase which photos are still used** — one call to the database function
    `used_photo_srcs()`. It returns every photo address that is:
    - on any teacher's **My photos** list (the `photos` table), or
+   - on the **shared photos** list that admins upload for every teacher (the `shared_photos` table), or
    - inside any slide (it searches every row of the `slides` table).
    If this step fails, the job stops and deletes nothing.
 2. **Lists every file** in R2 under `uploads/`.
@@ -36,14 +37,32 @@ A new file is never deleted, even if nothing uses it yet. A teacher may put a ph
 save the presentation for a while. Until they save, the database doesn't know about the photo. The
 7 days give them time. (Claude's drafts only live 24 hours, so they're covered too.)
 
+## Seeing what will be deleted
+
+Admins can open **Admin → Photo cleanup** (`/admin/cleanup`). It uses the same steps as the job
+(`findUnusedPhotos()` in `src/lib/cleanupPhotos.ts`), so it shows exactly what the job will do:
+
+- the date of the next run,
+- **Deleted on the next run**: unused files old enough to go on the next run,
+- **Unused, deleted later**: unused files still under 7 days old, each with the date it will go.
+
+**Keep** saves a file, so the job skips it: a WebP file becomes a shared photo in the category you pick;
+a JPEG file (shared photos must be WebP) goes to your own My photos.
+
+The page asks the database with `admin_used_photo_srcs()`: the same list as `used_photo_srcs()`, but
+callable by a logged-in admin (anyone else gets an error), so no secret key is needed.
+
 ## Files
 
 | File | What it does |
 |---|---|
-| `src/lib/cleanupPhotos.ts` | The cleanup steps above |
+| `src/lib/cleanupPhotos.ts` | The cleanup steps above, shared with the admin page |
+| `src/app/admin/cleanup/` | The admin page "Photo cleanup" |
 | `worker.ts` | Wraps the app's Worker: visitors get the app as before; the timer runs the cleanup |
 | `wrangler.jsonc` | `main` points to `worker.ts`; `triggers` holds the timer; `vars` holds `SUPABASE_URL` |
 | `supabase/migrations/20260928010000_used_photos.sql` | The `used_photo_srcs()` database function |
+| `supabase/migrations/20260928020000_shared_photos.sql` | Adds shared photos, and updates `used_photo_srcs()` to keep them |
+| `supabase/migrations/20260929000000_admin_used_photos.sql` | `admin_used_photo_srcs()`, for the admin page |
 
 ## Setup (one time)
 
@@ -82,7 +101,8 @@ the job runs before they save, the file could be deleted. This is very unlikely,
 
 ## Changing it
 
-- **How often:** edit the cron line in `wrangler.jsonc` (e.g. `"0 3 * * *"` = every day at 3 AM UTC).
+- **How often:** edit the cron line in `wrangler.jsonc` (e.g. `"0 3 * * *"` = every day at 3 AM UTC),
+  and `nextCleanupRun()` in `src/lib/cleanupPhotos.ts` to match (the admin page shows the next run).
 - **How long new files are kept:** `KEEP_NEW_FILES_MS` in `src/lib/cleanupPhotos.ts`.
 - **If photos are stored somewhere new** (a new table, or a new column outside `slides.data`): add it
   to `used_photo_srcs()`, or the job will think those photos are unused and delete them.
