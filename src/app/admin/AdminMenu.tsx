@@ -7,6 +7,7 @@ import { LinkPending } from "@/components/LinkPending";
 // The admin pages. Add more here (e.g. teachers, usage numbers).
 const ITEMS = [
   { href: "/admin", label: "Photos" },
+  { href: "/admin/presentations", label: "Presentations" },
   { href: "/admin/cleanup", label: "Photo cleanup" },
 ];
 

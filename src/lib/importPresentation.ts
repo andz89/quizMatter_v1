@@ -504,6 +504,12 @@ When the user gives you a reference (a module or SLM, a lesson from a book, a wo
 - only the final assessment at the end.
 Wait for the answer, then build the presentation that way.
 
+End every presentation with a "References" slide: a blank slide titled "References" that lists, in "text", everything the content came from, one per line:
+- the references the user gave you (a module, book, lesson plan, worksheet, file or link), with the title, author and page or link when you know them;
+- every shared photo you used, with its "source" and file name (find_photos gives both; e.g. "Frog in a rainforest — Juan Cruz, Pexels");
+- any other source you used for facts or content.
+Never make up a reference. If there is nothing to list, leave the slide out.
+
 Also fill in "details" when you send it: the presentation's title, a short description, grade, subject, curriculum and learning competency (and author or reference links only when you know them).
 
 Leave a setting out and the app decides it. The layout report you get back (see "Checking before the final version") shows where everything landed.
@@ -609,7 +615,7 @@ How they look:
 Real photos:
 - The app has a library of shared photos, each with a file name, description and tags saying what it shows. When a slide really needs a real photo (a real frog, a volcano, a map), call find_photos with a few words (e.g. "frog rainforest") and pick the one whose description fits best.
 - Put it in "elements" like any picture: { "asset": "photo", "photo": { "src": …, "width": …, "height": … } }, copying "photo" exactly as find_photos returned it. "in", "size", "position", "callouts", "opacity", "rotation", "flipX" and "flipY" work on photos; "color", "crop" and the math/clock settings don't. Only use photos find_photos gave you: any other photo is refused.
-- A photo's "source" says who owns it or where it came from. When it has one, credit it on the slide in a small text box near the photo (e.g. "Photo: Juan Cruz, Pexels"), unless the user says not to.
+- A photo's "source" says who owns it or where it came from. When it has one, credit it on the slide in a small text box near the photo (e.g. "Photo: Juan Cruz, Pexels"), unless the user says not to. Also list it on the last slide, "References" (see above).
 - If find_photos has nothing that fits, leave room for a photo (e.g. a blank slide with "layout": "text-left" and no pictures on the right), and tell the user in your reply which slides need a photo and what it should show. The teacher can add one in the editor with the Photos button (upload from their computer, or paste a photo link).
 - For one photo that fills the whole slide from a link the user gave you, use an "image" embed slide instead.
 

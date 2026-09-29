@@ -8,44 +8,87 @@ import { parseSlide } from "@/lib/schema";
 import { NewPresentationButton } from "./PresentationListButtons";
 import { PresentationHome } from "./PresentationHome";
 import type { PresentationCardData } from "./PresentationCard";
+import type { AdminCardData } from "./PresentationHome";
+import { changedSince, homeSearchQuery, parseHomeSearch, type HomeSearch } from "./homeSearch";
 
 // How many published presentations from other teachers the home page shows.
 const OTHERS_LIMIT = 20;
 
+// How many matches each section shows while searching.
+const SEARCH_LIMIT = 50;
+
 // Each presentation's first slide only (for the card's picture), not all of them, to keep the page light.
 const CARD_COLUMNS =
-  "id, owner_id, title, grade, subject, author, is_published, updated_at, slides(count), first_slide:slides(data, position)";
+  "id, owner_id, title, grade, subject, author, is_published, created_at, updated_at, slides(count), first_slide:slides(data, position)";
 
-export default async function HomePage() {
+export default async function HomePage({ searchParams }: PageProps<"/">) {
+  const search = parseHomeSearch(await searchParams);
+  const isSearching = homeSearchQuery(search) !== "";
+  const since = changedSince(search);
   const supabase = await createClient();
   const { data: claims } = await supabase.auth.getClaims();
   const myId = claims?.claims.sub ?? "";
 
-  const [mine, others, drafts, account] = await Promise.all([
-    supabase
-      .from("presentations")
-      .select(CARD_COLUMNS)
-      .eq("owner_id", myId)
-      .order("updated_at", { ascending: false })
+  // Which rows a section takes. "From QuizMatter": what admins shared with every teacher (from Admin → Presentations).
+  const sections = {
+    // QuizMatter presentations an admin made are on Admin → Presentations, not in "mine".
+    mine: () => supabase.from("presentations").select(CARD_COLUMNS).eq("owner_id", myId).eq("from_admin", false),
+    quizmatter: () =>
+      supabase.from("presentations").select(CARD_COLUMNS).eq("is_published", true).eq("from_admin", true).neq("owner_id", myId),
+    teachers: () =>
+      supabase.from("presentations").select(CARD_COLUMNS).eq("is_published", true).eq("from_admin", false).neq("owner_id", myId),
+  };
+  // A section the search's "Look in" leaves out is simply empty.
+  const isLeftOut = (section: keyof typeof sections) => isSearching && search.in !== "all" && search.in !== section;
+
+  const load = (section: keyof typeof sections, limit?: number) => {
+    if (isLeftOut(section)) return Promise.resolve({ data: [], error: null });
+    let query = sections[section]();
+    if (isSearching) {
+      if (search.q) {
+        const pattern = contains(search.q);
+        query = query.or(`title.ilike.${pattern},subject.ilike.${pattern},author.ilike.${pattern}`);
+      }
+      if (search.title) query = query.ilike("title", contains(search.title));
+      if (search.subject) query = query.ilike("subject", contains(search.subject));
+      if (search.author) query = query.ilike("author", contains(search.author));
+      if (search.not) {
+        const pattern = contains(search.not);
+        query = query.not("title", "ilike", pattern).not("subject", "ilike", pattern).not("author", "ilike", pattern);
+      }
+      if (search.grade) query = query.eq("grade", search.grade);
+      if (since) query = query.gte("updated_at", new Date(since).toISOString());
+      limit = SEARCH_LIMIT;
+    }
+    query = query
+      .order(search.sort === "title" ? "title" : search.sort === "newest" ? "created_at" : "updated_at", { ascending: search.sort === "title" })
       .order("position", { referencedTable: "first_slide" })
-      .limit(1, { referencedTable: "first_slide" }),
-    supabase
-      .from("presentations")
-      .select(CARD_COLUMNS)
-      .eq("is_published", true)
-      .neq("owner_id", myId)
-      .order("updated_at", { ascending: false })
-      .order("position", { referencedTable: "first_slide" })
-      .limit(1, { referencedTable: "first_slide" })
-      .limit(OTHERS_LIMIT),
-    listDrafts(),
+      .limit(1, { referencedTable: "first_slide" });
+    return limit ? query.limit(limit) : query;
+  };
+
+  const [mine, fromAdmins, others, drafts, account] = await Promise.all([
+    load("mine"),
+    load("quizmatter"),
+    load("teachers", OTHERS_LIMIT),
+    // An admin's drafts from Claude become QuizMatter presentations, so they're on Admin → Presentations.
+    getAccount().then((account) => (account.isAdmin || isLeftOut("mine") ? [] : listDrafts())),
     getAccount(),
   ]);
   if (mine.error) throw mine.error;
+  if (fromAdmins.error) throw fromAdmins.error;
   if (others.error) throw others.error;
 
   const publisherNames = await loadPublisherNames(supabase, others.data.map((presentation) => presentation.owner_id));
-  const { myCards, otherCards } = buildCards(mine.data, others.data, drafts, publisherNames);
+  const { myCards, adminCards, otherCards } = buildCards(
+    mine.data,
+    fromAdmins.data,
+    others.data,
+    isSearching ? drafts.filter((draft) => draftMatches(draft, search, since)) : drafts,
+    publisherNames,
+    account.isAdmin,
+    search
+  );
 
   return (
     <>
@@ -60,9 +103,41 @@ export default async function HomePage() {
           <NewPresentationButton author={account.displayName} />
         </header>
 
-        <PresentationHome myCards={myCards} otherCards={otherCards} />
+        <PresentationHome
+          myCards={myCards}
+          adminCards={adminCards}
+          otherCards={otherCards}
+          search={search}
+          isSearching={isSearching}
+        />
       </main>
     </>
+  );
+}
+
+/**
+ * A "contains this text" (ilike) pattern. Characters that mean something to the database (like % or a comma)
+ * become _, which matches any one letter. So "50%" still finds "50%", and can't break the query.
+ */
+function contains(text: string): string {
+  return `%${text.replace(/[%_*,()"\\]/g, "_")}%`;
+}
+
+/**
+ * Claude's drafts aren't in the database yet, so they're checked here the same way the database checks the rest.
+ * Drafts have no author, so an Author search leaves them out.
+ */
+function draftMatches(draft: DraftSummary, search: HomeSearch, since: number): boolean {
+  const has = (text: string, part: string) => text.toLowerCase().includes(part.toLowerCase());
+  const details = `${draft.title} ${draft.subject}`;
+  return (
+    has(details, search.q) &&
+    has(draft.title, search.title) &&
+    has(draft.subject, search.subject) &&
+    !search.author &&
+    (!search.not || !has(details, search.not)) &&
+    (!search.grade || draft.grade === search.grade) &&
+    draft.createdAt >= since
   );
 }
 
@@ -74,20 +149,34 @@ type CardPresentation = {
   subject: string;
   author: string;
   is_published: boolean;
+  created_at: string;
   updated_at: string;
   slides: { count: number }[];
   first_slide: { data: unknown }[];
 };
 
-/** My presentations and Claude's drafts (newest first), and other teachers' published presentations, as cards. */
-function buildCards(mine: CardPresentation[], others: CardPresentation[], drafts: DraftSummary[], publisherNames: Map<string, string>) {
+/**
+ * My presentations and Claude's drafts (in the search's order), the ones admins shared ("From QuizMatter"), and other
+ * teachers' published presentations, as cards.
+ */
+function buildCards(
+  mine: CardPresentation[],
+  fromAdmins: CardPresentation[],
+  others: CardPresentation[],
+  drafts: DraftSummary[],
+  publisherNames: Map<string, string>,
+  isAdmin: boolean,
+  search: HomeSearch
+) {
   const now = Date.now();
   const savedIds = new Set(mine.map((presentation) => presentation.id));
-  const myCards: (PresentationCardData & { sortTime: number })[] = [
+  const myCards: (PresentationCardData & { createdAt: number; updatedAt: number })[] = [
     ...mine.map((presentation) => ({
       ...toCard(presentation, `/presentation/${presentation.id}/edit`, now),
       badge: presentation.is_published ? ("published" as const) : undefined,
-      sortTime: Date.parse(presentation.updated_at),
+      canMoveToQuizMatter: isAdmin,
+      createdAt: Date.parse(presentation.created_at),
+      updatedAt: Date.parse(presentation.updated_at),
     })),
     // Claude's drafts that aren't saved yet (see /presentations). Their slides are only a recipe, so no picture.
     ...drafts
@@ -99,16 +188,30 @@ function buildCards(mine: CardPresentation[], others: CardPresentation[], drafts
         meta: joinParts([draft.grade, draft.subject, slideCountLabel(draft.slideCount), timeAgo(draft.createdAt, now)]),
         firstSlide: null,
         badge: ({ ready: "draft", checking: "checking", unfinished: "unfinished" } as const)[draft.state],
-        sortTime: draft.createdAt,
+        createdAt: draft.createdAt,
+        updatedAt: draft.createdAt,
       })),
-  ].sort((a, b) => b.sortTime - a.sortTime);
+    // Drafts are mixed in, so the order the database gave is sorted again here.
+  ].sort(
+    search.sort === "title"
+      ? (a, b) => a.title.localeCompare(b.title)
+      : search.sort === "newest"
+        ? (a, b) => b.createdAt - a.createdAt
+        : (a, b) => b.updatedAt - a.updatedAt
+  );
+
+  const adminCards: AdminCardData[] = fromAdmins.map((presentation) => ({
+    ...toCard(presentation, `/presentation/${presentation.id}`, now),
+    createdAt: Date.parse(presentation.created_at),
+    updatedAt: Date.parse(presentation.updated_at),
+  }));
 
   const otherCards = others.map((presentation) => ({
     ...toCard(presentation, `/presentation/${presentation.id}`, now),
     byline: publishedByLine(presentation.author, publisherNames.get(presentation.owner_id)),
   }));
 
-  return { myCards, otherCards };
+  return { myCards, adminCards, otherCards };
 }
 
 function toCard(presentation: CardPresentation, href: string, now: number): PresentationCardData {

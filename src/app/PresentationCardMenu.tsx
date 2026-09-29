@@ -10,6 +10,8 @@ import { buildSlides } from "@/lib/importPresentation";
 import type { Presentation } from "@/lib/schema";
 import { loadPeopleArt, usesPeopleArt } from "@/lib/peopleArt";
 import { getDraftPresentation, getPresentation, removePresentations } from "./actions";
+import { moveToQuizMatter } from "./admin/presentations/actions";
+import { toast } from "sonner";
 import type { PresentationCardData } from "./PresentationCard";
 import { EllipsisVerticalIcon } from "lucide-react";
 
@@ -17,7 +19,7 @@ const itemClass = "block w-full px-3 py-1.5 text-left text-sm text-text-primary 
 
 /**
  * The "⋮" button on my presentation cards, with Edit, Present and Delete (Remove for Claude's drafts). A
- * draft Claude is still checking can only be removed.
+ * draft Claude is still checking can only be removed. Admins also get "Move to QuizMatter" (see canMoveToQuizMatter).
  */
 export function PresentationCardMenu({ card }: { card: PresentationCardData }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -76,6 +78,18 @@ export function PresentationCardMenu({ card }: { card: PresentationCardData }) {
     if (!ok) alert("Couldn't delete the presentation. Please try again.");
   };
 
+  const moveToAdminList = async () => {
+    setIsOpen(false);
+    const question = `Move "${card.title}" to QuizMatter presentations (Admin → Presentations)? It goes there as a draft: teachers only get it after you share it.`;
+    if (!confirm(question)) return;
+    setIsBusy(true);
+    // On success the page reloads its list and this card goes away.
+    const ok = await moveToQuizMatter(card.id);
+    setIsBusy(false);
+    if (ok) toast.success("Moved to Admin → Presentations.");
+    else toast.error("Couldn't move the presentation. Please try again.");
+  };
+
   if (isBusy) {
     return (
       <span className="absolute top-5 right-5 z-20 flex h-7 w-7 items-center justify-center rounded-full bg-bg-surface">
@@ -98,7 +112,7 @@ export function PresentationCardMenu({ card }: { card: PresentationCardData }) {
 
       {/* Opens to the left of the button, so it fits inside the card (the phone row clips anything taller). */}
       {isOpen && (
-        <div className="absolute top-0 right-9 w-32 overflow-hidden rounded-dropdown border border-border-default bg-bg-surface py-1">
+        <div className="absolute top-0 right-9 w-44 overflow-hidden rounded-dropdown border border-border-default bg-bg-surface py-1">
           {card.badge !== "checking" && (
             // Stays open on click, so the top line (inside the link) keeps showing until the editor opens.
             <Link href={card.href} className={itemClass}>
@@ -109,6 +123,11 @@ export function PresentationCardMenu({ card }: { card: PresentationCardData }) {
           {card.badge !== "checking" && (
             <button type="button" onClick={present} className={itemClass}>
               Present
+            </button>
+          )}
+          {card.canMoveToQuizMatter && (
+            <button type="button" onClick={moveToAdminList} className={itemClass}>
+              Move to QuizMatter
             </button>
           )}
           <button type="button" onClick={remove} className={itemClass}>

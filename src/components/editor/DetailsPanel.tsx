@@ -13,6 +13,8 @@ import { ExternalLinkIcon, XIcon } from "lucide-react";
  * Sidebar panel for the presentation as a whole: title, description, grade, subject, curriculum,
  * learning competency, author, references, and private/published. All optional. Edits count as unsaved
  * changes until Save, like any other edit — except private/published, which saves right away.
+ * For a QuizMatter presentation (made on Admin → Presentations) it's draft/shared instead: shared means every
+ * teacher gets it under "From QuizMatter".
  */
 export function DetailsPanel() {
   const closeDetailsPanel = useEditorStore((s) => s.closeDetailsPanel);
@@ -23,6 +25,7 @@ export function DetailsPanel() {
   const [pendingVisibility, setPendingVisibility] = useState<boolean | null>(null);
   const presentation = useEditorStore((s) => s.presentation);
   const publishedBy = useLoggedInEmail();
+  const isAdmin = presentation.fromAdmin;
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -38,8 +41,9 @@ export function DetailsPanel() {
     const saved = await setPublished(isPublished);
     setPendingVisibility(null);
     if (!saved) toast.error("Couldn't change it. Please try again.");
-    else if (isPublished) toast.success("Presentation published — other teachers can see it now.");
-    else toast.success("Presentation is private now.");
+    else if (isPublished)
+      toast.success(isAdmin ? "Shared — every teacher has it now." : "Presentation published — other teachers can see it now.");
+    else toast.success(isAdmin ? "Back to a draft — only you can see it." : "Presentation is private now.");
   };
 
   const textField = (key: keyof typeof DETAIL_MAX_LENGTH, label: string, placeholder: string, multiline = false) => (
@@ -110,8 +114,8 @@ export function DetailsPanel() {
       <Field label="Visibility">
         <div className="grid grid-cols-2 gap-1 rounded-button bg-bg-page p-1">
           {[
-            { label: "Private", value: false },
-            { label: "Published", value: true },
+            { label: isAdmin ? "Draft" : "Private", value: false },
+            { label: isAdmin ? "Shared" : "Published", value: true },
           ].map(({ label, value }) => (
             <button
               key={label}
@@ -130,6 +134,8 @@ export function DetailsPanel() {
           ))}
         </div>
       </Field>
+
+      {isAdmin && <p className="-mt-3 text-[13px] text-text-secondary">Shared presentations go to every teacher, under “From QuizMatter”.</p>}
 
       <Field label="Published by">
         <p className="truncate text-sm text-text-primary">{publishedBy ?? "—"}</p>

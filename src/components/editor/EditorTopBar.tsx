@@ -75,10 +75,12 @@ export function EditorTopBar() {
 
 /** Asks before leaving when there are unsaved changes (the browser's own "Leave page?" doesn't cover in-app links). */
 function BackToPresentationsLink() {
+  // QuizMatter presentations are made on the admin page, so they go back there.
+  const fromAdmin = useEditorStore((s) => s.presentation.fromAdmin);
   return (
     <Link
-      href="/"
-      title="My presentations"
+      href={fromAdmin ? "/admin/presentations" : "/"}
+      title={fromAdmin ? "QuizMatter presentations" : "My presentations"}
       onClick={(e) => {
         const { presentation, savedPresentation } = useEditorStore.getState();
         if (presentation !== savedPresentation && !confirm("You have unsaved changes. Leave without saving?")) e.preventDefault();

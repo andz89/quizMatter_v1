@@ -56,7 +56,7 @@ export function PresentationPreview({
     // Slide ids can stay: a slide's id only has to be unique inside its own presentation.
     // "Copy of …" so it's easy to tell apart from the original. `author` stays: it credits who wrote the content.
     const title = `Copy of ${presentation.title || "Untitled presentation"}`.slice(0, DETAIL_MAX_LENGTH.title);
-    const copy = { ...presentation, id: createId(), title, isPublished: false, createdAt: now, updatedAt: now };
+    const copy = { ...presentation, id: createId(), title, isPublished: false, fromAdmin: false, createdAt: now, updatedAt: now };
     try {
       await savePresentationToDb(copy);
       // isCopying stays true, so the spinner and top line keep showing until the editor opens.

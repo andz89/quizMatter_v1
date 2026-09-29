@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createBlankPresentation } from "@/lib/factories";
 import { getDraft } from "@/lib/drafts";
+import { getAccount } from "@/lib/account";
 import { createClient } from "@/lib/supabase/server";
 import { PresentationEditor } from "../[id]/edit/PresentationEditor";
 
@@ -11,6 +12,8 @@ import { PresentationEditor } from "../[id]/edit/PresentationEditor";
  *
  * The new presentation takes the draft's id, so once it's saved the presentation list knows this draft is done
  * (and hides it), and opening the link again opens the saved presentation instead of a second copy.
+ *
+ * When an admin opens it, it becomes a QuizMatter presentation (Admin → Presentations), not one of their own.
  */
 export default async function NewPresentationFromClaudePage({ searchParams }: PageProps<"/presentation/new">) {
   const { draft: draftId } = await searchParams;
@@ -20,7 +23,7 @@ export default async function NewPresentationFromClaudePage({ searchParams }: Pa
   const { data: savedPresentation } = await supabase.from("presentations").select("id").eq("id", draftId).maybeSingle();
   if (savedPresentation) redirect(`/presentation/${draftId}/edit`);
 
-  const draft = await getDraft(draftId);
+  const [draft, { isAdmin }] = await Promise.all([getDraft(draftId), getAccount()]);
   if (!draft) {
     return (
       <main className="flex flex-1 items-center justify-center px-4">
@@ -37,6 +40,6 @@ export default async function NewPresentationFromClaudePage({ searchParams }: Pa
     );
   }
 
-  const presentation = { ...createBlankPresentation(draft.details), id: draftId };
+  const presentation = { ...createBlankPresentation(draft.details), id: draftId, fromAdmin: isAdmin };
   return <PresentationEditor presentation={presentation} draft={{ slides: draft.slides }} />;
 }

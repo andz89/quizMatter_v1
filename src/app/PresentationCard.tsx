@@ -18,6 +18,8 @@ export type PresentationCardData = {
   badge?: "draft" | "published" | "checking" | "unfinished";
   // "By <author> · Published by <name>" on other teachers' presentations (parts not filled in are left out).
   byline?: string;
+  // Adds "Move to QuizMatter" to the card's menu (an admin's own saved presentations only).
+  canMoveToQuizMatter?: boolean;
 };
 
 /**

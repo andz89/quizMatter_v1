@@ -78,6 +78,7 @@ export function createBlankPresentation(details: Partial<PresentationDetails> = 
     author: "",
     referenceLinks: [],
     isPublished: false,
+    fromAdmin: false,
     ...details,
     slides: [createSampleSlide()],
     createdAt: now,

@@ -18,8 +18,11 @@ export default async function AllPresentationsPage() {
       .select("id, title, grade, subject, is_published, updated_at, slides(count)")
       // Other teachers' published presentations are readable too, so only take mine.
       .eq("owner_id", claims?.claims.sub ?? "")
+      // QuizMatter presentations an admin made are on Admin → Presentations, not here.
+      .eq("from_admin", false)
       .order("updated_at", { ascending: false }),
-    listDrafts(),
+    // An admin's drafts from Claude become QuizMatter presentations, so they're on Admin → Presentations.
+    getAccount().then((account) => (account.isAdmin ? [] : listDrafts())),
     getAccount(),
   ]);
   if (error) throw error;

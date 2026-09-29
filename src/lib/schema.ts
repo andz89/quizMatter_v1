@@ -314,6 +314,9 @@ export const presentationSchema = z.object({
   referenceLinks: z.array(referenceSchema).max(MAX_REFERENCE_LINKS),
   // Private (only the owner sees it) or published (other teachers see it on their home page and can copy it).
   isPublished: z.boolean(),
+  // Made by an admin on Admin → Presentations: once shared, every teacher gets it under "From QuizMatter".
+  // Saved only on the first save (and only an admin may save true), so it can't be changed later.
+  fromAdmin: z.boolean(),
   slides: z.array(slideSchema),
   createdAt: z.number(),
   updatedAt: z.number(),
