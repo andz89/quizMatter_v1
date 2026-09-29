@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { CANVAS_WIDTH, CANVAS_HEIGHT, getSlideNumbers } from "@/lib/constants";
-import { LinkPending } from "@/components/LinkPending";
 import { Spinner } from "@/components/Spinner";
 import { FluidSlidePreview } from "@/components/presentation/FluidSlidePreview";
 import type { Slide } from "@/lib/schema";
@@ -53,10 +52,6 @@ export function PresentationCard({ card, showMenu = false }: { card: Presentatio
                 : "No preview"}
           </div>
         )}
-        {/* In the middle of the picture, on a white circle so it shows on any slide. */}
-        {!isChecking && (
-          <LinkPending spinnerClassName="absolute top-1/2 left-1/2 h-10 w-10 -translate-x-1/2 -translate-y-1/2 rounded-full bg-bg-surface" />
-        )}
       </div>
       <div className="flex flex-col gap-1 px-1 pt-3 pb-1">
         {card.badge && <Kicker badge={card.badge} />}
@@ -80,7 +75,8 @@ export function PresentationCard({ card, showMenu = false }: { card: Presentatio
       {isChecking ? (
         <div className="block">{body}</div>
       ) : (
-        <Link href={card.href} className="group block">
+        // Opens in a new tab, so the list stays open in this one.
+        <Link href={card.href} target="_blank" className="group block">
           {body}
         </Link>
       )}

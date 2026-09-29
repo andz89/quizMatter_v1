@@ -1,12 +1,10 @@
 import { useRef, useState } from "react";
+import { toast } from "sonner";
 import { useEditorStore } from "./store";
 import { ELEMENT_DRAG_MIME, PHOTO_DRAG_MIME } from "./constants";
 import { addPhotoToSlide, uploadPhoto } from "./photos";
 import { photoSchema } from "./schema";
 import { PHOTO_ID } from "./svgLibrary";
-
-// How far apart (px) several photos dropped at once land, so they don't hide each other.
-const PHOTO_DROP_OFFSET = 24;
 
 /**
  * Drag-enter/leave/drop handlers that turn a container into a drop target for an element asset
@@ -64,10 +62,9 @@ export function useElementDropTarget(slideId: string, containerId: string | null
           if (photo.success) addElement(slideId, PHOTO_ID, containerId, position, undefined, photo.data);
           return;
         }
-        files.forEach((file, i) => {
-          const at = { x: position.x + i * PHOTO_DROP_OFFSET, y: position.y + i * PHOTO_DROP_OFFSET };
-          addPhotoToSlide(() => uploadPhoto(file), { slideId, containerId, position: at });
-        });
+        // One photo at a time.
+        if (files.length > 1) toast.error("Please drop one photo at a time.");
+        else addPhotoToSlide(() => uploadPhoto(files[0]), { slideId, containerId, position });
       },
     },
   };

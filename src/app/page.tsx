@@ -5,6 +5,7 @@ import { listDrafts, type DraftSummary } from "@/lib/drafts";
 import { loadPublisherNames } from "@/lib/publishers";
 import { joinParts, publishedByLine, slideCountLabel, timeAgo } from "@/lib/format";
 import { parseSlide } from "@/lib/schema";
+import { contains } from "@/lib/search";
 import { NewPresentationButton } from "./PresentationListButtons";
 import { PresentationHome } from "./PresentationHome";
 import type { PresentationCardData } from "./PresentationCard";
@@ -114,14 +115,6 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
       </main>
     </>
   );
-}
-
-/**
- * A "contains this text" (ilike) pattern. Characters that mean something to the database (like % or a comma)
- * become _, which matches any one letter. So "50%" still finds "50%", and can't break the query.
- */
-function contains(text: string): string {
-  return `%${text.replace(/[%_*,()"\\]/g, "_")}%`;
 }
 
 /**

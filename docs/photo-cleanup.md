@@ -24,12 +24,29 @@ The timer is `"triggers"` in `wrangler.jsonc`.
    `used_photo_srcs()`. It returns every photo address that is:
    - on any teacher's **My photos** list (the `photos` table), or
    - on the **shared photos** list that admins upload for every teacher (the `shared_photos` table), or
-   - inside any slide (it searches every row of the `slides` table).
+   - inside any slide (read from the `slide_photos` list, see below).
    If this step fails, the job stops and deletes nothing.
 2. **Lists every file** in R2 under `uploads/`.
 3. **Picks the files to delete**: not used anywhere **and** older than 7 days.
 4. **Deletes them**, and writes a note to the log, like
    `Photo cleanup: checked 250 files, deleted 3.` (with the names of the deleted files).
+
+### The slide photo list (`slide_photos`)
+
+Searching every slide on each run would get slow with many slides (and could hit the database's time
+limit). So the database keeps a small list of which slide uses which photo, one row per slide and photo:
+
+| presentation_id | slide_id | src |
+|---|---|---|
+| p1 | slide-1 | …/dog.webp |
+| p1 | slide-2 | …/dog.webp |
+
+- **Each time a slide's data is saved** (from the editor, Claude, anywhere), a trigger (`sync_slide_photos`)
+  reads that one slide and finds its photo addresses. If they're the same as before (e.g. only the words
+  changed), it does nothing; otherwise it replaces that slide's rows.
+- Moving a slide doesn't touch the list. Deleting a slide or a presentation deletes its rows too.
+- A photo counts as used while **at least one** row has it, however many slides use it.
+- The list was filled once from all slides when it was added.
 
 ### The 7-day safety rule
 
@@ -39,15 +56,21 @@ save the presentation for a while. Until they save, the database doesn't know ab
 
 ## Seeing what will be deleted
 
-Admins can open **Admin → Photo cleanup** (`/admin/cleanup`). It uses the same steps as the job
-(`findUnusedPhotos()` in `src/lib/cleanupPhotos.ts`), so it shows exactly what the job will do:
+Admins can open **Admin → Photo cleanup** (`/admin/cleanup`). Opening it shows only the date of the next
+run; clicking **Find unused photos** runs the search (`src/app/admin/cleanup/actions.ts`). It uses the same
+steps as the job (`findUnusedPhotos()` in `src/lib/cleanupPhotos.ts`), so it shows exactly what the job will do:
 
-- the date of the next run,
+- how many files are stored, and their total size,
 - **Deleted on the next run**: unused files old enough to go on the next run,
 - **Unused, deleted later**: unused files still under 7 days old, each with the date it will go.
 
 **Keep** saves a file, so the job skips it: a WebP file becomes a shared photo in the category you pick;
 a JPEG file (shared photos must be WebP) goes to your own My photos.
+
+**Delete** deletes a file from R2 right away, without waiting for the job (`src/app/api/delete-photo`).
+It checks `admin_used_photo_srcs()` again first: if a slide, a My photos list or the shared list has
+started using the file since the page loaded, it isn't deleted and the admin is told why. A deleted file
+may still show for a while from Cloudflare's cache or a browser that already loaded it.
 
 The page asks the database with `admin_used_photo_srcs()`: the same list as `used_photo_srcs()`, but
 callable by a logged-in admin (anyone else gets an error), so no secret key is needed.
@@ -57,12 +80,14 @@ callable by a logged-in admin (anyone else gets an error), so no secret key is n
 | File | What it does |
 |---|---|
 | `src/lib/cleanupPhotos.ts` | The cleanup steps above, shared with the admin page |
-| `src/app/admin/cleanup/` | The admin page "Photo cleanup" |
+| `src/app/admin/cleanup/` | The admin page "Photo cleanup" (its search button is `actions.ts`) |
+| `src/app/api/delete-photo/route.ts` | Its Delete button: deletes one unused file now |
 | `worker.ts` | Wraps the app's Worker: visitors get the app as before; the timer runs the cleanup |
 | `wrangler.jsonc` | `main` points to `worker.ts`; `triggers` holds the timer; `vars` holds `SUPABASE_URL` |
 | `supabase/migrations/20260928010000_used_photos.sql` | The `used_photo_srcs()` database function |
 | `supabase/migrations/20260928020000_shared_photos.sql` | Adds shared photos, and updates `used_photo_srcs()` to keep them |
 | `supabase/migrations/20260929000000_admin_used_photos.sql` | `admin_used_photo_srcs()`, for the admin page |
+| `supabase/migrations/20261003000000_slide_photos.sql` | The `slide_photos` list, its trigger, and `used_photo_srcs()` reading it |
 
 ## Setup (one time)
 
@@ -106,3 +131,5 @@ the job runs before they save, the file could be deleted. This is very unlikely,
 - **How long new files are kept:** `KEEP_NEW_FILES_MS` in `src/lib/cleanupPhotos.ts`.
 - **If photos are stored somewhere new** (a new table, or a new column outside `slides.data`): add it
   to `used_photo_srcs()`, or the job will think those photos are unused and delete them.
+- **If photo addresses change** (a new domain or file type): update the pattern in `slide_photo_srcs()`
+  and fill `slide_photos` again, or photos on slides will look unused.

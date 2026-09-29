@@ -3,9 +3,11 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { LinkPending } from "@/components/LinkPending";
 import { Spinner } from "@/components/Spinner";
+import { FluidSlidePreview } from "@/components/presentation/FluidSlidePreview";
+import { CANVAS_WIDTH, CANVAS_HEIGHT, getSlideNumbers } from "@/lib/constants";
 import { joinParts } from "@/lib/format";
+import type { Slide } from "@/lib/schema";
 import { removePresentations } from "../../actions";
 import { setShared } from "./actions";
 import { SearchIcon, Trash2Icon } from "lucide-react";
@@ -16,6 +18,8 @@ export type AdminPresentationRow = {
   // Grade, subject ("" if none), shown under the title and searched too.
   meta: string;
   isShared: boolean;
+  // Drawn as the row's picture. null = no picture (Claude's drafts, or a slide that didn't pass the schema).
+  firstSlide: Slide | null;
   // Set on a draft Claude sent that isn't saved yet: "checking" = Claude is still checking it (can't open yet).
   claudeDraft?: "ready" | "checking" | "unfinished";
   slideCount: number;
@@ -32,9 +36,9 @@ const SORTS: { id: Sort; label: string }[] = [
   { id: "createdAt", label: "Newest" },
 ];
 
-// Title, status, slides, date, share button, trash. On phones: title, then the rest in one cell.
+// Picture, title, status, slides, date, share button, trash. On phones: picture, title, then the rest in one cell.
 const COLUMNS =
-  "grid-cols-[minmax(0,1fr)_auto] sm:grid-cols-[minmax(0,1fr)_88px_56px_104px_112px_36px]";
+  "grid-cols-[64px_minmax(0,1fr)_auto] sm:grid-cols-[96px_minmax(0,1fr)_88px_56px_104px_112px_36px]";
 
 /**
  * The admin's QuizMatter presentations as a table, sorted by date changed or created, with a search box. Each
@@ -94,6 +98,7 @@ export function AdminPresentations({ rows }: { rows: AdminPresentationRow[] }) {
         <div
           className={`grid ${COLUMNS} items-center gap-4 border-b border-border-default px-5 py-3 text-[11px] font-bold tracking-[0.05em] text-text-header uppercase`}
         >
+          <span />
           <span>Title</span>
           <span className="hidden sm:block">Status</span>
           <span className="hidden sm:block">Slides</span>
@@ -179,6 +184,25 @@ function Row({
         isRemoving ? "opacity-50" : ""
       }`}
     >
+      <div
+        className="relative overflow-hidden rounded-dropdown border border-border-default"
+        style={{ aspectRatio: `${CANVAS_WIDTH} / ${CANVAS_HEIGHT}` }}
+      >
+        {row.firstSlide ? (
+          // The first slide, so a question there is number 1 (unless taken out of the numbers).
+          <FluidSlidePreview
+            slide={row.firstSlide}
+            questionNumber={getSlideNumbers([row.firstSlide]).get(
+              row.firstSlide.id,
+            )}
+          />
+        ) : (
+          <div className="flex h-full items-center justify-center bg-bg-page">
+            {isChecking && <Spinner size={12} />}
+          </div>
+        )}
+      </div>
+
       <div className="min-w-0">
         {isChecking ? (
           <span className="block truncate text-sm text-text-secondary">
@@ -191,10 +215,11 @@ function Row({
                 ? `/presentation/new?draft=${row.id}`
                 : `/presentation/${row.id}/edit`
             }
+            // Opens in a new tab, so the list stays open in this one.
+            target="_blank"
             className="block truncate text-sm text-text-primary after:absolute after:inset-0"
           >
             {row.title}
-            <LinkPending />
           </Link>
         )}
         {(row.meta || isClaudeDraft) && (

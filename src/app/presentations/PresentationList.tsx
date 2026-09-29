@@ -2,7 +2,6 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { LinkPending } from "@/components/LinkPending";
 import { Spinner } from "@/components/Spinner";
 import { removePresentations } from "../actions";
 import { GlobeIcon, SearchIcon, Trash2Icon } from "lucide-react";
@@ -224,10 +223,9 @@ function PresentationListRow({
         {row.checking ? (
           <span className={`${titleClass} text-text-secondary`}>{row.title}</span>
         ) : (
-          <Link href={href} className={`${titleClass} text-text-primary after:absolute after:inset-0`}>
+          // Opens in a new tab, so the list stays open in this one.
+          <Link href={href} target="_blank" className={`${titleClass} text-text-primary after:absolute after:inset-0`}>
             {row.title}
-            {/* Over the row's last column (the trash spot), so nothing moves. */}
-            <LinkPending spinnerClassName="absolute top-1/2 right-5 h-7 w-7 -translate-y-1/2 rounded-dropdown bg-bg-page" />
           </Link>
         )}
         {(row.meta || row.note || row.isPublished) && (

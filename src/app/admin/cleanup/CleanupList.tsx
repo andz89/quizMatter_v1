@@ -2,40 +2,78 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
-import { keepPhoto, type PhotoCategory } from "@/lib/photos";
+import { deletePhotoFile, keepPhoto, type PhotoCategory } from "@/lib/photos";
 import { Spinner } from "@/components/Spinner";
 import { ViewToggle, useView, type View } from "../ViewToggle";
+import { findCleanupFiles } from "./actions";
+import { SearchIcon, Trash2Icon } from "lucide-react";
 
 export type CleanupFile = {
   src: string;
   uploaded: string;
   size: string;
+  // The same in bytes (saved with it if it's kept as a shared photo).
+  bytes: number;
   // Old enough for the next run to delete it; otherwise it's deleted on `deleteOn`, a later run.
   isNextRun: boolean;
   deleteOn: string;
 };
 
-/** The files the cleanup will delete: the next run's, then the ones still too new. Each can be kept. */
-export function CleanupList({ files, categories }: { files: CleanupFile[]; categories: PhotoCategory[] }) {
-  // Files kept on this page, taken off the lists.
-  const [keptSrcs, setKeptSrcs] = useState<Set<string>>(new Set());
-  const shown = files.filter((file) => !keptSrcs.has(file.src));
-  const onKept = (src: string) => setKeptSrcs((all) => new Set(all).add(src));
-
-  const nextRun = shown.filter((file) => file.isNextRun);
-  const later = shown.filter((file) => !file.isNextRun);
+/**
+ * A button that finds the files the cleanup will delete, then lists them: the next run's, then the ones still
+ * too new. Each can be kept or deleted now.
+ */
+export function CleanupList({ categories }: { categories: PhotoCategory[] }) {
+  // The last search's result; null until the button is clicked.
+  const [result, setResult] = useState<{ files: CleanupFile[]; stored: string } | null>(null);
+  const [isSearching, setIsSearching] = useState(false);
+  // Files kept or deleted on this page, taken off the lists.
+  const [doneSrcs, setDoneSrcs] = useState<Set<string>>(new Set());
+  const onDone = (src: string) => setDoneSrcs((all) => new Set(all).add(src));
   // One choice for both cards.
   const [view, setView] = useView("admin-cleanup-view");
 
+  const handleSearch = async () => {
+    setIsSearching(true);
+    const found = await findCleanupFiles().catch(() => null);
+    setIsSearching(false);
+    if (!found) {
+      toast.error("Couldn't look for unused photos. Please try again.");
+      return;
+    }
+    setResult(found);
+    setDoneSrcs(new Set());
+  };
+
+  const shown = result?.files.filter((file) => !doneSrcs.has(file.src)) ?? [];
+  const nextRun = shown.filter((file) => file.isNextRun);
+  const later = shown.filter((file) => !file.isNextRun);
+
   return (
     <>
-      {files.length > 0 && (
-        <div className="-mb-2 flex justify-end">
-          <ViewToggle view={view} onChange={setView} />
-        </div>
+      <div className="-mb-2 flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          onClick={handleSearch}
+          disabled={isSearching}
+          className="flex items-center gap-2 rounded-button bg-accent btn-press px-4 py-2 text-sm font-semibold text-white hover:bg-accent-hover disabled:opacity-40"
+        >
+          {isSearching ? <Spinner size={16} /> : <SearchIcon size={16} />}
+          {result ? "Search again" : "Find unused photos"}
+        </button>
+        {result && <span className="text-sm text-text-secondary">{result.stored}</span>}
+        {result && result.files.length > 0 && (
+          <div className="ml-auto">
+            <ViewToggle view={view} onChange={setView} />
+          </div>
+        )}
+      </div>
+      {result && (
+        <>
+          <FileCard title={`Deleted on the next run (${nextRun.length})`} empty="Nothing will be deleted on the next run." files={nextRun} {...{ view, categories, onDone }} />
+          <FileCard title={`Unused, deleted later (${later.length})`} empty="No new unused files." files={later} {...{ view, categories, onDone }} />
+        </>
       )}
-      <FileCard title={`Deleted on the next run (${nextRun.length})`} empty="Nothing will be deleted on the next run." files={nextRun} {...{ view, categories, onKept }} />
-      <FileCard title={`Unused, deleted later (${later.length})`} empty="No new unused files." files={later} {...{ view, categories, onKept }} />
     </>
   );
 }
@@ -46,16 +84,16 @@ function FileCard({
   files,
   view,
   categories,
-  onKept,
+  onDone,
 }: {
   title: string;
   empty: string;
   files: CleanupFile[];
   view: View;
   categories: PhotoCategory[];
-  onKept: (src: string) => void;
+  onDone: (src: string) => void;
 }) {
-  const items = files.map((file) => <FileItem key={file.src} {...{ file, view, categories }} onKept={() => onKept(file.src)} />);
+  const items = files.map((file) => <FileItem key={file.src} {...{ file, view, categories }} onDone={() => onDone(file.src)} />);
 
   return (
     <section className="rounded-card border border-border-default bg-bg-surface px-5 py-4">
@@ -69,7 +107,7 @@ function FileCard({
             <span className="hidden sm:block">Uploaded</span>
             <span className="hidden sm:block">File size</span>
             <span className="hidden sm:block">Deleted on</span>
-            <span className="text-right">Keep</span>
+            <span className="text-right">Keep or delete</span>
           </div>
           {items}
         </div>
@@ -85,12 +123,27 @@ const FILE_COLUMNS = "grid-cols-[48px_minmax(0,1fr)] sm:grid-cols-[48px_100px_80
 
 /**
  * One unused file, as a table row (List) or a tile (Grid). Keep saves it: a WebP one becomes a shared photo
- * in the chosen category; a JPEG one (shared photos must be WebP) goes to your own "My photos".
+ * in the chosen category; a JPEG one (shared photos must be WebP) goes to your own "My photos". Delete deletes
+ * the file now, unless a slide or photo list has started using it since the page loaded.
  */
-function FileItem({ file, view, categories, onKept }: { file: CleanupFile; view: View; categories: PhotoCategory[]; onKept: () => void }) {
+function FileItem({ file, view, categories, onDone }: { file: CleanupFile; view: View; categories: PhotoCategory[]; onDone: () => void }) {
   const isWebp = file.src.endsWith(".webp");
   const [categoryId, setCategoryId] = useState(categories[0]?.id ?? "");
   const [isKeeping, setIsKeeping] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const handleDelete = async () => {
+    if (!confirm("Delete this photo forever? This can't be undone.")) return;
+    setIsDeleting(true);
+    const error = await deletePhotoFile(file.src);
+    if (error) {
+      toast.error(error);
+      setIsDeleting(false);
+      return;
+    }
+    toast.success("Photo deleted.");
+    onDone();
+  };
 
   const handleKeep = async () => {
     setIsKeeping(true);
@@ -99,9 +152,9 @@ function FileItem({ file, view, categories, onKept }: { file: CleanupFile; view:
       const image = new Image();
       image.src = file.src;
       await image.decode();
-      await keepPhoto({ src: file.src, width: image.naturalWidth, height: image.naturalHeight }, isWebp ? categoryId : null);
+      await keepPhoto({ src: file.src, width: image.naturalWidth, height: image.naturalHeight }, file.bytes, isWebp ? categoryId : null);
       toast.success(isWebp ? `Kept in shared photos (${categories.find((c) => c.id === categoryId)?.name}).` : "Kept in your My photos.");
-      onKept();
+      onDone();
     } catch {
       toast.error("Couldn't keep the photo. Please try again.");
       setIsKeeping(false);
@@ -135,12 +188,22 @@ function FileItem({ file, view, categories, onKept }: { file: CleanupFile; view:
       <button
         type="button"
         onClick={handleKeep}
-        disabled={isKeeping || (isWebp && !categoryId)}
+        disabled={isKeeping || isDeleting || (isWebp && !categoryId)}
         title={isWebp ? "Add it to shared photos, so the cleanup keeps it" : "Add it to your My photos, so the cleanup keeps it"}
         className="flex shrink-0 items-center justify-center gap-2 rounded-button bg-accent btn-press px-3 py-1.5 text-sm font-semibold text-white hover:bg-accent-hover disabled:opacity-40"
       >
         {isKeeping && <Spinner size={14} />}
         {isWebp ? "Keep" : "Keep in My photos"}
+      </button>
+      <button
+        type="button"
+        onClick={handleDelete}
+        disabled={isKeeping || isDeleting}
+        title="Delete the file now (only if nothing uses it)"
+        className="flex shrink-0 items-center justify-center gap-2 rounded-button border border-danger px-3 py-1.5 text-sm font-semibold text-danger-strong transition-colors hover:bg-danger-soft disabled:opacity-40"
+      >
+        {isDeleting ? <Spinner size={14} /> : <Trash2Icon size={14} />}
+        Delete
       </button>
     </div>
   );

@@ -24,3 +24,13 @@ export function slideCountLabel(count: number): string {
 export function publishedByLine(author: string, publisherName: string | undefined): string {
   return joinParts([author && `By ${author}`, publisherName && `Published by ${publisherName}`]);
 }
+
+/** A day in UTC, like the photo cleanup's timer, e.g. "Sun, Oct 4". */
+export function formatUtcDay(date: Date): string {
+  return date.toLocaleDateString("en-US", { timeZone: "UTC", weekday: "short", month: "short", day: "numeric" });
+}
+
+/** A file size, e.g. "412 KB" or "5.8 MB". */
+export function formatBytes(bytes: number): string {
+  return bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
+}

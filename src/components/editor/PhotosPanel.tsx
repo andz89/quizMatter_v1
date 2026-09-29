@@ -62,8 +62,10 @@ export function PhotosPanel() {
     }
   };
 
+  // One photo at a time (addPhotoToSlide refuses another while one is uploading).
   const handleFiles = (files: FileList | null) => {
-    for (const file of files ?? []) {
+    const file = files?.[0];
+    if (file) {
       setUploadingFiles((n) => n + 1);
       addPhotoToSlide(() => uploadPhoto(file))
         .then(showAtTop)
@@ -143,7 +145,6 @@ export function PhotosPanel() {
             ref={fileInputRef}
             type="file"
             accept={PHOTO_TYPES.join(",")}
-            multiple
             hidden
             onChange={(e) => handleFiles(e.target.files)}
           />

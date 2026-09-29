@@ -1,7 +1,7 @@
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import type { R2Bucket } from "@cloudflare/workers-types";
 import { MAX_STORED_PHOTO_BYTES, PHOTO_URL_PREFIX } from "@/lib/constants";
-import { photoSchema, sharedPhotoInfoSchema, sharedPhotoSchema } from "@/lib/schema";
+import { photoSchema, sharedPhotoBytesSchema, sharedPhotoInfoSchema, sharedPhotoSchema } from "@/lib/schema";
 import { createClient } from "@/lib/supabase/server";
 
 declare global {
@@ -16,7 +16,7 @@ declare global {
  * fingerprint, so the same photo is stored once however many times it's added.
  * The browser sends the photo's size in the address: /api/upload-image?width=…&height=…
  * With &category=<category id> it's a shared photo instead: only admins can add one, it must be WebP, and it
- * goes to the shared_photos table (for every teacher) instead of "My photos". It also needs &source=<who owns it
+ * goes to the shared_photos table (for every teacher, with its file size) instead of "My photos". It also needs &source=<who owns it
  * or where it came from>, and &name=<file name> gives it its name (to show and search); both are only set the
  * first time it's shared.
  */
@@ -76,7 +76,10 @@ export async function POST(request: Request) {
   // Added again = moves back to the top of the list (a shared one also moves to the new category).
   const created_at = new Date().toISOString();
   const { error } = shared
-    ? await supabase.from("shared_photos").upsert({ ...shared.data, created_at }, { onConflict: "src" })
+    ? await supabase
+        .from("shared_photos")
+        // Its file size too, for the admin page.
+        .upsert({ ...shared.data, bytes: sharedPhotoBytesSchema.parse(body.byteLength), created_at }, { onConflict: "src" })
     : await supabase.from("photos").upsert({ ...photo.data, user_id: data.claims.sub, created_at }, { onConflict: "user_id,src" });
   if (error) return Response.json({ error: "Couldn't upload the photo. Please try again." }, { status: 500 });
   // The name and source are only set when the photo has none: uploading it again keeps what an admin may have

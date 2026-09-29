@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useEditorStore } from "@/lib/store";
-import { LinkPending } from "@/components/LinkPending";
 import { Spinner } from "@/components/Spinner";
 import { createBlankPresentation } from "@/lib/factories";
 import { buildSlides } from "@/lib/importPresentation";
@@ -114,10 +113,9 @@ export function PresentationCardMenu({ card }: { card: PresentationCardData }) {
       {isOpen && (
         <div className="absolute top-0 right-9 w-44 overflow-hidden rounded-dropdown border border-border-default bg-bg-surface py-1">
           {card.badge !== "checking" && (
-            // Stays open on click, so the top line (inside the link) keeps showing until the editor opens.
-            <Link href={card.href} className={itemClass}>
+            // Opens in a new tab, so the list stays open in this one.
+            <Link href={card.href} target="_blank" onClick={() => setIsOpen(false)} className={itemClass}>
               Edit
-              <LinkPending />
             </Link>
           )}
           {card.badge !== "checking" && (

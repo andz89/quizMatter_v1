@@ -4,7 +4,6 @@ import { useTransition } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { EyeIcon, EyeOffIcon, Trash2Icon } from "lucide-react";
-import { LinkPending } from "@/components/LinkPending";
 import { Spinner } from "@/components/Spinner";
 import { deleteReportedPresentation, dismissReports, setHidden } from "./actions";
 
@@ -86,9 +85,8 @@ function Row({ row }: { row: ReportedRow }) {
       <div className="flex flex-wrap items-start gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <Link href={`/presentation/${row.id}`} className="truncate text-sm font-semibold text-accent hover:underline">
+            <Link href={`/presentation/${row.id}`} target="_blank" className="truncate text-sm font-semibold text-accent hover:underline">
               {row.title}
-              <LinkPending />
             </Link>
             {row.isHidden && (
               <span className="rounded-dropdown bg-danger-soft px-2.5 py-1 text-[13px] leading-none font-semibold text-danger-strong">

@@ -1,6 +1,7 @@
 import { getAccount } from "@/lib/account";
 import { listDrafts, type DraftSummary } from "@/lib/drafts";
 import { joinParts, timeAgo } from "@/lib/format";
+import { parseSlide } from "@/lib/schema";
 import { createClient } from "@/lib/supabase/server";
 import { NewPresentationButton } from "../../PresentationListButtons";
 import { AdminPresentations, type AdminPresentationRow } from "./AdminPresentations";
@@ -14,10 +15,12 @@ export default async function AdminPresentationsPage() {
   const [{ data: claims }, account, drafts] = await Promise.all([supabase.auth.getClaims(), getAccount(), listDrafts()]);
   const { data, error } = await supabase
     .from("presentations")
-    .select("id, title, grade, subject, is_published, created_at, updated_at, slides(count)")
+    .select("id, title, grade, subject, is_published, created_at, updated_at, slides(count), first_slide:slides(data, position)")
     .eq("from_admin", true)
     .eq("owner_id", claims?.claims.sub ?? "")
-    .order("updated_at", { ascending: false });
+    .order("updated_at", { ascending: false })
+    .order("position", { referencedTable: "first_slide" })
+    .limit(1, { referencedTable: "first_slide" });
   if (error) throw error;
 
   return (
@@ -43,6 +46,7 @@ type SavedPresentation = {
   created_at: string;
   updated_at: string;
   slides: { count: number }[];
+  first_slide: { data: unknown }[];
 };
 
 /** The QuizMatter presentations, and Claude's drafts that aren't saved yet (an admin's become QuizMatter ones). */
@@ -57,6 +61,7 @@ function buildRows(presentations: SavedPresentation[], drafts: DraftSummary[]): 
       title: draft.title || "Untitled presentation",
       meta: joinParts([draft.grade, draft.subject]),
       isShared: false,
+      firstSlide: null,
       claudeDraft: draft.state,
       slideCount: draft.slideCount,
       createdAt: draft.createdAt,
@@ -72,6 +77,7 @@ function buildRows(presentations: SavedPresentation[], drafts: DraftSummary[]): 
       title: presentation.title || "Untitled presentation",
       meta: joinParts([presentation.grade, presentation.subject]),
       isShared: presentation.is_published,
+      firstSlide: parseSlide(presentation.first_slide[0]?.data),
       slideCount: presentation.slides[0]?.count ?? 0,
       createdAt,
       updatedAt,

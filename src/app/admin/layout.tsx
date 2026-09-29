@@ -31,9 +31,9 @@ export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
           <p className="mt-1 text-sm text-text-secondary">Things only admins can change, for every teacher.</p>
         </header>
 
-        <div className="flex flex-col gap-5 sm:flex-row sm:items-start">
+        <div className="flex flex-col gap-4">
           <AdminMenu />
-          <div className="min-w-0 flex-1">{children}</div>
+          <div className="min-w-0">{children}</div>
         </div>
       </main>
     </>

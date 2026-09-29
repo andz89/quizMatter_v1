@@ -2,6 +2,7 @@ import { z } from "zod";
 import {
   CANVAS_HEIGHT,
   CANVAS_WIDTH,
+  MAX_STORED_PHOTO_BYTES,
   MIN_QUESTION_HEIGHT,
   MIN_QUESTION_WIDTH,
   PHOTO_MAX_SIDE,
@@ -74,17 +75,25 @@ export type PhotoCategory = { id: string; name: string };
 export type SharedPhotoWithInfo = SharedPhoto & SharedPhotoInfo;
 
 // The shared_photos columns a SharedPhotoWithInfo is made from (the editor's Photos panel and the admin page load them).
+// Not `bytes`: only the admin page needs it, and asks for it on its own.
 export const SHARED_PHOTO_COLUMNS = "src, width, height, category_id, file_name, description, tags, source";
 
+// A shared photo's file size in bytes (the shared_photos "bytes" column), shown on the admin page.
+export const sharedPhotoBytesSchema = z.number().int().positive().max(MAX_STORED_PHOTO_BYTES);
+
+// The photo's fields are picked one by one, so another column (like the admin page's "bytes") never ends up in a
+// photo, which is saved in slides.
 export function toSharedPhoto({
+  src,
+  width,
+  height,
   category_id,
   file_name,
   description,
   tags,
   source,
-  ...photo
 }: Photo & SharedPhotoInfo & { category_id: string }): SharedPhotoWithInfo {
-  return { photo, categoryId: category_id, file_name, description, tags, source };
+  return { photo: { src, width, height }, categoryId: category_id, file_name, description, tags, source };
 }
 
 // A category of shared photos (the photo_categories table).
