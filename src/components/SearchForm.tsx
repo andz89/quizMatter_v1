@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { SearchIcon, SlidersHorizontalIcon } from "lucide-react";
+import { SearchIcon, SlidersHorizontalIcon, XIcon } from "lucide-react";
 import { SEARCH_MAX_LENGTH } from "@/lib/search";
 import { Spinner } from "./Spinner";
 import { TopLoadingBar } from "./TopLoadingBar";
@@ -30,7 +30,8 @@ export function SearchForm({
   hasOptions: boolean;
   // While the results load: the top line and the Spinner show.
   isPending: boolean;
-  onSearch: () => void;
+  // Runs the search with this main text (the ✕ button passes "", before the cleared box's state has updated).
+  onSearch: (query: string) => void;
   onClear: () => void;
   className?: string;
   children: ReactNode;
@@ -62,7 +63,7 @@ export function SearchForm({
       onSubmit={(e) => {
         e.preventDefault();
         setIsOpen(false);
-        onSearch();
+        onSearch(query);
       }}
       className={`relative w-full ${className}`}
     >
@@ -79,9 +80,24 @@ export function SearchForm({
           maxLength={SEARCH_MAX_LENGTH}
           placeholder={placeholder}
           aria-label={placeholder}
-          className={`w-full rounded-card border border-border-default bg-bg-surface py-3 pl-11 ${isOpen ? "pr-14" : "pr-36"} text-sm text-text-primary outline-none placeholder:text-text-secondary focus:border-text-secondary`}
+          // The browser's own ✕ only empties the box, so it's hidden and ours (below) also runs the search.
+          className={`w-full rounded-card border border-border-default bg-bg-surface py-3 pl-11 ${isOpen ? (query ? "pr-24" : "pr-14") : query ? "pr-46" : "pr-36"} text-sm text-text-primary outline-none placeholder:text-text-secondary focus:border-text-secondary [&::-webkit-search-cancel-button]:hidden`}
         />
         <div className="absolute top-1/2 right-2 flex -translate-y-1/2 items-center gap-1">
+          {query && (
+            <button
+              type="button"
+              onClick={() => {
+                onQueryChange("");
+                onSearch("");
+              }}
+              aria-label="Clear search text"
+              title="Clear search text"
+              className="rounded-dropdown p-2 text-text-primary transition-colors hover:bg-accent-soft"
+            >
+              <XIcon size={16} />
+            </button>
+          )}
           <button
             type="button"
             onClick={() => setIsOpen(!isOpen)}

@@ -178,7 +178,7 @@ function HomeSearchForm({ search }: { search: HomeSearch }) {
       hasOptions={homeSearchQuery({ ...values, q: "" }) !== ""}
       isPending={isPending}
       // The top line and spinner show at once, and stay until the server sends the results.
-      onSearch={() => startTransition(() => router.push(`/${homeSearchQuery(values)}`, { scroll: false }))}
+      onSearch={(q) => startTransition(() => router.push(`/${homeSearchQuery({ ...values, q })}`, { scroll: false }))}
       onClear={() => setValues(DEFAULT_SEARCH)}
       className="mx-auto mb-10 max-w-xl"
     >

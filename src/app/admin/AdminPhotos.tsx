@@ -945,7 +945,7 @@ function PhotoSearchForm({ search, categories }: { search: PhotoSearch; categori
       hasOptions={photoSearchHref({ ...values, q: "", page: 1 }) !== "/admin"}
       isPending={isPending}
       // The top line and spinner show at once, and stay until the server sends the results.
-      onSearch={() => startTransition(() => router.push(photoSearchHref({ ...values, page: 1 }), { scroll: false }))}
+      onSearch={(q) => startTransition(() => router.push(photoSearchHref({ ...values, q, page: 1 }), { scroll: false }))}
       onClear={() => setValues(DEFAULT_PHOTO_SEARCH)}
       className="mb-3 sm:max-w-xl"
     >
