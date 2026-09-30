@@ -685,8 +685,8 @@ function PhotosCard({
 }) {
   // The photos whose new category is being saved (they show the Spinner).
   const [movingSrcs, setMovingSrcs] = useState<Set<string>>(new Set());
-  // The photos being approved (they show the Spinner), or "all" for Approve all.
-  const [approving, setApproving] = useState<Set<string> | "all">(new Set());
+  // The photos being approved (they show the Spinner).
+  const [approvingSrcs, setApprovingSrcs] = useState<Set<string>>(new Set());
   const [view, setView] = useView("admin-photos-view");
 
   const pageCount = Math.max(1, Math.ceil(matchCount / PHOTOS_PER_PAGE));
@@ -730,9 +730,9 @@ function PhotosCard({
     },
   ];
 
-  // Approves these photos, or every waiting one (null). The page is asked for again, so the labels and counts update.
-  const handleApprove = async (srcs: string[] | null) => {
-    setApproving(srcs ? new Set(srcs) : "all");
+  // Approves these photos. The page is asked for again, so the labels and counts update.
+  const handleApprove = async (srcs: string[]) => {
+    setApprovingSrcs((all) => new Set([...all, ...srcs]));
     try {
       const count = await approveSharedPhotos(srcs);
       toast.success(count === 1 ? "Photo approved. Teachers can see it now." : `${count} photos approved. Teachers can see them now.`);
@@ -740,8 +740,10 @@ function PhotosCard({
     } catch {
       toast.error("Couldn't approve. Please try again.");
     }
-    setApproving(new Set());
+    setApprovingSrcs((all) => new Set([...all].filter((src) => !srcs.includes(src))));
   };
+  // Approve all: only the waiting photos on this page, the ones the admin can see and check.
+  const isApprovingAll = waitingSrcs.every((src) => approvingSrcs.has(src));
 
   // Both change the list at once, and put it back if saving fails.
   const handleMove = async (shared: SharedPhotoWithInfo, categoryId: string) => {
@@ -786,7 +788,7 @@ function PhotosCard({
       categories={categories}
       isMoving={movingSrcs.has(shared.photo.src)}
       isWaiting={waitingSrcs.includes(shared.photo.src)}
-      isApproving={approving === "all" || approving.has(shared.photo.src)}
+      isApproving={approvingSrcs.has(shared.photo.src)}
       onApprove={() => handleApprove([shared.photo.src])}
       onMove={(categoryId) => handleMove(shared, categoryId)}
       onRemove={() => handleRemove(shared)}
@@ -847,19 +849,19 @@ function PhotosCard({
               </Link>
             )}
           </div>
-          {search.missing === "review" && counts.waiting > 0 && (
+          {search.missing === "review" && waitingSrcs.length > 0 && (
             <div className="mb-4 flex flex-wrap items-center gap-3 rounded-card bg-highlight-soft px-4 py-3">
               <p className="mr-auto text-sm text-text-primary">
                 These photos came from Claude. Teachers can&apos;t see them until you approve them, so check their details first.
               </p>
               <button
                 type="button"
-                onClick={() => handleApprove(null)}
-                disabled={approving === "all"}
+                onClick={() => handleApprove(waitingSrcs)}
+                disabled={isApprovingAll}
                 className="flex items-center gap-2 rounded-button bg-accent btn-press px-3.5 py-1.5 text-sm font-semibold text-white hover:bg-accent-hover disabled:opacity-60"
               >
-                {approving === "all" ? <Spinner size={14} /> : <CheckIcon size={14} />}
-                Approve all ({counts.waiting})
+                {isApprovingAll ? <Spinner size={14} /> : <CheckIcon size={14} />}
+                {waitingSrcs.length < counts.waiting ? "Approve all on this page" : "Approve all"} ({waitingSrcs.length})
               </button>
             </div>
           )}

@@ -66,20 +66,28 @@ export async function POST(request: Request) {
     return answer(200, `This photo is already in the library, as "${existing.file_name}". Nothing was changed.`, { src });
   }
 
-  const categoryId = await findOrCreateCategory(supabase, category);
-  if (!categoryId) return answer(500, `Couldn't make the category "${category}". Send the photo again.`);
-  const photo = sharedPhotoSchema.safeParse({ src, ...size, category_id: categoryId });
-  if (!photo.success) return answer(400, "This photo's size is wrong.");
-
-  // The ticket is used up here, before saving, so the same link sent twice at once adds only one photo.
+  // The ticket is used up here, before anything is saved, so the same link sent twice at once adds only one photo.
   if (!(await deletePhotoTicket(ticketId.data))) {
     return answer(404, "This upload link was already used. Call prepare_photo_upload again if the photo is still missing.");
   }
-  await savePhotoFile(fileName, body, type);
-  const { error } = await supabase
-    .from("shared_photos")
-    .insert({ ...photo.data, ...info, bytes: sharedPhotoBytesSchema.parse(body.byteLength), approved: false });
-  if (error) return answer(500, "Couldn't add the photo. Call prepare_photo_upload again and send it with the new link.");
+  const failed = "Couldn't add the photo. Call prepare_photo_upload again and send it with the new link.";
+  const found = await findOrCreateCategory(supabase, category);
+  if (!found) return answer(500, `Couldn't make the category "${category}". ${failed}`);
+  const photo = sharedPhotoSchema.safeParse({ src, ...size, category_id: found.id });
+
+  let saved = false;
+  if (photo.success) {
+    await savePhotoFile(fileName, body, type);
+    const { error } = await supabase
+      .from("shared_photos")
+      .insert({ ...photo.data, ...info, bytes: sharedPhotoBytesSchema.parse(body.byteLength), approved: false });
+    saved = !error;
+  }
+  if (!saved) {
+    // A category made just for this photo shouldn't stay empty. (The database won't delete one that has photos.)
+    if (found.isNew) await supabase.from("photo_categories").delete().eq("id", found.id);
+    return answer(500, failed);
+  }
 
   const kb = Math.round(body.byteLength / 1024);
   const added = `Added "${info.file_name}" (${size.width}×${size.height} px, ${kb} KB) to "${category}"`;
@@ -90,11 +98,18 @@ export async function POST(request: Request) {
   });
 }
 
-/** The category with this name (not minding capitals), made if there's none yet. Its id, or null if it failed. */
-async function findOrCreateCategory(supabase: SupabaseClient, name: string): Promise<string | null> {
+/**
+ * The category with this name (not minding capitals), made if there's none yet: its id, and whether it was just
+ * made. Null if it failed.
+ */
+async function findOrCreateCategory(
+  supabase: SupabaseClient,
+  name: string,
+): Promise<{ id: string; isNew: boolean } | null> {
   const find = async () => {
     const { data } = await supabase.from("photo_categories").select("id, name");
-    return data?.find((c) => c.name.toLowerCase() === name.toLowerCase())?.id ?? null;
+    const id = data?.find((c) => c.name.toLowerCase() === name.toLowerCase())?.id;
+    return id ? { id, isNew: false } : null;
   };
   const found = await find();
   if (found) return found;
@@ -105,7 +120,7 @@ async function findOrCreateCategory(supabase: SupabaseClient, name: string): Pro
     .single();
   // Two photos in the same new category can arrive together: then the other one just made it.
   if (error?.code === "23505") return find();
-  return data?.id ?? null;
+  return data ? { id: data.id, isNew: true } : null;
 }
 
 function answer(status: number, message: string, extra?: object) {

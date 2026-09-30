@@ -339,14 +339,18 @@ export async function saveSharedPhotoInfo(src: string, info: Partial<SharedPhoto
 }
 
 /**
- * Approves shared photos waiting for review (Claude's uploads), so teachers see them: these ones, or every
- * waiting photo if `srcs` is null. Returns how many were approved. Throws if it fails.
+ * Approves these shared photos waiting for review (Claude's uploads), so teachers see them. Only the ones the
+ * admin was shown: a photo Claude adds meanwhile waits for its own check. Returns how many were approved.
+ * Throws if it fails.
  */
-export async function approveSharedPhotos(srcs: string[] | null): Promise<number> {
-  let query = createClient().from("shared_photos").update({ approved: true }).eq("approved", false);
-  if (srcs) query = query.in("src", z.array(photoSchema.shape.src).min(1).max(100).parse(srcs));
-  // The changed rows are asked back: the database rules skip a blocked change without an error.
-  const { data, error } = await query.select("src");
+export async function approveSharedPhotos(srcs: string[]): Promise<number> {
+  const { data, error } = await createClient()
+    .from("shared_photos")
+    .update({ approved: true })
+    .eq("approved", false)
+    .in("src", z.array(photoSchema.shape.src).min(1).max(100).parse(srcs))
+    // The changed rows are asked back: the database rules skip a blocked change without an error.
+    .select("src");
   if (error) throw error;
   return data.length;
 }
