@@ -94,7 +94,8 @@ function createServer(appUrl: string, userId: string) {
         "Upload links:",
         ...photos.map((photo, i) => `- ${photo.file_name}: ${appUrl}/api/claude-photo?ticket=${ids[i]}`),
         "",
-        "When you're done, tell the user which photos were added, and that they can edit them on Admin → Photos.",
+        "When you're done, tell the user which photos were added. They wait for review: teachers (and find_photos) don't",
+        'see them until an admin approves them on Admin → Photos ("Waiting for review"), where they can also edit them.',
       ].join("\n");
       return { content: [{ type: "text", text }] };
     },
@@ -211,6 +212,8 @@ async function checkPhotos(slides: Slide[]): Promise<string[]> {
   const { data, error } = await supabase
     .from("shared_photos")
     .select("src, width, height")
+    // Photos waiting for review can't go on slides yet.
+    .eq("approved", true)
     .in("src", [...new Set(used.map((photo) => photo.src))]);
   if (error) return ["Couldn't check the photos. Send again, or leave them out."];
 

@@ -12,7 +12,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
  * as the body. The ticket (from prepare_photo_upload in /api/mcp, which only admins can call) holds the photo's
  * name, description, tags, category and source, so this needs no login — the proxy lets it through, and the
  * ticket is the permission. Claude converted the photo to WebP in its sandbox, like the admin page does in the
- * browser; the file is stored exactly as it arrives. The answers are plain sentences, as Claude reads them.
+ * browser; the file is stored exactly as it arrives. It waits for an admin's review (approved: false) before
+ * teachers see it. The answers are plain sentences, as Claude reads them.
  */
 export async function POST(request: Request) {
   const ticketId = z.uuid().safeParse(new URL(request.url).searchParams.get("ticket"));
@@ -73,12 +74,13 @@ export async function POST(request: Request) {
   await savePhotoFile(fileName, body, type);
   const { error } = await supabase
     .from("shared_photos")
-    .insert({ ...photo.data, ...info, bytes: sharedPhotoBytesSchema.parse(body.byteLength) });
+    .insert({ ...photo.data, ...info, bytes: sharedPhotoBytesSchema.parse(body.byteLength), approved: false });
   if (error) return answer(500, "Couldn't add the photo. Send it again.");
 
   await deletePhotoTicket(ticketId.data);
   const kb = Math.round(body.byteLength / 1024);
-  return answer(200, `Added "${info.file_name}" (${size.width}×${size.height} px, ${kb} KB) to "${category}".`, {
+  const added = `Added "${info.file_name}" (${size.width}×${size.height} px, ${kb} KB) to "${category}"`;
+  return answer(200, `${added}. It waits for an admin's review before teachers see it.`, {
     src,
     width: size.width,
     height: size.height,

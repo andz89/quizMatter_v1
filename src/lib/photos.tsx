@@ -1,4 +1,5 @@
 import { toast } from "sonner";
+import { z } from "zod";
 import { Spinner } from "@/components/Spinner";
 import { MAX_PHOTO_FILE_BYTES, MAX_STORED_PHOTO_BYTES, PHOTO_MAX_SIDE } from "./constants";
 import {
@@ -190,11 +191,12 @@ export async function loadPhotoCategoriesInUse(): Promise<PhotoCategory[]> {
   const supabase = createClient();
   const [categories, counts] = await Promise.all([
     supabase.from("photo_categories").select("id, name").order("name"),
-    supabase.from("shared_photo_counts").select("category_id"),
+    supabase.from("shared_photo_counts").select("category_id, photos, waiting"),
   ]);
   if (categories.error) throw categories.error;
   if (counts.error) throw counts.error;
-  const inUse = new Set(counts.data.map((row) => row.category_id));
+  // Photos waiting for review don't count: the panel doesn't show them (admins see every row).
+  const inUse = new Set(counts.data.filter((row) => row.photos > row.waiting).map((row) => row.category_id));
   return categories.data.filter((c) => inUse.has(c.id));
 }
 
@@ -204,7 +206,8 @@ export async function loadPhotoCategoriesInUse(): Promise<PhotoCategory[]> {
  * `categoryId` (if given) keeps only that category. Throws if they can't be loaded.
  */
 export async function loadSharedPhotoPage(search: string, categoryId: string | null, from: number): Promise<SharedPhotoWithInfo[]> {
-  let query = createClient().from("shared_photos_search").select(SHARED_PHOTO_COLUMNS);
+  // Only approved photos: the ones waiting for review are only on Admin → Photos (teachers can't read them anyway).
+  let query = createClient().from("shared_photos_search").select(SHARED_PHOTO_COLUMNS).eq("approved", true);
   for (const word of search.split(/\s+/).filter(Boolean)) {
     const pattern = contains(word);
     query = query.or(`file_name.ilike.${pattern},description.ilike.${pattern},tags_text.ilike.${pattern},category_name.ilike.${pattern}`);
@@ -333,6 +336,19 @@ export async function saveSharedPhotoInfo(src: string, info: Partial<SharedPhoto
   // The changed row is asked back: the database rules skip a blocked change without an error.
   const { data, error } = await createClient().from("shared_photos").update(parsed.data).eq("src", src).select("src");
   return error || data.length === 0 ? "Couldn't save. Please try again." : null;
+}
+
+/**
+ * Approves shared photos waiting for review (Claude's uploads), so teachers see them: these ones, or every
+ * waiting photo if `srcs` is null. Returns how many were approved. Throws if it fails.
+ */
+export async function approveSharedPhotos(srcs: string[] | null): Promise<number> {
+  let query = createClient().from("shared_photos").update({ approved: true }).eq("approved", false);
+  if (srcs) query = query.in("src", z.array(photoSchema.shape.src).min(1).max(100).parse(srcs));
+  // The changed rows are asked back: the database rules skip a blocked change without an error.
+  const { data, error } = await query.select("src");
+  if (error) throw error;
+  return data.length;
 }
 
 /** Takes a photo off the shared list. Slides that use it keep it (the file stays). Throws if it fails. */
