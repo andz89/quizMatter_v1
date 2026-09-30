@@ -55,7 +55,7 @@ export function PhotoTile({
         className="block aspect-square w-full cursor-grab overflow-hidden rounded-dropdown border border-border-default bg-bg-page transition-colors hover:border-accent"
       >
         {/* Only the picture is the small copy: a click or drag still adds the full photo. */}
-        <PhotoThumbnail src={photo.src} className="h-full w-full object-cover" />
+        <PhotoThumbnail src={photo.src} className="h-full w-full object-contain" />
       </button>
       {onRemove && (
         <button

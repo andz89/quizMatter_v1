@@ -164,7 +164,7 @@ function FileItem({ file, view, categories, onDone }: { file: CleanupFile; view:
 
   const picture = (
     <div className={`overflow-hidden rounded-dropdown border border-border-default bg-bg-page ${view === "list" ? "h-12 w-12" : "aspect-square"}`}>
-      <PhotoThumbnail src={file.src} className="h-full w-full object-cover" />
+      <PhotoThumbnail src={file.src} className="h-full w-full object-contain" />
     </div>
   );
   const keepControls = (

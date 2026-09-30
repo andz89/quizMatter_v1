@@ -437,7 +437,7 @@ function UploadCard({
   return (
     <div className="flex gap-3 rounded-card border border-border-default px-4 py-3">
       {/* eslint-disable-next-line @next/next/no-img-element -- a local preview of the picked file. */}
-      <img src={row.previewUrl} alt="" className="h-16 w-16 shrink-0 rounded-dropdown border border-border-default object-cover" />
+      <img src={row.previewUrl} alt="" className="h-16 w-16 shrink-0 rounded-dropdown border border-border-default bg-bg-page object-contain" />
       <div className="flex min-w-0 flex-1 flex-col gap-2">
         <div className="flex items-center gap-2">
           {field("file_name", "File name", "File name, e.g. red-eyed-tree-frog.jpg", 200)}
@@ -1024,7 +1024,7 @@ function SharedPhotoItem({
 }) {
   const picture = (
     <div className={`relative overflow-hidden rounded-dropdown border border-border-default bg-bg-page ${view === "list" ? "h-12 w-12" : "aspect-square"}`}>
-      <PhotoThumbnail src={shared.photo.src} alt={shared.description} className="h-full w-full object-cover" />
+      <PhotoThumbnail src={shared.photo.src} alt={shared.description} className="h-full w-full object-contain" />
       {isMoving && (
         <span className="absolute inset-0 flex items-center justify-center bg-bg-surface/60">
           <Spinner size={view === "list" ? 16 : 20} />
