@@ -22,7 +22,7 @@ export default async function AllPresentationsPage() {
       .eq("from_admin", false)
       .order("updated_at", { ascending: false }),
     // An admin's drafts from Claude become QuizMatter presentations, so they're on Admin → Presentations.
-    getAccount().then((account) => (account.isAdmin ? [] : listDrafts())),
+    getAccount().then((account) => (account.isAdmin ? [] : listDrafts(account.id))),
     getAccount(),
   ]);
   if (error) throw error;

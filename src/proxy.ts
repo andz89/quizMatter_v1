@@ -36,6 +36,7 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  // Every page, but not Next's own files, images, or the MCP server (Claude calls it without a login).
-  matcher: ["/((?!api/mcp|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
+  // Every page, but not Next's own files, images, or the MCP server and its OAuth signpost (Claude calls them
+  // without a browser login; the MCP server checks Claude's own login token).
+  matcher: ["/((?!api/mcp|\\.well-known|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
 };

@@ -5,6 +5,8 @@ import type { ClaudeDetails } from "./importPresentation";
 // Presentation drafts Claude sends through the MCP server (/api/mcp). They live in Cloudflare D1, not
 // Supabase: a draft isn't anyone's presentation yet — it only becomes one when the user opens the link
 // (it opens as a new presentation in the editor) and clicks Save. Server-only.
+// Each draft belongs to the user who connected Claude (`ownerId`, their Supabase user id), and only they
+// can see, open or delete it.
 
 declare global {
   interface CloudflareEnv {
@@ -24,35 +26,37 @@ export const CHECK_TIMEOUT_MS = 10 * 60 * 1000;
 export type Draft = { details: ClaudeDetails; slides: unknown[]; checking?: boolean };
 
 /** Stores the draft and returns its id. Also clears out expired drafts. */
-export async function saveDraft(draft: Draft): Promise<string> {
+export async function saveDraft(draft: Draft, ownerId: string): Promise<string> {
   const db = getCloudflareContext().env.DRAFTS_DB;
   const id = crypto.randomUUID();
   const now = Date.now();
   await db.batch([
     db.prepare("DELETE FROM drafts WHERE created_at < ?").bind(now - DRAFT_LIFETIME_MS),
-    db.prepare("INSERT INTO drafts (id, recipe, created_at) VALUES (?, ?, ?)").bind(id, JSON.stringify(draft), now),
+    db
+      .prepare("INSERT INTO drafts (id, owner_id, recipe, created_at) VALUES (?, ?, ?, ?)")
+      .bind(id, ownerId, JSON.stringify(draft), now),
   ]);
   return id;
 }
 
 /**
  * Replaces the draft saved under this id (Claude sending a fixed version), so its link stays the same.
- * Its day starts over. False if there's no such draft (wrong id, or older than a day).
+ * Its day starts over. False if there's no such draft of this owner (wrong id, or older than a day).
  */
-export async function replaceDraft(id: string, draft: Draft): Promise<boolean> {
+export async function replaceDraft(id: string, draft: Draft, ownerId: string): Promise<boolean> {
   const now = Date.now();
   const result = await getCloudflareContext()
-    .env.DRAFTS_DB.prepare("UPDATE drafts SET recipe = ?, created_at = ? WHERE id = ? AND created_at >= ?")
-    .bind(JSON.stringify(draft), now, id, now - DRAFT_LIFETIME_MS)
+    .env.DRAFTS_DB.prepare("UPDATE drafts SET recipe = ?, created_at = ? WHERE id = ? AND owner_id = ? AND created_at >= ?")
+    .bind(JSON.stringify(draft), now, id, ownerId, now - DRAFT_LIFETIME_MS)
     .run();
   return result.meta.changes > 0;
 }
 
-/** The draft saved under this id, or null if there's none (wrong id, or older than a day). */
-export async function getDraft(id: string): Promise<Draft | null> {
+/** The owner's draft saved under this id, or null if there's none (wrong id, someone else's, or older than a day). */
+export async function getDraft(id: string, ownerId: string): Promise<Draft | null> {
   const row = await getCloudflareContext()
-    .env.DRAFTS_DB.prepare("SELECT recipe FROM drafts WHERE id = ? AND created_at >= ?")
-    .bind(id, Date.now() - DRAFT_LIFETIME_MS)
+    .env.DRAFTS_DB.prepare("SELECT recipe FROM drafts WHERE id = ? AND owner_id = ? AND created_at >= ?")
+    .bind(id, ownerId, Date.now() - DRAFT_LIFETIME_MS)
     .first<{ recipe: string }>();
   return row ? JSON.parse(row.recipe) : null;
 }
@@ -71,17 +75,17 @@ export type DraftSummary = {
   state: "ready" | "checking" | "unfinished";
 };
 
-/** Every draft that hasn't expired, newest first. */
-export async function listDrafts(): Promise<DraftSummary[]> {
+/** Every draft of this owner that hasn't expired, newest first. */
+export async function listDrafts(ownerId: string): Promise<DraftSummary[]> {
   const now = Date.now();
   const { results } = await getCloudflareContext()
     .env.DRAFTS_DB.prepare(
       `SELECT id, json_extract(recipe, '$.details.title') AS title, json_extract(recipe, '$.details.grade') AS grade,
          json_extract(recipe, '$.details.subject') AS subject, json_array_length(recipe, '$.slides') AS slideCount,
          created_at AS createdAt, json_extract(recipe, '$.checking') AS checking
-       FROM drafts WHERE created_at >= ? ORDER BY created_at DESC`,
+       FROM drafts WHERE owner_id = ? AND created_at >= ? ORDER BY created_at DESC`,
     )
-    .bind(now - DRAFT_LIFETIME_MS)
+    .bind(ownerId, now - DRAFT_LIFETIME_MS)
     .all<Omit<DraftSummary, "state"> & { checking: number | null }>();
   return results.map(({ checking, ...draft }) => ({
     ...draft,
@@ -89,9 +93,9 @@ export async function listDrafts(): Promise<DraftSummary[]> {
   }));
 }
 
-/** Deletes these drafts in one trip to the database. */
-export async function deleteDrafts(ids: string[]) {
+/** Deletes these drafts of this owner in one trip to the database. */
+export async function deleteDrafts(ids: string[], ownerId: string) {
   if (ids.length === 0) return;
   const db = getCloudflareContext().env.DRAFTS_DB;
-  await db.batch(ids.map((id) => db.prepare("DELETE FROM drafts WHERE id = ?").bind(id)));
+  await db.batch(ids.map((id) => db.prepare("DELETE FROM drafts WHERE id = ? AND owner_id = ?").bind(id, ownerId)));
 }

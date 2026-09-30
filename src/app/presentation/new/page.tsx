@@ -23,7 +23,8 @@ export default async function NewPresentationFromClaudePage({ searchParams }: Pa
   const { data: savedPresentation } = await supabase.from("presentations").select("id").eq("id", draftId).maybeSingle();
   if (savedPresentation) redirect(`/presentation/${draftId}/edit`);
 
-  const [draft, { isAdmin }] = await Promise.all([getDraft(draftId), getAccount()]);
+  const { id: userId, isAdmin } = await getAccount();
+  const draft = await getDraft(draftId, userId);
   if (!draft) {
     return (
       <main className="flex flex-1 items-center justify-center px-4">

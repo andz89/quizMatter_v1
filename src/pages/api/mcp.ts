@@ -10,13 +10,18 @@ import type { Photo, Slide } from "@/lib/schema";
 /**
  * The MCP server Claude chat connects to (added in claude.ai as a custom connector with this URL).
  * Claude writes a presentation, `send_presentation` checks it and stores it as a draft, and Claude hands the user a
- * link that opens the draft in the editor as a new presentation. Nothing here touches the user's saved presentations, so it
- * needs no login — the proxy lets this path through. Instead it asks for a shared secret (below).
+ * link that opens the draft in the editor as a new presentation. Nothing here touches the user's saved presentations.
+ *
+ * Login: the proxy lets this path through, because Claude has no browser cookies. Instead Claude logs in with OAuth
+ * (the standard "let this app act for me" login): Supabase is the OAuth server, the user logs in to QuizMatter and
+ * clicks Allow on /oauth/consent, and Claude then sends that user's login token with every request. Without a valid
+ * token the answer is 401, which points Claude to /.well-known/oauth-protected-resource to start the login.
+ * For now only admins can use it.
  *
  * It's a Pages Router API route (not an App Router route.ts) because the presentation importer imports
  * react-dom/server (for drawing background patterns), which the App Router doesn't allow on the server.
  */
-function createServer(appUrl: string) {
+function createServer(appUrl: string, userId: string) {
   const server = new McpServer({ name: "quizmatter", version: "1.0.0" });
 
   // Each tool also answers to its old names (from when presentations were called quizzes, then lessons): Claude keeps the
@@ -100,8 +105,8 @@ function createServer(appUrl: string) {
         const draft = final ? { details, slides } : { details, slides, checking: true };
         // A new version replaces its earlier draft (a checking one turns into the final one); if that draft
         // is gone (expired), it's saved as a new one.
-        const replaced = draftId !== undefined && (await replaceDraft(draftId, draft));
-        const id = replaced ? draftId : await saveDraft(draft);
+        const replaced = draftId !== undefined && (await replaceDraft(draftId, draft, userId));
+        const id = replaced ? draftId : await saveDraft(draft, userId);
         const title = details.title || "Untitled presentation";
         // The old draft is gone once the user saved it (or after a day), so this send became a new one.
         const newDraftNote =
@@ -148,6 +153,22 @@ function createAdminClient() {
   return key ? createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, key, { auth: { persistSession: false } }) : null;
 }
 
+/**
+ * Checks Claude's login token (the one Supabase gave it after the user clicked Allow). The user's id and whether
+ * they're an admin, or null if the token is missing, wrong or expired.
+ */
+async function checkLogin(token: string): Promise<{ id: string; isAdmin: boolean } | null> {
+  // Acts as that user, so is_admin() answers for them.
+  const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
+    global: { headers: { Authorization: `Bearer ${token}` } },
+    auth: { persistSession: false },
+  });
+  const { data } = await supabase.auth.getClaims(token);
+  if (!data) return null;
+  const { data: isAdmin } = await supabase.rpc("is_admin");
+  return { id: data.claims.sub, isAdmin: isAdmin === true };
+}
+
 /** Every photo on the slides must be a shared photo, with its real size (as find_photos gave it). The problems, if any. */
 async function checkPhotos(slides: Slide[]): Promise<string[]> {
   // Photos sit in their element's "image", wherever the element is (a box, the answer canvas…).
@@ -180,20 +201,24 @@ async function checkPhotos(slides: Slide[]): Promise<string[]> {
 
 // Stateless: every request gets a fresh server and transport, so nothing has to be kept between requests.
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  // Only the user's own Claude connector knows this secret. It's added there as a request header,
-  // either "Authorization: Bearer <secret>" or "X-API-Key: <secret>" (claude.ai only allows
-  // standard header names). No secret set on the server means nobody gets in.
-  const secret = process.env.MCP_SECRET;
-  const sent = req.headers.authorization?.replace(/^Bearer /i, "") ?? req.headers["x-api-key"];
-  if (!secret || sent !== secret) {
-    res.status(401).json({ error: "Missing or wrong secret (Authorization: Bearer … or X-API-Key header)." });
+  const host = req.headers.host!;
+  const appUrl = `${host.startsWith("localhost") ? "http" : "https"}://${host}`;
+
+  const token = req.headers.authorization?.match(/^Bearer (.+)$/i)?.[1];
+  const user = token ? await checkLogin(token) : null;
+  if (!user) {
+    // The standard answer that makes Claude start the login (it reads where to log in from this link).
+    res.setHeader("WWW-Authenticate", `Bearer resource_metadata="${appUrl}/.well-known/oauth-protected-resource"`);
+    res.status(401).json({ error: "Please log in to QuizMatter." });
+    return;
+  }
+  if (!user.isAdmin) {
+    res.status(403).json({ error: "Only QuizMatter admins can use Claude for now." });
     return;
   }
 
-  const host = req.headers.host!;
-  const appUrl = `${host.startsWith("localhost") ? "http" : "https"}://${host}`;
   const transport = new WebStandardStreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true });
-  await createServer(appUrl).connect(transport);
+  await createServer(appUrl, user.id).connect(transport);
 
   // The SDK's Node adapter reads req.rawHeaders, which is empty on Cloudflare (OpenNext), so the
   // request is rebuilt as a standard web Request from the headers Next already parsed.

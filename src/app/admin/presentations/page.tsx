@@ -12,15 +12,18 @@ import { AdminPresentations, type AdminPresentationRow } from "./AdminPresentati
  */
 export default async function AdminPresentationsPage() {
   const supabase = await createClient();
-  const [{ data: claims }, account, drafts] = await Promise.all([supabase.auth.getClaims(), getAccount(), listDrafts()]);
-  const { data, error } = await supabase
-    .from("presentations")
-    .select("id, title, grade, subject, is_published, created_at, updated_at, slides(count), first_slide:slides(data, position)")
-    .eq("from_admin", true)
-    .eq("owner_id", claims?.claims.sub ?? "")
-    .order("updated_at", { ascending: false })
-    .order("position", { referencedTable: "first_slide" })
-    .limit(1, { referencedTable: "first_slide" });
+  const account = await getAccount();
+  const [drafts, { data, error }] = await Promise.all([
+    listDrafts(account.id),
+    supabase
+      .from("presentations")
+      .select("id, title, grade, subject, is_published, created_at, updated_at, slides(count), first_slide:slides(data, position)")
+      .eq("from_admin", true)
+      .eq("owner_id", account.id)
+      .order("updated_at", { ascending: false })
+      .order("position", { referencedTable: "first_slide" })
+      .limit(1, { referencedTable: "first_slide" }),
+  ]);
   if (error) throw error;
 
   return (

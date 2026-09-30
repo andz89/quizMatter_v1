@@ -74,7 +74,7 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
     load("quizmatter"),
     load("teachers", OTHERS_LIMIT),
     // An admin's drafts from Claude become QuizMatter presentations, so they're on Admin → Presentations.
-    getAccount().then((account) => (account.isAdmin || isLeftOut("mine") ? [] : listDrafts())),
+    getAccount().then((account) => (account.isAdmin || isLeftOut("mine") ? [] : listDrafts(account.id))),
     getAccount(),
   ]);
   if (mine.error) throw mine.error;
