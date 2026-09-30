@@ -26,9 +26,6 @@ export const PHOTO_MAX_SIDE = 1920;
 export const MAX_PHOTO_FILE_BYTES = 20 * 1024 * 1024;
 // Biggest shrunk photo (bytes) the server stores.
 export const MAX_STORED_PHOTO_BYTES = 2 * 1024 * 1024;
-// Photos Claude adds to the shared library (/api/claude-photo): their longest side must be between these (px).
-export const CLAUDE_PHOTO_MIN_SIDE = 800;
-export const CLAUDE_PHOTO_MAX_SIDE = 1000;
 
 // dataTransfer type used to drag a photo (as JSON) from the Photos panel's "My photos" list onto a box or the slide.
 export const PHOTO_DRAG_MIME = "application/x-quizbuilder-photo";

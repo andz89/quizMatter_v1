@@ -5,7 +5,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { z } from "zod";
 import { buildSlides, getClaudeFormat, claudeDetailsSchema } from "@/lib/importPresentation";
 import { replaceDraft, saveDraft } from "@/lib/drafts";
-import { CLAUDE_PHOTO_MAX_SIDE, CLAUDE_PHOTO_MIN_SIDE } from "@/lib/constants";
+import { PHOTO_MAX_SIDE } from "@/lib/constants";
 import { createPhotoTickets } from "@/lib/photoTickets";
 import { claudePhotoSchema, type Photo, type Slide } from "@/lib/schema";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -72,7 +72,8 @@ function createServer(appUrl: string, userId: string) {
     {
       description:
         "Adds photos the user attached in this chat to quizMatter's shared photo library (for every teacher). " +
-        "Look at each photo and give it a short file name, a description of what it shows, up to 10 tags, and a category: " +
+        'Look at each photo and give it a short file name without any extension (e.g. "red-eyed tree frog", not "frog.png"), ' +
+        "a description of what it shows, up to 10 tags, and a category: " +
         "reuse a category from find_photos when one fits, or give a new name to make a new category. The source (who owns " +
         "the photos or where they came from) is what the user told you; ask them if they didn't. " +
         "This returns a one-time upload link per photo and the steps to send each file from your code sandbox.",
@@ -83,8 +84,9 @@ function createServer(appUrl: string, userId: string) {
       const text = [
         "For each photo, in your code sandbox (the user's attached files are in /mnt/user-data/uploads), do what quizMatter's",
         "own upload does, with Python and Pillow:",
-        "1. img = ImageOps.exif_transpose(Image.open(path)). Never resize or crop it.",
-        `2. Its longest side must be ${CLAUDE_PHOTO_MIN_SIDE}–${CLAUDE_PHOTO_MAX_SIDE} px. If not, don't upload it: tell the user which photo it is.`,
+        "1. img = ImageOps.exif_transpose(Image.open(path)). Never crop it.",
+        `2. If its longest side is over ${PHOTO_MAX_SIDE} px, shrink it to ${PHOTO_MAX_SIDE}: img.thumbnail((${PHOTO_MAX_SIDE}, ${PHOTO_MAX_SIDE}), Image.LANCZOS).`,
+        "   A smaller photo keeps its size (never make a photo bigger).",
         '3. Convert "P", "LA" and "CMYK" photos to "RGBA" (keeps see-through parts) or "RGB", then save as WebP:',
         '   img.save(out, "WEBP", quality=85). If the file is over 2 MB, save it again at quality=70.',
         '4. Send the file: curl -sS -X POST -H "Content-Type: image/webp" --data-binary @out.webp "<link>"',

@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { imageSize } from "image-size";
 import { z } from "zod";
-import { CLAUDE_PHOTO_MAX_SIDE, CLAUDE_PHOTO_MIN_SIDE, MAX_STORED_PHOTO_BYTES, PHOTO_URL_PREFIX } from "@/lib/constants";
+import { MAX_STORED_PHOTO_BYTES, PHOTO_MAX_SIDE, PHOTO_URL_PREFIX } from "@/lib/constants";
 import { photoFileName, readPhotoType, savePhotoFile } from "@/lib/photoFiles";
 import { deletePhotoTicket, getPhotoTicket } from "@/lib/photoTickets";
 import { claudePhotoSchema, photoCategoryNameSchema, sharedPhotoBytesSchema, sharedPhotoSchema } from "@/lib/schema";
@@ -37,12 +37,12 @@ export async function POST(request: Request) {
   } catch {
     return answer(415, "This file couldn't be read as a photo.");
   }
-  const longest = Math.max(size.width, size.height);
-  if (longest < CLAUDE_PHOTO_MIN_SIDE || longest > CLAUDE_PHOTO_MAX_SIDE) {
+  // Like the admin page: bigger photos are shrunk to this first (Claude does it), smaller ones keep their size.
+  if (Math.max(size.width, size.height) > PHOTO_MAX_SIDE) {
     return answer(
       400,
-      `This photo is ${size.width}×${size.height} px. Its longest side must be ${CLAUDE_PHOTO_MIN_SIDE}–${CLAUDE_PHOTO_MAX_SIDE} px, ` +
-        "so it wasn't added. Don't resize it: tell the user which photo it is.",
+      `This photo is ${size.width}×${size.height} px, so it wasn't added. Shrink it so its longest side is ${PHOTO_MAX_SIDE} px ` +
+        `(img.thumbnail((${PHOTO_MAX_SIDE}, ${PHOTO_MAX_SIDE}), Image.LANCZOS)), save it as WebP again and send that.`,
     );
   }
 

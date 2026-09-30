@@ -102,7 +102,10 @@ export const photoCategoryNameSchema = z.string().trim().min(1, "Type a category
 // A photo Claude adds to the shared photo library (prepare_photo_upload in /api/mcp): its details, and the name
 // of its category (an existing one, or a new one that's made when the photo is saved).
 export const claudePhotoSchema = sharedPhotoInfoSchema.extend({
-  file_name: sharedPhotoInfoSchema.shape.file_name.min(1, "Give the photo a file name."),
+  // A plain name, e.g. "red-eyed tree frog": no ".png" or other extension (the file itself is always WebP).
+  file_name: sharedPhotoInfoSchema.shape.file_name
+    .min(1, "Give the photo a file name.")
+    .regex(/^(?!.*\.(png|jpe?g|webp|gif|bmp|tiff?|heic|avif|svg)$)/i, 'Leave the extension (like ".png") out of the file name.'),
   description: sharedPhotoInfoSchema.shape.description.min(1, "Describe what the photo shows."),
   category: photoCategoryNameSchema,
 });
