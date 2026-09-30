@@ -63,8 +63,11 @@ export async function POST(request: Request) {
   const { error } = shared
     ? await supabase
         .from("shared_photos")
-        // Its file size too, for the admin page.
-        .upsert({ ...shared.data, bytes: sharedPhotoBytesSchema.parse(body.byteLength), created_at }, { onConflict: "src" })
+        // Its file size too, for the admin page. An admin's upload is approved, even if Claude added it first.
+        .upsert(
+          { ...shared.data, bytes: sharedPhotoBytesSchema.parse(body.byteLength), approved: true, created_at },
+          { onConflict: "src" },
+        )
     : await supabase.from("photos").upsert({ ...photo.data, user_id: data.claims.sub, created_at }, { onConflict: "user_id,src" });
   if (error) return Response.json({ error: "Couldn't upload the photo. Please try again." }, { status: 500 });
   // The name and source are only set when the photo has none: uploading it again keeps what an admin may have

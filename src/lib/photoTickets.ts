@@ -35,7 +35,11 @@ export async function getPhotoTicket(id: string): Promise<PhotoTicket | null> {
   return row ? { ownerId: row.owner_id, details: JSON.parse(row.details) } : null;
 }
 
-/** Removes a used ticket, so its link can't add the photo again. */
-export async function deletePhotoTicket(id: string) {
-  await getCloudflareContext().env.DRAFTS_DB.prepare("DELETE FROM photo_tickets WHERE id = ?").bind(id).run();
+/**
+ * Removes a used ticket, so its link can't add the photo again. True if this call removed it; false if it was
+ * already gone (e.g. the same link sent twice at once, and the other one got it first).
+ */
+export async function deletePhotoTicket(id: string): Promise<boolean> {
+  const result = await getCloudflareContext().env.DRAFTS_DB.prepare("DELETE FROM photo_tickets WHERE id = ?").bind(id).run();
+  return result.meta.changes > 0;
 }

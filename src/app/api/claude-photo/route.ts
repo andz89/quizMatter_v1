@@ -71,13 +71,16 @@ export async function POST(request: Request) {
   const photo = sharedPhotoSchema.safeParse({ src, ...size, category_id: categoryId });
   if (!photo.success) return answer(400, "This photo's size is wrong.");
 
+  // The ticket is used up here, before saving, so the same link sent twice at once adds only one photo.
+  if (!(await deletePhotoTicket(ticketId.data))) {
+    return answer(404, "This upload link was already used. Call prepare_photo_upload again if the photo is still missing.");
+  }
   await savePhotoFile(fileName, body, type);
   const { error } = await supabase
     .from("shared_photos")
     .insert({ ...photo.data, ...info, bytes: sharedPhotoBytesSchema.parse(body.byteLength), approved: false });
-  if (error) return answer(500, "Couldn't add the photo. Send it again.");
+  if (error) return answer(500, "Couldn't add the photo. Call prepare_photo_upload again and send it with the new link.");
 
-  await deletePhotoTicket(ticketId.data);
   const kb = Math.round(body.byteLength / 1024);
   const added = `Added "${info.file_name}" (${size.width}×${size.height} px, ${kb} KB) to "${category}"`;
   return answer(200, `${added}. It waits for an admin's review before teachers see it.`, {
