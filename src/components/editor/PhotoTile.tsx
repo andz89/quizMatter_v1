@@ -1,8 +1,28 @@
 "use client";
 
-import { PHOTO_DRAG_MIME } from "@/lib/constants";
+import { useState } from "react";
+import { PHOTO_DRAG_MIME, thumbnailUrl } from "@/lib/constants";
 import type { Photo } from "@/lib/schema";
 import { XIcon } from "lucide-react";
+
+/**
+ * A photo's small preview (see thumbnailUrl), loaded only when it scrolls into view. If the small copy can't be
+ * loaded (e.g. Cloudflare's monthly free amount ran out), it shows the full photo instead.
+ */
+export function PhotoThumbnail({ src, alt = "", className }: { src: string; alt?: string; className?: string }) {
+  const [failed, setFailed] = useState(false);
+  return (
+    // eslint-disable-next-line @next/next/no-img-element -- Cloudflare already makes the small copy; nothing for next/image to do.
+    <img
+      src={failed ? src : thumbnailUrl(src)}
+      alt={alt}
+      loading="lazy"
+      draggable={false}
+      onError={() => setFailed(true)}
+      className={className}
+    />
+  );
+}
 
 /**
  * One photo in a list of the Photos panel: click to add it, drag it onto a box or the slide, ✕ to take it off the
@@ -34,8 +54,8 @@ export function PhotoTile({
         title={title ? `${title} (click or drag to add)` : "Click or drag to add"}
         className="block aspect-square w-full cursor-grab overflow-hidden rounded-dropdown border border-border-default bg-bg-page transition-colors hover:border-accent"
       >
-        {/* eslint-disable-next-line @next/next/no-img-element -- already shrunk when it was uploaded; nothing for next/image to do. */}
-        <img src={photo.src} alt="" loading="lazy" draggable={false} className="h-full w-full object-cover" />
+        {/* Only the picture is the small copy: a click or drag still adds the full photo. */}
+        <PhotoThumbnail src={photo.src} className="h-full w-full object-cover" />
       </button>
       {onRemove && (
         <button

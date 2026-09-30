@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { toast } from "sonner";
 import { deletePhotoFile, keepPhoto, type PhotoCategory } from "@/lib/photos";
+import { PhotoThumbnail } from "@/components/editor/PhotoTile";
 import { Spinner } from "@/components/Spinner";
 import { ViewToggle, useView, type View } from "../ViewToggle";
 import { findCleanupFiles } from "./actions";
@@ -163,8 +164,7 @@ function FileItem({ file, view, categories, onDone }: { file: CleanupFile; view:
 
   const picture = (
     <div className={`overflow-hidden rounded-dropdown border border-border-default bg-bg-page ${view === "list" ? "h-12 w-12" : "aspect-square"}`}>
-      {/* eslint-disable-next-line @next/next/no-img-element -- already shrunk when it was uploaded; nothing for next/image to do. */}
-      <img src={file.src} alt="" loading="lazy" className="h-full w-full object-cover" />
+      <PhotoThumbnail src={file.src} className="h-full w-full object-cover" />
     </div>
   );
   const keepControls = (

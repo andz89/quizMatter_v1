@@ -2,7 +2,7 @@ import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { getAssetViewBox, getElementAsset, svgDataUrl, type RenderSettings } from "@/lib/svgLibrary";
 import { isPeopleArt, isPeopleArtLoaded, loadPeopleArt } from "@/lib/peopleArt";
 import { Spinner } from "@/components/Spinner";
-import { TEXT_BOX_FONT_SIZE } from "@/lib/constants";
+import { TEXT_BOX_FONT_SIZE, thumbnailUrl } from "@/lib/constants";
 import { SlideText } from "./SlideText";
 
 interface ElementSvgProps {
@@ -54,6 +54,42 @@ function CroppedDrawing({ crop, ...props }: ElementSvgProps & { crop: NonNullabl
       >
         <ElementDrawing {...props} />
       </div>
+    </div>
+  );
+}
+
+/**
+ * A photo on a slide: the full file (sharp in fullscreen). Until it has loaded, its small copy shows in its place
+ * (usually already loaded by the Photos panel), so a new photo never shows as an empty box. The small copy is only
+ * a stand-in: if it fails to load, it's simply left out.
+ */
+function SlidePhoto({ src }: { src: string }) {
+  const [isLoaded, setIsLoaded] = useState(false);
+  const [thumbnailFailed, setThumbnailFailed] = useState(false);
+  return (
+    <div className="relative h-full w-full">
+      {!isLoaded && !thumbnailFailed && (
+        // eslint-disable-next-line @next/next/no-img-element -- Cloudflare already makes the small copy; nothing for next/image to do.
+        <img
+          src={thumbnailUrl(src)}
+          alt=""
+          draggable={false}
+          onError={() => setThumbnailFailed(true)}
+          className="absolute inset-0 h-full w-full object-contain"
+        />
+      )}
+      {/* eslint-disable-next-line @next/next/no-img-element -- already shrunk when it was uploaded; nothing for next/image to do. */}
+      <img
+        // A photo the browser already has may finish loading before React listens, so that's checked too.
+        ref={(img) => {
+          if (img?.complete && img.naturalWidth > 0) setIsLoaded(true);
+        }}
+        src={src}
+        alt=""
+        draggable={false}
+        onLoad={() => setIsLoaded(true)}
+        className="relative h-full w-full object-contain"
+      />
     </div>
   );
 }
@@ -130,10 +166,7 @@ function ElementDrawing({ assetId, color, settings = {}, onMeasure }: ElementSvg
     return <img src={svgDataUrl(settings.svg)} alt="" draggable={false} className="h-full w-full object-contain" />;
   }
 
-  if (settings.image) {
-    // eslint-disable-next-line @next/next/no-img-element -- already shrunk when it was uploaded; nothing for next/image to do.
-    return <img src={settings.image.src} alt="" draggable={false} className="h-full w-full object-contain" />;
-  }
+  if (settings.image) return <SlidePhoto key={settings.image.src} src={settings.image.src} />;
 
   if (!asset) return null;
 

@@ -20,6 +20,15 @@ export const ELEMENT_DRAG_MIME = "application/x-quizbuilder-element";
 
 // Where uploaded photos live: the R2 bucket "quizmatter-images", served from its own domain.
 export const PHOTO_URL_PREFIX = "https://images.quizmatter.com/uploads/";
+
+/**
+ * A small copy (320 px wide) of one of our photos, for previews: Cloudflare makes it from the full file the first
+ * time it's asked for (Images → Transformations, turned on for quizmatter.com) and keeps it in its cache. Slides
+ * show the full photo. Other addresses are left as they are.
+ */
+export function thumbnailUrl(src: string) {
+  return src.startsWith(PHOTO_URL_PREFIX) ? `https://quizmatter.com/cdn-cgi/image/width=320,quality=75,format=auto/${src}` : src;
+}
 // Photos are shrunk in the browser so their longest side is at most this (px) — sharp in fullscreen.
 export const PHOTO_MAX_SIDE = 1920;
 // Biggest photo file (bytes) a teacher can pick or add from a link, before it's shrunk.

@@ -25,6 +25,7 @@ import {
 } from "@/lib/photos";
 import { SHARED_PHOTO_TAG_MAX, photoCategoryNameSchema, sharedPhotoInfoSchema, type SharedPhotoInfo } from "@/lib/schema";
 import { Modal } from "@/components/Modal";
+import { PhotoThumbnail } from "@/components/editor/PhotoTile";
 import { LinkPending } from "@/components/LinkPending";
 import { SearchField, SearchForm, SearchSelect, SearchTextInput } from "@/components/SearchForm";
 import { Spinner } from "@/components/Spinner";
@@ -1021,8 +1022,7 @@ function SharedPhotoItem({
 }) {
   const picture = (
     <div className={`relative overflow-hidden rounded-dropdown border border-border-default bg-bg-page ${view === "list" ? "h-12 w-12" : "aspect-square"}`}>
-      {/* eslint-disable-next-line @next/next/no-img-element -- already shrunk when it was uploaded; nothing for next/image to do. */}
-      <img src={shared.photo.src} alt={shared.description} loading="lazy" className="h-full w-full object-cover" />
+      <PhotoThumbnail src={shared.photo.src} alt={shared.description} className="h-full w-full object-cover" />
       {isMoving && (
         <span className="absolute inset-0 flex items-center justify-center bg-bg-surface/60">
           <Spinner size={view === "list" ? 16 : 20} />
