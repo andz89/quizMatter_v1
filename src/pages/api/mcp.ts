@@ -5,7 +5,10 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { z } from "zod";
 import { buildSlides, getClaudeFormat, claudeDetailsSchema } from "@/lib/importPresentation";
 import { replaceDraft, saveDraft } from "@/lib/drafts";
-import type { Photo, Slide } from "@/lib/schema";
+import { CLAUDE_PHOTO_MAX_SIDE, CLAUDE_PHOTO_MIN_SIDE } from "@/lib/constants";
+import { createPhotoTickets } from "@/lib/photoTickets";
+import { claudePhotoSchema, type Photo, type Slide } from "@/lib/schema";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 /**
  * The MCP server Claude chat connects to (added in claude.ai as a custom connector with this URL).
@@ -60,6 +63,39 @@ function createServer(appUrl: string, userId: string) {
         return { isError: true, content: [{ type: "text", text: "Couldn't search the photo library. Try again." }] };
       }
       const text = JSON.stringify({ photos: photos.data, categories: categories.data.map((c) => c.name) }, null, 2);
+      return { content: [{ type: "text", text }] };
+    },
+  );
+
+  server.registerTool(
+    "prepare_photo_upload",
+    {
+      description:
+        "Adds photos the user attached in this chat to quizMatter's shared photo library (for every teacher). " +
+        "Look at each photo and give it a short file name, a description of what it shows, up to 10 tags, and a category: " +
+        "reuse a category from find_photos when one fits, or give a new name to make a new category. The source (who owns " +
+        "the photos or where they came from) is what the user told you; ask them if they didn't. " +
+        "This returns a one-time upload link per photo and the steps to send each file from your code sandbox.",
+      inputSchema: { photos: z.array(claudePhotoSchema).min(1).max(20).describe("One entry per photo, in the order you'll upload them.") },
+    },
+    async ({ photos }) => {
+      const ids = await createPhotoTickets(userId, photos);
+      const text = [
+        "For each photo, in your code sandbox (the user's attached files are in /mnt/user-data/uploads), do what quizMatter's",
+        "own upload does, with Python and Pillow:",
+        "1. img = ImageOps.exif_transpose(Image.open(path)). Never resize or crop it.",
+        `2. Its longest side must be ${CLAUDE_PHOTO_MIN_SIDE}–${CLAUDE_PHOTO_MAX_SIDE} px. If not, don't upload it: tell the user which photo it is.`,
+        '3. Convert "P", "LA" and "CMYK" photos to "RGBA" (keeps see-through parts) or "RGB", then save as WebP:',
+        '   img.save(out, "WEBP", quality=85). If the file is over 2 MB, save it again at quality=70.',
+        '4. Send the file: curl -sS -X POST -H "Content-Type: image/webp" --data-binary @out.webp "<link>"',
+        "   The answer says if it was added, or what's wrong. A link works once (for an hour); a failed send can use it again.",
+        "   If curl can't connect, tell the user to allow quizmatter.com in claude.ai: Settings → Capabilities → code execution's allowed domains.",
+        "",
+        "Upload links:",
+        ...photos.map((photo, i) => `- ${photo.file_name}: ${appUrl}/api/claude-photo?ticket=${ids[i]}`),
+        "",
+        "When you're done, tell the user which photos were added, and that they can edit them on Admin → Photos.",
+      ].join("\n");
       return { content: [{ type: "text", text }] };
     },
   );
@@ -142,15 +178,6 @@ function createServer(appUrl: string, userId: string) {
   }
 
   return server;
-}
-
-/**
- * Supabase with the secret key, for the shared photo library: this route has no logged-in user. The key only
- * lives on the server (a Cloudflare secret, also used by the photo cleanup). null if it isn't set.
- */
-function createAdminClient() {
-  const key = process.env.SUPABASE_SECRET_KEY;
-  return key ? createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, key, { auth: { persistSession: false } }) : null;
 }
 
 /**

@@ -99,6 +99,15 @@ export function toSharedPhoto({
 // A category of shared photos (the photo_categories table).
 export const photoCategoryNameSchema = z.string().trim().min(1, "Type a category name.").max(40, "The category name is too long.");
 
+// A photo Claude adds to the shared photo library (prepare_photo_upload in /api/mcp): its details, and the name
+// of its category (an existing one, or a new one that's made when the photo is saved).
+export const claudePhotoSchema = sharedPhotoInfoSchema.extend({
+  file_name: sharedPhotoInfoSchema.shape.file_name.min(1, "Give the photo a file name."),
+  description: sharedPhotoInfoSchema.shape.description.min(1, "Describe what the photo shows."),
+  category: photoCategoryNameSchema,
+});
+export type ClaudePhotoDetails = z.infer<typeof claudePhotoSchema>;
+
 export const svgElementSchema = z.object({
   id: idSchema,
   assetId: idSchema,
