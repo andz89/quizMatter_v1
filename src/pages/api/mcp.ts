@@ -1,13 +1,14 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { z } from "zod";
 import { buildSlides, getClaudeFormat, claudeDetailsSchema } from "@/lib/importPresentation";
 import { replaceDraft, saveDraft } from "@/lib/drafts";
+import { loadPresentation } from "@/lib/fetchPresentation";
 import { PHOTO_MAX_SIDE } from "@/lib/constants";
 import { createPhotoTickets } from "@/lib/photoTickets";
-import { claudePhotoSchema, type Photo, type Slide } from "@/lib/schema";
+import { claudePhotoSchema, type Photo, type Presentation, type Slide } from "@/lib/schema";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 /**
@@ -24,7 +25,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
  * It's a Pages Router API route (not an App Router route.ts) because the presentation importer imports
  * react-dom/server (for drawing background patterns), which the App Router doesn't allow on the server.
  */
-function createServer(appUrl: string, userId: string) {
+function createServer(appUrl: string, userId: string, supabase: SupabaseClient) {
   const server = new McpServer({ name: "quizmatter", version: "1.0.0" });
 
   // Each tool also answers to its old names (from when presentations were called quizzes, then lessons): Claude keeps the
@@ -35,12 +36,43 @@ function createServer(appUrl: string, userId: string) {
       {
         description:
           "Returns the JSON format for quizMatter slides (blank, title, question, and video / slide deck / picture slides), with notes and an example. Call this before send_presentation. " +
-          "If the user gives you a reference (a module, book lesson, worksheet, file or link), first ask whether to use all its short quizzes and activities as question slides, or only the final assessment.",
+          "If the user gives you a reference (a module, book lesson, worksheet, file or link), first ask whether to use all its short quizzes and activities as question slides, or only the final assessment. " +
+          "If the reference is a quizMatter presentation link, read it with read_presentation.",
         annotations: { readOnlyHint: true },
       },
       async () => ({ content: [{ type: "text", text: getClaudeFormat() }] }),
     );
   }
+
+  server.registerTool(
+    "read_presentation",
+    {
+      description:
+        "Reads a saved quizMatter presentation, from its link (e.g. https://quizmatter.com/presentation/<id>/edit) or its id, " +
+        "so you can use it as a reference: its details and every slide (type, text, questions, answers, and where each element sits). " +
+        "Works for the user's own presentations and other teachers' published ones.",
+      inputSchema: { link: z.string().max(500).describe("The presentation's link, or just its id.") },
+      annotations: { readOnlyHint: true },
+    },
+    async ({ link }) => {
+      const id = link.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i)?.[0];
+      if (!id) return { isError: true, content: [{ type: "text", text: "That isn't a quizMatter presentation link or id." }] };
+      const result = await loadPresentation(supabase, id).catch(() => undefined);
+      if (result === undefined) return { isError: true, content: [{ type: "text", text: "Couldn't read the presentation. Try again." }] };
+      if (!result) {
+        const text = "There's no presentation with that link, or it's someone else's private one. A link to a draft that isn't saved yet can't be read.";
+        return { isError: true, content: [{ type: "text", text }] };
+      }
+      const text = [
+        "This is how quizMatter SAVES slides, which is not the format send_presentation takes. Read it as a reference",
+        "(content, slide order, layout, sizes on the 1280×720 slide). To make a presentation, call get_presentation_format and write it in that format.",
+        "Text is shown as plain text; big drawings and background art are left out (a note says what was there).",
+        "",
+        JSON.stringify(shrinkPresentation(result.presentation), null, 1),
+      ].join("\n");
+      return { content: [{ type: "text", text }] };
+    },
+  );
 
   server.registerTool(
     "find_photos",
@@ -187,7 +219,7 @@ function createServer(appUrl: string, userId: string) {
  * Checks Claude's login token (the one Supabase gave it after the user clicked Allow). The user's id and whether
  * they're an admin, or null if the token is missing, wrong or expired.
  */
-async function checkLogin(token: string): Promise<{ id: string; isAdmin: boolean } | null> {
+async function checkLogin(token: string): Promise<{ id: string; isAdmin: boolean; supabase: SupabaseClient } | null> {
   // Acts as that user, so is_admin() answers for them.
   const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
     global: { headers: { Authorization: `Bearer ${token}` } },
@@ -196,7 +228,48 @@ async function checkLogin(token: string): Promise<{ id: string; isAdmin: boolean
   const { data } = await supabase.auth.getClaims(token);
   if (!data) return null;
   const { data: isAdmin } = await supabase.rpc("is_admin");
-  return { id: data.claims.sub, isAdmin: isAdmin === true };
+  return { id: data.claims.sub, isAdmin: isAdmin === true, supabase };
+}
+
+// Drawings bigger than this (in characters) are left out of read_presentation, to keep its answer small.
+const MAX_READ_SVG_LENGTH = 5_000;
+
+/**
+ * The presentation for read_presentation: the text as plain text, and the heavy parts (background art, big
+ * drawings) swapped for a short note, so Claude gets what the slides say and how they're laid out.
+ */
+function shrinkPresentation({ slides, ...details }: Presentation) {
+  const svgNote = (svg: string) =>
+    svg.length > MAX_READ_SVG_LENGTH ? `(a drawing, ${Math.round(svg.length / 1000)} KB, left out)` : svg;
+  return {
+    ...details,
+    slides: slides.map(({ questionHtml, backgroundSvg, ...slide }) => ({
+      ...slide,
+      question: questionHtml ? htmlToText(questionHtml) : slide.question,
+      ...(backgroundSvg && {
+        backgroundArt: slide.backgroundPattern ? `pattern "${slide.backgroundPattern}"` : "(custom background art, left out)",
+      }),
+      elements: slide.elements.map((element) => ({
+        ...element,
+        ...(element.text && { text: { ...element.text, html: htmlToText(element.text.html) } }),
+        ...(element.svg && { svg: svgNote(element.svg) }),
+      })),
+    })),
+  };
+}
+
+/** The text editor's HTML as plain text: each paragraph or line break on its own line. */
+function htmlToText(html: string): string {
+  return html
+    .replace(/<br\s*\/?>|<\/(p|div|li|h\d)>/gi, "\n")
+    .replace(/<[^>]*>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&amp;/g, "&")
+    .trim();
 }
 
 /** Every photo on the slides must be a shared photo, with its real size (as find_photos gave it). The problems, if any. */
@@ -250,7 +323,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   const transport = new WebStandardStreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true });
-  await createServer(appUrl, user.id).connect(transport);
+  await createServer(appUrl, user.id, user.supabase).connect(transport);
 
   // The SDK's Node adapter reads req.rawHeaders, which is empty on Cloudflare (OpenNext), so the
   // request is rebuilt as a standard web Request from the headers Next already parsed.
