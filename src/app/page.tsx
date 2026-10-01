@@ -49,14 +49,20 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
     if (isSearching) {
       if (search.q) {
         const pattern = contains(search.q);
-        query = query.or(`title.ilike.${pattern},subject.ilike.${pattern},author.ilike.${pattern}`);
+        query = query.or(`title.ilike.${pattern},subject.ilike.${pattern},author.ilike.${pattern},tags_text.ilike.${pattern}`);
       }
       if (search.title) query = query.ilike("title", contains(search.title));
       if (search.subject) query = query.ilike("subject", contains(search.subject));
       if (search.author) query = query.ilike("author", contains(search.author));
+      // tags_text: the tags as one line of text, so part of a tag is found too (see the presentation_tags migration).
+      if (search.tags) query = query.ilike("tags_text", contains(search.tags));
       if (search.not) {
         const pattern = contains(search.not);
-        query = query.not("title", "ilike", pattern).not("subject", "ilike", pattern).not("author", "ilike", pattern);
+        query = query
+          .not("title", "ilike", pattern)
+          .not("subject", "ilike", pattern)
+          .not("author", "ilike", pattern)
+          .not("tags_text", "ilike", pattern);
       }
       if (search.grade) query = query.eq("grade", search.grade);
       if (since) query = query.gte("updated_at", new Date(since).toISOString());
@@ -123,11 +129,12 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
  */
 function draftMatches(draft: DraftSummary, search: HomeSearch, since: number): boolean {
   const has = (text: string, part: string) => text.toLowerCase().includes(part.toLowerCase());
-  const details = `${draft.title} ${draft.subject}`;
+  const details = `${draft.title} ${draft.subject} ${draft.tags}`;
   return (
     has(details, search.q) &&
     has(draft.title, search.title) &&
     has(draft.subject, search.subject) &&
+    has(draft.tags, search.tags) &&
     !search.author &&
     (!search.not || !has(details, search.not)) &&
     (!search.grade || draft.grade === search.grade) &&

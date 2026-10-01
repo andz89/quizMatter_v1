@@ -50,15 +50,20 @@ export const sharedPhotoSchema = photoSchema.extend({
   category_id: z.uuid(),
 });
 
+// Short keywords saying what something is about, e.g. ["fractions", "addition"]. Used by shared photos and
+// presentations. Typed comma-separated (see parseTags in src/lib/photos.tsx).
+export const MAX_TAGS = 10;
+export const tagsSchema = z
+  .array(z.string().trim().toLowerCase().min(1).max(30, "A tag is too long (30 characters at most)."))
+  .max(MAX_TAGS, `Use ${MAX_TAGS} tags at most.`);
+
 // What a shared photo shows, in words (admins type it; Claude searches it with find_photos).
-export const SHARED_PHOTO_TAG_MAX = 10;
+export const SHARED_PHOTO_TAG_MAX = MAX_TAGS;
 export const sharedPhotoInfoSchema = z.object({
   // Starts as the uploaded file's name; admins can change it. Only a name to show and search.
   file_name: z.string().trim().max(200, "The file name is too long (200 characters at most)."),
   description: z.string().trim().max(300, "The description is too long (300 characters at most)."),
-  tags: z
-    .array(z.string().trim().toLowerCase().min(1).max(30, "A tag is too long (30 characters at most)."))
-    .max(SHARED_PHOTO_TAG_MAX, `Use ${SHARED_PHOTO_TAG_MAX} tags at most.`),
+  tags: tagsSchema,
   // Who owns the photo or where it came from, e.g. "Photo by Juan Cruz, Pexels" or a link. Required.
   // (Photos shared before it was added have none; the admin page lists them under "No source".)
   source: z
@@ -345,6 +350,8 @@ export const presentationSchema = z.object({
   author: z.string().max(DETAIL_MAX_LENGTH.author),
   // What the presentation is based on (links, or book / module names), as many as the user adds.
   referenceLinks: z.array(referenceSchema).max(MAX_REFERENCE_LINKS),
+  // Keywords saying what the presentation is about, e.g. ["fractions", "addition"].
+  tags: tagsSchema,
   // Private (only the owner sees it) or published (other teachers see it on their home page and can copy it).
   isPublished: z.boolean(),
   // Made by an admin on Admin → Presentations: once shared, every teacher gets it under "From QuizMatter".
@@ -392,5 +399,6 @@ export type PresentationDetails = Pick<
   | "learningCompetency"
   | "author"
   | "referenceLinks"
+  | "tags"
   | "isPublished"
 >;

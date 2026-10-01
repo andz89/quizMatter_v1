@@ -77,6 +77,7 @@ export function createBlankPresentation(details: Partial<PresentationDetails> = 
     learningCompetency: "",
     author: "",
     referenceLinks: [],
+    tags: [],
     isPublished: false,
     fromAdmin: false,
     ...details,

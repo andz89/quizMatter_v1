@@ -66,6 +66,7 @@ import {
   MAX_REFERENCE_LINKS,
   photoSchema,
   referenceSchema,
+  tagsSchema,
   type Slide,
   type SvgElement,
 } from "./schema";
@@ -461,6 +462,9 @@ export const claudeDetailsSchema = z.object({
     .max(DETAIL_MAX_LENGTH.author)
     .optional()
     .describe("Who wrote the content (a teacher, a book…). Only if the user says so."),
+  tags: tagsSchema
+    .optional()
+    .describe('Short keywords teachers would search for, lowercase, e.g. ["fractions", "addition", "dissimilar fractions"].'),
   referenceLinks: z
     .array(referenceSchema)
     .max(MAX_REFERENCE_LINKS)
@@ -523,7 +527,7 @@ End every presentation with a "References" slide: a blank slide titled "Referenc
 - any other source you used for facts or content.
 Never make up a reference. If there is nothing to list, leave the slide out.
 
-Also fill in "details" when you send it: the presentation's title, a short description, grade, subject, curriculum and learning competency (and author or reference links only when you know them).
+Also fill in "details" when you send it: the presentation's title, a short description, grade, subject, curriculum, learning competency and a few tags (and author or reference links only when you know them).
 
 Leave a setting out and the app decides it. The layout report you get back (see "Checking before the final version") shows where everything landed.
 

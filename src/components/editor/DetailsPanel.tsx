@@ -4,14 +4,15 @@ import { useEffect, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { useEditorStore, isPanelEscape } from "@/lib/store";
 import { createClient } from "@/lib/supabase/client";
-import { DETAIL_MAX_LENGTH, GRADES, MAX_REFERENCE_LINKS, isWebLink, referenceSchema, type PresentationDetails } from "@/lib/schema";
+import { DETAIL_MAX_LENGTH, GRADES, MAX_REFERENCE_LINKS, isWebLink, referenceSchema, tagsSchema, type PresentationDetails } from "@/lib/schema";
+import { parseTags } from "@/lib/photos";
 import { PanelLabel } from "./PanelControls";
 import { Spinner } from "@/components/Spinner";
 import { ExternalLinkIcon, XIcon } from "lucide-react";
 
 /**
  * Sidebar panel for the presentation as a whole: title, description, grade, subject, curriculum,
- * learning competency, author, references, and private/published. All optional. Edits count as unsaved
+ * learning competency, tags, author, references, and private/published. All optional. Edits count as unsaved
  * changes until Save, like any other edit — except private/published, which saves right away.
  * For a QuizMatter presentation (made on Admin → Presentations) it's draft/shared instead: shared means every
  * teacher gets it under "From QuizMatter".
@@ -107,6 +108,7 @@ export function DetailsPanel() {
       {textField("subject", "Subject", "e.g. Mathematics")}
       {textField("curriculum", "Curriculum", "e.g. MATATAG")}
       {textField("learningCompetency", "Learning competency", "The competency this presentation targets, with its code", true)}
+      <TagsField tags={presentation.tags} onChange={(tags) => setPresentationDetails({ tags })} />
       {textField("author", "Author", "Who wrote it: you, a book, another teacher…")}
 
       <ReferenceLinks links={presentation.referenceLinks} onChange={(referenceLinks) => setPresentationDetails({ referenceLinks })} />
@@ -201,6 +203,36 @@ function ReferenceLinks({ links, onChange }: { links: string[]; onChange: (links
         </button>
       )}
     </div>
+  );
+}
+
+/**
+ * Tags typed comma-separated, e.g. "fractions, addition". The text is kept as typed (so "fractions, " can be
+ * typed), and the tags are read from it on every change. Search on the home page looks in them.
+ */
+function TagsField({ tags, onChange }: { tags: string[]; onChange: (tags: string[]) => void }) {
+  const [text, setText] = useState(tags.join(", "));
+  // Tags changed somewhere else (e.g. undo): show them again.
+  if (parseTags(text).join() !== tags.join()) setText(tags.join(", "));
+  const error = tagsSchema.safeParse(tags).error?.issues[0].message;
+
+  return (
+    <Field label="Tags">
+      <input
+        value={text}
+        onChange={(e) => {
+          setText(e.target.value);
+          onChange(parseTags(e.target.value));
+        }}
+        placeholder="e.g. fractions, addition"
+        className={inputClass}
+      />
+      {error ? (
+        <p className="text-[13px] text-danger-strong">{error}</p>
+      ) : (
+        <p className="text-[13px] text-text-secondary">Put commas between tags. They help teachers find it when searching.</p>
+      )}
+    </Field>
   );
 }
 

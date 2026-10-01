@@ -191,6 +191,9 @@ function HomeSearchForm({ search }: { search: HomeSearch }) {
       <SearchField label="Author">
         <SearchTextInput value={values.author} onChange={(author) => set({ author })} />
       </SearchField>
+      <SearchField label="Tags">
+        <SearchTextInput value={values.tags} onChange={(tags) => set({ tags })} />
+      </SearchField>
       <SearchField label="Includes the words">
         <SearchTextInput value={values.q} onChange={(q) => set({ q })} />
       </SearchField>

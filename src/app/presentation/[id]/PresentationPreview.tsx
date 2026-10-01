@@ -120,7 +120,7 @@ export function PresentationPreview({
         </div>
       </header>
 
-      {(details.length > 0 || presentation.referenceLinks.length > 0) && (
+      {(details.length > 0 || presentation.tags.length > 0 || presentation.referenceLinks.length > 0) && (
         <dl className="mb-8 grid gap-4 rounded-card border border-border-default bg-bg-surface px-5 py-4 text-sm">
           {details.map((detail) => (
             <div key={detail.label}>
@@ -128,6 +128,18 @@ export function PresentationPreview({
               <dd className="mt-1 whitespace-pre-line text-text-primary">{detail.value}</dd>
             </div>
           ))}
+          {presentation.tags.length > 0 && (
+            <div>
+              <dt className="text-[11px] font-bold tracking-[0.05em] text-text-header uppercase">Tags</dt>
+              <dd className="mt-1.5 flex flex-wrap gap-1.5">
+                {presentation.tags.map((tag) => (
+                  <span key={tag} className="rounded-dropdown bg-accent-soft px-2 py-0.5 text-[13px] font-semibold text-accent">
+                    {tag}
+                  </span>
+                ))}
+              </dd>
+            </div>
+          )}
           {presentation.referenceLinks.length > 0 && (
             <div>
               <dt className="text-[11px] font-bold tracking-[0.05em] text-text-header uppercase">References</dt>
