@@ -12,6 +12,7 @@ import { ElementsPanel } from "./ElementsPanel";
 import { PhotosPanel } from "./PhotosPanel";
 import { ColorPanel } from "./ColorPanel";
 import { BackgroundPanel } from "./BackgroundPanel";
+import { EffectsPanel } from "./EffectsPanel";
 import { DetailsPanel } from "./DetailsPanel";
 import { PresentationsPanel } from "./PresentationsPanel";
 import { SmallScreenNote } from "./SmallScreenNote";
@@ -48,6 +49,7 @@ export function Editor({ presentation, draft }: { presentation: Presentation; dr
   const isPhotosPanelOpen = useEditorStore((s) => s.isPhotosPanelOpen);
   const isColorPanelOpen = useEditorStore((s) => s.isColorPanelOpen);
   const isBackgroundPanelOpen = useEditorStore((s) => s.isBackgroundPanelOpen);
+  const isEffectsPanelOpen = useEditorStore((s) => s.isEffectsPanelOpen);
   const isDetailsPanelOpen = useEditorStore((s) => s.isDetailsPanelOpen);
   const isPresentationsPanelOpen = useEditorStore((s) => s.isPresentationsPanelOpen);
   const closeColorPanel = useEditorStore((s) => s.closeColorPanel);
@@ -125,6 +127,7 @@ export function Editor({ presentation, draft }: { presentation: Presentation; dr
           {isPhotosPanelOpen && <PhotosPanel />}
           {isColorPanelOpen && <ColorPanel />}
           {isBackgroundPanelOpen && <BackgroundPanel />}
+          {isEffectsPanelOpen && <EffectsPanel />}
           {isDetailsPanelOpen && <DetailsPanel />}
           {isPresentationsPanelOpen && <PresentationsPanel />}
         </div>

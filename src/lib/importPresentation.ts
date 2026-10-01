@@ -250,7 +250,7 @@ const questionBoxes = {
   pictureBox: z
     .object({ fill: hexColor.optional(), border: hexColor.optional() })
     .optional()
-    .describe('Choice slides only: fill and border colors of the picture box ("side"). Leave out for a plain box.'),
+    .describe('Choice slides only: fill and border colors of the picture box ("side"). Usually leave it out for a plain box; use it only when the pictures need it to stand out.'),
 };
 
 // Blank slides are always white, with decorations and artwork.
@@ -513,7 +513,7 @@ Be a teacher, and be creative. Act like a kind, skilled teacher teaching this le
 - Get the facts right, and keep them fit for the pupils' age. If you're not sure of a fact, tell the user instead of guessing.
 - In choice questions, make the wrong options believable: take them from mistakes pupils really make, not silly ones, so the quiz shows what they truly understand.
 - Be kind and fair: use warm, encouraging words (e.g. "Great job!" on the recap), show boys and girls equally, and never make fun of anyone.
-- Design like a professional graphic designer, and use your creativity: plan each slide's look with care (clear focus, balance, good spacing, colors that go well together, easy-to-read text). Pick pictures, colors, layouts and backgrounds that make each idea clear and fun to look at. Show the idea in a picture, not only in words, and vary the slides so they don't all look the same.
+- Design like a professional graphic designer, and use your creativity: plan each slide's look with care (clear focus, balance, good spacing, colors that go well together, easy-to-read text). Pick pictures, colors, layouts and backgrounds that make each idea clear and fun to look at. Show the idea in a picture, not only in words, and vary the slides so they don't all look the same. Make each presentation look different from the last one too: pick a fresh color set, patterns, decorations and kids for each topic, instead of the same favorite design every time.
 - Keep pupils thinking along the way: ask a small question, add a "Reveal", or start a short discussion before moving on.
 
 When the user gives you a reference (a module or SLM, a lesson from a book, a worksheet, a lesson plan, a file, a link…): it often has many short quizzes and activities inside it, plus a final assessment at the end. Before you write any slides, ask the user which ones become question slides:
@@ -543,7 +543,7 @@ The slide is 1280 × 720 px.
      - "list" (4 rows) and "grid" (2×2): a wide strip between the question and the options. It only shows when you put pictures in "side". "stripHeight" sets its height.
      - "list-side": a tall box beside the 4 rows.
    - 4 option boxes "A", "B", "C", "D": "options" (the texts), "optionStyle", "optionFontSize". Each can also hold pictures.
-   - "pictureBox": fill and border colors of the picture box.
+   - "pictureBox": fill and border colors of the picture box. Usually leave it out (see Design).
    - "layout": see Layouts below.
    - To calculate or type an answer, with no choices, use "short-answer" instead. For a statement that is either right or wrong, use "true-false".
 2. "true-false" — a statement the learner marks true or false. It works like "choice", with 2 options "A" (True) and "B" (False) instead of 4. "answer" is true or false.
@@ -623,7 +623,9 @@ How they look:
 - "cornerRadius" (0–${CORNER_RADIUS_MAX}%) rounds the corners of a square or rectangle.
 - "flipX" mirrors a picture left to right (e.g. two kids facing each other), "flipY" top to bottom. Decorations in "design" can be flipped too.
 - "crop" shows only part of a flat picture, in percent of the whole picture: { x, y, width, height }. E.g. { x: 0, y: 0, width: 100, height: 50 } = the top half; a kid's head and shoulders is about the top 45%. The picture's box takes the shape of the part that shows.
-- The picture list has people: students in school uniform — Filipino boys ("ph-student-…", one waving, one with a fist up), a waving boy with a book ("school-boy"), and students with a pencil, reading, with an apple, a book, a globe, a backpack or a paper, pointing up, or jumping for joy ("student-…"). Their "color" is their clothes. Use them to make presentations friendly: a student reading on a lesson slide, a student cheering on a summary slide.
+- The picture list has people: students in school uniform — Filipino boys ("ph-student-…", one waving, one with a fist up), a waving boy with a book ("school-boy"), and students with a pencil, reading, with an apple, a book, a globe, a backpack or a paper, pointing up, or jumping for joy ("student-…"). Their "color" is their clothes.
+- Kids and people make presentations friendly (a kid reading on a lesson slide, a kid cheering on a summary slide). But first look in the shared photo library: call find_photos with words like "kid", "girl", "boy", "student" or "people", plus what the kid should be doing (e.g. "girl reading", "boy cheering"). It has many more kids than the picture list. Look through all the kids it gives you and try a few searches, not only the first result. Use the built-in students above only when find_photos has nothing that fits.
+- Vary the kids: inside one presentation, you decide when to use a kid again. But each new presentation gets new kids, different from the ones you used before (not always "student-pointing" or "student-globe"). Show girls and boys about equally.
 - Fruits include apple, banana, grapes, mango, papaya, coconut, rambutan, dragon-fruit, kiwi, avocado, peach, pomegranate, blueberries and more.
 - Shapes include every kind of triangle (equilateral, isosceles, scalene, right, acute, obtuse) and four-sided shape (square, rectangle, trapezoid, right trapezoid, rhombus, kite, parallelogram…). 3D solids include prisms and pyramids with 3–6 sided bases, frustum, hemisphere, octahedron and icosahedron.
 - Settings like "clockTime", "fraction", "numberLine", "tenFrame", "baseTen", "thermometer", "barGraph" and "protractor" only work on the pictures named in their description.
@@ -678,7 +680,7 @@ Every slide is white. There is no background color to set.
 
 Question slides ("choice", "true-false", "short-answer" and "custom") — keep them plain:
 - Plain white, with no decorations, pattern or artwork: they don't have "design", "backgroundPattern" or "backgroundSvg".
-- "pictureBox" (choice and true-false slides): a soft fill and/or border for the picture box, so the pictures stand out. Use one soft color family for the whole presentation.
+- "pictureBox" (choice and true-false slides): leave it out, so the picture box stays plain with no background color. Only add a soft fill and/or border when it's really needed, e.g. white or very light pictures that would get lost on the white slide. Then use one soft color family for the whole presentation.
 
 Blank and title slides — white, made friendly with design:
 - "design": decorations drawn behind everything, placed at a "spot": the 4 corners (big, about 180px) or "bottom-strip" (a row of small copies along the bottom). Up to 6 per slide; 2–4 is usually enough. "opacity" sets how solid each one is (${DECORATION_OPACITY}% if left out).
@@ -742,7 +744,6 @@ Example:
     },
     {
       "type": "choice",
-      "pictureBox": { "fill": "#F0F9FF", "border": "#7DD3FC" },
       "question": "What time does the clock show?",
       "options": ["3:00", "4:30", "6:15", "9:45"],
       "answer": "C",

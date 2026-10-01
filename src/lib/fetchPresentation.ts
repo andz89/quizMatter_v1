@@ -15,7 +15,7 @@ export async function fetchPresentation(
     supabase
       .from("presentations")
       .select(
-        "id, owner_id, title, description, grade, subject, curriculum, learning_competency, author, reference_links, tags, is_published, from_admin, created_at, updated_at, slides(data, position)",
+        "id, owner_id, title, description, grade, subject, curriculum, learning_competency, author, reference_links, tags, transition, transition_speed, is_published, from_admin, created_at, updated_at, slides(data, position)",
       )
       .eq("id", id)
       .order("position", { referencedTable: "slides" })
@@ -37,6 +37,8 @@ export async function fetchPresentation(
     author: data.author,
     referenceLinks: data.reference_links,
     tags: data.tags,
+    transition: data.transition,
+    transitionSpeed: data.transition_speed,
     isPublished: data.is_published,
     fromAdmin: data.from_admin,
     createdAt: Date.parse(data.created_at),

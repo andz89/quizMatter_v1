@@ -1,7 +1,7 @@
 import { createId } from "./id";
 import { CANVAS_WIDTH, DEFAULT_QUESTION_HEIGHT } from "./constants";
 import { DEFAULT_TEXT_COLOR } from "./richText";
-import type { PresentationDetails, Presentation, Slide, SlideType, SvgElement } from "./schema";
+import { SLIDE_EFFECT_SPEED_DEFAULT, type PresentationDetails, type Presentation, type Slide, type SlideType, type SvgElement } from "./schema";
 
 // Where a new title slide's two text boxes go: centered, the title a bit above the middle.
 // Claude's title slides (importPresentation) use the same spots.
@@ -78,6 +78,8 @@ export function createBlankPresentation(details: Partial<PresentationDetails> = 
     author: "",
     referenceLinks: [],
     tags: [],
+    transition: "slide",
+    transitionSpeed: SLIDE_EFFECT_SPEED_DEFAULT,
     isPublished: false,
     fromAdmin: false,
     ...details,

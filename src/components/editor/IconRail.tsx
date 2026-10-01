@@ -2,10 +2,10 @@
 
 import type { ReactNode } from "react";
 import { useEditorStore } from "@/lib/store";
-import { BookOpenIcon, FileTextIcon, ImageIcon, LayoutGridIcon, PaintBucketIcon, ShapesIcon } from "lucide-react";
+import { BookOpenIcon, FileTextIcon, ImageIcon, LayoutGridIcon, PaintBucketIcon, ShapesIcon, SparklesIcon } from "lucide-react";
 
 /**
- * Canva-style narrow icon bar: "Elements", "Photos", "Background", "Details" and "Presentations" expand their sidebar panels,
+ * Canva-style narrow icon bar: "Elements", "Photos", "Background", "Effects", "Details" and "Presentations" expand their sidebar panels,
  * "Slides" opens the thumbnail modal.
  */
 export function IconRail() {
@@ -16,6 +16,8 @@ export function IconRail() {
   const openGridView = useEditorStore((s) => s.openGridView);
   const isBackgroundPanelOpen = useEditorStore((s) => s.isBackgroundPanelOpen);
   const toggleBackgroundPanel = useEditorStore((s) => s.toggleBackgroundPanel);
+  const isEffectsPanelOpen = useEditorStore((s) => s.isEffectsPanelOpen);
+  const toggleEffectsPanel = useEditorStore((s) => s.toggleEffectsPanel);
   const isDetailsPanelOpen = useEditorStore((s) => s.isDetailsPanelOpen);
   const toggleDetailsPanel = useEditorStore((s) => s.toggleDetailsPanel);
   const isPresentationsPanelOpen = useEditorStore((s) => s.isPresentationsPanelOpen);
@@ -23,7 +25,7 @@ export function IconRail() {
   const slideCount = useEditorStore((s) => s.presentation.slides.length);
 
   return (
-    <aside className="flex w-24 shrink-0 flex-col gap-1 border-r border-border-default bg-bg-surface px-1 py-3">
+    <aside className="flex w-24 shrink-0 flex-col gap-0.5 overflow-y-auto border-r border-border-default bg-bg-surface px-1 py-3">
       <RailButton label="Elements" active={isElementsPanelOpen} onClick={toggleElementsPanel}>
         <ShapesIcon size={22} />
       </RailButton>
@@ -35,6 +37,9 @@ export function IconRail() {
       </RailButton>
       <RailButton label="Background" active={isBackgroundPanelOpen} onClick={toggleBackgroundPanel}>
         <PaintBucketIcon size={22} />
+      </RailButton>
+      <RailButton label="Effects" title="Slide effects" active={isEffectsPanelOpen} onClick={toggleEffectsPanel}>
+        <SparklesIcon size={22} />
       </RailButton>
       <RailButton label="Details" active={isDetailsPanelOpen} onClick={toggleDetailsPanel}>
         <FileTextIcon size={22} />
@@ -66,7 +71,7 @@ function RailButton({
       data-keep-container-selection="true"
       onClick={onClick}
       title={title ?? label}
-      className="group flex w-full flex-col items-center gap-2 rounded-dropdown py-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+      className="group flex w-full shrink-0 flex-col items-center gap-1.5 rounded-dropdown py-1.5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
     >
       <span
         className={`flex h-11 w-11 items-center justify-center rounded-button transition-[transform,background-color] duration-200 ease-[cubic-bezier(0.34,1.56,0.64,1)] group-hover:scale-110 ${

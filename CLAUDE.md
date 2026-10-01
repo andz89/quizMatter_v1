@@ -100,6 +100,7 @@ Bright, rounded and friendly for kids, but clean enough to feel credible to teac
 | `rounded-dropdown` | 8px | Small buttons, pills, menus |
 
 - Plain `border` is 1.5px (set by `--default-border-width`).
+- Fullscreen slide change: the teacher's pick in the Effects panel, played by the `motion` library (`motion/mini`) in `startSlideEffect` in `PresentationView.tsx`. They play even when the computer asks to reduce motion, since the teacher picked one on purpose ("None" turns them off). The teacher also picks a speed from 1 to 5 (default 3); the seconds for each level are in `SLIDE_EFFECT_SECONDS` (Slide, Zoom) and `SLIDE_FADE_SECONDS` (Fade, faster) in `constants.ts`. A new effect goes in `startSlideEffect` and in `SLIDE_TRANSITIONS`.
 - Shadows: almost none. The main-button key edge (`btn-press`) is the one exception.
 - Main button: `rounded-button bg-accent btn-press px-4 py-2 text-sm font-semibold text-white hover:bg-accent-hover`.
 

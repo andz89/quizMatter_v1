@@ -297,3 +297,11 @@ export function getContainerBounds(containerId: string | null, box: BoxLayout): 
         : (optionsHeight - LIST_GAP * (listRows - 1)) / listRows,
   };
 }
+
+/**
+ * How long a fullscreen slide effect (Fade, Slide, Zoom) takes, in seconds, for each speed the teacher can pick in
+ * the Effects panel: 1 (slowest) to 5 (fastest). 3 is the default.
+ */
+export const SLIDE_EFFECT_SECONDS: Record<number, number> = { 1: 1.6, 2: 1.3, 3: 1, 4: 0.7, 5: 0.45 };
+// "Fade" has its own, faster times: it goes through the dark screen (out, then in), so the same time felt slow.
+export const SLIDE_FADE_SECONDS: Record<number, number> = { 1: 1, 2: 0.8, 3: 0.6, 4: 0.45, 5: 0.3 };

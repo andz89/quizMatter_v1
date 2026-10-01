@@ -57,6 +57,20 @@ export const tagsSchema = z
   .array(z.string().trim().toLowerCase().min(1).max(30, "A tag is too long (30 characters at most)."))
   .max(MAX_TAGS, `Use ${MAX_TAGS} tags at most.`);
 
+// How each slide comes in when a presentation is shown full screen (the teacher picks one in the Effects panel).
+// Same names as the check in the presentation_transition migration.
+export const SLIDE_TRANSITIONS = ["none", "fade", "slide", "zoom"] as const;
+export const SLIDE_TRANSITION_LABELS: Record<(typeof SLIDE_TRANSITIONS)[number], string> = {
+  none: "None",
+  fade: "Fade",
+  slide: "Slide",
+  zoom: "Zoom",
+};
+// How fast the slide effect plays: 1 = slowest, 5 = fastest. Same as the check in the transition_speed migration.
+export const SLIDE_EFFECT_SPEED_MIN = 1;
+export const SLIDE_EFFECT_SPEED_MAX = 5;
+export const SLIDE_EFFECT_SPEED_DEFAULT = 3;
+
 // What a shared photo shows, in words (admins type it; Claude searches it with find_photos).
 export const SHARED_PHOTO_TAG_MAX = MAX_TAGS;
 export const sharedPhotoInfoSchema = z.object({
@@ -352,6 +366,10 @@ export const presentationSchema = z.object({
   referenceLinks: z.array(referenceSchema).max(MAX_REFERENCE_LINKS),
   // Keywords saying what the presentation is about, e.g. ["fractions", "addition"].
   tags: tagsSchema,
+  // How each slide comes in when the presentation is shown full screen.
+  transition: z.enum(SLIDE_TRANSITIONS),
+  // How fast that effect plays (1–5).
+  transitionSpeed: z.number().int().min(SLIDE_EFFECT_SPEED_MIN).max(SLIDE_EFFECT_SPEED_MAX),
   // Private (only the owner sees it) or published (other teachers see it on their home page and can copy it).
   isPublished: z.boolean(),
   // Made by an admin on Admin → Presentations: once shared, every teacher gets it under "From QuizMatter".
@@ -400,5 +418,7 @@ export type PresentationDetails = Pick<
   | "author"
   | "referenceLinks"
   | "tags"
+  | "transition"
+  | "transitionSpeed"
   | "isPublished"
 >;

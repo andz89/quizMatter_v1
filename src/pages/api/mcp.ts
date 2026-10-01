@@ -47,7 +47,7 @@ function createServer(appUrl: string, userId: string) {
     {
       description:
         "Searches quizMatter's shared photo library (real photos the admins uploaded, each with a file name, description and tags). " +
-        'Give a few words about what the photo should show, e.g. "frog rainforest". Returns up to 20 photos (best matches first) ' +
+        'Give a few words about what the photo should show, e.g. "frog rainforest". It also has many kids and people (search e.g. "girl reading", "boy cheering"): look here before using the built-in students.Returns up to 20 photos (best matches first) ' +
         'with their file name, description, tags, category and source (who owns it or where it came from, to credit it), plus every category name. To put one on a slide, use { "asset": "photo", "photo": { src, width, height } } in "elements".',
       inputSchema: { query: z.string().max(200).describe("Words about what the photo should show. Empty = the newest photos.") },
       annotations: { readOnlyHint: true },
