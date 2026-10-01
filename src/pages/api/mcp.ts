@@ -37,7 +37,7 @@ function createServer(appUrl: string, userId: string, supabase: SupabaseClient) 
         description:
           "Returns the JSON format for quizMatter slides (blank, title, question, and video / slide deck / picture slides), with notes and an example. Call this before send_presentation. " +
           "If the user gives you a reference (a module, book lesson, worksheet, file or link), first ask whether to use all its short quizzes and activities as question slides, or only the final assessment. " +
-          "If the reference is a quizMatter presentation link, read it with read_presentation.",
+          "If the reference is a quizMatter presentation link, read it with read_presentation (not web fetch: it needs a login).",
         annotations: { readOnlyHint: true },
       },
       async () => ({ content: [{ type: "text", text: getClaudeFormat() }] }),
@@ -50,7 +50,8 @@ function createServer(appUrl: string, userId: string, supabase: SupabaseClient) 
       description:
         "Reads a saved quizMatter presentation, from its link (e.g. https://quizmatter.com/presentation/<id>/edit) or its id, " +
         "so you can use it as a reference: its details and every slide (type, text, questions, answers, and where each element sits). " +
-        "Works for the user's own presentations and other teachers' published ones.",
+        "Works for the user's own presentations and other teachers' published ones. " +
+        "Always use this for quizMatter links (quizmatter.com/presentation/…): opening them with web fetch only shows the login page.",
       inputSchema: { link: z.string().max(500).describe("The presentation's link, or just its id.") },
       annotations: { readOnlyHint: true },
     },
