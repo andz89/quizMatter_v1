@@ -314,7 +314,7 @@ export function Workspace() {
           <div className="shrink-0" style={{ width: CANVAS_WIDTH * zoom }}>
             <ToolPanelButton
               title="Add slide"
-              buttonClassName="h-24 w-full rounded-card bg-bg-surface text-sm font-semibold text-text-secondary shadow-[0_1px_3px_rgba(0,0,0,0.08)] transition hover:text-accent hover:shadow-[0_2px_8px_rgba(0,0,0,0.1)] aria-expanded:text-accent"
+              buttonClassName="h-12 w-full rounded-card bg-bg-surface text-base font-semibold text-text-secondary shadow-[0_1px_3px_rgba(0,0,0,0.08)] transition hover:text-accent hover:shadow-[0_2px_8px_rgba(0,0,0,0.1)] aria-expanded:text-accent"
               panelWidthClassName="w-auto"
               closeOnAnyClick
               openAbove

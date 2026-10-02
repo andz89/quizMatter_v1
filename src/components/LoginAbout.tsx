@@ -1,9 +1,10 @@
-import { LibraryIcon, PresentationIcon, SparklesIcon } from "lucide-react";
+import { LibraryIcon, MessagesSquareIcon, PresentationIcon, SparklesIcon } from "lucide-react";
 
 const features = [
   { Icon: PresentationIcon, title: "Build slides fast", text: "Make lessons and quizzes in one simple editor." },
   { Icon: SparklesIcon, title: "Made for kids", text: "Bright, playful pictures and clear right/wrong feedback." },
   { Icon: LibraryIcon, title: "1,000+ ready-to-use quizzes", text: "Pick a quiz and play it in class right away." },
+  { Icon: MessagesSquareIcon, title: "Lessons ready to discuss", text: "A prepared lesson discussion for every quiz, all in one place." },
 ];
 
 /** The "About QuizMatter" section shown next to the login form. */

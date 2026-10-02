@@ -41,7 +41,10 @@ export default function LoginPage() {
 
   return (
     <main className="flex flex-1 flex-col items-center justify-center gap-6 px-4 py-10">
-      <Logo size={36} />
+      {/* Phones: centered. Wide screens: left edge lines up with the two columns below. */}
+      <div className="flex w-full justify-center md:max-w-[52rem] md:justify-start">
+        <Logo size={44} />
+      </div>
       {/* Phones: login first, about below. Wide screens: about on the left, login on the right. */}
       <div className="flex w-full flex-col items-center gap-10 md:flex-row-reverse md:items-center md:justify-center md:gap-16">
         <form onSubmit={logIn} className="w-full max-w-sm rounded-card border border-border-default bg-bg-surface px-5 py-6">
