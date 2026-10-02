@@ -28,6 +28,10 @@ export const TOO_MANY_SLIDES_MESSAGE = `A presentation can have ${MAX_SLIDES} sl
 // supabase/migrations/20261011000000_lower_limits.sql.
 export const MAX_PRESENTATIONS = 50;
 
+// The most presentations a teacher can save (the "Saved" row, against spam). Same as check_saved_limit in
+// supabase/migrations/20261012000000_saved_limits.sql.
+export const MAX_SAVED = 500;
+
 // Size limits for the rest of the slide content. They're far above what the editor or Claude ever make (Claude's
 // drawings are at most 20,000 characters), so they only stop broken or huge data. Like MAX_SLIDES, lowering one
 // could stop an old presentation from opening.

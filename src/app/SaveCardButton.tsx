@@ -5,12 +5,15 @@ import { useRouter } from "next/navigation";
 import { BookmarkIcon } from "lucide-react";
 import { toast } from "sonner";
 import { Spinner } from "@/components/Spinner";
+import { MAX_SAVED } from "@/lib/schema";
+import { REFUSALS } from "@/lib/presentations";
 import { setPresentationSaved } from "./presentation/[id]/actions";
 
 // What to tell the user when saving failed (also used by the preview page's Save button).
 export const SAVE_ERRORS = {
-  limit: "You have 500 saved presentations, the most allowed. Remove some to save new ones.",
-  banned: "Your account is blocked, so you can't save. Contact QuizMatter if you think this is a mistake.",
+  limit: `You have ${MAX_SAVED} saved presentations, the most allowed. Remove some to save new ones.`,
+  tooFast: REFUSALS.QM429,
+  banned: REFUSALS.QMBAN,
   failed: "Couldn't save. Please check your internet and try again.",
 } as const;
 

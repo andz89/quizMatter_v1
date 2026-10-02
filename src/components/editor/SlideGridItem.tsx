@@ -3,7 +3,7 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useEditorStore } from "@/lib/store";
-import type { Slide } from "@/lib/schema";
+import { MAX_SLIDES, TOO_MANY_SLIDES_MESSAGE, type Slide } from "@/lib/schema";
 import { SlideThumbnailPreview } from "./SlideThumbnailPreview";
 import { GripVerticalIcon } from "lucide-react";
 
@@ -19,6 +19,7 @@ interface SlideGridItemProps {
 export function SlideGridItem({ slide, questionNumber, index, isActive, canDelete, onSelect }: SlideGridItemProps) {
   const duplicateSlide = useEditorStore((s) => s.duplicateSlide);
   const deleteSlide = useEditorStore((s) => s.deleteSlide);
+  const isFull = useEditorStore((s) => s.presentation.slides.length >= MAX_SLIDES);
 
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: slide.id });
 
@@ -58,7 +59,9 @@ export function SlideGridItem({ slide, questionNumber, index, isActive, canDelet
             e.stopPropagation();
             duplicateSlide(slide.id);
           }}
-          className="rounded-dropdown bg-bg-surface/90 px-2 py-0.5 text-xs text-text-secondary hover:text-text-primary"
+          disabled={isFull}
+          title={isFull ? TOO_MANY_SLIDES_MESSAGE : undefined}
+          className="rounded-dropdown bg-bg-surface/90 px-2 py-0.5 text-xs text-text-secondary hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:text-text-secondary"
         >
           Duplicate
         </button>

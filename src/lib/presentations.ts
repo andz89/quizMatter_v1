@@ -17,8 +17,9 @@ export class SaveRefusedError extends Error {
   }
 }
 
-// The database's error codes for refused saves (see the supabase/migrations), and what the user is told.
-const REFUSALS: Record<string, string> = {
+// The database's error codes for refused saves (see the supabase/migrations), and what the user is told. Also
+// used by the Save (bookmark) button.
+export const REFUSALS: Record<string, string> = {
   QM409: "This presentation was saved in another tab or device. Reload the page to get the newest copy.",
   QMMAX: `You have ${MAX_PRESENTATIONS} presentations, the most allowed. Delete some to make new ones.`,
   QM429: "You're saving too fast. Wait a minute and try again.",

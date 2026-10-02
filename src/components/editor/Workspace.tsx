@@ -7,7 +7,7 @@ import { restrictToVerticalAxis } from "@dnd-kit/modifiers";
 import { useShallow } from "zustand/react/shallow";
 import { useEditorStore, MIN_ZOOM, type SlideInsertTarget } from "@/lib/store";
 import { CANVAS_WIDTH, CANVAS_HEIGHT, SLIDE_DRAG_MIME, getSlideNumbers, canHaveAnswer } from "@/lib/constants";
-import { slideSchema } from "@/lib/schema";
+import { MAX_SLIDES, TOO_MANY_SLIDES_MESSAGE, slideSchema } from "@/lib/schema";
 import { SlideWorkspaceItem } from "./SlideWorkspaceItem";
 import { ZoomControls } from "./ZoomControls";
 import { AnswerArea } from "./AnswerArea";
@@ -45,6 +45,7 @@ export function Workspace() {
   const addSlide = useEditorStore((s) => s.addSlide);
   const reorderSlides = useEditorStore((s) => s.reorderSlides);
   const insertSlides = useEditorStore((s) => s.insertSlides);
+  const isFull = useEditorStore((s) => s.presentation.slides.length >= MAX_SLIDES);
   const closeAnswer = useEditorStore((s) => s.closeAnswer);
   // Where a slide dragged from the Presentations panel will go (a line shows the spot while dragging).
   const [dropTarget, setDropTarget] = useState<SlideInsertTarget | null>(null);
@@ -313,12 +314,13 @@ export function Workspace() {
 
           <div className="shrink-0" style={{ width: CANVAS_WIDTH * zoom }}>
             <ToolPanelButton
-              title="Add slide"
+              title={isFull ? TOO_MANY_SLIDES_MESSAGE : "Add slide"}
+              disabled={isFull}
               buttonClassName="h-12 w-full rounded-card bg-bg-surface text-base font-semibold text-text-secondary shadow-[0_1px_3px_rgba(0,0,0,0.08)] transition hover:text-accent hover:shadow-[0_2px_8px_rgba(0,0,0,0.1)] aria-expanded:text-accent"
               panelWidthClassName="w-auto"
               closeOnAnyClick
               openAbove
-              icon="+ Add slide"
+              icon={isFull ? TOO_MANY_SLIDES_MESSAGE : "+ Add slide"}
             >
               <AddSlideMenu onPick={(type) => addSlide(undefined, type)} />
             </ToolPanelButton>

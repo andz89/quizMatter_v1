@@ -112,7 +112,7 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
     load("quizmatter"),
     load("teachers", OTHERS_LIMIT),
     loadSaved(),
-    // Every presentation I saved (500 at most), so each card's bookmark shows whether it's saved.
+    // Every presentation I saved (MAX_SAVED at most), so each card's bookmark shows whether it's saved.
     supabase.from("saved_presentations").select("presentation_id"),
     // An admin's drafts from Claude become QuizMatter presentations, so they're on Admin → Presentations.
     getAccount().then((account) => (account.isAdmin || isLeftOut("mine") ? [] : listDrafts(account.id))),

@@ -3,7 +3,7 @@
 import { useState, type ReactNode } from "react";
 import type { useSortable } from "@dnd-kit/sortable";
 import { useEditorStore } from "@/lib/store";
-import { MAX_ITEM_COUNT, type Slide } from "@/lib/schema";
+import { MAX_ITEM_COUNT, MAX_SLIDES, TOO_MANY_SLIDES_MESSAGE, type Slide } from "@/lib/schema";
 import { ANSWER_CONTAINER_ID, canHaveAnswer, getItemCount, hasAnswerContent, hasOptions, hasReveal, isDiscussionSlide } from "@/lib/constants";
 import { ToolPanelButton, PanelLabel } from "./PanelControls";
 import { AddSlideMenu } from "./AddSlideMenu";
@@ -38,6 +38,8 @@ export function SlideToolbar({ slide, slideNumber, isFirst, isLast, canDelete, o
   const clearSlide = useEditorStore((s) => s.clearSlide);
   const setLayout = useEditorStore((s) => s.setLayout);
   const renameSlide = useEditorStore((s) => s.renameSlide);
+  // At MAX_SLIDES, Duplicate and Add slide are greyed out, with the reason on hover.
+  const isFull = useEditorStore((s) => s.presentation.slides.length >= MAX_SLIDES);
   const setItemCount = useEditorStore((s) => s.setItemCount);
   const openAnswer = useEditorStore((s) => s.openAnswer);
   const [isRenaming, setIsRenaming] = useState(false);
@@ -218,13 +220,15 @@ export function SlideToolbar({ slide, slideNumber, isFirst, isLast, canDelete, o
           <button
             type="button"
             onClick={() => duplicateSlide(slide.id)}
-            title="Duplicate slide"
-            className="flex h-8 w-8 items-center justify-center rounded-dropdown text-text-primary hover:bg-bg-page"
+            disabled={isFull}
+            title={isFull ? TOO_MANY_SLIDES_MESSAGE : "Duplicate slide"}
+            className="flex h-8 w-8 items-center justify-center rounded-dropdown text-text-primary hover:bg-bg-page disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent"
           >
             <CopyIcon size={18} />
           </button>
           <ToolPanelButton
-            title="Add slide after"
+            title={isFull ? TOO_MANY_SLIDES_MESSAGE : "Add slide after"}
+            disabled={isFull}
             panelWidthClassName="w-auto"
             closeOnAnyClick
             icon={<PlusIcon size={18} />}

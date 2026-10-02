@@ -7,7 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { CANVAS_WIDTH, CANVAS_HEIGHT, SLIDE_DRAG_MIME, getSlideNumbers } from "@/lib/constants";
 import { joinParts, publishedByLine, slideCountLabel } from "@/lib/format";
 import { loadPublisherNames } from "@/lib/publishers";
-import { parseSlide, type Slide } from "@/lib/schema";
+import { MAX_SLIDES, TOO_MANY_SLIDES_MESSAGE, parseSlide, type Slide } from "@/lib/schema";
 import { Spinner } from "@/components/Spinner";
 import { FluidSlidePreview } from "@/components/presentation/FluidSlidePreview";
 import { SaveCardButton } from "@/app/SaveCardButton";
@@ -60,6 +60,7 @@ let cache: {
 export function PresentationsPanel() {
   const closePresentationsPanel = useEditorStore((s) => s.closePresentationsPanel);
   const insertSlides = useEditorStore((s) => s.insertSlides);
+  const isFull = useEditorStore((s) => s.presentation.slides.length >= MAX_SLIDES);
   const presentationId = useEditorStore((s) => s.presentation.id);
 
   const [cached] = useState(() => (cache?.presentationId === presentationId ? cache : null));
@@ -271,6 +272,10 @@ export function PresentationsPanel() {
           <Message>This presentation has no slides.</Message>
         ) : (
           <div className="flex flex-col gap-4">
+            {/* Adding is refused at MAX_SLIDES (store.ts), so say so before the teacher tries. */}
+            {isFull && (
+              <p className="text-sm text-text-secondary">{TOO_MANY_SLIDES_MESSAGE} Delete some to add these.</p>
+            )}
             {slides.map((slide, index) => (
               <button
                 key={slide.id}

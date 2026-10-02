@@ -21,6 +21,7 @@ export function ToolPanelButton({
   panelWidthClassName,
   closeOnAnyClick = false,
   openAbove = false,
+  disabled = false,
   children,
 }: {
   title: string;
@@ -35,6 +36,8 @@ export function ToolPanelButton({
   closeOnAnyClick?: boolean;
   // Always open just above the button — for a button at the bottom of its area (e.g. the workspace's Add slide).
   openAbove?: boolean;
+  // Greyed out and won't open (e.g. Add slide when the presentation is full); `title` should say why.
+  disabled?: boolean;
   children: ReactNode;
 }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -98,12 +101,13 @@ export function ToolPanelButton({
         type="button"
         title={title}
         aria-expanded={isOpen}
+        disabled={disabled}
         onClick={() => setIsOpen((open) => !open)}
-        className={`flex shrink-0 items-center justify-center ${buttonClassName}`}
+        className={`flex shrink-0 items-center justify-center disabled:cursor-not-allowed disabled:opacity-30 ${buttonClassName}`}
       >
         {icon}
       </button>
-      {isOpen && (
+      {isOpen && !disabled && (
         <div
           ref={panelRef}
           style={
