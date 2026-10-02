@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Logo } from "@/components/Logo";
 import { LoginAbout } from "@/components/LoginAbout";
 import { Spinner } from "@/components/Spinner";
+import { Turnstile } from "@/components/Turnstile";
 import { createClient } from "@/lib/supabase/client";
 
 // No sign up: users are added by hand in the Supabase dashboard (Authentication → Users).
@@ -14,15 +15,21 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+  // The "are you human?" pass, and a number that shows a fresh check when it goes up (a pass works only once).
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [captchaRound, setCaptchaRound] = useState(0);
 
   const logIn = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!captchaToken) return;
     setIsLoggingIn(true);
     setError(null);
-    const { error } = await createClient().auth.signInWithPassword({ email, password });
+    const { error } = await createClient().auth.signInWithPassword({ email, password, options: { captchaToken } });
     if (error) {
       setError(error.message);
       setIsLoggingIn(false);
+      setCaptchaToken(null);
+      setCaptchaRound((round) => round + 1);
       return;
     }
     // Back to the page the proxy sent us from (only paths on this site, never another domain).
@@ -59,15 +66,19 @@ export default function LoginPage() {
             className={inputClass}
           />
 
+          <div className="mt-4">
+            <Turnstile key={captchaRound} onToken={setCaptchaToken} />
+          </div>
+
           {error && <p className="mt-3 text-sm text-danger-strong">{error}</p>}
 
           <button
             type="submit"
-            disabled={isLoggingIn}
+            disabled={isLoggingIn || !captchaToken}
             className="mt-5 flex w-full items-center justify-center gap-2 rounded-button bg-accent btn-press px-4 py-2.5 text-sm font-semibold text-white hover:bg-accent-hover disabled:opacity-60"
           >
-            {isLoggingIn && <Spinner size={14} />}
-            {isLoggingIn ? "Logging in…" : "Log in"}
+            {(isLoggingIn || !captchaToken) && <Spinner size={14} />}
+            {isLoggingIn ? "Logging in…" : captchaToken ? "Log in" : "Checking you're human…"}
           </button>
         </form>
         <LoginAbout />

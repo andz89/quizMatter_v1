@@ -18,6 +18,10 @@ export const ANSWER_CONTAINER_ID = "answer";
 // dataTransfer type used to drag an element asset from the Elements panel onto a question/option box.
 export const ELEMENT_DRAG_MIME = "application/x-quizbuilder-element";
 
+// Cloudflare Turnstile (the "are you human?" check on the login page). Not secret: the browser needs it. Its secret
+// key lives in Supabase (Authentication → Attack Protection). The widget allows quizmatter.com and localhost.
+export const TURNSTILE_SITE_KEY = "0x4AAAAAAFMCLNaW53rxyTQZ";
+
 // Where uploaded photos live: the R2 bucket "quizmatter-images", served from its own domain.
 export const PHOTO_URL_PREFIX = "https://images.quizmatter.com/uploads/";
 
