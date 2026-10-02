@@ -1,6 +1,6 @@
 "use server";
 
-import { reportSchema } from "@/lib/schema";
+import { reportSchema, savedPresentationSchema } from "@/lib/schema";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -21,4 +21,27 @@ export async function reportPresentation(
   // 23505 = this teacher already reported it (the table allows one report each).
   if (error?.code === "23505") return "already";
   return error ? "failed" : "reported";
+}
+
+/**
+ * Saves (bookmarks) someone else's published presentation to my "Saved" row on the home page, or takes it off
+ * with `isSaved` false. The database only takes presentations I can see that aren't mine, 500 at most.
+ */
+export async function setPresentationSaved(
+  presentationId: string,
+  isSaved: boolean,
+): Promise<"done" | "limit" | "banned" | "failed"> {
+  // Checked with zod before it's saved (see CLAUDE.md, "Saving Data").
+  const saved = savedPresentationSchema.safeParse({ presentation_id: presentationId });
+  if (!saved.success) return "failed";
+
+  const supabase = await createClient();
+  const { error } = isSaved
+    ? await supabase.from("saved_presentations").insert(saved.data)
+    : await supabase.from("saved_presentations").delete().eq("presentation_id", saved.data.presentation_id);
+  // 23505 = already saved (e.g. from another tab), which is what was asked for.
+  if (!error || error.code === "23505") return "done";
+  if (error.code === "QMSAV") return "limit";
+  if (error.code === "QMBAN") return "banned";
+  return "failed";
 }

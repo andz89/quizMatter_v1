@@ -16,10 +16,21 @@ import { EMBED_SLIDE_TYPES, MAX_EMBED_URL_LENGTH, isEmbedSlide, readEmbedLink, t
 export const FONT_SIZE_RANGE = { min: 12, max: 96 };
 const fontSizeSchema = z.number().int().min(FONT_SIZE_RANGE.min).max(FONT_SIZE_RANGE.max);
 
-// Size limits for slide content. They're far above what the editor or Claude ever make (Claude's drawings are
-// at most 20,000 characters), so they only stop broken or huge data. Saved presentations are checked with this
-// schema when they open too, so lowering a limit could stop an old presentation from opening.
-export const MAX_SLIDES = 300;
+// The most slides a presentation can have. A real limit teachers can reach: the editor stops adding slides past
+// it (store.ts), saves are refused (presentations.ts), and so are Claude's presentations (importPresentation.ts).
+// Same as save_presentation in supabase/migrations/20261011000000_lower_limits.sql. Saved presentations are
+// checked with this when they open too, so lowering it could stop an old presentation from opening: first check
+// that no saved presentation has more slides.
+export const MAX_SLIDES = 100;
+export const TOO_MANY_SLIDES_MESSAGE = `A presentation can have ${MAX_SLIDES} slides at most.`;
+
+// The most presentations a teacher can have (admins have no limit). Same as check_presentation_limit in
+// supabase/migrations/20261011000000_lower_limits.sql.
+export const MAX_PRESENTATIONS = 50;
+
+// Size limits for the rest of the slide content. They're far above what the editor or Claude ever make (Claude's
+// drawings are at most 20,000 characters), so they only stop broken or huge data. Like MAX_SLIDES, lowering one
+// could stop an old presentation from opening.
 const MAX_ELEMENTS = 1000;
 const idSchema = z.string().max(100);
 const colorSchema = z.string().max(100);
@@ -375,7 +386,7 @@ export const presentationSchema = z.object({
   // Made by an admin on Admin → Presentations: once shared, every teacher gets it under "From QuizMatter".
   // Saved only on the first save (and only an admin may save true), so it can't be changed later.
   fromAdmin: z.boolean(),
-  slides: z.array(slideSchema).max(MAX_SLIDES, `A presentation can have ${MAX_SLIDES} slides at most.`),
+  slides: z.array(slideSchema).max(MAX_SLIDES, TOO_MANY_SLIDES_MESSAGE),
   createdAt: z.number(),
   updatedAt: z.number(),
 });
@@ -393,6 +404,11 @@ export const reportSchema = z.object({
   presentation_id: idSchema.min(1),
   reason: z.enum(["unsafe", "spam", "copied", "other"]),
   note: z.string().trim().max(500, "The note is too long (500 characters at most)."),
+});
+
+// A presentation a teacher saved (the saved_presentations table, the home page's "Saved" row).
+export const savedPresentationSchema = z.object({
+  presentation_id: idSchema.min(1),
 });
 
 // Why an admin banned a teacher (the banned_users table, Admin → Teachers).

@@ -3,8 +3,9 @@ import { NextResponse, type NextRequest } from "next/server";
 
 /**
  * Runs before every page request: refreshes the login session (it expires after a while) and sends
- * logged-out users to /login, and logged-in users away from it. Banned users (Admin → Teachers) only get the
- * home page, which just says they're blocked.
+ * logged-out users to /login, and logged-in users away from it. Banned users (Admin → Teachers) aren't checked
+ * here, to save a database call on every request: the database refuses their saves and photos at once, and
+ * Supabase's own ban ends their login within the hour.
  */
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
@@ -33,10 +34,6 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
   if (isLoggedIn && isLoginPage) return NextResponse.redirect(new URL("/", request.url));
-  if (isLoggedIn && request.nextUrl.pathname !== "/") {
-    const { data: isBanned } = await supabase.rpc("is_banned");
-    if (isBanned === true) return NextResponse.redirect(new URL("/", request.url));
-  }
   return response;
 }
 

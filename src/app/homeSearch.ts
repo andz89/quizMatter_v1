@@ -12,6 +12,7 @@ export const LOOK_IN = [
   { id: "mine", label: "Mine" },
   { id: "quizmatter", label: "From QuizMatter" },
   { id: "teachers", label: "Other teachers" },
+  { id: "saved", label: "Saved" },
 ] as const;
 
 export const SORTS = [

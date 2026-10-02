@@ -16,15 +16,18 @@ import { changedSince, homeSearchQuery, parseHomeSearch, type HomeSearch } from 
 // How many published presentations from other teachers the home page shows.
 const OTHERS_LIMIT = 20;
 
+// How many saved presentations the "Saved" row shows (newest saved first). Search finds the rest.
+const SAVED_LIMIT = 20;
+
 // How many matches each section shows while searching.
 const SEARCH_LIMIT = 50;
 
 // Each presentation's first slide only (for the card's picture), not all of them, to keep the page light.
 const CARD_COLUMNS =
-  "id, owner_id, title, grade, subject, author, is_published, hidden_at, created_at, updated_at, slides(count), first_slide:slides(data, position)";
+  "id, owner_id, title, grade, subject, author, is_published, from_admin, hidden_at, created_at, updated_at, slides(count), first_slide:slides(data, position)";
 
 export default async function HomePage({ searchParams }: PageProps<"/">) {
-  // Banned (Admin → Teachers): this is the only page they can open (see proxy.ts), and it only says so.
+  // Banned (Admin → Teachers): the home page only says so, until Supabase's ban ends their login (see proxy.ts).
   if ((await getAccount()).isBanned) return <BlockedHome />;
 
   const search = parseHomeSearch(await searchParams);
@@ -39,17 +42,29 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
     // QuizMatter presentations an admin made are on Admin → Presentations, not in "mine".
     mine: () => supabase.from("presentations").select(CARD_COLUMNS).eq("owner_id", myId).eq("from_admin", false),
     // Hidden ones are already left out by the database, except for admins (who can see them on Admin → Reports).
+    // An admin sees their own here too, just like teachers do.
     quizmatter: () =>
-      supabase.from("presentations").select(CARD_COLUMNS).eq("is_published", true).is("hidden_at", null).eq("from_admin", true).neq("owner_id", myId),
+      supabase.from("presentations").select(CARD_COLUMNS).eq("is_published", true).is("hidden_at", null).eq("from_admin", true),
     teachers: () =>
       supabase.from("presentations").select(CARD_COLUMNS).eq("is_published", true).is("hidden_at", null).eq("from_admin", false).neq("owner_id", myId),
+    // The ones I saved (from QuizMatter or other teachers): "!inner" keeps only presentations with a saved row, and
+    // the database only gives back my own saved rows. Unpublished or hidden ones drop off.
+    saved: () =>
+      supabase
+        .from("presentations")
+        .select(`${CARD_COLUMNS}, saved:saved_presentations!inner(saved_at)`)
+        .eq("is_published", true)
+        .is("hidden_at", null)
+        .neq("owner_id", myId),
   };
   // A section the search's "Look in" leaves out is simply empty.
   const isLeftOut = (section: keyof typeof sections) => isSearching && search.in !== "all" && search.in !== section;
 
-  const load = (section: keyof typeof sections, limit?: number) => {
+  // `ids`: only these presentations.
+  const load = (section: keyof typeof sections, limit?: number, ids?: string[]) => {
     if (isLeftOut(section)) return Promise.resolve({ data: [], error: null });
     let query = sections[section]();
+    if (ids) query = query.in("id", ids);
     if (isSearching) {
       if (search.q) {
         const pattern = contains(search.q);
@@ -79,10 +94,26 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
     return limit ? query.limit(limit) : query;
   };
 
-  const [mine, fromAdmins, others, drafts, account] = await Promise.all([
+  // The database can't sort presentations by when I saved them (each has a list of saved rows), so without a
+  // search the newest saved ones are looked up first, and sorted by save time in buildCards.
+  const loadSaved = async () => {
+    if (isSearching) return load("saved");
+    const newest = await supabase
+      .from("saved_presentations")
+      .select("presentation_id")
+      .order("saved_at", { ascending: false })
+      .limit(SAVED_LIMIT);
+    if (newest.error) return newest;
+    return load("saved", undefined, newest.data.map((row) => row.presentation_id));
+  };
+
+  const [mine, fromAdmins, others, saved, savedRows, drafts, account] = await Promise.all([
     load("mine"),
     load("quizmatter"),
     load("teachers", OTHERS_LIMIT),
+    loadSaved(),
+    // Every presentation I saved (500 at most), so each card's bookmark shows whether it's saved.
+    supabase.from("saved_presentations").select("presentation_id"),
     // An admin's drafts from Claude become QuizMatter presentations, so they're on Admin → Presentations.
     getAccount().then((account) => (account.isAdmin || isLeftOut("mine") ? [] : listDrafts(account.id))),
     getAccount(),
@@ -90,15 +121,23 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
   if (mine.error) throw mine.error;
   if (fromAdmins.error) throw fromAdmins.error;
   if (others.error) throw others.error;
+  if (saved.error) throw saved.error;
+  if (savedRows.error) throw savedRows.error;
 
-  const publisherNames = await loadPublisherNames(supabase, others.data.map((presentation) => presentation.owner_id));
-  const { myCards, adminCards, otherCards } = buildCards(
+  const publisherNames = await loadPublisherNames(
+    supabase,
+    [...others.data, ...saved.data].filter((presentation) => !presentation.from_admin).map((presentation) => presentation.owner_id)
+  );
+  const { myCards, adminCards, otherCards, savedCards } = buildCards(
     mine.data,
     fromAdmins.data,
     others.data,
+    saved.data,
+    new Set(savedRows.data.map((row) => row.presentation_id)),
     isSearching ? drafts.filter((draft) => draftMatches(draft, search, since)) : drafts,
     publisherNames,
     account.isAdmin,
+    myId,
     search
   );
 
@@ -119,6 +158,7 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
           myCards={myCards}
           adminCards={adminCards}
           otherCards={otherCards}
+          savedCards={savedCards}
           search={search}
           isSearching={isSearching}
         />
@@ -174,6 +214,7 @@ type CardPresentation = {
   subject: string;
   author: string;
   is_published: boolean;
+  from_admin: boolean;
   hidden_at: string | null;
   created_at: string;
   updated_at: string;
@@ -181,17 +222,23 @@ type CardPresentation = {
   first_slide: { data: unknown }[];
 };
 
+// "saved": my saved row for it (only mine come back), for sorting by when I saved it.
+type SavedPresentation = CardPresentation & { saved?: { saved_at: string }[] };
+
 /**
- * My presentations and Claude's drafts (in the search's order), the ones admins shared ("From QuizMatter"), and other
- * teachers' published presentations, as cards.
+ * My presentations and Claude's drafts (in the search's order), the ones admins shared ("From QuizMatter"), other
+ * teachers' published presentations, and the ones I saved (newest saved first, or the search's order), as cards.
  */
 function buildCards(
   mine: CardPresentation[],
   fromAdmins: CardPresentation[],
   others: CardPresentation[],
+  saved: SavedPresentation[],
+  mySavedIds: Set<string>,
   drafts: DraftSummary[],
   publisherNames: Map<string, string>,
   isAdmin: boolean,
+  myId: string,
   search: HomeSearch
 ) {
   const now = Date.now();
@@ -227,18 +274,34 @@ function buildCards(
         : (a, b) => b.updatedAt - a.updatedAt
   );
 
-  const adminCards: AdminCardData[] = fromAdmins.map((presentation) => ({
+  // Someone else's presentation, which I can save (bookmark) from its card. An admin's own QuizMatter ones show
+  // in "From QuizMatter" too, but the database doesn't let anyone save their own.
+  const toSavableCard = (presentation: CardPresentation) => ({
     ...toCard(presentation, `/presentation/${presentation.id}`, now),
+    canSave: presentation.owner_id !== myId,
+    isSaved: mySavedIds.has(presentation.id),
+  });
+
+  const adminCards: AdminCardData[] = fromAdmins.map((presentation) => ({
+    ...toSavableCard(presentation),
     createdAt: Date.parse(presentation.created_at),
     updatedAt: Date.parse(presentation.updated_at),
   }));
 
   const otherCards = others.map((presentation) => ({
-    ...toCard(presentation, `/presentation/${presentation.id}`, now),
+    ...toSavableCard(presentation),
     byline: publishedByLine(presentation.author, publisherNames.get(presentation.owner_id)),
   }));
 
-  return { myCards, adminCards, otherCards };
+  const savedTime = (presentation: SavedPresentation) => Date.parse(presentation.saved?.[0]?.saved_at ?? "");
+  // While searching, the search's own Sort decides the order.
+  const savedInOrder = homeSearchQuery(search) === "" ? [...saved].sort((a, b) => savedTime(b) - savedTime(a)) : saved;
+  const savedCards = savedInOrder.map((presentation) => ({
+    ...toSavableCard(presentation),
+    byline: presentation.from_admin ? "From QuizMatter" : publishedByLine(presentation.author, publisherNames.get(presentation.owner_id)),
+  }));
+
+  return { myCards, adminCards, otherCards, savedCards };
 }
 
 function toCard(presentation: CardPresentation, href: string, now: number): PresentationCardData {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { useEditorStore, isPanelEscape } from "@/lib/store";
 import { createClient } from "@/lib/supabase/client";
 import { CANVAS_WIDTH, CANVAS_HEIGHT, SLIDE_DRAG_MIME, getSlideNumbers } from "@/lib/constants";
@@ -9,29 +10,52 @@ import { loadPublisherNames } from "@/lib/publishers";
 import { parseSlide, type Slide } from "@/lib/schema";
 import { Spinner } from "@/components/Spinner";
 import { FluidSlidePreview } from "@/components/presentation/FluidSlidePreview";
+import { SaveCardButton } from "@/app/SaveCardButton";
 import { ChevronLeftIcon, XIcon } from "lucide-react";
 
-// How many published presentations the list shows (newest first).
+// How many published presentations the list shows (newest first). The Saved tab shows up to this many more.
 const PRESENTATION_LIMIT = 50;
 // Width of the slide picture that follows the pointer while dragging.
 const DRAG_IMAGE_WIDTH = 180;
 
+// Each presentation's first slide only (for its picture), not all of them, to keep the panel light.
+const SUMMARY_COLUMNS = "id, owner_id, title, grade, subject, author, slides(count), first_slide:slides(data, position)";
+
 type PresentationSummary = {
   id: string;
+  ownerId: string;
   title: string;
   // By author, published by, grade, subject, slide count ("" parts left out). Searched too.
   meta: string;
   firstSlide: Slide | null;
 };
 
+type Tab = "all" | "saved";
+
+const TABS: { id: Tab; label: string }[] = [
+  { id: "all", label: "All" },
+  { id: "saved", label: "Saved" },
+];
+
 // What the panel had loaded, kept after it closes so reopening it is instant (no new download) and
 // comes back to the same presentation. Only for the presentation being edited; cleared on a full page reload.
-let cache: { presentationId: string; presentations: PresentationSummary[]; openPresentation: PresentationSummary | null; slides: Slide[] | null } | null = null;
+let cache: {
+  presentationId: string;
+  presentations: PresentationSummary[];
+  // The ones I saved that aren't in `presentations` (loaded when the Saved tab first opens; null before).
+  savedExtras: PresentationSummary[] | null;
+  savedIds: string[];
+  myId: string;
+  tab: Tab;
+  openPresentation: PresentationSummary | null;
+  slides: Slide[] | null;
+} | null = null;
 
 /**
- * Sidebar panel with the published presentations (mine too, except the one being edited). Clicking a presentation
- * shows its slides; clicking a slide adds a copy right after the active slide, dragging one onto the
- * workspace adds it right after the slide it's dropped on. Stays open so several can be added in a row.
+ * Sidebar panel with the published presentations (mine too, except the one being edited), and a Saved tab with
+ * the ones I saved (bookmarked). Clicking a presentation shows its slides; clicking a slide adds a copy right after
+ * the active slide, dragging one onto the workspace adds it right after the slide it's dropped on. Stays open so
+ * several can be added in a row. Other people's presentations have the bookmark button, to save or remove them.
  */
 export function PresentationsPanel() {
   const closePresentationsPanel = useEditorStore((s) => s.closePresentationsPanel);
@@ -41,12 +65,18 @@ export function PresentationsPanel() {
   const [cached] = useState(() => (cache?.presentationId === presentationId ? cache : null));
   // null while loading.
   const [presentations, setPresentations] = useState<PresentationSummary[] | null>(cached?.presentations ?? null);
+  const [savedExtras, setSavedExtras] = useState<PresentationSummary[] | null>(cached?.savedExtras ?? null);
+  // The presentations I saved, newest saved first.
+  const [savedIds, setSavedIds] = useState<string[]>(cached?.savedIds ?? []);
+  const [myId, setMyId] = useState(cached?.myId ?? "");
+  const [tab, setTab] = useState<Tab>(cached?.tab ?? "all");
   const [search, setSearch] = useState("");
   const [openPresentation, setOpenPresentation] = useState<PresentationSummary | null>(cached?.openPresentation ?? null);
   // The open presentation's slides; null while loading.
   const [slides, setSlides] = useState<Slide[] | null>(cached?.slides ?? null);
   // Kept apart, so a failed presentation doesn't hide the list after going Back.
   const [listError, setListError] = useState(false);
+  const [savedError, setSavedError] = useState(false);
   const [slidesError, setSlidesError] = useState(false);
   // The presentation whose slides were asked for last; an older, slower answer is ignored.
   const latestPresentationId = useRef<string | null>(null);
@@ -57,38 +87,22 @@ export function PresentationsPanel() {
     if (cache?.presentationId === presentationId) return;
     let cancelled = false;
     const supabase = createClient();
-    supabase
-      .from("presentations")
-      .select("id, owner_id, title, grade, subject, author, slides(count), first_slide:slides(data, position)")
-      .eq("is_published", true)
-      // Already left out by the database, except for admins.
-      .is("hidden_at", null)
-      .neq("id", presentationId)
-      .order("updated_at", { ascending: false })
-      .order("position", { referencedTable: "first_slide" })
-      .limit(1, { referencedTable: "first_slide" })
-      .limit(PRESENTATION_LIMIT)
-      .then(async ({ data, error }) => {
-        if (error) {
-          if (!cancelled) setListError(true);
-          return;
-        }
-        const publisherNames = await loadPublisherNames(supabase, data.map((presentation) => presentation.owner_id));
-        if (cancelled) return;
-        setPresentations(
-          data.map((presentation) => ({
-            id: presentation.id,
-            title: presentation.title || "Untitled presentation",
-            meta: joinParts([
-              publishedByLine(presentation.author, publisherNames.get(presentation.owner_id)),
-              presentation.grade,
-              presentation.subject,
-              slideCountLabel(presentation.slides[0]?.count ?? 0),
-            ]),
-            firstSlide: parseSlide(presentation.first_slide[0]?.data),
-          })),
-        );
-      });
+    Promise.all([
+      publishedPresentations(supabase, presentationId).order("updated_at", { ascending: false }).limit(PRESENTATION_LIMIT),
+      // The database only gives back my own saved rows.
+      supabase.from("saved_presentations").select("presentation_id").order("saved_at", { ascending: false }),
+      supabase.auth.getClaims(),
+    ]).then(async ([list, saved, { data: claims }]) => {
+      if (list.error || saved.error) {
+        if (!cancelled) setListError(true);
+        return;
+      }
+      const summaries = await toSummaries(supabase, list.data);
+      if (cancelled) return;
+      setSavedIds(saved.data.map((row) => row.presentation_id));
+      setMyId(claims?.claims.sub ?? "");
+      setPresentations(summaries);
+    });
     return () => {
       cancelled = true;
     };
@@ -96,8 +110,10 @@ export function PresentationsPanel() {
 
   // A presentation whose slides were still loading isn't kept: that request stops when the panel closes.
   useEffect(() => {
-    if (presentations) cache = { presentationId, presentations, openPresentation: slides ? openPresentation : null, slides };
-  }, [presentationId, presentations, openPresentation, slides]);
+    if (presentations) {
+      cache = { presentationId, presentations, savedExtras, savedIds, myId, tab, openPresentation: slides ? openPresentation : null, slides };
+    }
+  }, [presentationId, presentations, savedExtras, savedIds, myId, tab, openPresentation, slides]);
 
   // Escape steps back one level: out of a presentation first, then closes the panel.
   useEffect(() => {
@@ -109,6 +125,41 @@ export function PresentationsPanel() {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [openPresentation, closePresentationsPanel]);
+
+  // The Saved tab's presentations that the list doesn't have are loaded the first time it shows (the newest saved,
+  // up to PRESENTATION_LIMIT), once the list is in. Ones that were unpublished or hidden since don't come back, so
+  // they're left out. An effect, not the tab's click, so a click before the list loaded, or reopening the panel
+  // after a failed try, still loads them.
+  useEffect(() => {
+    if (tab !== "saved" || savedExtras || savedError || !presentations) return;
+    const listIds = new Set(presentations.map((presentation) => presentation.id));
+    const missingIds = savedIds.filter((id) => !listIds.has(id)).slice(0, PRESENTATION_LIMIT);
+    let cancelled = false;
+    const supabase = createClient();
+    const load = async () => {
+      if (missingIds.length === 0) return [];
+      const { data, error } = await publishedPresentations(supabase, presentationId).in("id", missingIds);
+      if (error) return null;
+      return toSummaries(supabase, data);
+    };
+    load().then((summaries) => {
+      if (cancelled) return;
+      if (summaries) setSavedExtras(summaries);
+      else setSavedError(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [tab, savedExtras, savedError, presentations, savedIds, presentationId]);
+
+  // After the bookmark saved or removed one.
+  const changeSaved = (presentation: PresentationSummary, isSaved: boolean) => {
+    setSavedIds((ids) => (isSaved ? [presentation.id, ...ids] : ids.filter((id) => id !== presentation.id)));
+    // Saved again on the Saved tab: keep it at hand, even if it isn't in the list.
+    if (isSaved) {
+      setSavedExtras((extras) => (extras && !extras.some((extra) => extra.id === presentation.id) ? [...extras, presentation] : extras));
+    }
+  };
 
   const showPresentation = async (presentation: PresentationSummary) => {
     setOpenPresentation(presentation);
@@ -165,8 +216,16 @@ export function PresentationsPanel() {
     onDrop: (e: React.DragEvent) => e.preventDefault(),
   };
 
+  // The Saved tab: newest saved first. undefined while loading.
+  const byId = new Map([...(presentations ?? []), ...(savedExtras ?? [])].map((presentation) => [presentation.id, presentation]));
+  const savedPresentations =
+    presentations && savedExtras ? savedIds.map((id) => byId.get(id)).filter((presentation) => presentation !== undefined) : undefined;
+  const savedIdSet = new Set(savedIds);
+
   const query = search.trim().toLowerCase();
-  const shownPresentations = presentations?.filter((presentation) => `${presentation.title} ${presentation.meta}`.toLowerCase().includes(query));
+  const shownPresentations = (tab === "saved" ? savedPresentations : presentations)?.filter((presentation) =>
+    `${presentation.title} ${presentation.meta}`.toLowerCase().includes(query)
+  );
 
   return (
     <div
@@ -203,7 +262,7 @@ export function PresentationsPanel() {
           : "Published presentations. Open one to add its slides to this presentation."}
       </p>
 
-      {(openPresentation ? slidesError : listError) ? (
+      {(openPresentation ? slidesError : listError || (tab === "saved" && savedError)) ? (
         <Message>Couldn&apos;t load. Please close the panel and try again.</Message>
       ) : openPresentation ? (
         slides === null ? (
@@ -233,6 +292,21 @@ export function PresentationsPanel() {
         )
       ) : (
         <>
+          <div className="mb-3 flex gap-1">
+            {TABS.map(({ id, label }) => (
+              <button
+                key={id}
+                type="button"
+                aria-pressed={tab === id}
+                onClick={() => setTab(id)}
+                className={`rounded-dropdown px-2.5 py-1 text-[13px] font-semibold transition-colors ${
+                  tab === id ? "bg-accent text-white" : "text-text-secondary hover:text-text-primary"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
           <input
             type="search"
             value={search}
@@ -244,15 +318,34 @@ export function PresentationsPanel() {
           {shownPresentations === undefined ? (
             <Loading />
           ) : shownPresentations.length === 0 ? (
-            <Message>{query ? `No published presentations match “${search.trim()}”.` : "No published presentations yet."}</Message>
+            <Message>
+              {query
+                ? `No ${tab === "saved" ? "saved" : "published"} presentations match “${search.trim()}”.`
+                : tab === "saved"
+                  ? "Nothing saved yet. Click the bookmark on a presentation to save it."
+                  : "No published presentations yet."}
+            </Message>
           ) : (
             <div className="flex flex-col gap-4">
               {shownPresentations.map((presentation) => (
-                <button key={presentation.id} type="button" onClick={() => showPresentation(presentation)} className="group min-w-0 text-left">
-                  <SlidePicture slide={presentation.firstSlide} />
-                  <span className="mt-1.5 block truncate text-sm font-semibold text-text-primary">{presentation.title}</span>
-                  <span className="block truncate text-[13px] text-text-secondary">{presentation.meta}</span>
-                </button>
+                // The bookmark sits next to the button, not in it (a button can't go inside a button).
+                <div key={presentation.id} className="relative min-w-0">
+                  <button type="button" onClick={() => showPresentation(presentation)} className="group w-full min-w-0 text-left">
+                    <SlidePicture slide={presentation.firstSlide} />
+                    <span className="mt-1.5 block truncate text-sm font-semibold text-text-primary">{presentation.title}</span>
+                    <span className="block truncate text-[13px] text-text-secondary">{presentation.meta}</span>
+                  </button>
+                  {/* My own presentations can't be saved. */}
+                  {presentation.ownerId !== myId && (
+                    <SaveCardButton
+                      presentationId={presentation.id}
+                      title={presentation.title}
+                      isSaved={savedIdSet.has(presentation.id)}
+                      onChange={(isSaved) => changeSaved(presentation, isSaved)}
+                      className="top-2 right-2"
+                    />
+                  )}
+                </div>
               ))}
             </div>
           )}
@@ -260,6 +353,48 @@ export function PresentationsPanel() {
       )}
     </div>
   );
+}
+
+/** Published presentations (except the one being edited), each with its first slide only. */
+function publishedPresentations(supabase: SupabaseClient, presentationId: string) {
+  return (
+    supabase
+      .from("presentations")
+      .select(SUMMARY_COLUMNS)
+      .eq("is_published", true)
+      // Already left out by the database, except for admins.
+      .is("hidden_at", null)
+      .neq("id", presentationId)
+      .order("position", { referencedTable: "first_slide" })
+      .limit(1, { referencedTable: "first_slide" })
+  );
+}
+
+type SummaryRow = {
+  id: string;
+  owner_id: string;
+  title: string;
+  grade: string;
+  subject: string;
+  author: string;
+  slides: { count: number }[];
+  first_slide: { data: unknown }[];
+};
+
+async function toSummaries(supabase: SupabaseClient, rows: SummaryRow[]): Promise<PresentationSummary[]> {
+  const publisherNames = await loadPublisherNames(supabase, rows.map((row) => row.owner_id));
+  return rows.map((row) => ({
+    id: row.id,
+    ownerId: row.owner_id,
+    title: row.title || "Untitled presentation",
+    meta: joinParts([
+      publishedByLine(row.author, publisherNames.get(row.owner_id)),
+      row.grade,
+      row.subject,
+      slideCountLabel(row.slides[0]?.count ?? 0),
+    ]),
+    firstSlide: parseSlide(row.first_slide[0]?.data),
+  }));
 }
 
 /** `questionNumber` missing = worked out as the presentation's first slide (for the presentation list). */

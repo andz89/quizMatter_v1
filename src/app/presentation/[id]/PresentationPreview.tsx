@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { BookmarkIcon } from "lucide-react";
 import { CANVAS_WIDTH, CANVAS_HEIGHT, getSlideNumbers } from "@/lib/constants";
 import { createId } from "@/lib/id";
 import { joinParts, publishedByLine, slideCountLabel } from "@/lib/format";
@@ -16,6 +17,8 @@ import { Spinner } from "@/components/Spinner";
 import { TopLoadingBar } from "@/components/TopLoadingBar";
 import { FluidSlidePreview } from "@/components/presentation/FluidSlidePreview";
 import { ReportButton } from "./ReportButton";
+import { setPresentationSaved } from "./actions";
+import { SAVE_ERRORS } from "../../SaveCardButton";
 
 // Only downloaded when the teacher clicks Present.
 const PresentationView = dynamic(() =>
@@ -24,21 +27,25 @@ const PresentationView = dynamic(() =>
 
 /**
  * A presentation's details and all its slides, view only. Present shows it fullscreen (the same view as the
- * editor's Present button); "Make a copy" saves a private copy for me and opens it in the editor. "Report" sends
- * someone else's presentation to the admins.
+ * editor's Present button); "Make a copy" saves a private copy for me and opens it in the editor. "Save" bookmarks
+ * someone else's presentation to my home page's "Saved" row (like YouTube's), and "Report" sends it to the admins.
  */
 export function PresentationPreview({
   presentation,
   isMine,
   publisherName,
+  isSaved: savedAtStart,
 }: {
   presentation: Presentation;
   isMine: boolean;
   publisherName: string;
+  isSaved: boolean;
 }) {
   const router = useRouter();
   const isPresenting = useEditorStore((s) => s.isPresenting);
   const [isCopying, setIsCopying] = useState(false);
+  const [isSaved, setIsSaved] = useState(savedAtStart);
+  const [isSaving, setIsSaving] = useState(false);
 
   // The presentation view reads the editor's store, so the presentation goes in there first.
   const present = async (slideId = presentation.slides[0]?.id) => {
@@ -70,6 +77,18 @@ export function PresentationPreview({
     }
   };
 
+  const toggleSaved = async () => {
+    setIsSaving(true);
+    const result = await setPresentationSaved(presentation.id, !isSaved);
+    setIsSaving(false);
+    if (result === "done") {
+      setIsSaved(!isSaved);
+      toast.success(isSaved ? "Removed from Saved." : "Saved. Find it in “Saved” on your home page.");
+    } else {
+      toast.error(SAVE_ERRORS[result]);
+    }
+  };
+
   const details = [
     { label: "Description", value: presentation.description },
     { label: "Curriculum", value: presentation.curriculum },
@@ -92,6 +111,23 @@ export function PresentationPreview({
         </div>
         <div className="ml-auto flex items-center gap-2">
           {!isMine && <ReportButton presentationId={presentation.id} className={secondaryButtonClass} />}
+          {!isMine && (
+            <button
+              type="button"
+              onClick={toggleSaved}
+              disabled={isSaving}
+              aria-pressed={isSaved}
+              title={isSaved ? "Remove from Saved" : "Save to your home page"}
+              className={`inline-flex items-center gap-2 ${secondaryButtonClass}`}
+            >
+              {isSaving ? (
+                <Spinner size={14} />
+              ) : (
+                <BookmarkIcon size={16} className={isSaved ? "fill-accent text-accent" : ""} />
+              )}
+              {isSaved ? "Saved" : "Save"}
+            </button>
+          )}
           {isMine ? (
             <Link href={`/presentation/${presentation.id}/edit`} className={secondaryButtonClass}>
               Edit

@@ -14,6 +14,20 @@ So whenever you add, remove, or update a package, always use npm 10.9.2 instead 
 
 Do this yourself — don't ask the user to run it. Commit `package-lock.json` together with `package.json`.
 
+# Code Review Commands
+
+When the user names a feature or part of the app they want reviewed (e.g. "review the slide limits", "review the login page"), find the files that feature lives in and give them a ready-to-copy `/code-review` command with those file paths as the target, so the review looks only at that feature:
+
+```
+/code-review high src/lib/schema.ts src/lib/presentations.ts supabase/migrations/20261011000000_lower_limits.sql
+```
+
+- Search the code first (Grep/Glob). Don't guess paths from memory.
+- Include every file that holds the feature's logic: components, server actions, `src/lib` helpers, zod schemas, and the Supabase migrations for it. Leave out files that only mention it in passing.
+- Keep the effort level the user asked for (default `high`).
+- Under the command, list each file with a few words on why it's included, so the user can drop any they don't want.
+- Don't run the review yourself. Give the command, and let the user run it.
+
 # Code Style
 
 Keep the code:

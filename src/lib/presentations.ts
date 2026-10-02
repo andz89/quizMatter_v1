@@ -1,6 +1,13 @@
 import { z, ZodError } from "zod";
 import { createClient } from "./supabase/client";
-import { MAX_SLIDES, presentationSchema, type Presentation, type Slide } from "./schema";
+import {
+  MAX_PRESENTATIONS,
+  MAX_SLIDES,
+  TOO_MANY_SLIDES_MESSAGE,
+  presentationSchema,
+  type Presentation,
+  type Slide,
+} from "./schema";
 
 /** A save the database refused on purpose. `message` tells the user why. */
 export class SaveRefusedError extends Error {
@@ -13,7 +20,7 @@ export class SaveRefusedError extends Error {
 // The database's error codes for refused saves (see the supabase/migrations), and what the user is told.
 const REFUSALS: Record<string, string> = {
   QM409: "This presentation was saved in another tab or device. Reload the page to get the newest copy.",
-  QMMAX: "You have 100 presentations, the most allowed. Delete some to make new ones.",
+  QMMAX: `You have ${MAX_PRESENTATIONS} presentations, the most allowed. Delete some to make new ones.`,
   QM429: "You're saving too fast. Wait a minute and try again.",
   QMBAN: "Your account is blocked, so you can't save. Contact QuizMatter if you think this is a mistake.",
 };
@@ -26,7 +33,10 @@ export function saveErrorMessage(error: unknown, action: string): string {
   return `Couldn't ${action}. Please check your internet and try again.`;
 }
 
-const slideIdsSchema = z.array(z.string().max(100)).min(1).max(MAX_SLIDES);
+const slideIdsSchema = z
+  .array(z.string().max(100))
+  .min(1)
+  .max(MAX_SLIDES, TOO_MANY_SLIDES_MESSAGE);
 
 /**
  * Saves the presentation (details + slides, in order) in one step. The `save_presentation` database function also
@@ -49,13 +59,20 @@ export async function savePresentationToDb(
   // Empty reference rows (added but not filled in) are dropped, not saved.
   const referenceLinks = presentation.referenceLinks.map((link) => link.trim()).filter(Boolean);
   const slides = presentation.slides.filter((slide) => !unchanged.has(slide));
-  // Checked with zod first (see CLAUDE.md, "Saving Data"): bad data throws here and is never saved.
+  // Checked with zod first (see CLAUDE.md, "Saving Data"): bad data throws here and is never saved. The slide
+  // count is checked first, on every slide (only changed slides are in `slides`).
+  const slideIds = slideIdsSchema.parse(presentation.slides.map((slide) => slide.id));
   const { data, error } = await createClient().rpc("save_presentation", {
     presentation: presentationSchema.parse({ ...presentation, referenceLinks, slides }),
-    slide_ids: slideIdsSchema.parse(presentation.slides.map((slide) => slide.id)),
+    slide_ids: slideIds,
     base_updated_at: baseUpdatedAt,
   });
   if (error && REFUSALS[error.code]) throw new SaveRefusedError(REFUSALS[error.code], error.code === "QM409");
+  // The database's slide-count check (same limit as slideIdsSchema). Its code, 22023, is shared with checks that
+  // only fail on a bug, so the message tells them apart.
+  if (error?.code === "22023" && error.message.startsWith("A presentation needs")) {
+    throw new SaveRefusedError(TOO_MANY_SLIDES_MESSAGE);
+  }
   // A slide thought to be saved isn't in the database: save again with every slide.
   if (error?.code === "QM422" && savedSlides) return savePresentationToDb(presentation, { baseUpdatedAt });
   if (error) throw error;

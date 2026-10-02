@@ -4,6 +4,7 @@ import { Spinner } from "@/components/Spinner";
 import { FluidSlidePreview } from "@/components/presentation/FluidSlidePreview";
 import type { Slide } from "@/lib/schema";
 import { PresentationCardMenu } from "./PresentationCardMenu";
+import { SaveCardButton } from "./SaveCardButton";
 
 export type PresentationCardData = {
   id: string;
@@ -20,11 +21,15 @@ export type PresentationCardData = {
   byline?: string;
   // Adds "Move to QuizMatter" to the card's menu (an admin's own saved presentations only).
   canMoveToQuizMatter?: boolean;
+  // Adds the bookmark button (someone else's presentation): `isSaved` = it's in my "Saved" row.
+  canSave?: boolean;
+  isSaved?: boolean;
 };
 
 /**
  * A presentation as a card: a picture of its first slide, then the title and a gray line of details.
- * `showMenu` adds the "⋮" menu (Edit, Present, Delete) — only for my own presentations.
+ * `showMenu` adds the "⋮" menu (Edit, Present, Delete) — only for my own presentations. `card.canSave` adds the
+ * bookmark button in the same corner, for other people's presentations.
  */
 export function PresentationCard({ card, showMenu = false }: { card: PresentationCardData; showMenu?: boolean }) {
   const isChecking = card.badge === "checking";
@@ -81,6 +86,7 @@ export function PresentationCard({ card, showMenu = false }: { card: Presentatio
         </Link>
       )}
       {showMenu && <PresentationCardMenu card={card} />}
+      {card.canSave && <SaveCardButton presentationId={card.id} title={card.title} isSaved={card.isSaved ?? false} />}
     </div>
   );
 }

@@ -64,6 +64,8 @@ import {
   MAX_ANSWER_LENGTH,
   MAX_ITEM_COUNT,
   MAX_REFERENCE_LINKS,
+  MAX_SLIDES,
+  TOO_MANY_SLIDES_MESSAGE,
   photoSchema,
   referenceSchema,
   tagsSchema,
@@ -438,7 +440,9 @@ const slideRecipe = z.discriminatedUnion("type", [
   }),
 ]);
 
-export const presentationRecipeSchema = z.object({ slides: z.array(slideRecipe).min(1) });
+export const presentationRecipeSchema = z.object({
+  slides: z.array(slideRecipe).min(1).max(MAX_SLIDES, TOO_MANY_SLIDES_MESSAGE),
+});
 
 /**
  * Details about the presentation as a whole, which Claude fills in when it sends a presentation (see /api/mcp).

@@ -25,33 +25,58 @@ export type AdminCardData = PresentationCardData & { createdAt: number; updatedA
 
 type AdminSort = "updatedAt" | "createdAt";
 
+// The home page's tabs, in this order.
+const TABS: { id: Tab; label: string }[] = [
+  { id: "mine", label: "My presentations" },
+  { id: "quizmatter", label: "From QuizMatter" },
+  { id: "saved", label: "Saved" },
+  { id: "teachers", label: "Other teachers" },
+];
+
 const ADMIN_SORTS: { id: AdminSort; label: string }[] = [
   { id: "updatedAt", label: "Last changed" },
   { id: "createdAt", label: "Newest" },
 ];
 
+type Tab = Exclude<HomeSearch["in"], "all">;
+
 /**
- * The home page's rows of cards: my newest presentations, the ones admins shared with every teacher ("From
- * QuizMatter", hidden when there are none), then presentations other teachers published. While searching, the
- * server already picked the matches (see page.tsx), so each row shows exactly what it was given.
+ * The home page's cards, in four tabs: my newest presentations, the ones admins shared with every teacher ("From
+ * QuizMatter"), the ones I saved, then presentations other teachers published. While searching, the server already
+ * picked the matches (see page.tsx), so each tab shows exactly what it was given.
  */
 export function PresentationHome({
   myCards,
   adminCards,
   otherCards,
+  savedCards,
   search,
   isSearching,
 }: {
   myCards: PresentationCardData[];
   adminCards: AdminCardData[];
   otherCards: PresentationCardData[];
+  savedCards: PresentationCardData[];
   search: HomeSearch;
   isSearching: boolean;
 }) {
   const [adminSort, setAdminSort] = useState<AdminSort>("updatedAt");
   const isPresenting = useEditorStore((s) => s.isPresenting);
 
-  const shows = (section: HomeSearch["in"]) => !isSearching || search.in === "all" || search.in === section;
+  const counts: Record<Tab, number> = {
+    mine: myCards.length,
+    quizmatter: adminCards.length,
+    saved: savedCards.length,
+    teachers: otherCards.length,
+  };
+  // A search opens the tab "Look in" names, or else the first tab with a match.
+  const firstTab: Tab =
+    search.in !== "all" ? search.in : isSearching ? (TABS.find(({ id }) => counts[id] > 0)?.id ?? "mine") : "mine";
+  // The picked tab belongs to one search; a new search starts again from its first tab.
+  const searchKey = homeSearchQuery(search);
+  const [picked, setPicked] = useState({ searchKey, tab: firstTab });
+  const tab = picked.searchKey === searchKey ? picked.tab : firstTab;
+
   const mine = isSearching ? myCards : myCards.slice(0, MY_ROW_SIZE);
   // While searching, the search's own Sort decides the order.
   const fromAdmins = isSearching ? adminCards : [...adminCards].sort((a, b) => b[adminSort] - a[adminSort]);
@@ -60,7 +85,7 @@ export function PresentationHome({
   return (
     <>
       {/* Keyed by the search, so Back (or Clear search) puts the right text back in the box. */}
-      <HomeSearchForm key={homeSearchQuery(search)} search={search} />
+      <HomeSearchForm key={searchKey} search={search} />
 
       {isSearching && (
         <div className="mb-6 flex items-center gap-3">
@@ -78,82 +103,88 @@ export function PresentationHome({
         </div>
       )}
 
-      {shows("mine") && (
-        <Section
-          title="My presentations"
-          action={
-            !isSearching &&
-            myCards.length > 0 && (
-              <Link href="/presentations" className="text-sm font-semibold text-text-primary hover:underline">
-                See all ({myCards.length})
-              </Link>
-            )
-          }
-        >
-          {mine.length === 0 ? (
-            <Empty>
-              {isSearching
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        <div role="tablist" className="flex max-w-full gap-1 overflow-x-auto rounded-button bg-bg-surface p-1">
+          {TABS.map(({ id, label }) => (
+            <button
+              key={id}
+              type="button"
+              role="tab"
+              aria-selected={tab === id}
+              onClick={() => setPicked({ searchKey, tab: id })}
+              className={`flex shrink-0 items-center gap-2 rounded-dropdown px-3 py-1.5 text-[13px] font-semibold transition-colors ${
+                tab === id ? "bg-accent text-white" : "text-text-secondary hover:text-text-primary"
+              }`}
+            >
+              {label}
+              <span
+                className={`rounded-dropdown px-1.5 text-[11px] ${
+                  tab === id ? "bg-white/20 text-white" : "bg-bg-page text-text-secondary"
+                }`}
+              >
+                {counts[id]}
+              </span>
+            </button>
+          ))}
+        </div>
+
+        <span className="ml-auto">
+          {tab === "mine" && !isSearching && myCards.length > 0 && (
+            <Link href="/presentations" className="text-sm font-semibold text-text-primary hover:underline">
+              See all ({myCards.length})
+            </Link>
+          )}
+          {tab === "quizmatter" && !isSearching && adminCards.length > 0 && (
+            <div className="flex gap-1">
+              {ADMIN_SORTS.map(({ id, label }) => (
+                <button
+                  key={id}
+                  type="button"
+                  aria-pressed={adminSort === id}
+                  onClick={() => setAdminSort(id)}
+                  className={`rounded-dropdown px-2.5 py-1 text-[13px] font-semibold transition-colors ${
+                    adminSort === id ? "bg-accent-soft text-accent" : "text-text-secondary hover:text-text-primary"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
+        </span>
+      </div>
+
+      <section role="tabpanel" className="mb-10">
+        {tab === "mine" && (
+          <Cards
+            cards={mine}
+            showMenu
+            empty={
+              isSearching
                 ? noMatch("presentations of yours")
-                : "No presentations yet. Click “+ New presentation” to make one, or ask Claude to send you one."}
-            </Empty>
-          ) : (
-            <CardGrid>
-              {mine.map((card) => (
-                <PresentationCard key={card.id} card={card} showMenu />
-              ))}
-            </CardGrid>
-          )}
-        </Section>
-      )}
-
-      {shows("quizmatter") && (isSearching || adminCards.length > 0) && (
-        <Section
-          title="From QuizMatter"
-          action={
-            !isSearching && (
-              <div className="flex gap-1">
-                {ADMIN_SORTS.map(({ id, label }) => (
-                  <button
-                    key={id}
-                    type="button"
-                    aria-pressed={adminSort === id}
-                    onClick={() => setAdminSort(id)}
-                    className={`rounded-dropdown px-2.5 py-1 text-[13px] font-semibold transition-colors ${
-                      adminSort === id ? "bg-accent text-white" : "text-text-secondary hover:text-text-primary"
-                    }`}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-            )
-          }
-        >
-          {fromAdmins.length === 0 ? (
-            <Empty>{noMatch("QuizMatter presentations")}</Empty>
-          ) : (
-            <CardGrid>
-              {fromAdmins.map((card) => (
-                <PresentationCard key={card.id} card={card} />
-              ))}
-            </CardGrid>
-          )}
-        </Section>
-      )}
-
-      {shows("teachers") && (
-        <Section title="Published by other teachers">
-          {otherCards.length === 0 ? (
-            <Empty>{isSearching ? noMatch("published presentations") : "No other teacher has published a presentation yet."}</Empty>
-          ) : (
-            <CardGrid>
-              {otherCards.map((card) => (
-                <PresentationCard key={card.id} card={card} />
-              ))}
-            </CardGrid>
-          )}
-        </Section>
-      )}
+                : "No presentations yet. Click “+ New presentation” to make one, or ask Claude to send you one."
+            }
+          />
+        )}
+        {tab === "quizmatter" && (
+          <Cards
+            cards={fromAdmins}
+            empty={isSearching ? noMatch("QuizMatter presentations") : "QuizMatter hasn't shared any presentations yet."}
+          />
+        )}
+        {tab === "saved" && (
+          <Cards
+            cards={savedCards}
+            empty={isSearching ? noMatch("saved presentations") : "You haven't saved any presentations yet."}
+          />
+        )}
+        {tab === "teachers" && (
+          <Cards
+            cards={otherCards}
+            empty={isSearching ? noMatch("published presentations") : "No other teacher has published a presentation yet."}
+          />
+        )}
+      </section>
 
       {isPresenting && <PresentationView />}
     </>
@@ -220,19 +251,14 @@ function HomeSearchForm({ search }: { search: HomeSearch }) {
   );
 }
 
-function CardGrid({ children }: { children: ReactNode }) {
-  return <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">{children}</div>;
-}
-
-function Section({ title, action, children }: { title: string; action?: ReactNode; children: ReactNode }) {
+function Cards({ cards, showMenu, empty }: { cards: PresentationCardData[]; showMenu?: boolean; empty: string }) {
+  if (cards.length === 0) return <Empty>{empty}</Empty>;
   return (
-    <section className="mb-10">
-      <div className="mb-3 flex items-center gap-3">
-        <h2 className="text-[15px] font-extrabold text-text-primary">{title}</h2>
-        <span className="ml-auto">{action}</span>
-      </div>
-      {children}
-    </section>
+    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+      {cards.map((card) => (
+        <PresentationCard key={card.id} card={card} showMenu={showMenu} />
+      ))}
+    </div>
   );
 }
 

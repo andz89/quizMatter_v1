@@ -31,7 +31,7 @@ import { SaveRefusedError, saveErrorMessage, savePresentationToDb } from "./pres
 import { finishDraft } from "@/app/actions";
 import { isEmbedSlide } from "./embed";
 import type { Photo, PresentationDetails, Presentation, Slide, SlideType, SvgElement } from "./schema";
-import { MAX_ITEM_COUNT } from "./schema";
+import { MAX_ITEM_COUNT, MAX_SLIDES, TOO_MANY_SLIDES_MESSAGE } from "./schema";
 
 type ElementPatch = Partial<Omit<SvgElement, "id" | "assetId">>;
 
@@ -136,6 +136,16 @@ export function moveInLayers(elements: SvgElement[], ids: string[], move: LayerM
   });
 
   return result.every((el, i) => el === elements[i]) ? elements : result;
+}
+
+/**
+ * Whether `count` more slides still fit (MAX_SLIDES). If not, a toast says so and nothing should be added, so the
+ * teacher learns it now instead of when the save fails.
+ */
+function hasRoomForSlides(presentation: Presentation, count: number): boolean {
+  if (presentation.slides.length + count <= MAX_SLIDES) return true;
+  toast.error(TOO_MANY_SLIDES_MESSAGE);
+  return false;
 }
 
 /** A group needs 2+ members — an element left alone in its group becomes a plain element again. */
@@ -553,6 +563,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set({ selectedSlideId: slideId, selectedElementIds: [], selectedContainerId: null, selectedContainerIds: [] }),
 
   addSlide: (afterSlideId, type) => {
+    if (!hasRoomForSlides(get().presentation, 1)) return;
     const slide = createBlankSlide(type);
     set((state) => {
       const slides = [...state.presentation.slides];
@@ -594,7 +605,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   duplicateSlide: (slideId) => {
     const { presentation } = get();
     const index = presentation.slides.findIndex((s) => s.id === slideId);
-    if (index === -1) return;
+    if (index === -1 || !hasRoomForSlides(presentation, 1)) return;
 
     const copy = cloneSlide(presentation.slides[index]);
     const slides = [...presentation.slides];
@@ -607,7 +618,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   insertSlides: (slides, at) => {
-    if (slides.length === 0) return;
+    if (slides.length === 0 || !hasRoomForSlides(get().presentation, slides.length)) return;
     const copies = slides.map(cloneSlide);
     set((state) => {
       const all = [...state.presentation.slides];

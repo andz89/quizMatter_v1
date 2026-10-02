@@ -6,19 +6,25 @@ import { presentationSchema, type Presentation } from "./schema";
 /**
  * The whole presentation (details + every slide, in order) and who owns it, or null if there's none the user
  * can read: their own presentations, and other people's published ones. `publisherName` is the owner's display
- * name, only looked up for other people's presentations ("" if they have none). Server-only.
+ * name, only looked up for other people's presentations ("" if they have none). `isSaved`: it's in my "Saved"
+ * row (see the saved_presentations migration). Server-only.
  */
 export async function fetchPresentation(
   id: string,
-): Promise<{ presentation: Presentation; isMine: boolean; publisherName: string } | null> {
+): Promise<{ presentation: Presentation; isMine: boolean; publisherName: string; isSaved: boolean } | null> {
   const supabase = await createClient();
-  const [result, { data: claims }] = await Promise.all([loadPresentation(supabase, id), supabase.auth.getClaims()]);
+  const [result, { data: claims }, { data: saved }] = await Promise.all([
+    loadPresentation(supabase, id),
+    supabase.auth.getClaims(),
+    // The database only gives back my own saved rows.
+    supabase.from("saved_presentations").select("presentation_id").eq("presentation_id", id).maybeSingle(),
+  ]);
   if (!result) return null;
 
   const { presentation, ownerId } = result;
   const isMine = ownerId === claims?.claims.sub;
   const publisherName = isMine ? "" : ((await loadPublisherNames(supabase, [ownerId])).get(ownerId) ?? "");
-  return { presentation, isMine, publisherName };
+  return { presentation, isMine, publisherName, isSaved: saved !== null };
 }
 
 /**
