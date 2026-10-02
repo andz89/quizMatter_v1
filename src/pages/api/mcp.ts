@@ -218,7 +218,7 @@ function createServer(appUrl: string, userId: string, supabase: SupabaseClient) 
 
 /**
  * Checks Claude's login token (the one Supabase gave it after the user clicked Allow). The user's id and whether
- * they're an admin, or null if the token is missing, wrong or expired.
+ * they're an admin, or null if the token is missing, wrong or expired, or the user is banned (Admin → Teachers).
  */
 async function checkLogin(token: string): Promise<{ id: string; isAdmin: boolean; supabase: SupabaseClient } | null> {
   // Acts as that user, so is_admin() answers for them.
@@ -228,7 +228,8 @@ async function checkLogin(token: string): Promise<{ id: string; isAdmin: boolean
   });
   const { data } = await supabase.auth.getClaims(token);
   if (!data) return null;
-  const { data: isAdmin } = await supabase.rpc("is_admin");
+  const [{ data: isAdmin }, { data: isBanned }] = await Promise.all([supabase.rpc("is_admin"), supabase.rpc("is_banned")]);
+  if (isBanned === true) return null;
   return { id: data.claims.sub, isAdmin: isAdmin === true, supabase };
 }
 

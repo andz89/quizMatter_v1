@@ -1,3 +1,4 @@
+import { BanIcon } from "lucide-react";
 import { NavBar } from "@/components/NavBar";
 import { getAccount } from "@/lib/account";
 import { createClient } from "@/lib/supabase/server";
@@ -23,6 +24,9 @@ const CARD_COLUMNS =
   "id, owner_id, title, grade, subject, author, is_published, hidden_at, created_at, updated_at, slides(count), first_slide:slides(data, position)";
 
 export default async function HomePage({ searchParams }: PageProps<"/">) {
+  // Banned (Admin → Teachers): this is the only page they can open (see proxy.ts), and it only says so.
+  if ((await getAccount()).isBanned) return <BlockedHome />;
+
   const search = parseHomeSearch(await searchParams);
   const isSearching = homeSearchQuery(search) !== "";
   const since = changedSince(search);
@@ -118,6 +122,26 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
           search={search}
           isSearching={isSearching}
         />
+      </main>
+    </>
+  );
+}
+
+function BlockedHome() {
+  return (
+    <>
+      <NavBar />
+      <main className="mx-auto w-full max-w-xl px-4 py-16">
+        <div className="rounded-card border border-border-default bg-bg-surface px-5 py-8 text-center">
+          <span className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-danger-soft text-danger-strong">
+            <BanIcon size={24} />
+          </span>
+          <h1 className="text-xl font-extrabold text-text-primary">Your account is blocked</h1>
+          <p className="mt-2 text-sm text-text-secondary">
+            You can&apos;t open or make presentations anymore. If you think this is a mistake, contact QuizMatter. You can
+            log out from the round button at the top right.
+          </p>
+        </div>
       </main>
     </>
   );

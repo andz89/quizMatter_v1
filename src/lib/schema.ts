@@ -395,6 +395,17 @@ export const reportSchema = z.object({
   note: z.string().trim().max(500, "The note is too long (500 characters at most)."),
 });
 
+// Why an admin banned a teacher (the banned_users table, Admin → Teachers).
+export const BAN_REASON_MAX_LENGTH = 200;
+export const banSchema = z.object({
+  user_id: z.uuid(),
+  reason: z
+    .string()
+    .trim()
+    .min(1, "Write why you're banning this teacher.")
+    .max(BAN_REASON_MAX_LENGTH, `The reason is too long (${BAN_REASON_MAX_LENGTH} characters at most).`),
+});
+
 export type Option = z.infer<typeof optionSchema>;
 export type SvgElement = z.infer<typeof svgElementSchema>;
 export type Photo = z.infer<typeof photoSchema>;

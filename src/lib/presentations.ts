@@ -15,6 +15,7 @@ const REFUSALS: Record<string, string> = {
   QM409: "This presentation was saved in another tab or device. Reload the page to get the newest copy.",
   QMMAX: "You have 100 presentations, the most allowed. Delete some to make new ones.",
   QM429: "You're saving too fast. Wait a minute and try again.",
+  QMBAN: "Your account is blocked, so you can't save. Contact QuizMatter if you think this is a mistake.",
 };
 
 /** What to tell the user when a save failed, e.g. saveErrorMessage(error, "make a copy"). */

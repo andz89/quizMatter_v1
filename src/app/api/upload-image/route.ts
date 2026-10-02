@@ -52,6 +52,9 @@ export async function POST(request: Request) {
 
   // At most 30 photos a minute per teacher (admins: no limit), counted before the file takes up storage.
   const { error: rateError } = await supabase.rpc("count_write", { kind: "photos" });
+  if (rateError?.code === "QMBAN") {
+    return Response.json({ error: "Your account is blocked, so you can't add photos." }, { status: 403 });
+  }
   if (rateError?.code === "QM429") {
     return Response.json({ error: "You're adding photos too fast. Wait a minute and try again." }, { status: 429 });
   }

@@ -26,7 +26,8 @@ export default function LoginPage() {
     setError(null);
     const { error } = await createClient().auth.signInWithPassword({ email, password, options: { captchaToken } });
     if (error) {
-      setError(error.message);
+      // Banned on Admin → Teachers (Supabase's own ban).
+      setError(error.code === "user_banned" ? "This account is blocked. Contact QuizMatter if you think this is a mistake." : error.message);
       setIsLoggingIn(false);
       setCaptchaToken(null);
       setCaptchaRound((round) => round + 1);
