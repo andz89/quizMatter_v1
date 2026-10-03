@@ -20,8 +20,7 @@ export const SAVE_ERRORS = {
 
 /**
  * The bookmark on someone else's presentation card: saves it to my "Saved" row, or removes it when it's already
- * saved (filled). The page then gets fresh data, so every row shows the change; the spinner stays until it has.
- * `onChange` replaces that refresh (the editor's Presentations panel, where a refresh could disturb the editor).
+ * saved (filled). `onChange` then updates the page itself: no page refresh, which would load every row again.
  * Greyed out while saving is paused for clicking too fast (the notice at the bottom says until when).
  * `className` places it over the picture.
  */
@@ -35,7 +34,7 @@ export function SaveCardButton({
   presentationId: string;
   title: string;
   isSaved: boolean;
-  onChange?: (isSaved: boolean) => void;
+  onChange: (isSaved: boolean) => void;
   className?: string;
 }) {
   const router = useRouter();
@@ -51,11 +50,12 @@ export function SaveCardButton({
       }
       if (status !== "done") {
         toast.error(SAVE_ERRORS[status]);
+        // Just banned (e.g. automatically, for clicking too fast): load the page again once, so it says so.
+        if (status === "banned") router.refresh();
         return;
       }
       toast.success(isSaved ? "Removed from Saved." : "Saved.");
-      if (onChange) onChange(!isSaved);
-      else router.refresh();
+      onChange(!isSaved);
     });
 
   return (

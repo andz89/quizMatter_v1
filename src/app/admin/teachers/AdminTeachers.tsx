@@ -15,7 +15,8 @@ export type TeacherRow = {
   // "Joined 3 days ago · Last login 1 hr ago".
   meta: string;
   isAdmin: boolean;
-  ban: { reason: string; when: string } | null;
+  // isAutomatic: banned for clicking too fast, not by an admin.
+  ban: { reason: string; when: string; isAutomatic: boolean } | null;
 };
 
 /** Every teacher (banned ones first), with Ban / Unban. */
@@ -66,6 +67,7 @@ function Row({ row }: { row: TeacherRow }) {
             {row.name && <span className="text-sm text-text-secondary">{row.name}</span>}
             {row.isAdmin && <span className={`${pillClass} bg-accent-soft text-accent`}>Admin</span>}
             {row.ban && <span className={`${pillClass} bg-danger-soft text-danger-strong`}>Banned</span>}
+            {row.ban?.isAutomatic && <span className={`${pillClass} bg-bg-page text-text-secondary`}>Automatic</span>}
           </div>
           <p className="mt-0.5 text-[13px] text-text-secondary">{row.meta}</p>
         </div>

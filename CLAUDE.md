@@ -50,6 +50,8 @@ There is ONE system for pausing a feature when a teacher clicks it too fast (e.g
 2. Add it to `CLICK_FEATURES` in `src/lib/clickLimits.ts`.
 3. In the app: read the refusal with `pausedUntilFromError`, call `pauseFeature`, and disable its buttons with `useIsPaused`. The sticky notice at the bottom (`src/components/ClickPauseNotice.tsx`, in the root layout) shows by itself.
 
+A feature's `ban_after_pauses` (in `click_limits`; bookmarks: 3) turns a chain of that many pauses, each within `repeat_within_hours` of the last, into a real ban: a `banned_users` row marked `is_automatic` (Admin → Teachers shows "Automatic") plus Supabase's login ban. Leave it empty for a feature that should never ban. See `supabase/migrations/20261014000000_click_auto_ban.sql`.
+
 # Loading Spinner
 
 Whenever the user waits for something (opening a quiz, loading a page, saving, any slow action), show a spinner — always.

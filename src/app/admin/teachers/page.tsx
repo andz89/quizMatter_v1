@@ -22,7 +22,7 @@ export default async function AdminTeachersPage() {
   const [users, bans, admins, settings] = await Promise.all([
     // Teachers are added by hand, so one page of 1,000 is plenty.
     admin.auth.admin.listUsers({ perPage: 1000 }),
-    supabase.from("banned_users").select("user_id, reason, banned_at"),
+    supabase.from("banned_users").select("user_id, reason, banned_at, is_automatic"),
     admin.from("admins").select("user_id"),
     admin.from("user_settings").select("user_id, display_name"),
   ]);
@@ -43,7 +43,8 @@ export default async function AdminTeachersPage() {
   );
 }
 
-type Ban = { user_id: string; reason: string; banned_at: string };
+// is_automatic: banned by the database for clicking too fast (see the click_auto_ban migration), not by an admin.
+type Ban = { user_id: string; reason: string; banned_at: string; is_automatic: boolean };
 
 /** One row per account: banned teachers first, then by email. */
 function buildRows(
@@ -69,7 +70,7 @@ function buildRows(
           user.last_sign_in_at && `Last login ${timeAgo(Date.parse(user.last_sign_in_at), now)}`,
         ]),
         isAdmin: admins.has(user.id),
-        ban: ban ? { reason: ban.reason, when: timeAgo(Date.parse(ban.banned_at), now) } : null,
+        ban: ban ? { reason: ban.reason, when: timeAgo(Date.parse(ban.banned_at), now), isAutomatic: ban.is_automatic } : null,
       };
     })
     .sort((a, b) => Number(Boolean(b.ban)) - Number(Boolean(a.ban)) || a.email.localeCompare(b.email));

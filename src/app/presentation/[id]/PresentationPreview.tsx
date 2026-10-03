@@ -91,6 +91,8 @@ export function PresentationPreview({
       pauseFeature("saved", pausedUntil!);
     } else {
       toast.error(SAVE_ERRORS[status]);
+      // Just banned (e.g. automatically, for clicking too fast): load the page again once, so it says so.
+      if (status === "banned") router.refresh();
     }
   };
 
