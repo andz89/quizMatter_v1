@@ -22,6 +22,7 @@ function loadScript() {
     script.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
     script.onload = () => resolve();
     script.onerror = () => {
+      script.remove();
       scriptLoad = null; // try again next time
       reject();
     };
@@ -30,40 +31,123 @@ function loadScript() {
   return scriptLoad;
 }
 
+// Cloudflare waits about 2 minutes before it says a check froze (error 300030). We give up sooner.
+const CHECK_TIMEOUT_MS = 15_000;
+
+/** What the check is doing, so the page can show the right words on its button. */
+export type TurnstileStatus = "checking" | "needs-click" | "failed" | "passed";
+
 /**
  * Cloudflare Turnstile, the "are you human?" check. `onToken` gets a one-time pass once the check is done (most
  * people just see a tick), and null when the pass expires or the check fails. Supabase checks the pass at login
  * (Authentication → Attack Protection). A pass works once: give this a new `key` to get a fresh one.
  */
-export function Turnstile({ onToken }: { onToken: (token: string | null) => void }) {
+export function Turnstile({
+  onToken,
+  onStatus,
+}: {
+  onToken: (token: string | null) => void;
+  onStatus?: (status: TurnstileStatus) => void;
+}) {
   const boxRef = useRef<HTMLDivElement>(null);
-  const [failedToLoad, setFailedToLoad] = useState(false);
+  const widgetIdRef = useRef<string | undefined>(undefined);
+  // Kept in refs so a new function from the parent doesn't restart the check.
+  const onTokenRef = useRef(onToken);
+  const onStatusRef = useRef(onStatus);
+  useEffect(() => {
+    onTokenRef.current = onToken;
+    onStatusRef.current = onStatus;
+  });
+  // Why the check failed (a Cloudflare error code, or "load" when the script didn't load), or null.
+  const [failure, setFailure] = useState<string | null>(null);
+  const [loadAttempt, setLoadAttempt] = useState(0);
 
   useEffect(() => {
-    let widgetId: string | undefined;
     let isCancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const stopTimer = () => clearTimeout(timer);
+    const startTimer = () => {
+      stopTimer();
+      timer = setTimeout(() => fail("timeout"), CHECK_TIMEOUT_MS);
+    };
+    const fail = (reason: string) => {
+      stopTimer();
+      setFailure(reason);
+      onTokenRef.current(null);
+      onStatusRef.current?.("failed");
+    };
+    onStatusRef.current?.("checking");
     loadScript().then(
       () => {
-        if (isCancelled || !boxRef.current || !window.turnstile) return;
-        widgetId = window.turnstile.render(boxRef.current, {
+        if (isCancelled) return;
+        if (!boxRef.current || !window.turnstile) return fail("not-ready");
+        startTimer();
+        widgetIdRef.current = window.turnstile.render(boxRef.current, {
           sitekey: TURNSTILE_SITE_KEY,
           size: "flexible",
           theme: "light",
-          callback: (token: string) => onToken(token),
-          "expired-callback": () => onToken(null),
-          "error-callback": () => onToken(null),
+          retry: "never", // show a failure at once (with our Try again button) instead of retrying quietly for minutes
+          callback: (token: string) => {
+            stopTimer();
+            setFailure(null);
+            onTokenRef.current(token);
+            onStatusRef.current?.("passed");
+          },
+          "expired-callback": () => {
+            onTokenRef.current(null);
+            onStatusRef.current?.("checking");
+          },
+          // The user is clicking: no time limit while they do.
+          "before-interactive-callback": () => {
+            stopTimer();
+            onStatusRef.current?.("needs-click");
+          },
+          "after-interactive-callback": () => onStatusRef.current?.("checking"),
+          "error-callback": (code: string) => {
+            fail(code || "unknown");
+            return true; // we show the error ourselves
+          },
         });
       },
-      () => setFailedToLoad(true),
+      () => {
+        if (!isCancelled) fail("load");
+      },
     );
     return () => {
       isCancelled = true;
-      if (widgetId) window.turnstile?.remove(widgetId);
+      stopTimer();
+      if (widgetIdRef.current) window.turnstile?.remove(widgetIdRef.current);
+      widgetIdRef.current = undefined;
     };
-  }, [onToken]);
+  }, [loadAttempt]);
 
-  if (failedToLoad) {
-    return <p className="text-sm text-danger-strong">Couldn&apos;t load the security check. Please reload the page.</p>;
-  }
-  return <div ref={boxRef} className="min-h-[65px]" />;
+  const tryAgain = () => {
+    setFailure(null);
+    onStatusRef.current?.("checking");
+    setLoadAttempt((attempt) => attempt + 1);
+  };
+
+  return (
+    <div>
+      {failure !== "load" && <div ref={boxRef} className="min-h-[65px]" />}
+      {failure && (
+        <div className="mt-2 flex items-center justify-between gap-3">
+          <p className="text-sm text-danger-strong">
+            {failure === "load"
+              ? "Couldn't load the security check."
+              : failure === "timeout"
+                ? "The security check is taking too long."
+                : `The security check didn't work (code ${failure}).`}
+          </p>
+          <button
+            type="button"
+            onClick={tryAgain}
+            className="shrink-0 rounded-dropdown border border-border-default px-3 py-1 text-sm font-semibold text-text-primary hover:bg-accent-soft"
+          >
+            Try again
+          </button>
+        </div>
+      )}
+    </div>
+  );
 }

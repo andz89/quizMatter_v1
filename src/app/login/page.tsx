@@ -1,11 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { isAuthRetryableFetchError, type AuthError } from "@supabase/supabase-js";
 import { Logo } from "@/components/Logo";
 import { LoginAbout } from "@/components/LoginAbout";
 import { Spinner } from "@/components/Spinner";
-import { Turnstile } from "@/components/Turnstile";
+import { TopLoadingBar } from "@/components/TopLoadingBar";
+import { Turnstile, type TurnstileStatus } from "@/components/Turnstile";
 import { createClient } from "@/lib/supabase/client";
 
 // No sign up: users are added by hand in the Supabase dashboard (Authentication → Users).
@@ -18,6 +20,20 @@ export default function LoginPage() {
   // The "are you human?" pass, and a number that shows a fresh check when it goes up (a pass works only once).
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const [captchaRound, setCaptchaRound] = useState(0);
+  const [captchaStatus, setCaptchaStatus] = useState<TurnstileStatus>("checking");
+
+  // Back button after logging in: the browser may show its saved copy of this page, still "Logging in…" with a
+  // used pass. Start over with a fresh check.
+  useEffect(() => {
+    const onPageShow = (e: PageTransitionEvent) => {
+      if (!e.persisted) return;
+      setIsLoggingIn(false);
+      setCaptchaToken(null);
+      setCaptchaRound((round) => round + 1);
+    };
+    window.addEventListener("pageshow", onPageShow);
+    return () => window.removeEventListener("pageshow", onPageShow);
+  }, []);
 
   const logIn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -26,16 +42,13 @@ export default function LoginPage() {
     setError(null);
     const { error } = await createClient().auth.signInWithPassword({ email, password, options: { captchaToken } });
     if (error) {
-      // Banned on Admin → Teachers (Supabase's own ban).
-      setError(error.code === "user_banned" ? "This account is blocked. Contact QuizMatter if you think this is a mistake." : error.message);
+      setError(loginErrorMessage(error));
       setIsLoggingIn(false);
       setCaptchaToken(null);
       setCaptchaRound((round) => round + 1);
       return;
     }
-    // Back to the page the proxy sent us from (only paths on this site, never another domain).
-    const next = new URLSearchParams(window.location.search).get("next");
-    router.push(next?.startsWith("/") && !next.startsWith("//") ? next : "/");
+    router.push(nextPath());
     router.refresh();
   };
 
@@ -50,8 +63,9 @@ export default function LoginPage() {
         <form onSubmit={logIn} className="w-full max-w-sm rounded-card border border-border-default bg-bg-surface px-5 py-6">
           <h1 className="mb-5 text-base font-extrabold text-text-primary">Log in</h1>
 
-          <label className="mb-1 block text-[11px] font-bold tracking-[0.05em] text-text-header uppercase">Email</label>
+          <label htmlFor="email" className="mb-1 block text-[11px] font-bold tracking-[0.05em] text-text-header uppercase">Email</label>
           <input
+            id="email"
             type="email"
             required
             autoComplete="email"
@@ -60,8 +74,9 @@ export default function LoginPage() {
             className={inputClass}
           />
 
-          <label className="mt-4 mb-1 block text-[11px] font-bold tracking-[0.05em] text-text-header uppercase">Password</label>
+          <label htmlFor="password" className="mt-4 mb-1 block text-[11px] font-bold tracking-[0.05em] text-text-header uppercase">Password</label>
           <input
+            id="password"
             type="password"
             required
             autoComplete="current-password"
@@ -71,7 +86,7 @@ export default function LoginPage() {
           />
 
           <div className="mt-4">
-            <Turnstile key={captchaRound} onToken={setCaptchaToken} />
+            <Turnstile key={captchaRound} onToken={setCaptchaToken} onStatus={setCaptchaStatus} />
           </div>
 
           {error && <p className="mt-3 text-sm text-danger-strong">{error}</p>}
@@ -81,14 +96,40 @@ export default function LoginPage() {
             disabled={isLoggingIn || !captchaToken}
             className="mt-5 flex w-full items-center justify-center gap-2 rounded-button bg-accent btn-press px-4 py-2.5 text-sm font-semibold text-white hover:bg-accent-hover disabled:opacity-60"
           >
-            {(isLoggingIn || !captchaToken) && <Spinner size={14} />}
-            {isLoggingIn ? "Logging in…" : captchaToken ? "Log in" : "Checking you're human…"}
+            {(isLoggingIn || (!captchaToken && captchaStatus === "checking")) && <Spinner size={14} />}
+            {isLoggingIn
+              ? "Logging in…"
+              : captchaToken
+                ? "Log in"
+                : captchaStatus === "needs-click"
+                  ? "Tick the box above to continue"
+                  : captchaStatus === "failed"
+                    ? "Security check failed"
+                    : "Checking you're human…"}
           </button>
         </form>
         <LoginAbout />
       </div>
+      {isLoggingIn && <TopLoadingBar />}
     </main>
   );
+}
+
+// Plain-English words for what went wrong.
+function loginErrorMessage(error: AuthError) {
+  if (error.code === "user_banned") return "This account is blocked. Contact QuizMatter if you think this is a mistake."; // Admin → Teachers
+  if (error.code === "invalid_credentials") return "Wrong email or password.";
+  if (error.code === "captcha_failed" || /captcha/i.test(error.message)) return "The security check expired. Please try again.";
+  if (isAuthRetryableFetchError(error)) return "Couldn't reach the server. Check your internet and try again.";
+  return "Something went wrong. Please try again.";
+}
+
+// Back to the page the proxy sent us from: only a page on this site, never another domain (e.g. "/\evil.com").
+function nextPath() {
+  const next = new URLSearchParams(window.location.search).get("next");
+  if (!next) return "/";
+  const url = new URL(next, window.location.origin);
+  return url.origin === window.location.origin ? url.pathname + url.search + url.hash : "/";
 }
 
 const inputClass =
