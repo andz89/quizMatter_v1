@@ -29,9 +29,18 @@ export type PresentationCardData = {
 /**
  * A presentation as a card: a picture of its first slide, then the title and a gray line of details.
  * `showMenu` adds the "⋮" menu (Edit, Present, Delete) — only for my own presentations. `card.canSave` adds the
- * bookmark button in the same corner, for other people's presentations.
+ * bookmark button in the same corner, for other people's presentations (`onSavedChange` then updates the page).
  */
-export function PresentationCard({ card, showMenu = false }: { card: PresentationCardData; showMenu?: boolean }) {
+export function PresentationCard({
+  card,
+  showMenu = false,
+  onSavedChange,
+}: {
+  card: PresentationCardData;
+  showMenu?: boolean;
+  // After the bookmark saved or removed it (needed for `card.canSave`).
+  onSavedChange?: (card: PresentationCardData, isSaved: boolean) => void;
+}) {
   const isChecking = card.badge === "checking";
   // Like the design's card: picture, then a small status label, the title and a gray details line, all inside.
   const body = (
@@ -87,7 +96,14 @@ export function PresentationCard({ card, showMenu = false }: { card: Presentatio
         </Link>
       )}
       {showMenu && <PresentationCardMenu card={card} />}
-      {card.canSave && <SaveCardButton presentationId={card.id} title={card.title} isSaved={card.isSaved ?? false} />}
+      {card.canSave && onSavedChange && (
+        <SaveCardButton
+          presentationId={card.id}
+          title={card.title}
+          isSaved={card.isSaved ?? false}
+          onChange={(isSaved) => onSavedChange(card, isSaved)}
+        />
+      )}
     </div>
   );
 }

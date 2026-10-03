@@ -154,7 +154,9 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
           <NewPresentationButton author={account.displayName} />
         </header>
 
+        {/* Keyed by the search: a new search starts its bookmark changes again from this fresh data. */}
         <PresentationHome
+          key={homeSearchQuery(search)}
           myCards={myCards}
           adminCards={adminCards}
           otherCards={otherCards}

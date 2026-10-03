@@ -62,11 +62,33 @@ export function PresentationHome({
 }) {
   const [adminSort, setAdminSort] = useState<AdminSort>("updatedAt");
   const isPresenting = useEditorStore((s) => s.isPresenting);
+  // A bookmark click changes these here instead of loading the whole page again (page.tsx's ~8 database queries).
+  // page.tsx keys this component by the search, so a new search starts again from the server's data.
+  const [savedIds, setSavedIds] = useState(
+    () => new Set([...adminCards, ...otherCards, ...savedCards].filter((card) => card.isSaved).map((card) => card.id))
+  );
+  const [saved, setSaved] = useState(savedCards);
+
+  const changeSaved = (card: PresentationCardData, isSaved: boolean) => {
+    setSavedIds((ids) => {
+      const next = new Set(ids);
+      if (isSaved) next.add(card.id);
+      else next.delete(card.id);
+      return next;
+    });
+    // Newest saved first, like page.tsx. Only "From QuizMatter" cards have no byline; the Saved row says where from.
+    setSaved((cards) =>
+      isSaved
+        ? [{ ...card, byline: card.byline ?? "From QuizMatter" }, ...cards.filter((saved) => saved.id !== card.id)]
+        : cards.filter((saved) => saved.id !== card.id)
+    );
+  };
+  const cardsProps = { savedIds, onSavedChange: changeSaved };
 
   const counts: Record<Tab, number> = {
     mine: myCards.length,
     quizmatter: adminCards.length,
-    saved: savedCards.length,
+    saved: saved.length,
     teachers: otherCards.length,
   };
   // A search opens the tab "Look in" names, or else the first tab with a match.
@@ -157,6 +179,7 @@ export function PresentationHome({
       <section role="tabpanel" className="mb-10">
         {tab === "mine" && (
           <Cards
+            {...cardsProps}
             cards={mine}
             showMenu
             empty={
@@ -168,18 +191,21 @@ export function PresentationHome({
         )}
         {tab === "quizmatter" && (
           <Cards
+            {...cardsProps}
             cards={fromAdmins}
             empty={isSearching ? noMatch("QuizMatter presentations") : "QuizMatter hasn't shared any presentations yet."}
           />
         )}
         {tab === "saved" && (
           <Cards
-            cards={savedCards}
+            {...cardsProps}
+            cards={saved}
             empty={isSearching ? noMatch("saved presentations") : "You haven't saved any presentations yet."}
           />
         )}
         {tab === "teachers" && (
           <Cards
+            {...cardsProps}
             cards={otherCards}
             empty={isSearching ? noMatch("published presentations") : "No other teacher has published a presentation yet."}
           />
@@ -251,12 +277,29 @@ function HomeSearchForm({ search }: { search: HomeSearch }) {
   );
 }
 
-function Cards({ cards, showMenu, empty }: { cards: PresentationCardData[]; showMenu?: boolean; empty: string }) {
+function Cards({
+  cards,
+  showMenu,
+  empty,
+  savedIds,
+  onSavedChange,
+}: {
+  cards: PresentationCardData[];
+  showMenu?: boolean;
+  empty: string;
+  savedIds: Set<string>;
+  onSavedChange: (card: PresentationCardData, isSaved: boolean) => void;
+}) {
   if (cards.length === 0) return <Empty>{empty}</Empty>;
   return (
     <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
       {cards.map((card) => (
-        <PresentationCard key={card.id} card={card} showMenu={showMenu} />
+        <PresentationCard
+          key={card.id}
+          card={{ ...card, isSaved: savedIds.has(card.id) }}
+          showMenu={showMenu}
+          onSavedChange={onSavedChange}
+        />
       ))}
     </div>
   );
