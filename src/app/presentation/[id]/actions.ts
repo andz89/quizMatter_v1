@@ -1,5 +1,6 @@
 "use server";
 
+import { pausedUntilFromError } from "@/lib/clickLimits";
 import { reportSchema, savedPresentationSchema } from "@/lib/schema";
 import { createClient } from "@/lib/supabase/server";
 
@@ -26,24 +27,27 @@ export async function reportPresentation(
 /**
  * Saves (bookmarks) someone else's published presentation to my "Saved" row on the home page, or takes it off
  * with `isSaved` false. The database only takes presentations I can see that aren't mine, MAX_SAVED at most, and
- * 30 saves or removals a minute (QM429).
+ * 30 saves or removals a minute (QM429). Clicking too fast pauses saving for a while ("paused", with `pausedUntil`;
+ * see the click_limits migration).
  */
 export async function setPresentationSaved(
   presentationId: string,
   isSaved: boolean,
-): Promise<"done" | "limit" | "tooFast" | "banned" | "failed"> {
+): Promise<{ status: "done" | "limit" | "tooFast" | "banned" | "paused" | "failed"; pausedUntil?: number }> {
   // Checked with zod before it's saved (see CLAUDE.md, "Saving Data").
   const saved = savedPresentationSchema.safeParse({ presentation_id: presentationId });
-  if (!saved.success) return "failed";
+  if (!saved.success) return { status: "failed" };
 
   const supabase = await createClient();
   const { error } = isSaved
     ? await supabase.from("saved_presentations").insert(saved.data)
     : await supabase.from("saved_presentations").delete().eq("presentation_id", saved.data.presentation_id);
   // 23505 = already saved (e.g. from another tab), which is what was asked for.
-  if (!error || error.code === "23505") return "done";
-  if (error.code === "QMSAV") return "limit";
-  if (error.code === "QM429") return "tooFast";
-  if (error.code === "QMBAN") return "banned";
-  return "failed";
+  if (!error || error.code === "23505") return { status: "done" };
+  const pausedUntil = pausedUntilFromError(error);
+  if (pausedUntil) return { status: "paused", pausedUntil };
+  if (error.code === "QMSAV") return { status: "limit" };
+  if (error.code === "QM429") return { status: "tooFast" };
+  if (error.code === "QMBAN") return { status: "banned" };
+  return { status: "failed" };
 }

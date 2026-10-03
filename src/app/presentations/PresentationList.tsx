@@ -223,8 +223,8 @@ function PresentationListRow({
         {row.checking ? (
           <span className={`${titleClass} text-text-secondary`}>{row.title}</span>
         ) : (
-          // Opens in a new tab, so the list stays open in this one.
-          <Link href={href} target="_blank" className={`${titleClass} text-text-primary after:absolute after:inset-0`}>
+          // Opens in a new tab, so the list stays open in this one. No prefetch: a new tab can't use it.
+          <Link href={href} target="_blank" prefetch={false} className={`${titleClass} text-text-primary after:absolute after:inset-0`}>
             {row.title}
           </Link>
         )}

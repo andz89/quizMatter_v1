@@ -42,6 +42,14 @@ Keep the code:
 
 Validate all input data with zod before saving it to Supabase — from the editor, forms, Claude (the MCP server), or anywhere else. Parse it with the matching zod schema right before the insert/update/rpc call, and don't save anything that fails. Put limits (like maximum text length) in the zod schema, so they're checked in one place.
 
+# Click Limits (pausing a feature clicked too fast)
+
+There is ONE system for pausing a feature when a teacher clicks it too fast (e.g. bookmarks: 20 clicks in 25 seconds → paused 10 minutes, or 1 hour if it happens again within 24 hours). Reuse it; never build a second one. To add a feature:
+
+1. A migration that inserts its row into `click_limits` and calls `count_click('<feature>')` from that feature's trigger or database function (see `supabase/migrations/20261013000000_click_limits.sql`).
+2. Add it to `CLICK_FEATURES` in `src/lib/clickLimits.ts`.
+3. In the app: read the refusal with `pausedUntilFromError`, call `pauseFeature`, and disable its buttons with `useIsPaused`. The sticky notice at the bottom (`src/components/ClickPauseNotice.tsx`, in the root layout) shows by itself.
+
 # Loading Spinner
 
 Whenever the user waits for something (opening a quiz, loading a page, saving, any slow action), show a spinner — always.

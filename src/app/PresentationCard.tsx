@@ -80,8 +80,9 @@ export function PresentationCard({ card, showMenu = false }: { card: Presentatio
       {isChecking ? (
         <div className="block">{body}</div>
       ) : (
-        // Opens in a new tab, so the list stays open in this one.
-        <Link href={card.href} target="_blank" className="group block">
+        // Opens in a new tab, so the list stays open in this one. No prefetch: a new tab can't use it, and every
+        // card on screen would load its page again after each refresh (e.g. after a bookmark click).
+        <Link href={card.href} target="_blank" prefetch={false} className="group block">
           {body}
         </Link>
       )}

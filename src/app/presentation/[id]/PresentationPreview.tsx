@@ -12,6 +12,7 @@ import { joinParts, publishedByLine, slideCountLabel } from "@/lib/format";
 import { saveErrorMessage, savePresentationToDb } from "@/lib/presentations";
 import { DETAIL_MAX_LENGTH, isWebLink, type Presentation } from "@/lib/schema";
 import { useEditorStore } from "@/lib/store";
+import { pauseFeature, useIsPaused } from "@/lib/clickLimits";
 import { LinkPending } from "@/components/LinkPending";
 import { Spinner } from "@/components/Spinner";
 import { TopLoadingBar } from "@/components/TopLoadingBar";
@@ -46,6 +47,8 @@ export function PresentationPreview({
   const [isCopying, setIsCopying] = useState(false);
   const [isSaved, setIsSaved] = useState(savedAtStart);
   const [isSaving, setIsSaving] = useState(false);
+  // Saving is paused for clicking too fast (the notice at the bottom says until when).
+  const isSavePaused = useIsPaused("saved");
 
   // The presentation view reads the editor's store, so the presentation goes in there first.
   const present = async (slideId = presentation.slides[0]?.id) => {
@@ -79,13 +82,15 @@ export function PresentationPreview({
 
   const toggleSaved = async () => {
     setIsSaving(true);
-    const result = await setPresentationSaved(presentation.id, !isSaved);
+    const { status, pausedUntil } = await setPresentationSaved(presentation.id, !isSaved);
     setIsSaving(false);
-    if (result === "done") {
+    if (status === "done") {
       setIsSaved(!isSaved);
       toast.success(isSaved ? "Removed from Saved." : "Saved. Find it in “Saved” on your home page.");
+    } else if (status === "paused") {
+      pauseFeature("saved", pausedUntil!);
     } else {
-      toast.error(SAVE_ERRORS[result]);
+      toast.error(SAVE_ERRORS[status]);
     }
   };
 
@@ -115,7 +120,7 @@ export function PresentationPreview({
             <button
               type="button"
               onClick={toggleSaved}
-              disabled={isSaving}
+              disabled={isSaving || isSavePaused}
               aria-pressed={isSaved}
               title={isSaved ? "Remove from Saved" : "Save to your home page"}
               className={`inline-flex items-center gap-2 ${secondaryButtonClass}`}
