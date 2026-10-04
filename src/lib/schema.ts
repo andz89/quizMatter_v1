@@ -426,6 +426,38 @@ export const banSchema = z.object({
     .max(BAN_REASON_MAX_LENGTH, `The reason is too long (${BAN_REASON_MAX_LENGTH} characters at most).`),
 });
 
+// Today as YYYY-MM-DD in the user's own time zone (what a date input shows).
+export function todayIso(): string {
+  const now = new Date();
+  return new Date(now.getTime() - now.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
+}
+
+// A reviewer's "Reviewed by" details (presentation reviews, see the presentation_reviews migration).
+export const REVIEWER_MAX_LENGTH = { name: 100, email: 254, background: 1000 };
+export const reviewerSchema = z.object({
+  name: z
+    .string()
+    .trim()
+    .min(1, "Write the reviewer's name.")
+    .max(REVIEWER_MAX_LENGTH.name, `The name is too long (${REVIEWER_MAX_LENGTH.name} characters at most).`),
+  email: z.email("Write a valid email.").max(REVIEWER_MAX_LENGTH.email, "The email is too long."),
+  background: z
+    .string()
+    .trim()
+    .min(1, "Write the reviewer's education or current work.")
+    .max(REVIEWER_MAX_LENGTH.background, `The background is too long (${REVIEWER_MAX_LENGTH.background} characters at most).`),
+  reviewedOn: z.iso.date("Pick the review date.").refine((date) => date <= todayIso(), "The review date can't be in the future."),
+});
+export type ReviewerFields = z.infer<typeof reviewerSchema>;
+
+// Why an admin sent a review back to its reviewer.
+export const REVIEW_NOTE_MAX_LENGTH = 500;
+export const reviewNoteSchema = z
+  .string()
+  .trim()
+  .min(1, "Write what the reviewer should change.")
+  .max(REVIEW_NOTE_MAX_LENGTH, `The note is too long (${REVIEW_NOTE_MAX_LENGTH} characters at most).`);
+
 export type Option = z.infer<typeof optionSchema>;
 export type SvgElement = z.infer<typeof svgElementSchema>;
 export type Photo = z.infer<typeof photoSchema>;

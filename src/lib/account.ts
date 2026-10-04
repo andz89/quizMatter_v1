@@ -1,19 +1,27 @@
 import { cache } from "react";
 import { createClient } from "./supabase/server";
 
-export type Account = { id: string; email: string; displayName: string; isAdmin: boolean; isBanned: boolean };
+export type Account = {
+  id: string;
+  email: string;
+  displayName: string;
+  isAdmin: boolean;
+  isEditor: boolean;
+  isBanned: boolean;
+};
 
 /**
- * The logged-in user: id ("" if logged out), email, display name ("" if not set), and whether they're an admin or
- * banned (Admin → Teachers). Server only.
+ * The logged-in user: id ("" if logged out), email, display name ("" if not set), and whether they're an admin, an
+ * editor (reviews QuizMatter presentations) or banned (Admin → Teachers). Server only.
  * Cached per request, so the top bar and the page share one lookup.
  */
 export const getAccount = cache(async (): Promise<Account> => {
   const supabase = await createClient();
-  const [{ data: claims }, { data: settings }, { data: isAdmin }, { data: isBanned }] = await Promise.all([
+  const [{ data: claims }, { data: settings }, { data: isAdmin }, { data: isEditor }, { data: isBanned }] = await Promise.all([
     supabase.auth.getClaims(),
     supabase.from("user_settings").select("display_name").maybeSingle(),
     supabase.rpc("is_admin"),
+    supabase.rpc("is_editor"),
     supabase.rpc("is_banned"),
   ]);
   return {
@@ -21,6 +29,7 @@ export const getAccount = cache(async (): Promise<Account> => {
     email: typeof claims?.claims.email === "string" ? claims.claims.email : "",
     displayName: settings?.display_name ?? "",
     isAdmin: isAdmin === true,
+    isEditor: isEditor === true,
     isBanned: isBanned === true,
   };
 });

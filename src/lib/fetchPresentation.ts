@@ -1,30 +1,39 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "./supabase/server";
 import { loadPublisherNames } from "./publishers";
+import { loadReviewers, loadReviewStatus, type Reviewer, type ReviewStatus } from "./reviewStatus";
 import { presentationSchema, type Presentation } from "./schema";
 
 /**
  * The whole presentation (details + every slide, in order) and who owns it, or null if there's none the user
  * can read: their own presentations, and other people's published ones. `publisherName` is the owner's display
  * name, only looked up for other people's presentations ("" if they have none). `isSaved`: it's in my "Saved"
- * row (see the saved_presentations migration). Server-only.
+ * row (see the saved_presentations migration). `review`: its review status, `reviewers`: its "Reviewed by" list
+ * (see the presentation_reviews migration). Server-only.
  */
-export async function fetchPresentation(
-  id: string,
-): Promise<{ presentation: Presentation; isMine: boolean; publisherName: string; isSaved: boolean } | null> {
+export async function fetchPresentation(id: string): Promise<{
+  presentation: Presentation;
+  isMine: boolean;
+  publisherName: string;
+  isSaved: boolean;
+  review: ReviewStatus;
+  reviewers: Reviewer[];
+} | null> {
   const supabase = await createClient();
-  const [result, { data: claims }, { data: saved }] = await Promise.all([
+  const [result, { data: claims }, { data: saved }, review, reviewers] = await Promise.all([
     loadPresentation(supabase, id),
     supabase.auth.getClaims(),
     // The database only gives back my own saved rows.
     supabase.from("saved_presentations").select("presentation_id").eq("presentation_id", id).maybeSingle(),
+    loadReviewStatus(supabase, id),
+    loadReviewers(supabase, id),
   ]);
   if (!result) return null;
 
   const { presentation, ownerId } = result;
   const isMine = ownerId === claims?.claims.sub;
   const publisherName = isMine ? "" : ((await loadPublisherNames(supabase, [ownerId])).get(ownerId) ?? "");
-  return { presentation, isMine, publisherName, isSaved: saved !== null };
+  return { presentation, isMine, publisherName, isSaved: saved !== null, review, reviewers };
 }
 
 /**
