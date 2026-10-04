@@ -8,6 +8,7 @@ import { parseSlide } from "@/lib/schema";
 import { createClient } from "@/lib/supabase/server";
 import { NewPresentationButton } from "../../PresentationListButtons";
 import { AdminPresentations, type AdminPresentationRow } from "./AdminPresentations";
+import type { ApprovedReviewer } from "./ReviewersModal";
 
 /**
  * Admin → Presentations: the QuizMatter presentations I made. Shared ones go to every teacher's home page
@@ -16,7 +17,7 @@ import { AdminPresentations, type AdminPresentationRow } from "./AdminPresentati
 export default async function AdminPresentationsPage() {
   const supabase = await createClient();
   const account = await getAccount();
-  const [drafts, { data, error }, reviews] = await Promise.all([
+  const [drafts, { data, error }, reviews, reviewers] = await Promise.all([
     listDrafts(account.id),
     supabase
       .from("presentations")
@@ -28,10 +29,27 @@ export default async function AdminPresentationsPage() {
       .limit(1, { referencedTable: "first_slide" }),
     // Admins can read every review row (see the presentation_reviews migration).
     supabase.from("presentation_reviews").select("presentation_id, status, open_to_all"),
+    // Everyone whose review an admin published, with the admin who approved it (the Review column).
+    supabase.rpc("admin_reviewers"),
   ]);
   if (error) throw error;
   if (reviews.error) throw reviews.error;
+  if (reviewers.error) throw reviewers.error;
   const reviewById = new Map(reviews.data.map((row) => [row.presentation_id as string, row as ReviewRow]));
+  const reviewersById = new Map<string, ApprovedReviewer[]>();
+  for (const row of reviewers.data as AdminReviewerRow[]) {
+    const list = reviewersById.get(row.presentation_id) ?? [];
+    list.push({
+      name: row.name,
+      email: row.email,
+      background: row.background,
+      reviewedOn: row.reviewed_on,
+      approvedAt: row.approved_at,
+      approverName: row.approver_name,
+      approverEmail: row.approver_email,
+    });
+    reviewersById.set(row.presentation_id, list);
+  }
   const openReviews = reviews.data.filter((row) => row.status === "reviewing" || row.status === "submitted").length;
 
   return (
@@ -51,7 +69,7 @@ export default async function AdminPresentationsPage() {
         <NewPresentationButton author={account.displayName} fromAdmin />
       </div>
 
-      <AdminPresentations rows={buildRows(data, drafts, reviewById)} />
+      <AdminPresentations rows={buildRows(data, drafts, reviewById, reviewersById)} />
     </>
   );
 }
@@ -60,6 +78,17 @@ type ReviewRow = {
   presentation_id: string;
   status: "reviewing" | "submitted" | "canceled" | "published" | null;
   open_to_all: boolean;
+};
+
+type AdminReviewerRow = {
+  presentation_id: string;
+  name: string;
+  email: string;
+  background: string;
+  reviewed_on: string;
+  approved_at: string | null;
+  approver_name: string;
+  approver_email: string;
 };
 
 type SavedPresentation = {
@@ -79,6 +108,7 @@ function buildRows(
   presentations: SavedPresentation[],
   drafts: DraftSummary[],
   reviewById: Map<string, ReviewRow>,
+  reviewersById: Map<string, ApprovedReviewer[]>,
 ): AdminPresentationRow[] {
   const now = Date.now();
   const savedIds = new Set(presentations.map((presentation) => presentation.id));
@@ -94,6 +124,7 @@ function buildRows(
       claudeDraft: draft.state,
       reviewStatus: null,
       isOpenToAll: false,
+      reviewers: [],
       slideCount: draft.slideCount,
       createdAt: draft.createdAt,
       updatedAt: draft.createdAt,
@@ -113,6 +144,7 @@ function buildRows(
       // Under review: reviewing or submitted. Locked until an admin publishes it or the reviewer stops.
       reviewStatus: review?.status === "reviewing" || review?.status === "submitted" ? review.status : null,
       isOpenToAll: review?.open_to_all === true,
+      reviewers: reviewersById.get(presentation.id) ?? [],
       slideCount: presentation.slides[0]?.count ?? 0,
       createdAt,
       updatedAt,

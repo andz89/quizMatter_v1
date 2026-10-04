@@ -10,6 +10,7 @@ import { joinParts } from "@/lib/format";
 import type { Slide } from "@/lib/schema";
 import { removePresentations } from "../../actions";
 import { setReviewOpen, setShared } from "./actions";
+import { ReviewersModal, type ApprovedReviewer } from "./ReviewersModal";
 import { SearchIcon, Trash2Icon } from "lucide-react";
 
 export type AdminPresentationRow = {
@@ -26,6 +27,8 @@ export type AdminPresentationRow = {
   reviewStatus: "reviewing" | "submitted" | null;
   // "Open to all editors": any editor may start the next review, not only its last reviewer.
   isOpenToAll: boolean;
+  // Everyone whose review an admin published (the Review column).
+  reviewers: ApprovedReviewer[];
   slideCount: number;
   createdAt: number;
   updatedAt: number;
@@ -40,10 +43,10 @@ const SORTS: { id: Sort; label: string }[] = [
   { id: "createdAt", label: "Newest" },
 ];
 
-// Picture, title, status, slides, date, open-to-editors button, share button, trash. On phones: picture, title,
+// Picture, title, status, review, slides, date, open-to-editors button, share button, trash. On phones: picture, title,
 // then the rest in one cell.
 const COLUMNS =
-  "grid-cols-[64px_minmax(0,1fr)_auto] sm:grid-cols-[96px_minmax(0,1fr)_104px_56px_104px_120px_112px_36px]";
+  "grid-cols-[64px_minmax(0,1fr)_auto] sm:grid-cols-[96px_minmax(0,1fr)_104px_112px_56px_104px_120px_112px_36px]";
 
 /**
  * The admin's QuizMatter presentations as a table, sorted by date changed or created, with a search box. Each
@@ -57,7 +60,7 @@ export function AdminPresentations({ rows }: { rows: AdminPresentationRow[] }) {
   const query = search.trim().toLowerCase();
   const shown = rows
     .filter((row) =>
-      `${row.title} ${row.meta} ${row.isShared ? "shared" : "draft"}`
+      `${row.title} ${row.meta} ${row.isShared ? "shared" : "draft"} ${row.reviewers.length > 0 ? "reviewed" : "not reviewed"}`
         .toLowerCase()
         .includes(query),
     )
@@ -106,6 +109,7 @@ export function AdminPresentations({ rows }: { rows: AdminPresentationRow[] }) {
           <span />
           <span>Title</span>
           <span className="hidden sm:block">Status</span>
+          <span className="hidden sm:block">Review</span>
           <span className="hidden sm:block">Slides</span>
           <span className="hidden sm:block">
             {sort === "updatedAt" ? "Changed" : "Created"}
@@ -154,6 +158,7 @@ function Row({
   const [isSharing, startSharing] = useTransition();
   const [isRemoving, startRemoving] = useTransition();
   const [isOpening, startOpening] = useTransition();
+  const [isReviewersOpen, setIsReviewersOpen] = useState(false);
 
   const toggleShared = () =>
     startSharing(async () => {
@@ -270,6 +275,18 @@ function Row({
             {row.reviewStatus ? "Under review" : row.isShared ? "Shared" : isClaudeDraft ? "Not saved" : "Draft"}
           </span>
         )}
+        {row.reviewers.length > 0 ? (
+          <button
+            type="button"
+            onClick={() => setIsReviewersOpen(true)}
+            title="See who reviewed it"
+            className="relative z-10 inline-flex w-fit items-center rounded-dropdown bg-success-soft px-2.5 py-1 text-[13px] leading-none font-semibold text-success-strong transition-colors hover:bg-success-soft/70"
+          >
+            Reviewed
+          </button>
+        ) : (
+          <span className="text-[13px] text-text-secondary">Not reviewed</span>
+        )}
         <span className="hidden text-sm text-text-primary sm:block">
           {row.slideCount}
         </span>
@@ -329,6 +346,11 @@ function Row({
           )}
         </span>
       </div>
+
+      {/* The Modal draws itself over the page (a portal), so it takes no grid cell here. */}
+      {isReviewersOpen && (
+        <ReviewersModal title={row.title} reviewers={row.reviewers} onClose={() => setIsReviewersOpen(false)} />
+      )}
     </div>
   );
 }
