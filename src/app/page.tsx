@@ -9,6 +9,7 @@ import { parseSlide } from "@/lib/schema";
 import { contains } from "@/lib/search";
 import { NewPresentationButton } from "./PresentationListButtons";
 import { PresentationHome } from "./PresentationHome";
+import { MyReviews, type MyReviewRow } from "./MyReviews";
 import type { PresentationCardData } from "./PresentationCard";
 import type { AdminCardData } from "./PresentationHome";
 import { changedSince, homeSearchQuery, parseHomeSearch, type HomeSearch } from "./homeSearch";
@@ -123,6 +124,9 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
   if (others.error) throw others.error;
   if (saved.error) throw saved.error;
   if (savedRows.error) throw savedRows.error;
+  // An editor's open reviews (see the presentation_reviews migration).
+  const myReviews = account.isEditor ? await supabase.rpc("my_reviews") : { data: [], error: null };
+  if (myReviews.error) throw myReviews.error;
 
   const publisherNames = await loadPublisherNames(
     supabase,
@@ -153,6 +157,8 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
           </div>
           <NewPresentationButton author={account.displayName} />
         </header>
+
+        {!isSearching && <MyReviews rows={myReviews.data as MyReviewRow[]} />}
 
         {/* Keyed by the search: a new search starts its bookmark changes again from this fresh data. */}
         <PresentationHome
