@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { SendIcon, XCircleIcon } from "lucide-react";
+import { EllipsisVerticalIcon, SendIcon, XCircleIcon } from "lucide-react";
 import { Modal } from "@/components/Modal";
 import { Spinner } from "@/components/Spinner";
 import { TopLoadingBar } from "@/components/TopLoadingBar";
@@ -13,17 +13,38 @@ import { REVIEWER_MAX_LENGTH, reviewerSchema, todayIso, type ReviewerFields } fr
 import { useEditorStore } from "@/lib/store";
 
 /**
- * The reviewer's buttons in the editor's top bar: "Stop review" and "Submit for publishing" (which asks for the
- * "Reviewed by" details first).
+ * The reviewer's ⋮ button in the editor's top bar (next to Save as draft). It opens a menu with "Submit for
+ * publishing" (which asks for the "Reviewed by" details first) and "Stop review".
  */
 export function ReviewControls() {
   const router = useRouter();
   const review = useEditorStore((s) => s.review);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isStopping, setIsStopping] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Closes on a click outside the menu, or on Esc (like the account menu).
+  useEffect(() => {
+    if (!isMenuOpen) return;
+    const onPointerDown = (e: PointerEvent) => {
+      if (!menuRef.current?.contains(e.target as Node)) setIsMenuOpen(false);
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setIsMenuOpen(false);
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [isMenuOpen]);
+
   if (!review) return null;
 
   const stop = async () => {
+    setIsMenuOpen(false);
     if (!confirm("Stop this review? Your changes are thrown away and the presentation stays as it was.")) return;
     const { presentation } = useEditorStore.getState();
     setIsStopping(true);
@@ -40,23 +61,41 @@ export function ReviewControls() {
   };
 
   return (
-    <>
-      <button type="button" onClick={stop} disabled={isStopping} title="Stop review" className={secondaryButtonClass}>
-        {isStopping ? <Spinner size={14} /> : <XCircleIcon size={16} />}
-        <span className="hidden sm:inline">Stop review</span>
-      </button>
+    <div ref={menuRef} className="relative">
       <button
         type="button"
-        onClick={() => setIsFormOpen(true)}
-        title="Submit for publishing"
-        className="flex items-center gap-2 rounded-button bg-accent btn-press px-3 py-2 text-sm font-semibold text-white hover:bg-accent-hover sm:px-4"
+        onClick={() => setIsMenuOpen((open) => !open)}
+        disabled={isStopping}
+        aria-label="Review actions"
+        aria-expanded={isMenuOpen}
+        title="Review actions"
+        className="flex h-9 w-9 items-center justify-center rounded-button text-text-primary transition-colors hover:bg-bg-page disabled:opacity-60"
       >
-        <SendIcon size={14} />
-        <span className="hidden sm:inline">Submit for publishing</span>
+        {isStopping ? <Spinner size={16} /> : <EllipsisVerticalIcon size={18} />}
       </button>
+
+      {isMenuOpen && (
+        <div className="absolute top-11 right-0 z-50 w-56 rounded-card border border-border-default bg-bg-surface p-2">
+          <button
+            type="button"
+            onClick={() => {
+              setIsMenuOpen(false);
+              setIsFormOpen(true);
+            }}
+            className={menuItemClass}
+          >
+            <SendIcon size={16} />
+            Submit for publishing
+          </button>
+          <button type="button" onClick={stop} className={stopItemClass}>
+            <XCircleIcon size={16} />
+            Stop review
+          </button>
+        </div>
+      )}
       {isStopping && <TopLoadingBar />}
       {isFormOpen && <SubmitForm initial={review.fields} onClose={() => setIsFormOpen(false)} />}
-    </>
+    </div>
   );
 }
 
@@ -166,5 +205,8 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 const inputClass =
   "w-full rounded-input border border-border-default bg-bg-surface px-3 py-2 text-sm text-text-primary outline-none placeholder:text-text-secondary focus:border-text-secondary";
-const secondaryButtonClass =
-  "flex items-center gap-2 rounded-button border border-border-default px-3 py-2 text-sm font-semibold text-text-primary transition-colors hover:bg-bg-page disabled:opacity-60";
+const menuItemClass =
+  "flex w-full items-center gap-3 rounded-dropdown px-3 py-2 text-left text-sm font-semibold text-text-primary transition-colors hover:bg-accent-soft hover:text-accent";
+// Coral: it throws the reviewer's work away.
+const stopItemClass =
+  "flex w-full items-center gap-3 rounded-dropdown px-3 py-2 text-left text-sm font-semibold text-danger-strong transition-colors hover:bg-danger-soft";
