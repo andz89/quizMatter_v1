@@ -9,7 +9,7 @@ import { CANVAS_WIDTH, CANVAS_HEIGHT, getSlideNumbers } from "@/lib/constants";
 import { joinParts } from "@/lib/format";
 import type { Slide } from "@/lib/schema";
 import { removePresentations } from "../../actions";
-import { setShared } from "./actions";
+import { setReviewOpen, setShared } from "./actions";
 import { SearchIcon, Trash2Icon } from "lucide-react";
 
 export type AdminPresentationRow = {
@@ -22,6 +22,10 @@ export type AdminPresentationRow = {
   firstSlide: Slide | null;
   // Set on a draft Claude sent that isn't saved yet: "checking" = Claude is still checking it (can't open yet).
   claudeDraft?: "ready" | "checking" | "unfinished";
+  // An editor is reviewing it ("reviewing") or waiting for an admin ("submitted"): it can't change until then.
+  reviewStatus: "reviewing" | "submitted" | null;
+  // "Open to all editors": any editor may start the next review, not only its last reviewer.
+  isOpenToAll: boolean;
   slideCount: number;
   createdAt: number;
   updatedAt: number;
@@ -36,9 +40,10 @@ const SORTS: { id: Sort; label: string }[] = [
   { id: "createdAt", label: "Newest" },
 ];
 
-// Picture, title, status, slides, date, share button, trash. On phones: picture, title, then the rest in one cell.
+// Picture, title, status, slides, date, open-to-editors button, share button, trash. On phones: picture, title,
+// then the rest in one cell.
 const COLUMNS =
-  "grid-cols-[64px_minmax(0,1fr)_auto] sm:grid-cols-[96px_minmax(0,1fr)_88px_56px_104px_112px_36px]";
+  "grid-cols-[64px_minmax(0,1fr)_auto] sm:grid-cols-[96px_minmax(0,1fr)_104px_56px_104px_120px_112px_36px]";
 
 /**
  * The admin's QuizMatter presentations as a table, sorted by date changed or created, with a search box. Each
@@ -107,6 +112,7 @@ export function AdminPresentations({ rows }: { rows: AdminPresentationRow[] }) {
           </span>
           <span className="hidden sm:block" />
           <span className="hidden sm:block" />
+          <span className="hidden sm:block" />
         </div>
 
         {shown.length === 0 ? (
@@ -147,14 +153,21 @@ function Row({
 }) {
   const [isSharing, startSharing] = useTransition();
   const [isRemoving, startRemoving] = useTransition();
+  const [isOpening, startOpening] = useTransition();
 
   const toggleShared = () =>
     startSharing(async () => {
       if (!(await setShared(row.id, !row.isShared)))
-        toast.error("Couldn't change it. Please try again.");
+        toast.error(row.reviewStatus ? "It's under review, so it can't change now." : "Couldn't change it. Please try again.");
       else if (row.isShared)
         toast.success("Back to a draft — only you can see it.");
       else toast.success("Shared — every teacher has it now.");
+    });
+
+  const toggleOpen = () =>
+    startOpening(async () => {
+      if (!(await setReviewOpen(row.id, !row.isOpenToAll))) toast.error("Couldn't change it. Please try again.");
+      else toast.success(row.isOpenToAll ? "Only its last reviewer can review it next." : "Any editor can review it next.");
     });
 
   const isClaudeDraft = row.claudeDraft !== undefined;
@@ -249,12 +262,12 @@ function Row({
         ) : (
           <span
             className={`inline-flex w-fit items-center rounded-dropdown px-2.5 py-1 text-[13px] leading-none font-semibold ${
-              row.isShared
+              row.isShared && !row.reviewStatus
                 ? "bg-accent-soft text-accent"
                 : "bg-highlight-soft text-highlight-strong"
             }`}
           >
-            {row.isShared ? "Shared" : isClaudeDraft ? "Not saved" : "Draft"}
+            {row.reviewStatus ? "Under review" : row.isShared ? "Shared" : isClaudeDraft ? "Not saved" : "Draft"}
           </span>
         )}
         <span className="hidden text-sm text-text-primary sm:block">
@@ -263,6 +276,24 @@ function Row({
         <span className="hidden text-sm text-text-secondary sm:block">
           {dateLabel}
         </span>
+        {row.isShared && !row.reviewStatus && !isClaudeDraft ? (
+          <button
+            type="button"
+            onClick={toggleOpen}
+            disabled={isOpening}
+            title="Let any editor start the next review"
+            className={`relative z-10 flex items-center justify-center gap-2 rounded-dropdown border px-2.5 py-1.5 text-[13px] font-semibold transition-colors disabled:opacity-60 ${
+              row.isOpenToAll
+                ? "border-accent bg-accent-soft text-accent"
+                : "border-border-default bg-bg-surface text-text-primary hover:bg-bg-page"
+            }`}
+          >
+            {isOpening && <Spinner size={12} />}
+            {row.isOpenToAll ? "Open to editors" : "Open to all"}
+          </button>
+        ) : (
+          <span className="hidden sm:block" />
+        )}
         {/* A draft from Claude must be opened and saved before it can be shared. */}
         {isClaudeDraft ? (
           <span className="hidden sm:block" />
@@ -270,7 +301,7 @@ function Row({
           <button
             type="button"
             onClick={toggleShared}
-            disabled={isSharing || isRemoving}
+            disabled={isSharing || isRemoving || row.reviewStatus !== null}
             className="relative z-10 flex items-center justify-center gap-2 rounded-dropdown border border-border-default bg-bg-surface px-2.5 py-1.5 text-[13px] font-semibold text-text-primary transition-colors hover:bg-bg-page disabled:opacity-60"
           >
             {isSharing && <Spinner size={12} />}
@@ -282,6 +313,9 @@ function Row({
             <span className="flex p-1.5">
               <Spinner size={16} />
             </span>
+          ) : row.reviewStatus ? (
+            // Under review it can't be deleted (the database refuses it too).
+            <span />
           ) : (
             <button
               type="button"
