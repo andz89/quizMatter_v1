@@ -99,14 +99,13 @@ function BackToPresentationsLink() {
 
 /**
  * Saves the presentation to the database (also Ctrl+S). A dot shows while there are unsaved changes. In a review
- * it saves the reviewer's draft ("Save as draft"), and is gone once the review is submitted.
+ * it saves the reviewer's draft ("Save as draft").
  */
 function SaveButton() {
   const savePresentation = useEditorStore((s) => s.savePresentation);
   const saveStatus = useEditorStore((s) => s.saveStatus);
   const hasUnsavedChanges = useEditorStore((s) => s.presentation !== s.savedPresentation);
   const review = useEditorStore((s) => s.review);
-  if (review?.status === "submitted") return null;
 
   const label =
     saveStatus === "saving"

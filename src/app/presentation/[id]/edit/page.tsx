@@ -1,10 +1,13 @@
 import { notFound, redirect } from "next/navigation";
+import { PeopleArtGate } from "@/components/PeopleArtGate";
 import { getAccount } from "@/lib/account";
 import { fetchPresentation } from "@/lib/fetchPresentation";
+import { usesPeopleArt } from "@/lib/peopleArt";
 import { presentationSchema, todayIso, type ReviewerFields } from "@/lib/schema";
 import { createClient } from "@/lib/supabase/server";
 import type { EditorReview } from "@/lib/store";
 import { PresentationEditor } from "./PresentationEditor";
+import { ReviewSubmittedView } from "./ReviewSubmittedView";
 
 export default async function PresentationPage({ params }: PageProps<"/presentation/[id]/edit">) {
   const { id } = await params;
@@ -35,7 +38,15 @@ export default async function PresentationPage({ params }: PageProps<"/presentat
   const myEntry = result.reviewers.find((reviewer) => reviewer.email === account.email);
   const fields: ReviewerFields = (row.submitted_fields as ReviewerFields | null) ??
     myEntry ?? { name: account.displayName, email: account.email, background: "", reviewedOn: todayIso() };
-  const review: EditorReview = { status: row.status, note: row.admin_note ?? "", fields };
+  // Submitted: waiting for an admin, so it's view only (no editor at all).
+  if (row.status === "submitted") {
+    return (
+      <PeopleArtGate needed={usesPeopleArt(presentation.slides)}>
+        <ReviewSubmittedView presentation={presentation} fields={fields} />
+      </PeopleArtGate>
+    );
+  }
+  const review: EditorReview = { note: row.admin_note ?? "", fields };
 
   return <PresentationEditor presentation={presentation} review={review} />;
 }

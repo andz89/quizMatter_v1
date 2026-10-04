@@ -14,7 +14,7 @@ import { useEditorStore } from "@/lib/store";
 
 /**
  * The reviewer's buttons in the editor's top bar: "Stop review" and "Submit for publishing" (which asks for the
- * "Reviewed by" details first). Once submitted, only a "Waiting for QuizMatter" label.
+ * "Reviewed by" details first).
  */
 export function ReviewControls() {
   const router = useRouter();
@@ -22,14 +22,6 @@ export function ReviewControls() {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isStopping, setIsStopping] = useState(false);
   if (!review) return null;
-
-  if (review.status === "submitted") {
-    return (
-      <span className="ml-auto rounded-dropdown bg-bg-page px-2.5 py-1 text-[13px] leading-none font-semibold text-text-secondary">
-        Waiting for QuizMatter
-      </span>
-    );
-  }
 
   const stop = async () => {
     if (!confirm("Stop this review? Your changes are thrown away and the presentation stays as it was.")) return;
@@ -85,7 +77,7 @@ function SubmitForm({ initial, onClose }: { initial: ReviewerFields; onClose: ()
       await submitReview(presentation, parsed.data, savedAt);
       toast.success("Thanks! QuizMatter will publish this presentation in 1–2 days.");
       // Saved with the submit, so leaving doesn't ask "Leave without saving?".
-      useEditorStore.setState({ savedPresentation: presentation, review: { status: "submitted", note: "", fields: parsed.data } });
+      useEditorStore.setState({ savedPresentation: presentation });
       router.push(`/presentation/${presentation.id}`);
     } catch (error) {
       toast.error(saveErrorMessage(error, "submit the review"));
@@ -152,15 +144,13 @@ function SubmitForm({ initial, onClose }: { initial: ReviewerFields; onClose: ()
   );
 }
 
-/** Under the top bar: the admin's note after a send-back, or that a submitted review can't change anymore. */
+/** Under the top bar, after QuizMatter sent the review back: the admin's note. */
 export function ReviewBanner() {
-  const review = useEditorStore((s) => s.review);
-  if (!review || (review.status === "reviewing" && !review.note)) return null;
+  const note = useEditorStore((s) => s.review?.note);
+  if (!note) return null;
   return (
     <p className="shrink-0 border-b border-border-default bg-highlight-soft px-4 py-2 text-sm text-text-primary">
-      {review.status === "submitted"
-        ? "Submitted. QuizMatter will publish this presentation in 1–2 days. Changes you make now won't be saved."
-        : `QuizMatter sent this back: ${review.note}`}
+      QuizMatter sent this back: {note}
     </p>
   );
 }

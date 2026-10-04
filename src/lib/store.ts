@@ -239,9 +239,9 @@ function fitShapeStripHeight(box: BoxLayout): number | undefined {
   return Math.min(box.shapeStripHeight, getMaxShapeStripHeight({ ...box, questionHeight: MIN_QUESTION_HEIGHT }));
 }
 
-// An editor reviewing someone else's QuizMatter presentation (see the presentation_reviews migration): the round's
-// status, the admin's note when it was sent back ("" if none), and the "Reviewed by" form's starting values.
-export type EditorReview = { status: "reviewing" | "submitted"; note: string; fields: ReviewerFields };
+// An editor reviewing someone else's QuizMatter presentation (see the presentation_reviews migration): the admin's
+// note when it was sent back ("" if none), and the "Reviewed by" form's starting values.
+export type EditorReview = { note: string; fields: ReviewerFields };
 
 interface EditorState {
   presentation: Presentation;
@@ -255,8 +255,8 @@ interface EditorState {
   saveStatus: "idle" | "saving" | "error";
   // True while the presentation is a draft from Claude that hasn't been saved yet (see /presentation/new).
   fromDraft: boolean;
-  // Set while an editor reviews someone else's QuizMatter presentation: saves go to their draft, and nothing is
-  // saved once it's submitted. null = a normal presentation.
+  // Set while an editor reviews someone else's QuizMatter presentation: saves go to their draft. null = a normal
+  // presentation.
   review: EditorReview | null;
   // Saves the whole presentation and shows a toast (not when `quiet`). Resolves true if it's saved (or had
   // nothing new to save), false if it failed or another save is still running.
@@ -519,8 +519,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   savePresentation: async ({ quiet = false } = {}) => {
     const { presentation, savedPresentation, savedAt, saveStatus, fromDraft, review } = get();
     if (saveStatus === "saving") return false;
-    // A submitted review waits for an admin: nothing more is saved.
-    if (review?.status === "submitted") return false;
     // Nothing new to save (Ctrl+S works even when the Save button is greyed out).
     if (presentation === savedPresentation) return true;
     set({ saveStatus: "saving" });
