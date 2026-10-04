@@ -215,3 +215,9 @@ left to the user. No new packages.
 - Clicking **Reviewed** opens a "Reviewed by" modal: one card per reviewer with name, email, date reviewed,
   education / current work, and "Approved by <admin name> (<admin email>) · <date>".
 - Nothing new is saved from these screens, so no new zod schema is needed. No new packages.
+
+### 4. Present on the admin's review page
+
+- The admin's review page (`/admin/presentations/reviews/[id]`) shows **Present · Send back · Publish**. Present
+  plays the reviewer's submitted version fullscreen from slide 1, so the admin sees exactly what Publish puts live.
+- The button is one shared component, `PresentDraftButton`, also used by the reviewer's view-only page.
