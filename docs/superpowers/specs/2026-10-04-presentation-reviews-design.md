@@ -30,19 +30,24 @@ reviewed a presentation is listed under "Reviewed by" on it.
    - teachers still see the live version, but **Make a copy** is greyed out with an "Under review" pill;
    - the owning admin **can't edit, unshare or delete** it (the database refuses with code `QMREV`).
 5. The reviewer can change everything the owner can change in the editor: slides (and everything on them),
-   title, description, grade, subject, curriculum, learning competency, author, references, tags, transition.
-   They can **not** change: sharing (Visibility), `from_admin`, owner. "Published by" always shows **QuizMatter**.
+   title, description, grade, subject, curriculum, learning competency, references, tags, transition.
+   They can **not** change: **author**, sharing (Visibility), `from_admin`, owner. "Published by" always shows
+   **QuizMatter**.
 6. **Save as draft** saves only the draft. **Submit for publishing** opens the "Reviewed by" form, saves the
    draft + fields, and sets status *submitted*. The reviewer is told: "Thanks! QuizMatter will publish this
    presentation in 1–2 days." While *submitted*, the reviewer can view the draft but not change it.
-7. **Stop review** (reviewer, with a confirm step): the draft and fields are thrown away, the lock ends, nothing
-   changes on the live presentation. The "last reviewer" stays whoever it was before.
+7. **Stop review** (reviewer, with a confirm step): no changes reach the original presentation. The draft and
+   fields are thrown away, the lock ends, and the round's status becomes **canceled**, so the admin's "Under
+   review" list shows the presentation as **Canceled** with that reviewer's name. The "last reviewer" stays
+   whoever it was before.
 8. The admin, for a *submitted* review:
    - **Publish**: the draft replaces the live presentation's details and slides; the reviewer's "Reviewed by" row
      is added (or updated, if they reviewed it before); the review ends; the reviewer becomes the last reviewer.
    - **Send back** with a note: status goes back to *reviewing*; the reviewer sees the note and can edit and
      submit again.
-9. Removing someone's editor role ends any review they have open (same as Stop review).
+9. Removing someone's editor role cancels any review they have open (same as Stop review).
+10. A presentation is **locked** only while its status is *reviewing* or *submitted*. *Canceled* and *published*
+    rounds don't lock it; a new round replaces them.
 
 ## "Reviewed by" fields
 
@@ -64,8 +69,8 @@ The admin's send-back note: required, max 500 (zod `reviewNoteSchema`).
   (security definer, like `is_admin()`).
 - **`presentation_reviews`**, one row per presentation that has had a review:
   - `presentation_id text primary key references presentations on delete cascade`
-  - `current_reviewer_id uuid` — null = not under review
-  - `status text` — `'reviewing'` or `'submitted'`, null when not under review
+  - `reviewer_id uuid` — the reviewer of the latest round
+  - `status text` — `'reviewing'`, `'submitted'`, `'canceled'` or `'published'` (locked only for the first two)
   - `draft jsonb` — the draft presentation (same shape as `presentationSchema`, with all slides)
   - `draft_updated_at timestamptz` — for the "saved in another tab" check
   - `submitted_fields jsonb` — the four fields, waiting for the admin
@@ -73,7 +78,8 @@ The admin's send-back note: required, max 500 (zod `reviewNoteSchema`).
   - `started_at`, `submitted_at timestamptz`
   - `last_reviewer_id uuid` — who may start the next round
   - `open_to_all boolean not null default false`
-  - Rules: no direct writes. Reading the whole row: the current reviewer and admins. Everyone else learns only
+  - `ended_at timestamptz` — when it was canceled or published
+  - Rules: no direct writes. Reading the whole row: the round's reviewer and admins. Everyone else learns only
     what they need through `review_status(id)`.
 - **`presentation_reviewers`**: `presentation_id`, `reviewer_id`, `name`, `email`, `background`, `reviewed_on date`,
   primary key `(presentation_id, reviewer_id)`. Read: anyone who can read the presentation. No direct writes.
@@ -82,20 +88,20 @@ The admin's send-back note: required, max 500 (zod `reviewNoteSchema`).
 
 | Function | Who | What it does |
 |---|---|---|
-| `review_status(id)` | anyone logged in | under review or not, status, reviewer's name, `can_start` (for me), `is_mine` (I'm the current reviewer) |
-| `start_review(id)` | editor | checks rules 1–3, sets me as current reviewer, status *reviewing*, turns `open_to_all` off |
-| `save_review_draft(id, draft, base_updated_at)` | current reviewer, status *reviewing* | saves the draft; refuses with `QM409` if it was saved in another tab since; checks the slide count limit; returns the new save time |
-| `submit_review(id, draft, fields)` | current reviewer, status *reviewing* | saves draft + fields, status *submitted* |
-| `stop_review(id)` | current reviewer, or the trigger when the editor role is removed | clears the review columns |
-| `publish_review(id)` | admin | copies the draft onto `presentations` (only the content columns, never `owner_id`, `from_admin`, `is_published`, `created_at`) and `slides` (same delete/insert as `save_presentation`), upserts `presentation_reviewers`, sets `last_reviewer_id`, clears the review |
+| `review_status(id)` | anyone logged in | locked or not, status, reviewer's name, `can_start` (for me), `is_mine` (I'm the reviewer of an open round) |
+| `start_review(id)` | editor | checks rules 1–3 and that it isn't locked, starts a new round (me as reviewer, status *reviewing*, old draft/fields/note cleared), turns `open_to_all` off |
+| `save_review_draft(id, draft, base_updated_at)` | the round's reviewer, status *reviewing* | saves the draft; refuses with `QM409` if it was saved in another tab since; checks the slide count limit; returns the new save time |
+| `submit_review(id, draft, fields)` | the round's reviewer, status *reviewing* | saves draft + fields, status *submitted* |
+| `stop_review(id)` | the round's reviewer (status *reviewing* or *submitted*), or the trigger when the editor role is removed | status *canceled*, `ended_at` set, draft and fields cleared; the live presentation is not touched |
+| `publish_review(id)` | admin, status *submitted* | copies the draft onto `presentations` (only the content columns, never `owner_id`, `from_admin`, `is_published`, `created_at` or `author`) and `slides` (same delete/insert as `save_presentation`), upserts `presentation_reviewers`, sets `last_reviewer_id`, status *published*, `ended_at` set, draft cleared |
 | `send_back_review(id, note)` | admin | status *reviewing*, saves the note |
 | `set_review_open(id, open)` | admin | the "Open to all editors" switch |
-| `my_reviews()` | editor | my open reviews: id, title, status, note |
-| `admin_reviews()` | admin | all open reviews: id, title, reviewer name, status, started/submitted time |
+| `my_reviews()` | editor | my open rounds (*reviewing*, *submitted*): id, title, status, note |
+| `admin_reviews()` | admin | rounds that are *reviewing*, *submitted* or *canceled*: id, title, reviewer name, status, started/submitted/canceled time |
 
 ### Changes to existing database code
 
-- `save_presentation`: refuse with `QMREV` when the presentation has a current reviewer.
+- `save_presentation`: refuse with `QMREV` when the presentation is locked (status *reviewing* or *submitted*).
 - A `before delete` trigger on `presentations`: refuse with `QMREV` when it's under review.
 - A trigger on `editors` delete: ends that user's open reviews.
 - `used_photo_srcs`: also counts photos inside `presentation_reviews.draft`, so the weekly photo cleanup never
@@ -116,21 +122,22 @@ The admin's send-back note: required, max 500 (zod `reviewNoteSchema`).
 ### View page (`/presentation/[id]`, `PresentationPreview.tsx`)
 
 - **Review** button (editors who `can_start`): calls `start_review`, then opens the editor (Spinner + top line).
-- **Continue review** for the current reviewer instead.
+- **Continue review** for the reviewer of the open round instead.
 - **Make a copy**: disabled while under review, with an "Under review" pill (`bg-highlight-soft
   text-highlight-strong`); `makeCopy` checks the status first.
 - **"Reviewed by"** block in the details card: each reviewer's name, email, background (line breaks kept), date.
 
 ### Editor review mode
 
-- `/presentation/[id]/edit/page.tsx`: if I'm not the owner but I'm the current reviewer, open my draft (or the
+- `/presentation/[id]/edit/page.tsx`: if I'm not the owner but I'm the reviewer of its open round, open my draft (or the
   live presentation if I have no draft yet) in review mode; otherwise redirect as today.
 - `store.ts`: a `reviewMode` flag. In review mode `savePresentation` calls `saveReviewDraft` (same
   saving/saved/error states, same toasts, Ctrl+S still works); while *submitted* the editor is read-only.
 - `EditorTopBar.tsx` in review mode: Save button reads **"Save as draft"**; new main button **"Submit for
   publishing"** opens the "Reviewed by" modal; a **Stop review** item with a confirm step; back arrow goes to the
   view page; a banner shows the admin's send-back note when there is one.
-- `DetailsPanel.tsx` in review mode: Visibility hidden; "Published by" reads "QuizMatter".
+- `DetailsPanel.tsx` in review mode: Visibility hidden; Author shown read-only; "Published by" reads "QuizMatter".
+  (`submit_review` / `publish_review` also keep the live author, so it can't be changed from outside the app.)
 - Every action shows a sonner toast on success and on failure.
 
 ### Home page
@@ -143,8 +150,9 @@ The admin's send-back note: required, max 500 (zod `reviewNoteSchema`).
 - **Admin → Teachers**: a "Make editor / Remove editor" button per row and an "Editor" pill (`bg-accent-soft
   text-accent`). Server actions `makeEditor` / `removeEditor`, checked with zod (`z.uuid()`) and `isAdmin`.
 - **Admin → Presentations**:
-  - an **"Under review"** button showing the list from `admin_reviews()`: title, reviewer, status ("Reviewing",
-    or "Waiting for you" in Sunny), time;
+  - an **"Under review"** button showing the list from `admin_reviews()`: title, reviewer, status pill
+    ("Reviewing"; "Waiting for you" in Sunny; "Canceled" in grey `bg-bg-page text-text-secondary`), time. A
+    canceled row stays until a new round starts on that presentation;
   - an **"Open to all editors"** switch on each shared QuizMatter row.
 - New page **`/admin/presentations/review/[id]`** (+ `loading.tsx` with the top line and Spinner): the draft's
   details, the submitted "Reviewed by" fields, and all slides (`FluidSlidePreview`), with **Publish** (main
