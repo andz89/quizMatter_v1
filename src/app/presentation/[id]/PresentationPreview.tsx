@@ -5,7 +5,7 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { BookmarkIcon, ClipboardCheckIcon } from "lucide-react";
+import { BookmarkIcon, ClipboardCheckIcon, EyeIcon } from "lucide-react";
 import { CANVAS_WIDTH, CANVAS_HEIGHT, getSlideNumbers } from "@/lib/constants";
 import { createId } from "@/lib/id";
 import { formatDay, joinParts, publishedByLine, slideCountLabel } from "@/lib/format";
@@ -168,10 +168,11 @@ export function PresentationPreview({
               Review
             </button>
           )}
+          {/* Submitted: the link opens the view-only page, so it says so. */}
           {review.isMine && (
             <Link href={`/presentation/${presentation.id}/edit`} className={`inline-flex items-center gap-2 ${secondaryButtonClass}`}>
-              <ClipboardCheckIcon size={16} />
-              Continue review
+              {review.status === "submitted" ? <EyeIcon size={16} /> : <ClipboardCheckIcon size={16} />}
+              {review.status === "submitted" ? "See submitted version" : "Continue review"}
               <LinkPending />
             </Link>
           )}
