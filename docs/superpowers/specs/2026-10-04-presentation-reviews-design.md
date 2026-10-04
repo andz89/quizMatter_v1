@@ -181,3 +181,37 @@ left to the user. No new packages.
 - Email notifications (the reviewer sees status on the home page; the admin sees the "Under review" list).
 - Reviewing teachers' own presentations, or QuizMatter presentations that aren't shared.
 - Showing the admin a side-by-side "before / after" of the changes.
+
+---
+
+## Addendum (2026-10-04): view-only submitted review, actions menu, "Review" column
+
+### 1. A submitted review is view-only
+
+- When the reviewer opens `/presentation/[id]/edit` and their round is **submitted**, the editor does not open.
+  A read-only page opens instead: a "Waiting for QuizMatter — it will be published in 1–2 days." note, the
+  draft's details, the submitted "Reviewed by" fields, every slide as a picture, a **Present** button and a link
+  back to the presentation page. There are no tools, so nothing can be moved or changed.
+- The draft's details + "Reviewed by" + slide pictures are one shared component (`ReviewDraftView`), used by this
+  page and by the admin's review page (`/admin/presentations/reviews/[id]`).
+- The editor no longer needs a "submitted" state: its "Waiting for QuizMatter" pill, the "won't be saved" banner
+  and the blocked Ctrl+S are removed. The editor's review mode is only ever *reviewing*.
+
+### 2. The reviewer's top bar
+
+- In review mode the top bar shows **Save as draft** and a **⋮** button (Lucide `EllipsisVerticalIcon`). The ⋮
+  opens a small menu with **Submit for publishing** (opens the "Reviewed by" form) and **Stop review** (coral
+  text, confirm step). The menu closes on a click outside or Esc, like the account menu.
+
+### 3. "Review" column in Admin → Presentations
+
+- Database: `presentation_reviewers` gets `approved_by uuid` (references auth.users, on delete set null) and
+  `approved_at timestamptz`; `publish_review` sets them to the publishing admin and now(). New admin-only
+  function `admin_reviewers()` returns every reviewer row with the approving admin's display name and email (no
+  rows for non-admins). No existing rows need filling in (no review has been published yet).
+- The QuizMatter presentations table gets a **Review** column: a clickable **Reviewed** pill
+  (`bg-success-soft text-success-strong`) when the presentation has at least one reviewer, otherwise grey
+  "Not reviewed" text. The page loads every reviewer row up front.
+- Clicking **Reviewed** opens a "Reviewed by" modal: one card per reviewer with name, email, date reviewed,
+  education / current work, and "Approved by <admin name> (<admin email>) · <date>".
+- Nothing new is saved from these screens, so no new zod schema is needed. No new packages.
