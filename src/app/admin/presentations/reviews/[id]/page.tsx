@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { ChevronLeftIcon } from "lucide-react";
 import { LinkPending } from "@/components/LinkPending";
 import { PeopleArtGate } from "@/components/PeopleArtGate";
+import { PresentDraftButton } from "@/components/presentation/PresentDraftButton";
 import { ReviewDraftView } from "@/components/presentation/ReviewDraftView";
 import { joinParts, slideCountLabel } from "@/lib/format";
 import { usesPeopleArt } from "@/lib/peopleArt";
@@ -10,7 +11,7 @@ import { presentationSchema, type ReviewerFields } from "@/lib/schema";
 import { createClient } from "@/lib/supabase/server";
 import { ReviewDecision } from "./ReviewDecision";
 
-/** A submitted review: the reviewer's version and details, with Publish and Send back. (The layout checks admins.) */
+/** A submitted review: the reviewer's version and details, with Present, Send back and Publish. (The layout checks admins.) */
 export default async function AdminReviewPage({ params }: PageProps<"/admin/presentations/reviews/[id]">) {
   const { id } = await params;
   const supabase = await createClient();
@@ -43,7 +44,12 @@ export default async function AdminReviewPage({ params }: PageProps<"/admin/pres
             {joinParts([presentation.grade, presentation.subject, slideCountLabel(presentation.slides.length)])}
           </p>
         </div>
-        <div className="ml-auto">
+        <div className="ml-auto flex flex-wrap items-center gap-2">
+          {/* Plays the reviewer's submitted version, so the admin sees exactly what Publish puts live. */}
+          <PresentDraftButton
+            presentation={presentation}
+            className="rounded-button border border-border-default bg-bg-surface px-4 py-2 text-sm font-semibold text-text-primary transition-colors hover:bg-bg-page"
+          />
           <ReviewDecision presentationId={id} />
         </div>
       </header>
