@@ -21,6 +21,11 @@ export function slideCountLabel(count: number): string {
 }
 
 /** "By Ms. Cruz · Published by andz": who wrote it (the Author detail) and whose account shared it. */
+/** "Oct 4, 2026" from "2026-10-04" (a date with no time, so no time zone shift). */
+export function formatDay(isoDate: string): string {
+  return new Date(`${isoDate}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
+
 export function publishedByLine(author: string, publisherName: string | undefined): string {
   return joinParts([author && `By ${author}`, publisherName && `Published by ${publisherName}`]);
 }

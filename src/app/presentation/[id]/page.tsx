@@ -18,6 +18,8 @@ export default async function PresentationPage({ params }: PageProps<"/presentat
         isMine={result.isMine}
         publisherName={result.publisherName}
         isSaved={result.isSaved}
+        review={result.review}
+        reviewers={result.reviewers}
       />
     </PeopleArtGate>
   );

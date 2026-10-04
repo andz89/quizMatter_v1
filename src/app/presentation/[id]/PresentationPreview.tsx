@@ -5,11 +5,14 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { BookmarkIcon } from "lucide-react";
+import { BookmarkIcon, ClipboardCheckIcon } from "lucide-react";
 import { CANVAS_WIDTH, CANVAS_HEIGHT, getSlideNumbers } from "@/lib/constants";
 import { createId } from "@/lib/id";
-import { joinParts, publishedByLine, slideCountLabel } from "@/lib/format";
-import { saveErrorMessage, savePresentationToDb } from "@/lib/presentations";
+import { formatDay, joinParts, publishedByLine, slideCountLabel } from "@/lib/format";
+import { SaveRefusedError, saveErrorMessage, savePresentationToDb } from "@/lib/presentations";
+import { startReview } from "@/lib/reviews";
+import { loadReviewStatus, type Reviewer, type ReviewStatus } from "@/lib/reviewStatus";
+import { createClient } from "@/lib/supabase/client";
 import { DETAIL_MAX_LENGTH, isWebLink, type Presentation } from "@/lib/schema";
 import { useEditorStore } from "@/lib/store";
 import { pauseFeature, useIsPaused } from "@/lib/clickLimits";
@@ -30,23 +33,30 @@ const PresentationView = dynamic(() =>
  * A presentation's details and all its slides, view only. Present shows it fullscreen (the same view as the
  * editor's Present button); "Make a copy" saves a private copy for me and opens it in the editor. "Save" bookmarks
  * someone else's presentation to my home page's "Saved" row (like YouTube's), and "Report" sends it to the admins.
+ * Editors can review a shared QuizMatter presentation ("Review"); while it's under review nobody can copy it, and
+ * its owner can't edit it. Everyone who reviewed it is listed under "Reviewed by".
  */
 export function PresentationPreview({
   presentation,
   isMine,
   publisherName,
   isSaved: savedAtStart,
+  review,
+  reviewers,
 }: {
   presentation: Presentation;
   isMine: boolean;
   publisherName: string;
   isSaved: boolean;
+  review: ReviewStatus;
+  reviewers: Reviewer[];
 }) {
   const router = useRouter();
   const isPresenting = useEditorStore((s) => s.isPresenting);
   const [isCopying, setIsCopying] = useState(false);
   const [isSaved, setIsSaved] = useState(savedAtStart);
   const [isSaving, setIsSaving] = useState(false);
+  const [isStartingReview, setIsStartingReview] = useState(false);
   // Saving is paused for clicking too fast (the notice at the bottom says until when).
   const isSavePaused = useIsPaused("saved");
 
@@ -65,6 +75,17 @@ export function PresentationPreview({
 
   const makeCopy = async () => {
     setIsCopying(true);
+    // It may have gone under review since the page opened.
+    try {
+      if ((await loadReviewStatus(createClient(), presentation.id)).isLocked) {
+        toast.error("This presentation is under review, so it can't be copied right now.");
+        setIsCopying(false);
+        router.refresh();
+        return;
+      }
+    } catch {
+      // The check failed (connection): the copy below fails too and says so.
+    }
     const now = Date.now();
     // Slide ids can stay: a slide's id only has to be unique inside its own presentation.
     // "Copy of …" so it's easy to tell apart from the original. `author` stays: it credits who wrote the content.
@@ -77,6 +98,19 @@ export function PresentationPreview({
     } catch (error) {
       toast.error(saveErrorMessage(error, "make a copy"));
       setIsCopying(false);
+    }
+  };
+
+  const beginReview = async () => {
+    setIsStartingReview(true);
+    try {
+      await startReview(presentation.id);
+      // isStartingReview stays true, so the spinner and top line keep showing until the editor opens.
+      router.push(`/presentation/${presentation.id}/edit`);
+    } catch (error) {
+      toast.error(error instanceof SaveRefusedError ? "Someone else just started reviewing this." : saveErrorMessage(error, "start the review"));
+      setIsStartingReview(false);
+      router.refresh();
     }
   };
 
@@ -116,7 +150,30 @@ export function PresentationPreview({
             {joinParts([publishedByLine(presentation.author, publisherName), presentation.grade, presentation.subject, slideCountLabel(presentation.slides.length)])}
           </p>
         </div>
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex flex-wrap items-center gap-2">
+          {review.isLocked && (
+            <span className="rounded-dropdown bg-highlight-soft px-2.5 py-1 text-[13px] leading-none font-semibold text-highlight-strong">
+              Under review
+            </span>
+          )}
+          {review.canStart && (
+            <button
+              type="button"
+              onClick={beginReview}
+              disabled={isStartingReview}
+              className={`inline-flex items-center gap-2 ${secondaryButtonClass}`}
+            >
+              {isStartingReview ? <Spinner size={14} /> : <ClipboardCheckIcon size={16} />}
+              Review
+            </button>
+          )}
+          {review.isMine && (
+            <Link href={`/presentation/${presentation.id}/edit`} className={`inline-flex items-center gap-2 ${secondaryButtonClass}`}>
+              <ClipboardCheckIcon size={16} />
+              Continue review
+              <LinkPending />
+            </Link>
+          )}
           {!isMine && <ReportButton presentationId={presentation.id} className={secondaryButtonClass} />}
           {!isMine && (
             <button
@@ -136,15 +193,19 @@ export function PresentationPreview({
             </button>
           )}
           {isMine ? (
-            <Link href={`/presentation/${presentation.id}/edit`} className={secondaryButtonClass}>
-              Edit
-              <LinkPending />
-            </Link>
+            // Under review, only its reviewer can change it.
+            !review.isLocked && (
+              <Link href={`/presentation/${presentation.id}/edit`} className={secondaryButtonClass}>
+                Edit
+                <LinkPending />
+              </Link>
+            )
           ) : (
             <button
               type="button"
               onClick={makeCopy}
-              disabled={isCopying}
+              disabled={isCopying || review.isLocked}
+              title={review.isLocked ? "Under review: it can be copied once QuizMatter publishes the review." : undefined}
               className={`inline-flex items-center gap-2 ${secondaryButtonClass}`}
             >
               {isCopying && <Spinner size={14} />}
@@ -163,7 +224,7 @@ export function PresentationPreview({
         </div>
       </header>
 
-      {(details.length > 0 || presentation.tags.length > 0 || presentation.referenceLinks.length > 0) && (
+      {(details.length > 0 || presentation.tags.length > 0 || presentation.referenceLinks.length > 0 || reviewers.length > 0) && (
         <dl className="mb-8 grid gap-4 rounded-card border border-border-default bg-bg-surface px-5 py-4 text-sm">
           {details.map((detail) => (
             <div key={detail.label}>
@@ -199,6 +260,21 @@ export function PresentationPreview({
               ))}
             </div>
           )}
+          {reviewers.length > 0 && (
+            <div>
+              <dt className="text-[11px] font-bold tracking-[0.05em] text-text-header uppercase">Reviewed by</dt>
+              {reviewers.map((reviewer) => (
+                <dd key={`${reviewer.email}-${reviewer.reviewedOn}`} className="mt-2 text-text-primary">
+                  <span className="font-semibold">{reviewer.name}</span>
+                  <span className="text-text-secondary">
+                    {" "}
+                    · {reviewer.email} · {formatDay(reviewer.reviewedOn)}
+                  </span>
+                  <span className="mt-0.5 block whitespace-pre-line text-text-secondary">{reviewer.background}</span>
+                </dd>
+              ))}
+            </div>
+          )}
         </dl>
       )}
 
@@ -223,7 +299,7 @@ export function PresentationPreview({
         ))}
       </div>
 
-      {isCopying && <TopLoadingBar />}
+      {(isCopying || isStartingReview) && <TopLoadingBar />}
       {isPresenting && <PresentationView />}
     </main>
   );
