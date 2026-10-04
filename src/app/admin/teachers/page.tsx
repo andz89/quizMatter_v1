@@ -5,7 +5,8 @@ import { createClient } from "@/lib/supabase/server";
 import { AdminTeachers, type TeacherRow } from "./AdminTeachers";
 
 /**
- * Admin → Teachers: everyone who can log in, to ban those who misuse QuizMatter (and unban them).
+ * Admin → Teachers: everyone who can log in, to ban those who misuse QuizMatter (and unban them), and to make
+ * editors (they review QuizMatter presentations).
  * The list of accounts needs the secret key. (../layout.tsx checks the user is an admin.)
  */
 export default async function AdminTeachersPage() {
@@ -19,16 +20,18 @@ export default async function AdminTeachersPage() {
   }
 
   const supabase = await createClient();
-  const [users, bans, admins, settings] = await Promise.all([
+  const [users, bans, admins, editors, settings] = await Promise.all([
     // Teachers are added by hand, so one page of 1,000 is plenty.
     admin.auth.admin.listUsers({ perPage: 1000 }),
     supabase.from("banned_users").select("user_id, reason, banned_at, is_automatic"),
     admin.from("admins").select("user_id"),
+    admin.from("editors").select("user_id"),
     admin.from("user_settings").select("user_id, display_name"),
   ]);
   if (users.error) throw users.error;
   if (bans.error) throw bans.error;
   if (admins.error) throw admins.error;
+  if (editors.error) throw editors.error;
   if (settings.error) throw settings.error;
 
   return (
@@ -37,6 +40,7 @@ export default async function AdminTeachersPage() {
         users.data.users,
         bans.data as Ban[],
         admins.data.map((row) => row.user_id as string),
+        editors.data.map((row) => row.user_id as string),
         settings.data as { user_id: string; display_name: string | null }[],
       )}
     />
@@ -51,10 +55,12 @@ function buildRows(
   users: User[],
   bans: Ban[],
   adminIds: string[],
+  editorIds: string[],
   settings: { user_id: string; display_name: string | null }[],
 ): TeacherRow[] {
   const banByUser = new Map(bans.map((ban) => [ban.user_id, ban]));
   const admins = new Set(adminIds);
+  const editors = new Set(editorIds);
   const names = new Map(settings.map((row) => [row.user_id, row.display_name ?? ""]));
   const now = Date.now();
 
@@ -70,6 +76,7 @@ function buildRows(
           user.last_sign_in_at && `Last login ${timeAgo(Date.parse(user.last_sign_in_at), now)}`,
         ]),
         isAdmin: admins.has(user.id),
+        isEditor: editors.has(user.id),
         ban: ban ? { reason: ban.reason, when: timeAgo(Date.parse(ban.banned_at), now), isAutomatic: ban.is_automatic } : null,
       };
     })

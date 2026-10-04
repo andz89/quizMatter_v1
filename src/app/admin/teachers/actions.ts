@@ -42,6 +42,26 @@ export async function banTeacher(userId: string, reason: string): Promise<string
   return null;
 }
 
+const editorSchema = z.object({ user_id: z.uuid(), isEditor: z.boolean() });
+
+/**
+ * Gives a teacher the editor role (they can review QuizMatter presentations) or takes it away. Taking it away
+ * cancels any review they have open. Returns an error message, or null if it worked.
+ */
+export async function setEditor(userId: string, isEditor: boolean): Promise<string | null> {
+  // Checked with zod before anything is saved (see CLAUDE.md, "Saving Data").
+  const parsed = editorSchema.safeParse({ user_id: userId, isEditor });
+  if (!parsed.success) return "Couldn't change the editor role.";
+  if (!(await getAccount()).isAdmin) return "Only admins can change the editor role.";
+
+  const supabase = await createClient();
+  const { error } = parsed.data.isEditor
+    ? await supabase.from("editors").upsert({ user_id: parsed.data.user_id })
+    : await supabase.from("editors").delete().eq("user_id", parsed.data.user_id);
+  refresh();
+  return error ? "Couldn't change the editor role. Please try again." : null;
+}
+
 /** Lifts a ban: they can log in and save again. Returns an error message, or null if it worked. */
 export async function unbanTeacher(userId: string): Promise<string | null> {
   const parsed = z.uuid().safeParse(userId);

@@ -2,10 +2,10 @@
 
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { BanIcon, UndoIcon } from "lucide-react";
+import { BanIcon, ShieldCheckIcon, UndoIcon } from "lucide-react";
 import { Spinner } from "@/components/Spinner";
 import { BAN_REASON_MAX_LENGTH } from "@/lib/schema";
-import { banTeacher, unbanTeacher } from "./actions";
+import { banTeacher, setEditor, unbanTeacher } from "./actions";
 
 export type TeacherRow = {
   id: string;
@@ -15,17 +15,19 @@ export type TeacherRow = {
   // "Joined 3 days ago · Last login 1 hr ago".
   meta: string;
   isAdmin: boolean;
+  // Can review QuizMatter presentations.
+  isEditor: boolean;
   // isAutomatic: banned for clicking too fast, not by an admin.
   ban: { reason: string; when: string; isAutomatic: boolean } | null;
 };
 
-/** Every teacher (banned ones first), with Ban / Unban. */
+/** Every teacher (banned ones first), with Ban / Unban and Make editor / Remove editor. */
 export function AdminTeachers({ rows }: { rows: TeacherRow[] }) {
   return (
     <div className="flex flex-col gap-3">
       <p className="text-sm text-text-secondary">
         A banned teacher can&apos;t save, add photos or use Claude from that moment, and can&apos;t log in again. Their
-        presentations stay as they are.
+        presentations stay as they are. Editors can review QuizMatter presentations.
       </p>
       {rows.map((row) => (
         <Row key={row.id} row={row} />
@@ -49,6 +51,15 @@ function Row({ row }: { row: TeacherRow }) {
     });
   };
 
+  const toggleEditor = () => {
+    if (row.isEditor && !confirm(`Remove ${row.email} as editor? A review they have open is canceled.`)) return;
+    startTransition(async () => {
+      const error = await setEditor(row.id, !row.isEditor);
+      if (error) toast.error(error);
+      else toast.success(row.isEditor ? `${row.email} is no longer an editor.` : `${row.email} is an editor now.`);
+    });
+  };
+
   const unban = () => {
     if (!confirm(`Unban ${row.email}? They can log in and save again.`)) return;
     startTransition(async () => {
@@ -66,6 +77,7 @@ function Row({ row }: { row: TeacherRow }) {
             <span className="truncate text-sm font-semibold text-text-primary">{row.email}</span>
             {row.name && <span className="text-sm text-text-secondary">{row.name}</span>}
             {row.isAdmin && <span className={`${pillClass} bg-accent-soft text-accent`}>Admin</span>}
+            {row.isEditor && <span className={`${pillClass} bg-accent-soft text-accent`}>Editor</span>}
             {row.ban && <span className={`${pillClass} bg-danger-soft text-danger-strong`}>Banned</span>}
             {row.ban?.isAutomatic && <span className={`${pillClass} bg-bg-page text-text-secondary`}>Automatic</span>}
           </div>
@@ -74,6 +86,12 @@ function Row({ row }: { row: TeacherRow }) {
 
         <div className="flex items-center gap-2">
           {isBusy && <Spinner size={16} />}
+          {!row.ban && reason === null && (
+            <button type="button" onClick={toggleEditor} disabled={isBusy} className={smallButtonClass}>
+              <ShieldCheckIcon size={14} />
+              {row.isEditor ? "Remove editor" : "Make editor"}
+            </button>
+          )}
           {row.ban ? (
             <button type="button" onClick={unban} disabled={isBusy} className={smallButtonClass}>
               <UndoIcon size={14} />
