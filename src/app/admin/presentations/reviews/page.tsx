@@ -3,6 +3,7 @@ import { ChevronLeftIcon } from "lucide-react";
 import { LinkPending } from "@/components/LinkPending";
 import { timeAgo } from "@/lib/format";
 import { createClient } from "@/lib/supabase/server";
+import { CancelReviewButton } from "./CancelReviewButton";
 
 type ReviewRow = {
   presentation_id: string;
@@ -22,7 +23,8 @@ const STATUS = {
 
 /**
  * Admin → Presentations → Under review: every review going on (and canceled ones, until a new review starts).
- * Submitted ones open the review page, to publish or send back. (../../layout.tsx checks the user is an admin.)
+ * Submitted ones open the review page, to publish or send back. Open ones can be canceled (e.g. an editor who
+ * stopped answering). (../../layout.tsx checks the user is an admin.)
  */
 export default async function AdminReviewsPage() {
   const supabase = await createClient();
@@ -46,10 +48,27 @@ export default async function AdminReviewsPage() {
           <p className="px-5 py-12 text-center text-sm text-text-secondary">No presentations are under review.</p>
         ) : (
           rows.map((row) => {
-            const content = (
-              <>
+            const title = row.title || "Untitled presentation";
+            return (
+              // A submitted review's title link stretches over the whole row (its ::after); the button sits above it.
+              <div
+                key={row.presentation_id}
+                className={`relative flex min-h-14 flex-wrap items-center gap-x-4 gap-y-2 border-b border-border-default px-5 py-3 last:border-b-0 ${
+                  row.status === "submitted" ? "transition-colors hover:bg-bg-page" : ""
+                }`}
+              >
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-semibold text-text-primary">{row.title || "Untitled presentation"}</p>
+                  {row.status === "submitted" ? (
+                    <Link
+                      href={`/admin/presentations/reviews/${row.presentation_id}`}
+                      className="block truncate text-sm font-semibold text-text-primary after:absolute after:inset-0"
+                    >
+                      {title}
+                      <LinkPending />
+                    </Link>
+                  ) : (
+                    <p className="truncate text-sm font-semibold text-text-primary">{title}</p>
+                  )}
                   <p className="mt-0.5 truncate text-[13px] text-text-secondary">
                     {row.reviewer_name} · {row.when}
                   </p>
@@ -57,21 +76,7 @@ export default async function AdminReviewsPage() {
                 <span className={`rounded-dropdown px-2.5 py-1 text-[13px] leading-none font-semibold ${STATUS[row.status].className}`}>
                   {STATUS[row.status].label}
                 </span>
-              </>
-            );
-            const rowClass = "flex min-h-14 items-center gap-4 border-b border-border-default px-5 py-3 last:border-b-0";
-            return row.status === "submitted" ? (
-              <Link
-                key={row.presentation_id}
-                href={`/admin/presentations/reviews/${row.presentation_id}`}
-                className={`${rowClass} transition-colors hover:bg-bg-page`}
-              >
-                {content}
-                <LinkPending />
-              </Link>
-            ) : (
-              <div key={row.presentation_id} className={rowClass}>
-                {content}
+                {row.status !== "canceled" && <CancelReviewButton presentationId={row.presentation_id} title={title} />}
               </div>
             );
           })

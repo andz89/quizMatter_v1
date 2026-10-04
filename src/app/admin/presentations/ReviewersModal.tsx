@@ -12,8 +12,8 @@ export function ReviewersModal({ title, reviewers, onClose }: { title: string; r
   return (
     <Modal title={`Reviewed by · ${title}`} onClose={onClose}>
       <div className="flex flex-col gap-3">
-        {reviewers.map((reviewer) => (
-          <div key={`${reviewer.email}-${reviewer.reviewedOn}`} className="rounded-card border border-border-default px-5 py-3.5 text-sm">
+        {reviewers.map((reviewer, index) => (
+          <div key={index} className="rounded-card border border-border-default px-5 py-3.5 text-sm">
             <p className="font-semibold text-text-primary">{reviewer.name}</p>
             <p className="mt-0.5 text-text-secondary">
               {reviewer.email} · Reviewed {formatDay(reviewer.reviewedOn)}

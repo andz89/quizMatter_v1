@@ -2,12 +2,20 @@
 
 import dynamic from "next/dynamic";
 import { PlayIcon } from "lucide-react";
+import { Spinner } from "@/components/Spinner";
 import type { Presentation } from "@/lib/schema";
 import { useEditorStore } from "@/lib/store";
 
-// Only downloaded when Present is clicked.
-const PresentationView = dynamic(() =>
-  import("@/components/presentation/PresentationView").then((mod) => mod.PresentationView)
+// Only downloaded when Present is clicked; the Spinner shows over the page meanwhile.
+const PresentationView = dynamic(
+  () => import("@/components/presentation/PresentationView").then((mod) => mod.PresentationView),
+  {
+    loading: () => (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+        <Spinner />
+      </div>
+    ),
+  },
 );
 
 /**

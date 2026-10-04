@@ -27,7 +27,7 @@ import {
 } from "./constants";
 import { clamp, fitInBox, getOuterEdges } from "./geometry";
 import { withBackground, type BackgroundPatch } from "./slideBackground";
-import { SaveRefusedError, saveErrorMessage, savePresentationToDb } from "./presentations";
+import { REFUSALS, SaveRefusedError, saveErrorMessage, savePresentationToDb } from "./presentations";
 import { saveReviewDraft } from "./reviews";
 import { finishDraft } from "@/app/actions";
 import { isEmbedSlide } from "./embed";
@@ -546,7 +546,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       // A refused save is shown even when quiet: it says why, and a conflict stays until the user reloads.
       if (error instanceof SaveRefusedError || !quiet) {
         toast.error(saveErrorMessage(error, "save"), {
-          duration: error instanceof SaveRefusedError && error.isConflict ? Infinity : undefined,
+          // A conflict, or a lock because a review just started, stays until closed: these edits can't be saved.
+          duration: error instanceof SaveRefusedError && (error.isConflict || error.message === REFUSALS.QMREV) ? Infinity : undefined,
         });
       }
       if (isStillOpen()) set({ saveStatus: "error" });

@@ -73,7 +73,22 @@ export async function publishReview(id: string): Promise<string | null> {
   const { error } = await supabase.rpc("publish_review", { target_id: parsed.data });
   refresh();
   if (error?.code === "QMRVW") return "This review isn't waiting to be published anymore.";
+  if (error?.code === "QMBRV") return "This reviewer is banned, so their review can't be published. Send it back or cancel it.";
   return error ? "Couldn't publish the review. Please try again." : null;
+}
+
+/**
+ * Ends a review that's going on or waiting (e.g. its editor stopped answering): the draft is thrown away and the
+ * live presentation stays as it was, like the reviewer's Stop review. An error message, or null.
+ */
+export async function cancelReview(id: string): Promise<string | null> {
+  const parsed = idSchema.safeParse(id);
+  if (!parsed.success || !(await getAccount()).isAdmin) return "Only admins can cancel reviews.";
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("admin_cancel_review", { target_id: parsed.data });
+  refresh();
+  return error ? "Couldn't cancel the review. Please try again." : null;
 }
 
 /** Sends a submitted review back to its reviewer with a note. An error message, or null. */

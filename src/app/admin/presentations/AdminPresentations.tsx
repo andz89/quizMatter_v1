@@ -43,10 +43,10 @@ const SORTS: { id: Sort; label: string }[] = [
   { id: "createdAt", label: "Newest" },
 ];
 
-// Picture, title, status, review, slides, date, open-to-editors button, share button, trash. On phones: picture, title,
-// then the rest in one cell.
+// Picture, title, status, review, slides, date, open-to-editors button, share button, trash. Below laptop width
+// (phones and tablets): picture and title, then the rest on its own row below, wrapping as needed.
 const COLUMNS =
-  "grid-cols-[64px_minmax(0,1fr)_auto] sm:grid-cols-[96px_minmax(0,1fr)_104px_112px_56px_104px_120px_112px_36px]";
+  "grid-cols-[64px_minmax(0,1fr)] lg:grid-cols-[96px_minmax(0,1fr)_104px_112px_56px_104px_120px_112px_36px]";
 
 /**
  * The admin's QuizMatter presentations as a table, sorted by date changed or created, with a search box. Each
@@ -108,15 +108,15 @@ export function AdminPresentations({ rows }: { rows: AdminPresentationRow[] }) {
         >
           <span />
           <span>Title</span>
-          <span className="hidden sm:block">Status</span>
-          <span className="hidden sm:block">Review</span>
-          <span className="hidden sm:block">Slides</span>
-          <span className="hidden sm:block">
+          <span className="hidden lg:block">Status</span>
+          <span className="hidden lg:block">Review</span>
+          <span className="hidden lg:block">Slides</span>
+          <span className="hidden lg:block">
             {sort === "updatedAt" ? "Changed" : "Created"}
           </span>
-          <span className="hidden sm:block" />
-          <span className="hidden sm:block" />
-          <span className="hidden sm:block" />
+          <span className="hidden lg:block" />
+          <span className="hidden lg:block" />
+          <span className="hidden lg:block" />
         </div>
 
         {shown.length === 0 ? (
@@ -252,13 +252,13 @@ function Row({
           </p>
         )}
         {/* On phones the other columns are hidden, so their facts go under the title. */}
-        <p className="mt-0.5 text-[13px] text-text-secondary sm:hidden">
+        <p className="mt-0.5 text-[13px] text-text-secondary lg:hidden">
           {row.slideCount} {row.slideCount === 1 ? "slide" : "slides"} ·{" "}
           {dateLabel}
         </p>
       </div>
 
-      <div className="flex items-center gap-2 sm:contents">
+      <div className="col-span-2 mt-2 flex flex-wrap items-center gap-2 lg:contents">
         {isChecking ? (
           <span className="inline-flex w-fit items-center gap-1.5 rounded-dropdown border border-border-default bg-bg-page px-2.5 py-1 text-[13px] leading-none font-semibold text-text-secondary">
             <Spinner size={12} />
@@ -309,11 +309,11 @@ function Row({
             {row.isOpenToAll ? "Open to editors" : "Open to all"}
           </button>
         ) : (
-          <span className="hidden sm:block" />
+          <span className="hidden lg:block" />
         )}
         {/* A draft from Claude must be opened and saved before it can be shared. */}
         {isClaudeDraft ? (
-          <span className="hidden sm:block" />
+          <span className="hidden lg:block" />
         ) : (
           <button
             type="button"

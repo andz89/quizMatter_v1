@@ -108,7 +108,7 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
     return load("saved", undefined, newest.data.map((row) => row.presentation_id));
   };
 
-  const [mine, fromAdmins, others, saved, savedRows, drafts, account] = await Promise.all([
+  const [mine, fromAdmins, others, saved, savedRows, drafts, account, myReviews] = await Promise.all([
     load("mine"),
     load("quizmatter"),
     load("teachers", OTHERS_LIMIT),
@@ -118,14 +118,16 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
     // An admin's drafts from Claude become QuizMatter presentations, so they're on Admin → Presentations.
     getAccount().then((account) => (account.isAdmin || isLeftOut("mine") ? [] : listDrafts(account.id))),
     getAccount(),
+    // An editor's open reviews (see the presentation_reviews migration).
+    getAccount().then(async (account) =>
+      account.isEditor ? await supabase.rpc("my_reviews") : { data: [] as MyReviewRow[], error: null },
+    ),
   ]);
   if (mine.error) throw mine.error;
   if (fromAdmins.error) throw fromAdmins.error;
   if (others.error) throw others.error;
   if (saved.error) throw saved.error;
   if (savedRows.error) throw savedRows.error;
-  // An editor's open reviews (see the presentation_reviews migration).
-  const myReviews = account.isEditor ? await supabase.rpc("my_reviews") : { data: [], error: null };
   if (myReviews.error) throw myReviews.error;
 
   const publisherNames = await loadPublisherNames(

@@ -3,7 +3,7 @@ import { PeopleArtGate } from "@/components/PeopleArtGate";
 import { getAccount } from "@/lib/account";
 import { fetchPresentation } from "@/lib/fetchPresentation";
 import { usesPeopleArt } from "@/lib/peopleArt";
-import { presentationSchema, todayIso, type ReviewerFields } from "@/lib/schema";
+import { presentationSchema, type ReviewerFields } from "@/lib/schema";
 import { createClient } from "@/lib/supabase/server";
 import type { EditorReview } from "@/lib/store";
 import { PresentationEditor } from "./PresentationEditor";
@@ -35,9 +35,10 @@ export default async function PresentationPage({ params }: PageProps<"/presentat
     ? presentationSchema.parse({ ...row.draft, author: result.presentation.author, updatedAt: Date.parse(row.draft_updated_at) })
     : result.presentation;
   // The form starts with what I sent last time, or my entry from an earlier review, or my account's name and email.
+  // A new round's date is left empty here: the form fills in today in the reviewer's own time zone.
   const myEntry = result.reviewers.find((reviewer) => reviewer.email === account.email);
   const fields: ReviewerFields = (row.submitted_fields as ReviewerFields | null) ??
-    myEntry ?? { name: account.displayName, email: account.email, background: "", reviewedOn: todayIso() };
+    (myEntry ? { ...myEntry, reviewedOn: "" } : { name: account.displayName, email: account.email, background: "", reviewedOn: "" });
   // Submitted: waiting for an admin, so it's view only (no editor at all).
   if (row.status === "submitted") {
     return (

@@ -102,7 +102,8 @@ export function ReviewControls() {
 /** The "Reviewed by" details, checked with zod, then the draft and details go to the admins. */
 function SubmitForm({ initial, onClose }: { initial: ReviewerFields; onClose: () => void }) {
   const router = useRouter();
-  const [fields, setFields] = useState(initial);
+  // An empty date means "today", worked out here so it's the reviewer's own day, not the server's.
+  const [fields, setFields] = useState(() => ({ ...initial, reviewedOn: initial.reviewedOn || todayIso() }));
   const [isSending, setIsSending] = useState(false);
   const set = (patch: Partial<ReviewerFields>) => setFields((current) => ({ ...current, ...patch }));
 

@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "./supabase/server";
 import { loadPublisherNames } from "./publishers";
-import { loadReviewers, loadReviewStatus, type Reviewer, type ReviewStatus } from "./reviewStatus";
+import { NO_REVIEW, loadReviewers, loadReviewStatus, type Reviewer, type ReviewStatus } from "./reviewStatus";
 import { presentationSchema, type Presentation } from "./schema";
 
 /**
@@ -25,8 +25,9 @@ export async function fetchPresentation(id: string): Promise<{
     supabase.auth.getClaims(),
     // The database only gives back my own saved rows.
     supabase.from("saved_presentations").select("presentation_id").eq("presentation_id", id).maybeSingle(),
-    loadReviewStatus(supabase, id),
-    loadReviewers(supabase, id),
+    // If these fail, the page still opens without the review parts (the database still enforces the lock).
+    loadReviewStatus(supabase, id).catch(() => NO_REVIEW),
+    loadReviewers(supabase, id).catch((): Reviewer[] => []),
   ]);
   if (!result) return null;
 

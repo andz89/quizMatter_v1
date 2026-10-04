@@ -77,6 +77,8 @@ export function Editor({ presentation, draft, review }: { presentation: Presenta
     else store.importSlides(result.slides);
     // Not in the database yet: its first save sends every slide, and fails if another tab saved it first.
     useEditorStore.setState({ fromDraft: true, savedAt: null });
+    // A new presentation/draft/review object from the server (e.g. after router.refresh()) loads it again and
+    // drops unsaved edits, so don't refresh the editor page while someone is editing.
   }, [presentation, draft, review]);
 
   // Closing or reloading the tab with unsaved changes makes the browser ask "Leave page?" first.
