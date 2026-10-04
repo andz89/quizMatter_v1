@@ -28,9 +28,10 @@ import {
 import { clamp, fitInBox, getOuterEdges } from "./geometry";
 import { withBackground, type BackgroundPatch } from "./slideBackground";
 import { SaveRefusedError, saveErrorMessage, savePresentationToDb } from "./presentations";
+import { saveReviewDraft } from "./reviews";
 import { finishDraft } from "@/app/actions";
 import { isEmbedSlide } from "./embed";
-import type { Photo, PresentationDetails, Presentation, Slide, SlideType, SvgElement } from "./schema";
+import type { Photo, PresentationDetails, Presentation, ReviewerFields, Slide, SlideType, SvgElement } from "./schema";
 import { MAX_ITEM_COUNT, MAX_SLIDES, TOO_MANY_SLIDES_MESSAGE } from "./schema";
 
 type ElementPatch = Partial<Omit<SvgElement, "id" | "assetId">>;
@@ -238,6 +239,10 @@ function fitShapeStripHeight(box: BoxLayout): number | undefined {
   return Math.min(box.shapeStripHeight, getMaxShapeStripHeight({ ...box, questionHeight: MIN_QUESTION_HEIGHT }));
 }
 
+// An editor reviewing someone else's QuizMatter presentation (see the presentation_reviews migration): the round's
+// status, the admin's note when it was sent back ("" if none), and the "Reviewed by" form's starting values.
+export type EditorReview = { status: "reviewing" | "submitted"; note: string; fields: ReviewerFields };
+
 interface EditorState {
   presentation: Presentation;
   // Opens a presentation loaded from the database: sets it as the saved version and starts a fresh undo history.
@@ -250,6 +255,9 @@ interface EditorState {
   saveStatus: "idle" | "saving" | "error";
   // True while the presentation is a draft from Claude that hasn't been saved yet (see /presentation/new).
   fromDraft: boolean;
+  // Set while an editor reviews someone else's QuizMatter presentation: saves go to their draft, and nothing is
+  // saved once it's submitted. null = a normal presentation.
+  review: EditorReview | null;
   // Saves the whole presentation and shows a toast (not when `quiet`). Resolves true if it's saved (or had
   // nothing new to save), false if it failed or another save is still running.
   savePresentation: (options?: { quiet?: boolean }) => Promise<boolean>;
@@ -490,6 +498,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         savedAt: presentation.updatedAt,
         saveStatus: "idle",
         fromDraft: false,
+        review: null,
         past: [],
         future: [],
         selectedSlideId: presentation.slides[0].id,
@@ -505,10 +514,13 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   savedAt: null,
   saveStatus: "idle",
   fromDraft: false,
+  review: null,
 
   savePresentation: async ({ quiet = false } = {}) => {
-    const { presentation, savedPresentation, savedAt, saveStatus, fromDraft } = get();
+    const { presentation, savedPresentation, savedAt, saveStatus, fromDraft, review } = get();
     if (saveStatus === "saving") return false;
+    // A submitted review waits for an admin: nothing more is saved.
+    if (review?.status === "submitted") return false;
     // Nothing new to save (Ctrl+S works even when the Save button is greyed out).
     if (presentation === savedPresentation) return true;
     set({ saveStatus: "saving" });
@@ -517,14 +529,17 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const isStillOpen = () => get().savedPresentation === savedPresentation;
     try {
       // Only the slides changed since the last save are sent. Never saved yet = there's nothing to compare with.
-      const newSavedAt = await savePresentationToDb(presentation, {
-        baseUpdatedAt: savedAt,
-        savedSlides: savedAt === null ? undefined : savedPresentation?.slides,
-      });
+      // A review saves its draft (every slide); teachers keep seeing the live presentation.
+      const newSavedAt = review
+        ? await saveReviewDraft(presentation, savedAt)
+        : await savePresentationToDb(presentation, {
+            baseUpdatedAt: savedAt,
+            savedSlides: savedAt === null ? undefined : savedPresentation?.slides,
+          });
       // Claude's draft is now a saved presentation, so the draft goes: Claude's next send makes a new draft
       // (with a new link) instead of updating one nobody can open anymore. If this fails, the save still counts.
       if (fromDraft) finishDraft(presentation.id).catch(() => {});
-      if (!quiet) toast.success("Presentation saved.");
+      if (!quiet) toast.success(review ? "Draft saved. Teachers still see the old version." : "Presentation saved.");
       // Edits made while saving aren't in the database yet, so they still count as unsaved.
       if (isStillOpen()) set({ savedPresentation: presentation, savedAt: newSavedAt, saveStatus: "idle", fromDraft: false });
       return true;

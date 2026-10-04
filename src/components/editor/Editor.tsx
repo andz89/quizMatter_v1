@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import dynamic from "next/dynamic";
-import { useEditorStore } from "@/lib/store";
+import { useEditorStore, type EditorReview } from "@/lib/store";
 import { buildSlides } from "@/lib/importPresentation";
 import { useEditorShortcuts } from "@/lib/useEditorShortcuts";
 import { EditorTopBar } from "./EditorTopBar";
@@ -16,6 +16,7 @@ import { EffectsPanel } from "./EffectsPanel";
 import { DetailsPanel } from "./DetailsPanel";
 import { PresentationsPanel } from "./PresentationsPanel";
 import { SmallScreenNote } from "./SmallScreenNote";
+import { ReviewBanner } from "./ReviewControls";
 import { Spinner } from "@/components/Spinner";
 import type { Presentation } from "@/lib/schema";
 
@@ -38,8 +39,10 @@ const PresentationView = dynamic(
 /**
  * `draft` is the slides recipe of a presentation Claude sent through the MCP server (see /presentation/new): its
  * slides replace the new presentation's sample slide, unsaved, like the Paste button does.
+ * `review` opens an editor's review of someone else's QuizMatter presentation: saves go to their draft (see the
+ * presentation_reviews migration).
  */
-export function Editor({ presentation, draft }: { presentation: Presentation; draft?: unknown }) {
+export function Editor({ presentation, draft, review }: { presentation: Presentation; draft?: unknown; review?: EditorReview }) {
   // Until the presentation below is in the store, the store still holds the placeholder (or the last presentation opened).
   const isLoaded = useEditorStore((s) => s.presentation.id === presentation.id);
   const hasUnsavedChanges = useEditorStore((s) => s.presentation !== s.savedPresentation);
@@ -63,6 +66,7 @@ export function Editor({ presentation, draft }: { presentation: Presentation; dr
   useEffect(() => {
     const store = useEditorStore.getState();
     store.loadPresentation(presentation);
+    useEditorStore.setState({ review: review ?? null });
     if (draft === undefined) return;
 
     // Show the presentation's own address instead of /presentation/new?draft=…, so a reload after saving opens the
@@ -73,7 +77,7 @@ export function Editor({ presentation, draft }: { presentation: Presentation; dr
     else store.importSlides(result.slides);
     // Not in the database yet: its first save sends every slide, and fails if another tab saved it first.
     useEditorStore.setState({ fromDraft: true, savedAt: null });
-  }, [presentation, draft]);
+  }, [presentation, draft, review]);
 
   // Closing or reloading the tab with unsaved changes makes the browser ask "Leave page?" first.
   useEffect(() => {
@@ -118,6 +122,7 @@ export function Editor({ presentation, draft }: { presentation: Presentation; dr
   return (
     <div className="flex h-screen flex-col">
       <EditorTopBar />
+      <ReviewBanner />
       <div className="relative flex flex-1 overflow-hidden">
         <IconRail />
         {/* On laptops and bigger, an open panel sits beside the slides. On smaller screens it opens over them

@@ -27,6 +27,8 @@ export function DetailsPanel() {
   const presentation = useEditorStore((s) => s.presentation);
   const publishedBy = useLoggedInEmail();
   const isAdmin = presentation.fromAdmin;
+  // A reviewer can't change the author, sharing or publisher: those stay QuizMatter's.
+  const isReview = useEditorStore((s) => s.review !== null);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -109,38 +111,48 @@ export function DetailsPanel() {
       {textField("curriculum", "Curriculum", "e.g. MATATAG")}
       {textField("learningCompetency", "Learning competency", "The competency this presentation targets, with its code", true)}
       <TagsField tags={presentation.tags} onChange={(tags) => setPresentationDetails({ tags })} />
-      {textField("author", "Author", "Who wrote it: you, a book, another teacher…")}
+      {isReview ? (
+        <Field label="Author">
+          <p className="text-sm text-text-primary">{presentation.author || "—"}</p>
+        </Field>
+      ) : (
+        textField("author", "Author", "Who wrote it: you, a book, another teacher…")
+      )}
 
       <ReferenceLinks links={presentation.referenceLinks} onChange={(referenceLinks) => setPresentationDetails({ referenceLinks })} />
 
-      <Field label="Visibility">
-        <div className="grid grid-cols-2 gap-1 rounded-button bg-bg-page p-1">
-          {[
-            { label: isAdmin ? "Draft" : "Private", value: false },
-            { label: isAdmin ? "Shared" : "Published", value: true },
-          ].map(({ label, value }) => (
-            <button
-              key={label}
-              type="button"
-              onClick={() => changeVisibility(value)}
-              disabled={isSaving}
-              className={`flex items-center justify-center gap-2 rounded-dropdown py-1.5 text-sm transition-colors disabled:cursor-default ${
-                presentation.isPublished === value
-                  ? "bg-bg-surface font-semibold text-text-primary shadow-[0_0_0_1px_var(--border-default)]"
-                  : "text-text-secondary hover:text-text-primary"
-              }`}
-            >
-              {pendingVisibility === value && <Spinner size={14} />}
-              {label}
-            </button>
-          ))}
-        </div>
-      </Field>
+      {!isReview && (
+        <Field label="Visibility">
+          <div className="grid grid-cols-2 gap-1 rounded-button bg-bg-page p-1">
+            {[
+              { label: isAdmin ? "Draft" : "Private", value: false },
+              { label: isAdmin ? "Shared" : "Published", value: true },
+            ].map(({ label, value }) => (
+              <button
+                key={label}
+                type="button"
+                onClick={() => changeVisibility(value)}
+                disabled={isSaving}
+                className={`flex items-center justify-center gap-2 rounded-dropdown py-1.5 text-sm transition-colors disabled:cursor-default ${
+                  presentation.isPublished === value
+                    ? "bg-bg-surface font-semibold text-text-primary shadow-[0_0_0_1px_var(--border-default)]"
+                    : "text-text-secondary hover:text-text-primary"
+                }`}
+              >
+                {pendingVisibility === value && <Spinner size={14} />}
+                {label}
+              </button>
+            ))}
+          </div>
+        </Field>
+      )}
 
-      {isAdmin && <p className="-mt-3 text-[13px] text-text-secondary">Shared presentations go to every teacher, under “From QuizMatter”.</p>}
+      {isAdmin && !isReview && (
+        <p className="-mt-3 text-[13px] text-text-secondary">Shared presentations go to every teacher, under “From QuizMatter”.</p>
+      )}
 
       <Field label="Published by">
-        <p className="truncate text-sm text-text-primary">{publishedBy ?? "—"}</p>
+        <p className="truncate text-sm text-text-primary">{isReview ? "QuizMatter" : (publishedBy ?? "—")}</p>
       </Field>
     </div>
   );

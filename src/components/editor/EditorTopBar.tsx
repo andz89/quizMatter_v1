@@ -7,6 +7,7 @@ import { DETAIL_MAX_LENGTH } from "@/lib/schema";
 import { SelectedElementToolbar } from "./SelectedElementToolbar";
 import { TextFormatToolbar } from "./TextFormatToolbar";
 import { ShapeBoxToolbar } from "./ShapeBoxToolbar";
+import { ReviewControls } from "./ReviewControls";
 import { Spinner } from "@/components/Spinner";
 import { ChevronLeftIcon, PlayIcon, Redo2Icon, Undo2Icon } from "lucide-react";
 
@@ -60,6 +61,7 @@ export function EditorTopBar() {
       </div>
 
       <SaveButton />
+      <ReviewControls />
 
       <button
         type="button"
@@ -76,12 +78,14 @@ export function EditorTopBar() {
 
 /** Asks before leaving when there are unsaved changes (the browser's own "Leave page?" doesn't cover in-app links). */
 function BackToPresentationsLink() {
-  // QuizMatter presentations are made on the admin page, so they go back there.
+  // QuizMatter presentations are made on the admin page, so they go back there. A review goes back to the
+  // presentation's page.
   const fromAdmin = useEditorStore((s) => s.presentation.fromAdmin);
+  const reviewId = useEditorStore((s) => (s.review ? s.presentation.id : null));
   return (
     <Link
-      href={fromAdmin ? "/admin/presentations" : "/"}
-      title={fromAdmin ? "QuizMatter presentations" : "My presentations"}
+      href={reviewId ? `/presentation/${reviewId}` : fromAdmin ? "/admin/presentations" : "/"}
+      title={reviewId ? "Back to the presentation" : fromAdmin ? "QuizMatter presentations" : "My presentations"}
       onClick={(e) => {
         const { presentation, savedPresentation } = useEditorStore.getState();
         if (presentation !== savedPresentation && !confirm("You have unsaved changes. Leave without saving?")) e.preventDefault();
@@ -93,21 +97,36 @@ function BackToPresentationsLink() {
   );
 }
 
-/** Saves the presentation to the database (also Ctrl+S). A dot shows while there are unsaved changes. */
+/**
+ * Saves the presentation to the database (also Ctrl+S). A dot shows while there are unsaved changes. In a review
+ * it saves the reviewer's draft ("Save as draft"), and is gone once the review is submitted.
+ */
 function SaveButton() {
   const savePresentation = useEditorStore((s) => s.savePresentation);
   const saveStatus = useEditorStore((s) => s.saveStatus);
   const hasUnsavedChanges = useEditorStore((s) => s.presentation !== s.savedPresentation);
+  const review = useEditorStore((s) => s.review);
+  if (review?.status === "submitted") return null;
 
   const label =
-    saveStatus === "saving" ? "Saving…" : saveStatus === "error" ? "Couldn't save — retry" : hasUnsavedChanges ? "Save" : "Saved";
+    saveStatus === "saving"
+      ? "Saving…"
+      : saveStatus === "error"
+        ? "Couldn't save — retry"
+        : hasUnsavedChanges
+          ? review
+            ? "Save as draft"
+            : "Save"
+          : review
+            ? "Draft saved"
+            : "Saved";
 
   return (
     <button
       type="button"
       onClick={() => savePresentation()}
       disabled={saveStatus === "saving" || !hasUnsavedChanges}
-      title="Save (Ctrl+S)"
+      title={review ? "Save as draft (Ctrl+S)" : "Save (Ctrl+S)"}
       className="ml-auto flex items-center gap-2 rounded-button border border-border-default px-4 py-2 text-sm font-semibold text-text-primary transition-colors hover:bg-bg-page disabled:hover:bg-transparent"
     >
       {saveStatus === "saving" && <Spinner size={14} />}
