@@ -86,7 +86,8 @@ function Row({ row }: { row: TeacherRow }) {
 
         <div className="flex items-center gap-2">
           {isBusy && <Spinner size={16} />}
-          {!row.ban && reason === null && (
+          {/* Also on banned rows: removing a banned editor ends the review they left open. */}
+          {reason === null && (row.isEditor || !row.ban) && (
             <button type="button" onClick={toggleEditor} disabled={isBusy} className={smallButtonClass}>
               <ShieldCheckIcon size={14} />
               {row.isEditor ? "Remove editor" : "Make editor"}

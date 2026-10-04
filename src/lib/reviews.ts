@@ -35,12 +35,16 @@ export async function saveReviewDraft(presentation: Presentation, baseUpdatedAt:
   return data;
 }
 
-/** Saves my draft with my "Reviewed by" details and sends them to the admins. */
-export async function submitReview(presentation: Presentation, fields: ReviewerFields): Promise<void> {
+/**
+ * Saves my draft with my "Reviewed by" details and sends them to the admins. `baseUpdatedAt`: when the copy being
+ * submitted was saved, so a submit from an older tab is refused instead of replacing newer work.
+ */
+export async function submitReview(presentation: Presentation, fields: ReviewerFields, baseUpdatedAt: number | null): Promise<void> {
   const { error } = await createClient().rpc("submit_review", {
     target_id: presentation.id,
     review_draft: parseDraft(presentation),
     fields: reviewerSchema.parse(fields),
+    base_updated_at: baseUpdatedAt,
   });
   throwIfRefused(error);
 }

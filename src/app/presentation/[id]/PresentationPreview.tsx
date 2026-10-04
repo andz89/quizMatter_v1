@@ -105,6 +105,7 @@ export function PresentationPreview({
     setIsStartingReview(true);
     try {
       await startReview(presentation.id);
+      toast.success("You're reviewing this presentation now. Teachers keep seeing it as it is.");
       // isStartingReview stays true, so the spinner and top line keep showing until the editor opens.
       router.push(`/presentation/${presentation.id}/edit`);
     } catch (error) {

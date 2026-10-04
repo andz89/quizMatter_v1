@@ -79,10 +79,10 @@ function SubmitForm({ initial, onClose }: { initial: ReviewerFields; onClose: ()
     e.preventDefault();
     const parsed = reviewerSchema.safeParse(fields);
     if (!parsed.success) return void toast.error(parsed.error.issues[0].message);
-    const { presentation } = useEditorStore.getState();
+    const { presentation, savedAt } = useEditorStore.getState();
     setIsSending(true);
     try {
-      await submitReview(presentation, parsed.data);
+      await submitReview(presentation, parsed.data, savedAt);
       toast.success("Thanks! QuizMatter will publish this presentation in 1–2 days.");
       // Saved with the submit, so leaving doesn't ask "Leave without saving?".
       useEditorStore.setState({ savedPresentation: presentation, review: { status: "submitted", note: "", fields: parsed.data } });
