@@ -3,27 +3,56 @@
 import { useEffect } from "react";
 import { BanIcon } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { CLICK_FEATURES, pauseFeature, usePausedList, type ClickFeature } from "@/lib/clickLimits";
+import { CLICK_FEATURES, setPausedFeatures, usePausedList, type ClickFeature } from "@/lib/clickLimits";
+
+// While something is paused, how often to ask again, so an admin's Release reaches an open page.
+const RECHECK_MS = 60_000;
+
+/** Asks the database which features are paused for me, and shows exactly those. */
+async function checkPauses() {
+  const supabase = createClient();
+  // getSession reads the login cookie without asking the server: logged-out pages (login) skip the question.
+  const { data } = await supabase.auth.getSession();
+  if (!data.session) return;
+  const { data: rows, error } = await supabase.rpc("my_paused_features");
+  if (error) return;
+  setPausedFeatures(
+    ((rows ?? []) as { feature: string; paused_until: string }[])
+      .filter((row) => row.feature in CLICK_FEATURES)
+      .map((row) => [row.feature as ClickFeature, Date.parse(row.paused_until)]),
+  );
+}
 
 /**
  * The sticky notice at the bottom of the screen while a feature is paused for clicking too fast (see
- * src/lib/clickLimits.ts). It's in the root layout once: when a page first loads it asks the database which features
- * are paused, and after that a refused click (QMBLK) pauses one. It goes away by itself when the pause ends.
+ * src/lib/clickLimits.ts). It's in the root layout once. It asks the database which features are paused when a page
+ * first loads, after logging in, when the teacher comes back to the tab, and every minute while one is paused (an
+ * admin may have released it). A refused click (QMBLK) also pauses one. It goes away by itself when the pause ends.
  */
 export function ClickPauseNotice() {
   const paused = usePausedList();
+  const isPaused = paused.length > 0;
 
   useEffect(() => {
-    const supabase = createClient();
-    // getSession reads the login cookie without asking the server: logged-out pages (login) skip the question.
-    supabase.auth.getSession().then(async ({ data }) => {
-      if (!data.session) return;
-      const { data: rows } = await supabase.rpc("my_paused_features");
-      for (const row of (rows ?? []) as { feature: string; paused_until: string }[]) {
-        if (row.feature in CLICK_FEATURES) pauseFeature(row.feature as ClickFeature, Date.parse(row.paused_until));
-      }
+    const onVisible = () => {
+      if (document.visibilityState === "visible") checkPauses();
+    };
+    checkPauses();
+    const { data: auth } = createClient().auth.onAuthStateChange((event) => {
+      if (event === "SIGNED_IN") checkPauses();
     });
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      auth.subscription.unsubscribe();
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   }, []);
+
+  useEffect(() => {
+    if (!isPaused) return;
+    const timer = setInterval(checkPauses, RECHECK_MS);
+    return () => clearInterval(timer);
+  }, [isPaused]);
 
   if (paused.length === 0) return null;
 

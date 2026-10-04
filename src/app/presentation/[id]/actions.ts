@@ -26,28 +26,24 @@ export async function reportPresentation(
 
 /**
  * Saves (bookmarks) someone else's published presentation to my "Saved" row on the home page, or takes it off
- * with `isSaved` false. The database only takes presentations I can see that aren't mine, MAX_SAVED at most, and
- * 30 saves or removals a minute (QM429). Clicking too fast pauses saving for a while ("paused", with `pausedUntil`;
- * see the click_limits migration).
+ * with `isSaved` false. The database (set_saved) only takes presentations I can see that aren't mine, MAX_SAVED at
+ * most. Clicking too fast pauses saving for a while ("paused", with `pausedUntil`; see the click_limits migration).
  */
 export async function setPresentationSaved(
   presentationId: string,
   isSaved: boolean,
-): Promise<{ status: "done" | "limit" | "tooFast" | "banned" | "paused" | "failed"; pausedUntil?: number }> {
+): Promise<{ status: "done" | "limit" | "banned" | "paused" | "failed"; pausedUntil?: number }> {
   // Checked with zod before it's saved (see CLAUDE.md, "Saving Data").
   const saved = savedPresentationSchema.safeParse({ presentation_id: presentationId });
   if (!saved.success) return { status: "failed" };
 
   const supabase = await createClient();
-  const { error } = isSaved
-    ? await supabase.from("saved_presentations").insert(saved.data)
-    : await supabase.from("saved_presentations").delete().eq("presentation_id", saved.data.presentation_id);
-  // 23505 = already saved (e.g. from another tab), which is what was asked for.
-  if (!error || error.code === "23505") return { status: "done" };
+  const { data, error } = await supabase.rpc("set_saved", {
+    presentation_id: saved.data.presentation_id,
+    is_saved: isSaved,
+  });
   const pausedUntil = pausedUntilFromError(error);
   if (pausedUntil) return { status: "paused", pausedUntil };
-  if (error.code === "QMSAV") return { status: "limit" };
-  if (error.code === "QM429") return { status: "tooFast" };
-  if (error.code === "QMBAN") return { status: "banned" };
-  return { status: "failed" };
+  if (error) return { status: "failed" };
+  return data === "done" || data === "limit" || data === "banned" ? { status: data } : { status: "failed" };
 }

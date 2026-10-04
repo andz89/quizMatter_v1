@@ -1,6 +1,19 @@
 # Workflow Preferences
 
-Whenever a requested feature or adjustment would change the structure or behavior of the app (new data flow, new component/module, schema change, new dependency, altered logic), do NOT write code first. First reply with a plan: describe the structure/architecture you intend to build, walk through the logic in detail, and explicitly call out any external or internal library you plan to use. Wait for the user to review and approve the plan before implementing.
+**On every user prompt, first ask:** "Use Superpowers, or the custom plan-first note?" (use AskUserQuestion with those two options). Do this before invoking any skill, Superpowers ones included, and before doing any work. Then follow the user's answer:
+
+- **Superpowers:** let Superpowers' skills (brainstorming, writing-plans, etc.) handle the work, and ignore the plan-first rule below.
+- **Custom note:** don't use any Superpowers skill for this prompt; follow the plan-first rule below.
+
+If the user already said which one in the prompt (e.g. "don't use superpowers", "use superpowers"), don't ask; just follow it.
+
+The plan-first rule: whenever a requested feature or adjustment would change the structure or behavior of the app (new data flow, new component/module, schema change, new dependency, altered logic), do NOT write code first. First reply with a plan: describe the structure/architecture you intend to build, walk through the logic in detail, and explicitly call out any external or internal library you plan to use. Wait for the user to review and approve the plan before implementing.
+
+After implementing, do a checking step before saying the work is done:
+
+1. Run `npx tsc --noEmit` and `npm run lint`, and fix any errors in the files you changed.
+2. Read your changes again (`git diff`) next to the approved plan. Make sure every part of the plan is done, nothing extra was added, and the rules in this file were followed (zod before saving, the one Spinner, the design system, npm 10 for packages, etc.).
+3. Tell the user what you checked and what passed or failed. Leave live testing in the browser to the user.
 
 # Installing Packages (npm version)
 

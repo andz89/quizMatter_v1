@@ -17,7 +17,7 @@ const sendBackSchema = z.object({ id: idSchema, note: reviewNoteSchema });
  */
 export async function setShared(id: string, isShared: boolean): Promise<boolean> {
   const parsed = sharedSchema.safeParse({ id, isShared });
-  if (!parsed.success) return false;
+  if (!parsed.success || !(await getAccount()).isAdmin) return false;
 
   const supabase = await createClient();
   const { data, error } = await supabase

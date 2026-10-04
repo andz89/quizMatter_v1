@@ -186,26 +186,61 @@ export async function removeMyPhoto(src: string) {
 // Defined in schema.ts, so the admin page (a server page) can use them without this file's editor code.
 export type { PhotoCategory, SharedPhoto, SharedPhotoWithInfo } from "./schema";
 
+// The Photos panel's first answers (categories, admin check, first page of photos), kept in memory until the page
+// reloads, so opening the panel again doesn't ask the database again. Cleared on log out (another teacher may log in).
+const remembered = new Map<string, Promise<unknown>>();
+let isWatchingLogOut = false;
+
+/**
+ * `load()`'s answer, kept under `key` (see `remembered`). The request itself is kept, so two calls at once share
+ * one request (e.g. React runs effects twice while developing). A failed one is forgotten, to try again next time.
+ */
+function remember<T>(key: string, load: () => Promise<T>): Promise<T> {
+  if (!isWatchingLogOut) {
+    isWatchingLogOut = true;
+    createClient().auth.onAuthStateChange((event) => {
+      if (event === "SIGNED_OUT") remembered.clear();
+    });
+  }
+  let saved = remembered.get(key) as Promise<T> | undefined;
+  if (!saved) {
+    saved = load().catch((error) => {
+      remembered.delete(key);
+      throw error;
+    });
+    remembered.set(key, saved);
+  }
+  return saved;
+}
+
 /** The categories that have at least one shared photo, by name (for the Photos panel's chips). Throws if they can't be loaded. */
-export async function loadPhotoCategoriesInUse(): Promise<PhotoCategory[]> {
-  const supabase = createClient();
-  const [categories, counts] = await Promise.all([
-    supabase.from("photo_categories").select("id, name").order("name"),
-    supabase.from("shared_photo_counts").select("category_id, photos, waiting"),
-  ]);
-  if (categories.error) throw categories.error;
-  if (counts.error) throw counts.error;
-  // Photos waiting for review don't count: the panel doesn't show them (admins see every row).
-  const inUse = new Set(counts.data.filter((row) => row.photos > row.waiting).map((row) => row.category_id));
-  return categories.data.filter((c) => inUse.has(c.id));
+export function loadPhotoCategoriesInUse(): Promise<PhotoCategory[]> {
+  return remember("categories", async () => {
+    const supabase = createClient();
+    const [categories, counts] = await Promise.all([
+      supabase.from("photo_categories").select("id, name").order("name"),
+      supabase.from("shared_photo_counts").select("category_id, photos, waiting"),
+    ]);
+    if (categories.error) throw categories.error;
+    if (counts.error) throw counts.error;
+    // Photos waiting for review don't count: the panel doesn't show them (admins see every row).
+    const inUse = new Set(counts.data.filter((row) => row.photos > row.waiting).map((row) => row.category_id));
+    return categories.data.filter((c) => inUse.has(c.id));
+  });
 }
 
 /**
  * One page of shared photos (SHARED_PHOTOS_PER_PAGE of them, newest first), starting at photo number `from`.
  * Every word of `search` must be in the photo's name, description, tags or category name, in any case.
- * `categoryId` (if given) keeps only that category. Throws if they can't be loaded.
+ * `categoryId` (if given) keeps only that category. The first page with no search or category is remembered
+ * (it's what the panel opens with). Throws if they can't be loaded.
  */
-export async function loadSharedPhotoPage(search: string, categoryId: string | null, from: number): Promise<SharedPhotoWithInfo[]> {
+export function loadSharedPhotoPage(search: string, categoryId: string | null, from: number): Promise<SharedPhotoWithInfo[]> {
+  const load = () => fetchSharedPhotoPage(search, categoryId, from);
+  return !search && !categoryId && from === 0 ? remember("firstPage", load) : load();
+}
+
+async function fetchSharedPhotoPage(search: string, categoryId: string | null, from: number): Promise<SharedPhotoWithInfo[]> {
   // Only approved photos: the ones waiting for review are only on Admin → Photos (teachers can't read them anyway).
   let query = createClient().from("shared_photos_search").select(SHARED_PHOTO_COLUMNS).eq("approved", true);
   for (const word of search.split(/\s+/).filter(Boolean)) {
@@ -223,9 +258,12 @@ export async function loadSharedPhotoPage(search: string, categoryId: string | n
 }
 
 /** Whether the logged-in user is an admin (can share photos and change categories). false if unsure. */
-export async function checkIsAdmin(): Promise<boolean> {
-  const { data } = await createClient().rpc("is_admin");
-  return data === true;
+export function checkIsAdmin(): Promise<boolean> {
+  return remember("isAdmin", async () => {
+    const { data, error } = await createClient().rpc("is_admin");
+    if (error) throw error;
+    return data === true;
+  }).catch(() => false);
 }
 
 /** The category with this name (any case), made first if it's new. Shows what went wrong and returns null if it fails. */

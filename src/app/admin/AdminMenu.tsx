@@ -10,8 +10,13 @@ const ITEMS = [
   { href: "/admin/presentations", label: "Presentations" },
   { href: "/admin/reports", label: "Reports" },
   { href: "/admin/teachers", label: "Teachers" },
+  { href: "/admin/safety", label: "Safety" },
   { href: "/admin/cleanup", label: "Photo cleanup" },
 ];
+
+// "/admin" is only its own page; the others also cover the pages inside them (e.g. Safety → History).
+const isCurrent = (pathname: string | null, href: string) =>
+  pathname === href || (href !== "/admin" && !!pathname?.startsWith(`${href}/`));
 
 /** The admin pages' menu, a row of tabs above the page. The page you're on is highlighted. */
 export function AdminMenu() {
@@ -24,7 +29,7 @@ export function AdminMenu() {
           key={href}
           href={href}
           className={`shrink-0 whitespace-nowrap rounded-button px-3 py-2 text-sm transition-colors ${
-            pathname === href
+            isCurrent(pathname, href)
               ? "bg-bg-surface font-semibold text-text-primary shadow-[0_0_0_1px_var(--border-default)]"
               : "text-text-secondary hover:text-text-primary"
           }`}

@@ -30,6 +30,14 @@ export function pauseFeature(feature: ClickFeature, until: number) {
   }, until - Date.now());
 }
 
+/** Replaces every pause with what the database says now (`until` in Unix ms), e.g. after an admin's Release. */
+export function setPausedFeatures(paused: [ClickFeature, number][]) {
+  usePausedFeatures.setState(
+    Object.fromEntries((Object.keys(CLICK_FEATURES) as ClickFeature[]).map((feature) => [feature, undefined])),
+  );
+  for (const [feature, until] of paused) pauseFeature(feature, until);
+}
+
 /** True while the feature is paused: its buttons are greyed out. */
 export function useIsPaused(feature: ClickFeature): boolean {
   return usePausedFeatures((paused) => paused[feature] !== undefined);

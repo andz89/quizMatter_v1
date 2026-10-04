@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import { ClipboardCheckIcon } from "lucide-react";
 import { LinkPending } from "@/components/LinkPending";
 import { getAccount } from "@/lib/account";
@@ -12,11 +13,13 @@ import type { ApprovedReviewer } from "./ReviewersModal";
 
 /**
  * Admin → Presentations: the QuizMatter presentations I made. Shared ones go to every teacher's home page
- * ("From QuizMatter"); drafts only I see. (../layout.tsx checks the user is an admin.)
+ * ("From QuizMatter"); drafts only I see.
  */
 export default async function AdminPresentationsPage() {
-  const supabase = await createClient();
   const account = await getAccount();
+  // The layout checks too, but a layout doesn't run again on every request, so the page checks next to its data.
+  if (!account.isAdmin) notFound();
+  const supabase = await createClient();
   const [drafts, { data, error }, reviews, reviewers] = await Promise.all([
     listDrafts(account.id),
     supabase

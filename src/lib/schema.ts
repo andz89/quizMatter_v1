@@ -29,8 +29,13 @@ export const TOO_MANY_SLIDES_MESSAGE = `A presentation can have ${MAX_SLIDES} sl
 export const MAX_PRESENTATIONS = 50;
 
 // The most presentations a teacher can save (the "Saved" row, against spam). Same as check_saved_limit in
-// supabase/migrations/20261012000000_saved_limits.sql.
-export const MAX_SAVED = 500;
+// supabase/migrations/20261015000000_lower_saved_limit.sql.
+export const MAX_SAVED = 50;
+
+// The most saves of each kind (presentations, photos) a teacher can make in one minute (QM429; admins aren't
+// counted). Same as count_write in supabase/migrations/20261012000000_saved_limits.sql. Bookmarks use their own click
+// limit instead (20261016000000_bookmarks_click_limit_only.sql). Shown on Admin → Safety.
+export const WRITES_PER_MINUTE = 30;
 
 // Size limits for the rest of the slide content. They're far above what the editor or Claude ever make (Claude's
 // drawings are at most 20,000 characters), so they only stop broken or huge data. Like MAX_SLIDES, lowering one

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Bricolage_Grotesque, Lexend } from "next/font/google";
 import { Toaster } from "sonner";
 import { ClickPauseNotice } from "@/components/ClickPauseNotice";
+import { DevRequestCounter } from "@/components/DevRequestCounter";
 import "./globals.css";
 
 // Lexend for text (made for easy reading, good for young readers); Bricolage Grotesque for headings.
@@ -27,6 +28,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         {children}
         {/* A feature paused for clicking too fast (e.g. bookmarks): a notice at the bottom. */}
         <ClickPauseNotice />
+        {/* On localhost only: how many requests the page sends (bottom-left). */}
+        <DevRequestCounter />
         {/* Pop-up messages (toast() from "sonner"), styled like the app's cards. */}
         <Toaster
           position="bottom-center"

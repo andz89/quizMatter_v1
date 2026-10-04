@@ -41,9 +41,11 @@ export function PhotosPanel() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [closePhotosPanel]);
 
+  // Loaded the first time the "My Photos" tab is opened, not with the panel.
+  const isMyPhotosTab = tab === "My Photos";
   useEffect(() => {
-    loadMyPhotos().then(setMyPhotos, () => setMyPhotos("failed"));
-  }, []);
+    if (isMyPhotosTab && myPhotos === null) loadMyPhotos().then(setMyPhotos, () => setMyPhotos("failed"));
+  }, [isMyPhotosTab, myPhotos]);
 
   // A new upload goes to the top of the list (or moves there, if it was already in it).
   const showAtTop = (photo: Photo | null) => {

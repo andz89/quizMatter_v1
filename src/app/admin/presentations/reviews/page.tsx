@@ -1,3 +1,5 @@
+import { notFound } from "next/navigation";
+import { getAccount } from "@/lib/account";
 import Link from "next/link";
 import { ChevronLeftIcon } from "lucide-react";
 import { LinkPending } from "@/components/LinkPending";
@@ -27,6 +29,8 @@ const STATUS = {
  * stopped answering). (../../layout.tsx checks the user is an admin.)
  */
 export default async function AdminReviewsPage() {
+  // The layout checks too, but a layout doesn't run again on every request, so the page checks next to its data.
+  if (!(await getAccount()).isAdmin) notFound();
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("admin_reviews");
   if (error) throw error;

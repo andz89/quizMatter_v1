@@ -13,7 +13,6 @@ import { setPresentationSaved } from "./presentation/[id]/actions";
 // What to tell the user when saving failed (also used by the preview page's Save button).
 export const SAVE_ERRORS = {
   limit: `You have ${MAX_SAVED} saved presentations, the most allowed. Remove some to save new ones.`,
-  tooFast: REFUSALS.QM429,
   banned: REFUSALS.QMBAN,
   failed: "Couldn't save. Please check your internet and try again.",
 } as const;

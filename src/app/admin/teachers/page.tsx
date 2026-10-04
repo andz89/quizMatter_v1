@@ -1,3 +1,5 @@
+import { notFound } from "next/navigation";
+import { getAccount } from "@/lib/account";
 import type { User } from "@supabase/supabase-js";
 import { joinParts, timeAgo } from "@/lib/format";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -7,9 +9,11 @@ import { AdminTeachers, type TeacherRow } from "./AdminTeachers";
 /**
  * Admin → Teachers: everyone who can log in, to ban those who misuse QuizMatter (and unban them), and to make
  * editors (they review QuizMatter presentations).
- * The list of accounts needs the secret key. (../layout.tsx checks the user is an admin.)
+ * The list of accounts needs the secret key.
  */
 export default async function AdminTeachersPage() {
+  // The layout checks too, but a layout doesn't run again on every request, so the page checks next to its data.
+  if (!(await getAccount()).isAdmin) notFound();
   const admin = createAdminClient();
   if (!admin) {
     return (

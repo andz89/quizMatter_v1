@@ -1,3 +1,5 @@
+import { notFound } from "next/navigation";
+import { getAccount } from "@/lib/account";
 import { nextCleanupRun } from "@/lib/cleanupPhotos";
 import { formatUtcDay } from "@/lib/format";
 import { createClient } from "@/lib/supabase/server";
@@ -6,9 +8,10 @@ import { CleanupList } from "./CleanupList";
 /**
  * Admin → Photo cleanup: when the weekly cleanup runs next, and a button to find the photo files it will
  * delete (see actions.ts). The search only runs when asked, so opening the page stays quick.
- * (../layout.tsx checks the user is an admin.)
  */
 export default async function AdminCleanupPage() {
+  // The layout checks too, but a layout doesn't run again on every request, so the page checks next to its data.
+  if (!(await getAccount()).isAdmin) notFound();
   const supabase = await createClient();
   const { data: categories, error } = await supabase.from("photo_categories").select("id, name").order("name");
   if (error) throw error;

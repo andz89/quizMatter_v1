@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { ChevronLeftIcon } from "lucide-react";
 import { LinkPending } from "@/components/LinkPending";
 import { PeopleArtGate } from "@/components/PeopleArtGate";
+import { getAccount } from "@/lib/account";
 import { PresentDraftButton } from "@/components/presentation/PresentDraftButton";
 import { ReviewDraftView } from "@/components/presentation/ReviewDraftView";
 import { joinParts, slideCountLabel } from "@/lib/format";
@@ -11,8 +12,10 @@ import { presentationSchema, type ReviewerFields } from "@/lib/schema";
 import { createClient } from "@/lib/supabase/server";
 import { ReviewDecision } from "./ReviewDecision";
 
-/** A submitted review: the reviewer's version and details, with Present, Send back and Publish. (The layout checks admins.) */
+/** A submitted review: the reviewer's version and details, with Present, Send back and Publish. */
 export default async function AdminReviewPage({ params }: PageProps<"/admin/presentations/reviews/[id]">) {
+  // The layout checks too, but a layout doesn't run again on every request, so the page checks next to its data.
+  if (!(await getAccount()).isAdmin) notFound();
   const { id } = await params;
   const supabase = await createClient();
   const { data, error } = await supabase

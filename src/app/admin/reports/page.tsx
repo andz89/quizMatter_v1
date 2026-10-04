@@ -1,3 +1,5 @@
+import { notFound } from "next/navigation";
+import { getAccount } from "@/lib/account";
 import { joinParts, timeAgo } from "@/lib/format";
 import { loadPublisherNames } from "@/lib/publishers";
 import { REPORT_REASON_LABELS, type ReportReason } from "@/lib/schema";
@@ -19,6 +21,8 @@ type HiddenRecord = { id: string; title: string; owner_id: string; hidden_at: st
  * (../layout.tsx checks the user is an admin.)
  */
 export default async function AdminReportsPage() {
+  // The layout checks too, but a layout doesn't run again on every request, so the page checks next to its data.
+  if (!(await getAccount()).isAdmin) notFound();
   const supabase = await createClient();
   const [reports, hidden] = await Promise.all([
     supabase

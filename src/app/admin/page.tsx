@@ -1,4 +1,5 @@
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
+import { getAccount } from "@/lib/account";
 import { SHARED_PHOTO_COLUMNS, toSharedPhoto } from "@/lib/schema";
 import { contains, withinSince } from "@/lib/search";
 import { createClient } from "@/lib/supabase/server";
@@ -12,6 +13,8 @@ type Supabase = Awaited<ReturnType<typeof createClient>>;
  * which ones, and only one page of them is loaded. (layout.tsx checks the user is an admin.)
  */
 export default async function AdminPhotosPage({ searchParams }: PageProps<"/admin">) {
+  // The layout checks too, but a layout doesn't run again on every request, so the page checks next to its data.
+  if (!(await getAccount()).isAdmin) notFound();
   const search = parsePhotoSearch(await searchParams);
   const supabase = await createClient();
   const first = (search.page - 1) * PHOTOS_PER_PAGE;
