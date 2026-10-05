@@ -4,8 +4,10 @@ import type { SvgElement } from "./schema";
 import { DEFAULT_TEXT_COLOR } from "./richText";
 import { KIDS, KID_VIEWBOX } from "./kids";
 import { CLIPART_KIDS, drawPeopleArt, SCHOOL_BOY } from "./peopleArt";
+import { FLAGS } from "./flags";
+import { BORDER_WIDTH_DEFAULT } from "./constants";
 
-export type ElementCategory = "shape" | "line" | "arrow" | "solid" | "icon" | "time" | "math" | "decorative" | "cloud" | "number" | "letter" | "symbol" | "emoji" | "music" | "fruit" | "kitchen" | "book" | "vehicle" | "person" | "animal" | "space" | "sport" | "tree" | "leaf" | "background" | "text";
+export type ElementCategory = "shape" | "line" | "arrow" | "solid" | "icon" | "time" | "math" | "decorative" | "blob" | "ribbon" | "cloud" | "number" | "letter" | "symbol" | "emoji" | "music" | "fruit" | "kitchen" | "book" | "vehicle" | "person" | "animal" | "space" | "sport" | "tree" | "leaf" | "flag" | "background" | "text";
 
 // The per-element settings some assets draw from (3D angle, clock time, number line numbers).
 // A whole SvgElement fits here, so callers can just pass the element.
@@ -27,6 +29,8 @@ export type RenderSettings = Partial<Pick<
   | "flipX"
   | "flipY"
   | "cornerRadius"
+  | "borderColor"
+  | "borderWidth"
   | "width"
   | "height"
 >>;
@@ -48,7 +52,7 @@ interface ElementAsset {
   isLine?: boolean;
   // Set for the square and rectangle; they get side and top/bottom handles that make them wider or taller.
   stretchX?: boolean;
-  // Set for the square and rectangle; only they use `cornerRadius`.
+  // Set for the square and rectangle; only they use `cornerRadius`, `borderColor` and `borderWidth`.
   roundCorners?: boolean;
   // Set for number lines; only they use `numberLine`. `centered` = 0 always sits in the middle.
   numberLine?: { ticks: number; centered: boolean };
@@ -705,12 +709,29 @@ function boxViewBox({ width, height }: RenderSettings, fallbackWidth: number, fa
   return width && height ? `0 0 ${width} ${height}` : `0 0 ${fallbackWidth} ${fallbackHeight}`;
 }
 
-function renderBoxRect(color: string, { width, height, cornerRadius }: RenderSettings, fallbackWidth: number, fallbackHeight: number) {
-  const w = Math.max(0, (width && height ? width : fallbackWidth) - BOX_GAP * 2);
-  const h = Math.max(0, (width && height ? height : fallbackHeight) - BOX_GAP * 2);
+function renderBoxRect(
+  color: string,
+  { width, height, cornerRadius, borderColor, borderWidth = BORDER_WIDTH_DEFAULT }: RenderSettings,
+  fallbackWidth: number,
+  fallbackHeight: number,
+) {
+  // A border is drawn inside the box (half its thickness in from each edge), so it never gets cut off.
+  const inset = BOX_GAP + (borderColor ? borderWidth / 2 : 0);
+  const w = Math.max(0, (width && height ? width : fallbackWidth) - inset * 2);
+  const h = Math.max(0, (width && height ? height : fallbackHeight) - inset * 2);
   // cornerRadius is a percent of the shorter side, so the corners look the same at any size.
   const radius = (Math.min(w, h) * (cornerRadius ?? 0)) / 100;
-  return <rect x={BOX_GAP} y={BOX_GAP} width={w} height={h} rx={radius} fill={color} />;
+  return (
+    <rect
+      x={inset}
+      y={inset}
+      width={w}
+      height={h}
+      rx={radius}
+      fill={color}
+      {...(borderColor && { stroke: borderColor, strokeWidth: borderWidth })}
+    />
+  );
 }
 
 // Block arrow pointing right; the other directions are this one turned around the center.
@@ -994,6 +1015,57 @@ const STARBURST_POINTS = Array.from({ length: 32 }, (_, i) => {
   const radius = i % 2 === 0 ? 46 : 34;
   return `${(50 + radius * Math.cos(angle)).toFixed(1)},${(50 + radius * Math.sin(angle)).toFixed(1)}`;
 }).join(" ");
+
+// Blobs: soft, round shapes, each with its own bright starting color.
+const BLOBS = [
+  { id: "blob-round", label: "Round Blob", color: "#E85FA5", d: "M48 10C66 8 74 22 82 30C92 40 92 58 84 70C76 82 60 92 44 88C28 84 12 76 10 58C8 40 20 30 28 22C34 16 40 11 48 10Z" },
+  { id: "blob-peanut", label: "Peanut Blob", color: "#B866FF", d: "M20 34C30 26 42 32 52 30C64 28 76 22 86 30C96 38 94 56 84 64C74 72 62 66 52 66C40 66 30 74 18 68C6 62 8 42 20 34Z" },
+  { id: "blob-bean", label: "Bean Blob", color: "#EF5A6F", d: "M30 12C44 4 64 6 70 20C74 30 70 40 74 52C80 64 84 76 72 86C58 96 34 94 24 82C16 72 22 60 24 48C26 36 18 20 30 12Z" },
+  { id: "blob-stick", label: "Curved Blob", color: "#F37A45", d: "M38 8C46 4 52 10 54 18C58 34 66 48 64 66C62 80 56 92 44 92C34 92 30 82 34 72C38 60 40 46 36 32C34 22 30 12 38 8Z" },
+  { id: "blob-pear", label: "Pear Blob", color: "#5866F5", d: "M42 12C58 6 76 16 80 34C84 50 78 60 64 68C52 74 46 86 32 88C18 90 12 76 16 64C20 52 22 42 22 32C22 22 30 16 42 12Z" },
+  { id: "blob-plump", label: "Plump Blob", color: "#E9E333", d: "M44 10C58 8 64 20 72 26C84 34 92 46 86 62C80 78 62 84 46 84C30 84 14 78 12 62C10 48 22 42 24 30C26 18 32 12 44 10Z" },
+  { id: "blob-slant", label: "Slanted Blob", color: "#5AABEC", d: "M70 10C86 10 94 24 90 38C86 52 70 54 62 62C52 72 48 88 32 90C16 92 6 78 10 64C14 50 30 46 40 38C50 30 54 10 70 10Z" },
+  { id: "blob-loaf", label: "Loaf Blob", color: "#2D35AD", d: "M24 28C36 26 48 14 64 14C82 14 92 28 90 46C88 64 82 76 60 78C42 80 26 80 16 72C6 64 8 50 12 40C14 32 18 29 24 28Z" },
+  { id: "blob-square", label: "Square Blob", color: "#EDAD3E", d: "M22 16C36 10 50 18 64 14C78 10 84 22 82 34C80 46 86 56 84 70C82 84 70 88 56 86C42 84 30 90 18 84C8 78 14 64 14 52C14 40 10 22 22 16Z" },
+  { id: "blob-leaf", label: "Leafy Blob", color: "#59DDB4", d: "M48 16C60 6 80 10 84 26C88 38 80 48 84 60C88 74 80 90 64 88C50 86 42 92 28 86C14 80 8 66 16 54C24 44 36 26 48 16Z" },
+  { id: "blob-flat", label: "Flat Blob", color: "#F6A7B2", d: "M18 40C30 28 52 30 68 30C84 30 94 44 92 58C90 70 82 76 66 74C50 72 38 76 24 72C10 68 8 50 18 40Z" },
+  { id: "blob-wobbly", label: "Wobbly Blob", color: "#14B8A6", d: "M50 8C60 8 62 18 72 20C84 22 92 32 88 44C84 54 92 62 86 74C80 86 66 84 56 90C46 96 36 88 26 84C14 80 8 68 12 56C16 46 8 36 14 26C20 16 32 18 40 12C44 10 46 8 50 8Z" },
+];
+
+// Ribbon back parts (tails, folds, rolls): the element's color with a see-through black layer on top,
+// so they are always a darker shade of whatever color the teacher picks.
+function ribbonShade(color: string, d: string, darkness = 0.3) {
+  return (
+    <>
+      <path d={d} fill={color} />
+      <path d={d} fill="#000000" opacity={darkness} />
+    </>
+  );
+}
+
+// Wide ribbons are drawn in a 2:1 box so their long band isn't squeezed into a square.
+const RIBBON_WIDE = { viewBox: "0 0 200 100", defaultSize: { width: 300, height: 150 } };
+
+// Hanging tabs share the dark roll at the top.
+const renderHangingTab = (color: string, body: string) => (
+  <>
+    <path d={body} fill={color} />
+    {ribbonShade(color, "M30 6H70A5 5 0 0 1 70 16H30A5 5 0 0 1 30 6Z", 0.35)}
+  </>
+);
+
+// Seal: a 20-point star with a soft white ring inside.
+const SEAL_POINTS = Array.from({ length: 40 }, (_, i) => {
+  const angle = (i / 40) * Math.PI * 2 - Math.PI / 2;
+  const radius = i % 2 === 0 ? 46 : 39;
+  return `${(50 + radius * Math.cos(angle)).toFixed(1)},${(50 + radius * Math.sin(angle)).toFixed(1)}`;
+}).join(" ");
+
+// Scallop badge: 16 small circles around a big one.
+const SCALLOP_BUMPS = Array.from({ length: 16 }, (_, i) => {
+  const angle = (i / 16) * Math.PI * 2;
+  return [50 + 36 * Math.cos(angle), 50 + 36 * Math.sin(angle)];
+});
 
 // Small heart drawn in a 20×20 box, placed and scaled by the "Hearts" asset.
 const SMALL_HEART_PATH = "M10 18C2 12 0 7 3 4C6 1 9 2 10 5C11 2 14 1 17 4C20 7 18 12 10 18Z";
@@ -2177,6 +2249,243 @@ const ASSETS: ElementAsset[] = [
         strokeLinecap="round"
       />
     ),
+  },
+
+  // Blobs
+  ...BLOBS.map(({ id, label, color, d }) => ({
+    id,
+    category: "blob" as const,
+    label,
+    defaultColor: color,
+    render: (fill: string) => <path d={d} fill={fill} />,
+  })),
+
+  // Ribbons
+  {
+    id: "ribbon-banner",
+    category: "ribbon",
+    label: "Banner Ribbon",
+    defaultColor: "#6FA552",
+    ...RIBBON_WIDE,
+    render: (color) => (
+      <>
+        {ribbonShade(color, "M4,40 40,40 40,72 4,72 16,56Z")}
+        {ribbonShade(color, "M196,40 160,40 160,72 196,72 184,56Z")}
+        {ribbonShade(color, "M28,64 40,64 40,72Z", 0.5)}
+        {ribbonShade(color, "M172,64 160,64 160,72Z", 0.5)}
+        <rect x="28" y="28" width="144" height="36" fill={color} />
+      </>
+    ),
+  },
+  {
+    id: "ribbon-arch",
+    category: "ribbon",
+    label: "Arched Ribbon",
+    defaultColor: "#6B3DF5",
+    ...RIBBON_WIDE,
+    render: (color) => (
+      <>
+        {ribbonShade(color, "M4,56 40,52 40,84 4,88 16,72Z")}
+        {ribbonShade(color, "M196,56 160,52 160,84 196,88 184,72Z")}
+        <path d="M30 44Q100 14 170 44V74Q100 44 30 74Z" fill={color} />
+      </>
+    ),
+  },
+  {
+    id: "ribbon-smile",
+    category: "ribbon",
+    label: "Smile Ribbon",
+    defaultColor: "#FF5A5F",
+    ...RIBBON_WIDE,
+    render: (color) => (
+      <>
+        {ribbonShade(color, "M4,22 40,26 40,58 4,54 16,38Z")}
+        {ribbonShade(color, "M196,22 160,26 160,58 196,54 184,38Z")}
+        <path d="M30 30Q100 60 170 30V60Q100 90 30 60Z" fill={color} />
+      </>
+    ),
+  },
+  {
+    id: "ribbon-wave",
+    category: "ribbon",
+    label: "Wavy Ribbon",
+    defaultColor: "#0EA5E9",
+    ...RIBBON_WIDE,
+    render: (color) => (
+      <>
+        {ribbonShade(color, "M4,48 38,46 38,78 4,80 16,64Z")}
+        {ribbonShade(color, "M196,48 162,46 162,78 196,80 184,64Z")}
+        <path d="M28 40C60 20 80 60 100 44C120 28 140 60 172 40V70C140 90 120 58 100 74C80 90 60 50 28 70Z" fill={color} />
+      </>
+    ),
+  },
+  {
+    id: "ribbon-rounded",
+    category: "ribbon",
+    label: "Rounded Banner",
+    defaultColor: "#F59E0B",
+    ...RIBBON_WIDE,
+    render: (color) => (
+      <>
+        {ribbonShade(color, "M4,40 42,40 42,64 4,64 16,52Z")}
+        {ribbonShade(color, "M196,40 158,40 158,64 196,64 184,52Z")}
+        <path d="M34 30Q100 10 166 30V74Q100 94 34 74Z" fill={color} />
+      </>
+    ),
+  },
+  {
+    id: "ribbon-strip",
+    category: "ribbon",
+    label: "Ribbon Strip",
+    defaultColor: "#EC4899",
+    ...RIBBON_WIDE,
+    render: (color) => <polygon points="6,32 194,32 180,50 194,68 6,68 20,50" fill={color} />,
+  },
+  {
+    id: "ribbon-arrow",
+    category: "ribbon",
+    label: "Arrow Ribbon",
+    defaultColor: "#14B8A6",
+    ...RIBBON_WIDE,
+    render: (color) => <polygon points="6,32 176,32 194,50 176,68 6,68 20,50" fill={color} />,
+  },
+  {
+    id: "ribbon-label",
+    category: "ribbon",
+    label: "Label Ribbon",
+    defaultColor: "#6366F1",
+    ...RIBBON_WIDE,
+    render: (color) => (
+      <>
+        {ribbonShade(color, "M6,40 20,34 20,66 6,72Z", 0.35)}
+        <path d="M20 34H164A16 16 0 0 1 164 66H20Z" fill={color} />
+      </>
+    ),
+  },
+  {
+    id: "ribbon-hanging-tab",
+    category: "ribbon",
+    label: "Hanging Tab",
+    defaultColor: "#22C55E",
+    render: (color) => renderHangingTab(color, "M32 12H68V92H32Z"),
+  },
+  {
+    id: "ribbon-bookmark",
+    category: "ribbon",
+    label: "Bookmark Ribbon",
+    defaultColor: "#EF4444",
+    render: (color) => renderHangingTab(color, "M32 12H68V92L50 76L32 92Z"),
+  },
+  {
+    id: "ribbon-round-tab",
+    category: "ribbon",
+    label: "Round Tab",
+    defaultColor: "#A855F7",
+    render: (color) => renderHangingTab(color, "M32 12H68V74A18 18 0 0 1 32 74Z"),
+  },
+  {
+    id: "ribbon-pointed-tab",
+    category: "ribbon",
+    label: "Pointed Tab",
+    defaultColor: "#F97316",
+    render: (color) => renderHangingTab(color, "M32 12H68V76L50 94L32 76Z"),
+  },
+  {
+    id: "ribbon-corner",
+    category: "ribbon",
+    label: "Corner Ribbon",
+    defaultColor: "#3B82F6",
+    render: (color) => (
+      <>
+        {ribbonShade(color, "M52,8 74,8 74,0Z", 0.45)}
+        {ribbonShade(color, "M8,52 8,74 0,74Z", 0.45)}
+        <polygon points="8,52 52,8 74,8 8,74" fill={color} />
+      </>
+    ),
+  },
+  {
+    id: "ribbon-sash",
+    category: "ribbon",
+    label: "Sash Ribbon",
+    defaultColor: "#E11D48",
+    render: (color) => <polygon points="-4,38 104,38 96,50 104,62 -4,62 4,50" fill={color} transform="rotate(-45 50 50)" />,
+  },
+  {
+    id: "ribbon-seal",
+    category: "ribbon",
+    label: "Seal",
+    defaultColor: "#FFC233",
+    render: (color) => (
+      <>
+        <polygon points={SEAL_POINTS} fill={color} />
+        <circle cx="50" cy="50" r="30" fill="none" stroke="#FFFFFF" strokeWidth="2.5" opacity="0.7" />
+      </>
+    ),
+  },
+  {
+    id: "ribbon-scallop",
+    category: "ribbon",
+    label: "Scallop Badge",
+    defaultColor: "#10B981",
+    render: (color) => (
+      <>
+        {SCALLOP_BUMPS.map(([cx, cy]) => (
+          <circle key={`${cx},${cy}`} cx={cx} cy={cy} r="10" fill={color} />
+        ))}
+        <circle cx="50" cy="50" r="38" fill={color} />
+      </>
+    ),
+  },
+  {
+    id: "ribbon-hexagon",
+    category: "ribbon",
+    label: "Hexagon Badge",
+    defaultColor: "#8B5CF6",
+    render: (color) => (
+      <polygon points="50,8 86,29 86,71 50,92 14,71 14,29" fill={color} stroke={color} strokeWidth="8" strokeLinejoin="round" />
+    ),
+  },
+  {
+    id: "ribbon-peel",
+    category: "ribbon",
+    label: "Peel Sticker",
+    defaultColor: "#06B6D4",
+    render: (color) => (
+      <>
+        <path d="M91.4 57.3A42 42 0 1 0 57.3 91.4Z" fill={color} />
+        {ribbonShade(color, "M91.4 57.3L57.3 91.4Q60 60 91.4 57.3Z", 0.35)}
+      </>
+    ),
+  },
+  {
+    id: "ribbon-speech-tag",
+    category: "ribbon",
+    label: "Speech Tag",
+    defaultColor: "#F43F5E",
+    render: (color) => (
+      <path d="M18 20H82Q90 20 90 28V62Q90 70 82 70H50L36 84V70H18Q10 70 10 62V28Q10 20 18 20Z" fill={color} />
+    ),
+  },
+  {
+    id: "ribbon-drop",
+    category: "ribbon",
+    label: "Drop Badge",
+    defaultColor: "#EAB308",
+    render: (color) => <path d="M50 92C30 70 18 58 18 40A32 32 0 0 1 82 40C82 58 70 70 50 92Z" fill={color} />,
+  },
+  {
+    id: "ribbon-leaf-tag",
+    category: "ribbon",
+    label: "Leaf Tag",
+    defaultColor: "#22C55E",
+    render: (color) => <path d="M12 70Q12 30 52 30H88Q88 70 48 70Z" fill={color} />,
+  },
+  {
+    id: "ribbon-slant-tag",
+    category: "ribbon",
+    label: "Slant Tag",
+    defaultColor: "#D946EF",
+    render: (color) => <polygon points="26,30 92,30 74,70 8,70" fill={color} />,
   },
 
   // Clouds
@@ -5136,6 +5445,17 @@ const ASSETS: ElementAsset[] = [
     render: (color: string) => renderPatternCard(color, pattern),
   })),
 
+  // Flags — see flags.tsx. They keep their true colors (`color` is ignored) and start 300px wide
+  // in their real shape.
+  ...FLAGS.map(({ id, label, width, height, render }) => ({
+    id,
+    category: "flag" as const,
+    label,
+    viewBox: `0 0 ${width} ${height}`,
+    defaultSize: { width: 300, height: Math.round((300 * height) / width) },
+    render,
+  })),
+
   {
     id: "text-box",
     category: "text",
@@ -5188,7 +5508,7 @@ export function getElementAsset(assetId: string): ElementAsset | undefined {
 }
 
 // The categories shown in the Elements panel, in order (background and text live elsewhere).
-export const ELEMENT_PANEL_CATEGORIES = ["shape", "line", "arrow", "solid", "icon", "time", "math", "decorative", "cloud", "number", "letter", "symbol", "emoji", "music", "fruit", "kitchen", "book", "vehicle", "person", "animal", "space", "sport", "tree", "leaf"] as const satisfies readonly ElementCategory[];
+export const ELEMENT_PANEL_CATEGORIES = ["shape", "line", "arrow", "solid", "icon", "time", "math", "decorative", "blob", "ribbon", "cloud", "number", "letter", "symbol", "emoji", "music", "fruit", "kitchen", "book", "vehicle", "person", "animal", "space", "sport", "tree", "leaf", "flag"] as const satisfies readonly ElementCategory[];
 
 export const ELEMENT_CATEGORY_LABELS: Record<ElementCategory, string> = {
   shape: "Shapes",
@@ -5199,6 +5519,8 @@ export const ELEMENT_CATEGORY_LABELS: Record<ElementCategory, string> = {
   time: "Time & Date",
   math: "Math Tools",
   decorative: "Decorative",
+  blob: "Blobs",
+  ribbon: "Ribbons",
   cloud: "Clouds",
   number: "Numbers",
   letter: "Alphabet",
@@ -5215,6 +5537,7 @@ export const ELEMENT_CATEGORY_LABELS: Record<ElementCategory, string> = {
   sport: "Sports",
   tree: "Trees",
   leaf: "Leaves",
+  flag: "Flags",
   background: "Backgrounds",
   text: "Text",
 };

@@ -9,7 +9,7 @@ import { parseSlide } from "@/lib/schema";
 import { contains } from "@/lib/search";
 import { NewPresentationButton } from "./PresentationListButtons";
 import { PresentationHome } from "./PresentationHome";
-import { MyReviews, type MyReviewRow } from "./MyReviews";
+import type { MyReviewRow } from "./MyReviews";
 import type { PresentationCardData } from "./PresentationCard";
 import type { AdminCardData } from "./PresentationHome";
 import { changedSince, homeSearchQuery, parseHomeSearch, type HomeSearch } from "./homeSearch";
@@ -24,8 +24,10 @@ const SAVED_LIMIT = 20;
 const SEARCH_LIMIT = 50;
 
 // Each presentation's first slide only (for the card's picture), not all of them, to keep the page light.
+// reviewers: who is in its "Reviewed by" list, for the check on its card (everyone sees it). Only reviewer_id:
+// teachers may read just some of that table's columns (see 20261023000000_hide_review_approver.sql).
 const CARD_COLUMNS =
-  "id, owner_id, title, grade, subject, author, is_published, from_admin, hidden_at, created_at, updated_at, slides(count), first_slide:slides(data, position)";
+  "id, owner_id, title, grade, subject, author, is_published, from_admin, hidden_at, created_at, updated_at, slides(count), first_slide:slides(data, position), reviewers:presentation_reviewers(reviewer_id)";
 
 export default async function HomePage({ searchParams }: PageProps<"/">) {
   // Banned (Admin → Teachers): the home page only says so, until Supabase's ban ends their login (see proxy.ts).
@@ -57,6 +59,16 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
         .eq("is_published", true)
         .is("hidden_at", null)
         .neq("owner_id", myId),
+    // Editors: the live QuizMatter presentations I reviewed (an admin published my review, so I'm in its
+    // "Reviewed by" list). "!inner" keeps only the ones with my presentation_reviewers row.
+    reviewed: () =>
+      supabase
+        .from("presentations")
+        .select(`${CARD_COLUMNS}, presentation_reviewers!inner(reviewer_id)`)
+        .eq("presentation_reviewers.reviewer_id", myId)
+        .eq("is_published", true)
+        .is("hidden_at", null)
+        .eq("from_admin", true),
   };
   // A section the search's "Look in" leaves out is simply empty.
   const isLeftOut = (section: keyof typeof sections) => isSearching && search.in !== "all" && search.in !== section;
@@ -108,7 +120,7 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
     return load("saved", undefined, newest.data.map((row) => row.presentation_id));
   };
 
-  const [mine, fromAdmins, others, saved, savedRows, drafts, account, myReviews] = await Promise.all([
+  const [mine, fromAdmins, others, saved, savedRows, drafts, account, myReviews, reviewed] = await Promise.all([
     load("mine"),
     load("quizmatter"),
     load("teachers", OTHERS_LIMIT),
@@ -118,10 +130,11 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
     // An admin's drafts from Claude become QuizMatter presentations, so they're on Admin → Presentations.
     getAccount().then((account) => (account.isAdmin || isLeftOut("mine") ? [] : listDrafts(account.id))),
     getAccount(),
-    // An editor's open reviews (see the presentation_reviews migration).
+    // An editor's open and canceled reviews (see the review migrations), shown while not searching.
     getAccount().then(async (account) =>
-      account.isEditor ? await supabase.rpc("my_reviews") : { data: [] as MyReviewRow[], error: null },
+      account.isEditor && !isSearching ? await supabase.rpc("my_reviews") : { data: [] as MyReviewRow[], error: null },
     ),
+    getAccount().then(async (account) => (account.isEditor ? await load("reviewed") : { data: [], error: null })),
   ]);
   if (mine.error) throw mine.error;
   if (fromAdmins.error) throw fromAdmins.error;
@@ -129,16 +142,18 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
   if (saved.error) throw saved.error;
   if (savedRows.error) throw savedRows.error;
   if (myReviews.error) throw myReviews.error;
+  if (reviewed.error) throw reviewed.error;
 
   const publisherNames = await loadPublisherNames(
     supabase,
     [...others.data, ...saved.data].filter((presentation) => !presentation.from_admin).map((presentation) => presentation.owner_id)
   );
-  const { myCards, adminCards, otherCards, savedCards } = buildCards(
+  const { myCards, adminCards, otherCards, savedCards, reviewedCards } = buildCards(
     mine.data,
     fromAdmins.data,
     others.data,
     saved.data,
+    reviewed.data,
     new Set(savedRows.data.map((row) => row.presentation_id)),
     isSearching ? drafts.filter((draft) => draftMatches(draft, search, since)) : drafts,
     publisherNames,
@@ -160,8 +175,6 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
           <NewPresentationButton author={account.displayName} />
         </header>
 
-        {!isSearching && <MyReviews rows={myReviews.data as MyReviewRow[]} />}
-
         {/* Keyed by the search: a new search starts its bookmark changes again from this fresh data. */}
         <PresentationHome
           key={homeSearchQuery(search)}
@@ -169,6 +182,9 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
           adminCards={adminCards}
           otherCards={otherCards}
           savedCards={savedCards}
+          reviewedCards={reviewedCards}
+          myReviews={myReviews.data as MyReviewRow[]}
+          isEditor={account.isEditor}
           search={search}
           isSearching={isSearching}
         />
@@ -230,6 +246,7 @@ type CardPresentation = {
   updated_at: string;
   slides: { count: number }[];
   first_slide: { data: unknown }[];
+  reviewers: { reviewer_id: string }[];
 };
 
 // "saved": my saved row for it (only mine come back), for sorting by when I saved it.
@@ -237,13 +254,15 @@ type SavedPresentation = CardPresentation & { saved?: { saved_at: string }[] };
 
 /**
  * My presentations and Claude's drafts (in the search's order), the ones admins shared ("From QuizMatter"), other
- * teachers' published presentations, and the ones I saved (newest saved first, or the search's order), as cards.
+ * teachers' published presentations, the ones I saved (newest saved first, or the search's order), and the
+ * QuizMatter ones I reviewed (editors), as cards.
  */
 function buildCards(
   mine: CardPresentation[],
   fromAdmins: CardPresentation[],
   others: CardPresentation[],
   saved: SavedPresentation[],
+  reviewed: CardPresentation[],
   mySavedIds: Set<string>,
   drafts: DraftSummary[],
   publisherNames: Map<string, string>,
@@ -290,6 +309,7 @@ function buildCards(
     ...toCard(presentation, `/presentation/${presentation.id}`, now),
     canSave: presentation.owner_id !== myId,
     isSaved: mySavedIds.has(presentation.id),
+    isReviewedByMe: presentation.reviewers.some((reviewer) => reviewer.reviewer_id === myId),
   });
 
   const adminCards: AdminCardData[] = fromAdmins.map((presentation) => ({
@@ -311,7 +331,9 @@ function buildCards(
     byline: presentation.from_admin ? "From QuizMatter" : publishedByLine(presentation.author, publisherNames.get(presentation.owner_id)),
   }));
 
-  return { myCards, adminCards, otherCards, savedCards };
+  const reviewedCards = reviewed.map(toSavableCard);
+
+  return { myCards, adminCards, otherCards, savedCards, reviewedCards };
 }
 
 function toCard(presentation: CardPresentation, href: string, now: number): PresentationCardData {
@@ -322,5 +344,6 @@ function toCard(presentation: CardPresentation, href: string, now: number): Pres
     title: presentation.title || "Untitled presentation",
     meta: joinParts([presentation.grade, presentation.subject, slideCountLabel(slideCount), timeAgo(Date.parse(presentation.updated_at), now)]),
     firstSlide: parseSlide(presentation.first_slide[0]?.data),
+    isReviewed: presentation.reviewers.length > 0,
   };
 }

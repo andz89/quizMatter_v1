@@ -23,9 +23,9 @@ reviewed a presentation is listed under "Reviewed by" on it.
 2. Only **editors** can review. One person reviews a presentation at a time.
 3. Who may start a review:
    - never reviewed → any editor;
-   - reviewed before → only the **last reviewer** (the one whose round the admin last published);
+   - reviewed and published before → **nobody**, not even the last reviewer;
    - unless the admin switched on **"Open to all editors"** → any editor, for one round. The switch turns off
-     when someone starts a review.
+     when someone starts a review. (Changed in `20261025000000_review_reopen_and_canceled.sql`.)
 4. While a presentation is under review (status *reviewing* or *submitted*):
    - teachers still see the live version, but **Make a copy** is greyed out with an "Under review" pill;
    - the owning admin **can't edit, unshare or delete** it (the database refuses with code `QMREV`).
@@ -39,13 +39,14 @@ reviewed a presentation is listed under "Reviewed by" on it.
 7. **Stop review** (reviewer, with a confirm step): no changes reach the original presentation. The draft and
    fields are thrown away, the lock ends, and the round's status becomes **canceled**, so the admin's "Under
    review" list shows the presentation as **Canceled** with that reviewer's name. The "last reviewer" stays
-   whoever it was before.
+   whoever it was before. The admin can also cancel an open round ("Cancel review"); `canceled_by_admin` records
+   which of the two it was.
 8. The admin, for a *submitted* review:
    - **Publish**: the draft replaces the live presentation's details and slides; the reviewer's "Reviewed by" row
      is added (or updated, if they reviewed it before); the review ends; the reviewer becomes the last reviewer.
    - **Send back** with a note: status goes back to *reviewing*; the reviewer sees the note and can edit and
      submit again.
-9. Removing someone's editor role cancels any review they have open (same as Stop review).
+9. Removing someone's editor role cancels any review they have open (counted as canceled by the admin).
 10. A presentation is **locked** only while its status is *reviewing* or *submitted*. *Canceled* and *published*
     rounds don't lock it; a new round replaces them.
 
@@ -96,7 +97,7 @@ The admin's send-back note: required, max 500 (zod `reviewNoteSchema`).
 | `publish_review(id)` | admin, status *submitted* | copies the draft onto `presentations` (only the content columns, never `owner_id`, `from_admin`, `is_published`, `created_at` or `author`) and `slides` (same delete/insert as `save_presentation`), upserts `presentation_reviewers`, sets `last_reviewer_id`, status *published*, `ended_at` set, draft cleared |
 | `send_back_review(id, note)` | admin | status *reviewing*, saves the note |
 | `set_review_open(id, open)` | admin | the "Open to all editors" switch |
-| `my_reviews()` | editor | my open rounds (*reviewing*, *submitted*): id, title, status, note |
+| `my_reviews()` | editor | my open and canceled rounds (*reviewing*, *submitted*, *canceled*): id, title, status, note, `canceled_by_admin` |
 | `admin_reviews()` | admin | rounds that are *reviewing*, *submitted* or *canceled*: id, title, reviewer name, status, started/submitted/canceled time |
 
 ### Changes to existing database code
@@ -142,8 +143,16 @@ The admin's send-back note: required, max 500 (zod `reviewNoteSchema`).
 
 ### Home page
 
-- Editors with open reviews get a **"My reviews"** row: title + status pill (*Reviewing*, *Waiting for
-  QuizMatter*, *Sent back*). Clicking opens the view page.
+- Editors get a **"My reviews"** tab (after "From QuizMatter"; other teachers don't see it). It has two parts:
+  - **In progress**: my open rounds (`my_reviews()`): title + status pill (*Reviewing*, *Waiting for
+    QuizMatter*, *Sent back*). Clicking opens the view page. Hidden while searching.
+  - **Canceled**: my canceled rounds, with a coral pill: *Canceled by QuizMatter* or *Canceled by you*. A row
+    stays until someone starts a new round on that presentation. Hidden while searching.
+- Every card of a presentation with a published review (anyone in its "Reviewed by" list, any tab) gets a mint
+  check in the picture's top-left corner. Every teacher, editor and admin sees it. It says "You reviewed this" to
+  the editor who reviewed it, and "Reviewed by QuizMatter" to everyone else.
+  - **Published**: cards of the live QuizMatter presentations I reviewed (my `presentation_reviewers` row).
+    Search and "Look in → My reviews" filter these.
 
 ### Admin
 

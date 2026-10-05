@@ -7,6 +7,8 @@ import type { EmbedKind } from "./embed";
 import {
   CANVAS_HEIGHT,
   CANVAS_WIDTH,
+  BORDER_WIDTH_DEFAULT,
+  BORDER_WIDTH_MAX,
   CORNER_RADIUS_MAX,
   isFreeCanvas,
   DEFAULT_QUESTION_HEIGHT,
@@ -32,7 +34,7 @@ import {
   TEXT_BOX_FONT_SIZE,
 } from "./constants";
 import { markupToHtml, stripMarkup } from "./richText";
-import { BACKGROUND_PATTERN_IDS, PATTERN_OPACITY_RANGE, withBackground } from "./slideBackground";
+import { BACKGROUND_COLORS, BACKGROUND_GRADIENTS, BACKGROUND_PATTERN_IDS, PATTERN_OPACITY_RANGE, withBackground } from "./slideBackground";
 import { fitInBox, MIN_ELEMENT_SIZE, type Rect, type Size } from "./geometry";
 import { createId } from "./id";
 import { DEFAULT_ROTATION_3D } from "./solids";
@@ -95,10 +97,8 @@ const svgMarkup = z
   .max(MAX_SVG_LENGTH, `must be under ${MAX_SVG_LENGTH} characters`)
   .regex(/^\s*<svg[\s>][\s\S]*<\/svg>\s*$/i, "must be one <svg>…</svg>");
 
-// Opacity (percent) when Claude leaves it out: decorations are a little see-through, and its own
-// background artwork stays calm behind the text.
+// Decorations' opacity (percent) when Claude leaves it out: they're a little see-through.
 const DECORATION_OPACITY = 60;
-const BACKGROUND_SVG_OPACITY = 20;
 
 // A spot on the 1280×720 slide, in px. Anything reaching past the edge is pulled back in.
 const rect = z.object({
@@ -205,6 +205,10 @@ const elementRecipe = z.object({
   cornerRadius: whole(0, CORNER_RADIUS_MAX)
     .optional()
     .describe(`Only for square and rectangle: how round the corners are, in percent of the shorter side (${CORNER_RADIUS_MAX} = fully round ends). Leave out for sharp corners.`),
+  border: hexColor.optional().describe("Only for square and rectangle: a border color, e.g. a darker shade of the fill. Leave out for no border."),
+  borderWidth: whole(1, BORDER_WIDTH_MAX)
+    .optional()
+    .describe(`Only with "border": its thickness in px. Leave out for ${BORDER_WIDTH_DEFAULT}.`),
   flipX: z.boolean().optional().describe("Mirror the picture left to right, e.g. to make a kid face the other way."),
   flipY: z.boolean().optional().describe("Mirror the picture top to bottom."),
   crop: z
@@ -255,15 +259,18 @@ const questionBoxes = {
     .describe('Choice slides only: fill and border colors of the picture box ("side"). Usually leave it out for a plain box; use it only when the pictures need it to stand out.'),
 };
 
-// Blank slides are always white, with decorations and artwork.
+// Blank and title slides: a background color or gradient from the Background panel, a pattern and decorations.
+// Nothing here is a flat drawing the teacher can't change: the color and pattern are picked again in the panel,
+// and decorations are pictures they can move.
 const blankDesign = {
-  backgroundSvg: svgMarkup
+  background: z
+    .enum([...BACKGROUND_COLORS, ...BACKGROUND_GRADIENTS] as [string, ...string[]])
     .optional()
-    .describe('Your own full-slide artwork (viewBox="0 0 1280 720"), drawn over the white slide, behind everything. "backgroundSvgOpacity" sets how solid it is.'),
+    .describe("The slide's background: a soft color, or a gradient from top to bottom. Leave out for plain white."),
   backgroundPattern: z
     .enum(BACKGROUND_PATTERN_IDS)
     .optional()
-    .describe('A patterned background from the app, as a soft frame around the edges. Give this or "backgroundSvg", not both.'),
+    .describe("A patterned background from the app, as a soft frame around the edges, in the slide's background color."),
   design: z.array(decorationRecipe).max(6).default([]).describe("Decorations behind everything."),
 };
 
@@ -292,9 +299,9 @@ const canvasContent = {
         style: textStyle.optional(),
       }),
     )
-    .max(6)
+    .max(12)
     .default([])
-    .describe("Extra text boxes you place yourself: labels, a speech bubble's words, a second paragraph."),
+    .describe("Extra text boxes you place yourself: labels, the words in a diagram's boxes, a speech bubble's words, a second paragraph."),
   elements,
 };
 
@@ -311,14 +318,11 @@ const blankContent = {
   ...canvasContent,
 };
 
-// Blank and title slides: how solid their pattern or artwork is, and their optional "Reveal" as a short text.
+// Blank and title slides: how solid their pattern is, and their optional "Reveal" as a short text.
 const blankExtras = {
   patternOpacity: whole(PATTERN_OPACITY_RANGE.min, PATTERN_OPACITY_RANGE.max)
     .optional()
     .describe('How solid "backgroundPattern" is, in percent. Leave out for 25.'),
-  backgroundSvgOpacity: whole(OPACITY_MIN, 100)
-    .optional()
-    .describe(`How solid "backgroundSvg" is, in percent. Leave out for ${BACKGROUND_SVG_OPACITY}.`),
   answer: z
     .string()
     .max(MAX_ANSWER_LENGTH)
@@ -558,7 +562,7 @@ The slide is 1280 × 720 px.
    - Question box (top, full width): "question", "questionStyle", "questionFontSize", "questionHeight".
    - "side": the big open area under the question. There is no box around it: the pictures sit on the slide itself. Put the pictures for the question here (the apples to count, the shape to measure…). No "pictureBox".
    - "answerCanvas": optional, the answer shown as a picture (see Answers below).
-4. "blank" — a blank white slide, a free canvas. Use it for any presentation slide, e.g. to:
+4. "blank" — a blank slide (white, or the "background" you give it), a free canvas. Use it for any presentation slide, e.g. to:
    - teach a topic (explain the idea with a picture),
    - build a whole presentation with no questions (a report, a story, a topic overview),
    - give instructions for a new kind of question,
@@ -566,7 +570,7 @@ The slide is 1280 × 720 px.
    - It has no boxes. "title" and "text" become text boxes ("titleStyle", "textStyle", "titleFontSize", "textFontSize"), and the pictures fill the room they leave, as "layout" says.
    - "textBoxes": extra text boxes you place yourself anywhere (labels, a speech bubble's words, a second paragraph).
    - Pictures can be placed by the app (default) or by you ("position").
-   - Design (see Design below): "design", "backgroundPattern" or "backgroundSvg".
+   - Design (see Design below): "background", "backgroundPattern" and "design".
    - "answer" / "answerCanvas": optional "Reveal" — hidden content the teacher shows during the discussion, like an activity (see Answers and Reveal below).
 5. "title" — a title slide: a big centered title, and "text" as a short line under it (a subtitle, the grade, the teacher's name). Use it to open the presentation, or to start a new part ("Part 2: Let's practice!").
    - "title" is needed. "titleStyle", "textStyle", "titleFontSize" (72px if left out) and "textFontSize" (36px) work like on blank slides. There is no "layout".
@@ -625,6 +629,7 @@ How they look:
 - "color" recolors a picture. "opacity" (${OPACITY_MIN}–100%) makes it see-through.
 - "rotation" (0–359°) turns a flat picture. 3D solids (cube, cone…) use "tilt" (−90 to 90°) and "turn" (−180 to 180°) instead, to show them from another side.
 - "cornerRadius" (0–${CORNER_RADIUS_MAX}%) rounds the corners of a square or rectangle.
+- "border" gives a square or rectangle a border color (e.g. a soft fill with a darker border of the same color), and "borderWidth" its thickness (1–${BORDER_WIDTH_MAX}px, ${BORDER_WIDTH_DEFAULT} if left out).
 - "flipX" mirrors a picture left to right (e.g. two kids facing each other), "flipY" top to bottom. Decorations in "design" can be flipped too.
 - "crop" shows only part of a flat picture, in percent of the whole picture: { x, y, width, height }. E.g. { x: 0, y: 0, width: 100, height: 50 } = the top half; a kid's head and shoulders is about the top 45%. The picture's box takes the shape of the part that shows.
 - The picture list has people: students in school uniform — Filipino boys ("ph-student-…", one waving, one with a fist up), a waving boy with a book ("school-boy"), and students with a pencil, reading, with an apple, a book, a globe, a backpack or a paper, pointing up, or jumping for joy ("student-…"). Their "color" is their clothes.
@@ -650,6 +655,20 @@ Placing them yourself:
 - "square" and "rectangle" take exactly the width and height you give, so they can be a box of any shape: e.g. a soft colored panel behind a group of pictures, or a bar. Add "cornerRadius" for rounded corners.
 - Pictures you place yourself are drawn in list order (a later one sits on top of an earlier one), and behind the pictures the app places. So list a background panel before what goes on it.
 - "textBoxes" (blank, title and custom slides) are placed the same way, and sit on top of pictures — good for labels on a picture.
+
+Diagrams (a food web, a cycle, a flow chart, a mind map) — build them from pieces the teacher can move and edit:
+- Every box, arrow and label must be its own picture or text box. Never draw a diagram as one picture: the teacher couldn't move a box, change an arrow or type in it.
+- Boxes: "rectangle" (or "square") with "position", "cornerRadius" (e.g. 15), a soft "color" and a darker "border".
+- Words in the boxes: a "textBoxes" entry with the same position as its box, listed so it sits on top. Keep each to a word or two.
+- Arrows: "line-arrow" (or "line-dashed-arrow", "line-double-arrow"). An arrow is drawn pointing right, so to go from point A to point B: width = the distance from A to B, height = 24, its center halfway between A and B, and "rotation" = the angle from A to B in degrees clockwise (0 = right, 90 = down, 180 = left, 270 = up). Leave a small gap between an arrow's ends and the boxes.
+
+Ribbons, banners and badges ("ribbon-…" pictures) — a fun way to show a title, a label or a reward:
+- Banners and ribbons for a title or a heading: "ribbon-banner", "ribbon-arch", "ribbon-smile", "ribbon-wave", "ribbon-rounded", "ribbon-strip", "ribbon-arrow", "ribbon-label", "ribbon-sash", "ribbon-corner".
+- Tabs and tags for a short label or a step number: "ribbon-hanging-tab", "ribbon-bookmark", "ribbon-round-tab", "ribbon-pointed-tab", "ribbon-speech-tag", "ribbon-leaf-tag", "ribbon-slant-tag", "ribbon-peel".
+- Badges for a reward or a key word ("Great job!", "New word", "Step 1"): "ribbon-seal", "ribbon-scallop", "ribbon-hexagon", "ribbon-drop".
+- They are empty shapes: put the words in a "textBoxes" entry placed over the ribbon's middle (a little smaller than the ribbon, centered), listed so it sits on top. Keep it to a few words, in a color that's easy to read on the ribbon (white on dark ribbons, dark on light ones).
+- Give them "position" so you know exactly where the words go. Use them in "elements", not "design", so the teacher can move them with their words.
+- Blobs ("blob-…") are soft, round shapes: good as a light panel behind a picture or a few words, or as a decoration.
 
 Arrows that point at part of a picture ("callouts", blank, title and custom slides only):
 - Use them to show where something is: the numerator and the denominator of a fraction, the hour hand of a clock, the tallest bar of a graph.
@@ -680,23 +699,21 @@ When presenting, the teacher clicks a button to show hidden content in a popup. 
 
 === Design ===
 
-Every slide is white. There is no background color to set.
-
 Question slides ("choice", "true-false", "short-answer" and "custom") — keep them plain:
-- Plain white, with no decorations, pattern or artwork: they don't have "design", "backgroundPattern" or "backgroundSvg".
+- Plain white, with no background color, decorations or pattern: they don't have "background", "design" or "backgroundPattern".
 - "pictureBox" (choice and true-false slides): leave it out, so the picture box stays plain with no background color. Only add a soft fill and/or border when it's really needed, e.g. white or very light pictures that would get lost on the white slide. Then use one soft color family for the whole presentation.
 
-Blank and title slides — white, made friendly with design:
+Blank and title slides — white or a soft background (see Background below), made friendly with design:
 - "design": decorations drawn behind everything, placed at a "spot": the 4 corners (big, about 180px) or "bottom-strip" (a row of small copies along the bottom). Up to 6 per slide; 2–4 is usually enough. "opacity" sets how solid each one is (${DECORATION_OPACITY}% if left out).
 - Use any picture from the app that fits your design: every "asset" name in the JSON Schema below can be a decoration, not only shapes. Look through the whole list and pick the ones that match the topic (leaves and trees for nature, sparkle and confetti for celebrations, planets for space, clouds for weather, fruits for food, school things for school, circle, star or wave for anything), in 2–3 colors that go well together. Vary them from slide to slide instead of using the same few every time.
 
-Background artwork (blank and title slides only) — each blank or title slide can have one of these (or none, just plain white):
-- Option 1, "backgroundPattern": a ready-made pattern from the app: ${BACKGROUND_PATTERN_IDS.join(", ")}. It shows as a soft frame around the slide's edges, at 25% opacity unless you set "patternOpacity"; the middle stays plain white. It replaces "design": a slide with a pattern gets no decorations.
-- Option 2, "backgroundSvg": your own full-slide artwork, drawn over the white slide, behind everything. Use viewBox="0 0 1280 720". Good ideas: soft waves along the bottom, blobs in the corners, a sunburst, a frame. Keep the middle mostly empty so the text stays easy to read.
-  - "backgroundSvgOpacity" sets how solid it is (${BACKGROUND_SVG_OPACITY}% if left out). Draw it in full colors and use this to soften it.
-- Mix them across the presentation: patterns on some slides, your own artwork or decorations on others.
+Background (blank and title slides only) — the same choices the teacher has in the Background panel, so they can change them later:
+- "background": a soft color (${BACKGROUND_COLORS.join(", ")}) or a soft gradient from top to bottom (${BACKGROUND_GRADIENTS.map((g) => `"${g}"`).join(", ")}). Write it exactly as listed. Leave it out for plain white.
+- "backgroundPattern": a ready-made pattern from the app: ${BACKGROUND_PATTERN_IDS.join(", ")}. It shows as a soft frame around the slide's edges, in the slide's background color, at 25% opacity unless you set "patternOpacity". It replaces "design": a slide with a pattern gets no decorations.
+- There is no way to draw your own full-slide background: everything on a slide must be something the teacher can pick, move or edit.
+- Mix them across the presentation: patterns on some slides, colors, gradients or decorations on others.
 
-Opacity: you choose how solid decorations, patterns, background artwork and pictures are. Keep anything behind text light enough that the text stays easy to read.
+Opacity: you choose how solid decorations, patterns and pictures are. Keep anything behind text light enough that the text stays easy to read.
 
 Your own drawings (SVG) — for blank and title slide design only:
 - In "design", give "svg" instead of "asset" to draw your own decoration for a spot (square viewBox, e.g. "0 0 100 100").
@@ -732,6 +749,21 @@ Example:
             { "from": "right", "at": "bottom", "label": "Denominator" }
           ]
         }
+      ]
+    },
+    {
+      "type": "blank",
+      "background": "${BACKGROUND_GRADIENTS[0]}",
+      "layout": "title-only",
+      "title": "Who Eats What?",
+      "elements": [
+        { "asset": "rectangle", "position": { "x": 140, "y": 320, "width": 260, "height": 120 }, "cornerRadius": 15, "color": "#DCFCE7", "border": "#16A34A" },
+        { "asset": "line-arrow", "position": { "x": 420, "y": 368, "width": 160, "height": 24 }, "color": "#334155" },
+        { "asset": "rectangle", "position": { "x": 600, "y": 320, "width": 260, "height": 120 }, "cornerRadius": 15, "color": "#FEF9C3", "border": "#CA8A04" }
+      ],
+      "textBoxes": [
+        { "text": "Grass", "position": { "x": 140, "y": 350, "width": 260, "height": 60 }, "style": { "align": "center", "bold": true } },
+        { "text": "Grasshopper", "position": { "x": 600, "y": 350, "width": 260, "height": 60 }, "style": { "align": "center", "bold": true } }
       ]
     },
     {
@@ -867,14 +899,11 @@ function buildSlide(
   // Blank, title and custom slides have no boxes: the title and text become text boxes, and the pictures go anywhere.
   const isCanvas = recipe.type === "blank" || recipe.type === "title" || recipe.type === "custom";
   const isTitle = recipe.type === "title";
-  // Every slide is white. Blank and title slides get decorations or artwork; question slides stay plain.
+  // Blank and title slides get a background, a pattern and decorations; question slides stay plain white.
   const hasDesign = recipe.type === "blank" || recipe.type === "title";
   if (hasDesign) {
-    if (recipe.backgroundPattern && recipe.backgroundSvg) reportError('give "backgroundPattern" or "backgroundSvg", not both.');
-    slide.backgroundSvg =
-      recipe.backgroundSvg && softened(withSvgNamespace(recipe.backgroundSvg), recipe.backgroundSvgOpacity ?? BACKGROUND_SVG_OPACITY);
-    if (recipe.backgroundSvgOpacity !== undefined && !recipe.backgroundSvg) reportError('"backgroundSvgOpacity" needs a "backgroundSvg".');
-    // The pattern sits on the plain white slide.
+    slide.background = recipe.background;
+    // The pattern takes the slide's background color (or gradient).
     if (recipe.patternOpacity !== undefined && !recipe.backgroundPattern) reportError('"patternOpacity" needs a "backgroundPattern".');
     if (recipe.backgroundPattern && drawPatterns) {
       slide = withBackground(slide, { backgroundPattern: recipe.backgroundPattern, backgroundOpacity: recipe.patternOpacity });
@@ -1429,11 +1458,6 @@ function decorationElements(item: Decoration): SvgElement[] {
   });
 }
 
-/** Claude's artwork wrapped in a see-through layer; the inner <svg> keeps its own viewBox and fills the slide. */
-function softened(markup: string, opacity: number): string {
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" preserveAspectRatio="none"><g opacity="${opacity / 100}">${markup}</g></svg>`;
-}
-
 /** An SVG only shows as an image when it names the SVG namespace, so add it if Claude left it out. */
 function withSvgNamespace(markup: string): string {
   const trimmed = markup.trim();
@@ -1565,6 +1589,13 @@ function buildSettings(el: ElementRecipe, asset: Asset): Partial<SvgElement> | s
   if (el.cornerRadius) {
     if (!asset.roundCorners) return '"cornerRadius" only works on square and rectangle.';
     settings.cornerRadius = el.cornerRadius;
+  }
+  if (el.border) {
+    if (!asset.roundCorners) return '"border" only works on square and rectangle.';
+    settings.borderColor = el.border;
+    if (el.borderWidth !== undefined) settings.borderWidth = el.borderWidth;
+  } else if (el.borderWidth !== undefined) {
+    return '"borderWidth" needs a "border".';
   }
   if (el.flipX) settings.flipX = true;
   if (el.flipY) settings.flipY = true;

@@ -1,8 +1,9 @@
-// A slide's background: a soft color, plus an optional pattern from the library drawn as a frame
+// A slide's background: a soft color or gradient, plus an optional pattern from the library drawn as a frame
 // around the edges. Used by the Background panel and by the presentation importer, so both look the same.
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ELEMENT_LIBRARY, getElementAsset } from "./svgLibrary";
+import { GRADIENT_PREFIX } from "./constants";
 import type { Slide } from "./schema";
 
 export const BACKGROUND_PATTERN_IDS = ELEMENT_LIBRARY.filter((asset) => asset.category === "background").map(
@@ -23,6 +24,19 @@ export const BACKGROUND_COLORS = [
   "#F5F5F4",
 ];
 
+// Soft two-color gradients the Background panel offers, drawn from the top of the slide to the bottom.
+// Stored like any gradient color ("gradient:#from,#to"). All light, so the dark text stays easy to read.
+export const BACKGROUND_GRADIENTS = [
+  ["#FEF9C3", "#DCFCE7"],
+  ["#FEF3C7", "#FFE4E6"],
+  ["#FFEDD5", "#FCE7F3"],
+  ["#EDE9FE", "#E0F2FE"],
+  ["#E0E7FF", "#FCE7F3"],
+  ["#CCFBF1", "#E0E7FF"],
+  ["#E0F2FE", "#DCFCE7"],
+  ["#F5F5F4", "#EDE9FE"],
+].map(([from, to]) => `${GRADIENT_PREFIX}${from},${to}`);
+
 // How solid a pattern is, in percent: faint by default so the text on top stays easy to read.
 export const DEFAULT_PATTERN_OPACITY = 25;
 export const PATTERN_OPACITY_RANGE = { min: 5, max: 100 };
@@ -33,13 +47,31 @@ const PLAIN_SLIDE_COLOR = "#FFFFFF";
  * A library pattern as slide artwork (SVG markup). The pattern card is repeated 4×4, so its shapes are
  * small, and only shows as a soft 40px frame around the edges; a plain panel covers the middle so
  * text, pictures and cards stay clear. The cards take the slide's color, so their corners and seams
- * don't show.
+ * don't show. On a gradient slide, each row of cards gets its own copy of the gradient, moved so it
+ * lines up with the part of the slide behind that row.
  */
 export function patternSvg(patternId: string, color: string, opacity = DEFAULT_PATTERN_OPACITY): string {
   const asset = getElementAsset(patternId)!;
-  // The card is drawn once and repeated with <use>, which keeps the saved markup small.
-  const tiles = [0, 1, 2, 3].flatMap((row) =>
-    [0, 1, 2, 3].map((col) => createElement("use", { key: `${row}-${col}`, href: "#tile", x: col * 160, y: row * 100 })),
+  const stops = color.startsWith(GRADIENT_PREFIX) ? color.slice(GRADIENT_PREFIX.length).split(",") : null;
+  // A top-to-bottom gradient over the whole slide, in the coordinates of something drawn `top` units down.
+  const gradient = (id: string, top: number) =>
+    createElement(
+      "linearGradient",
+      { key: id, id, gradientUnits: "userSpaceOnUse", x1: 0, y1: -top, x2: 0, y2: 360 - top },
+      createElement("stop", { offset: 0, stopColor: stops![0] }),
+      createElement("stop", { offset: 1, stopColor: stops![1] }),
+    );
+  const rows = [0, 1, 2, 3];
+  // The card is drawn once (once per row on a gradient) and repeated with <use>, which keeps the saved markup small.
+  const tileId = (row: number) => (stops ? `tile${row}` : "tile");
+  const defs = stops
+    ? rows.flatMap((row) => [
+        gradient(`bg${row}`, row * 100),
+        createElement("g", { key: `tile${row}`, id: `tile${row}` }, asset.render(`url(#bg${row})`, {})),
+      ])
+    : [createElement("g", { key: "tile", id: "tile" }, asset.render(color, {}))];
+  const tiles = rows.flatMap((row) =>
+    [0, 1, 2, 3].map((col) => createElement("use", { key: `${row}-${col}`, href: `#${tileId(row)}`, x: col * 160, y: row * 100 })),
   );
   // 640×360 is exactly 16:9, and the cards' rows and columns sit every 20 units starting at 10, so
   // the outer row and column of shapes land whole inside the 20-unit (40px) frame.
@@ -47,9 +79,9 @@ export function patternSvg(patternId: string, color: string, opacity = DEFAULT_P
     createElement(
       "svg",
       { xmlns: "http://www.w3.org/2000/svg", viewBox: "0 0 640 360" },
-      createElement("defs", null, createElement("g", { id: "tile" }, asset.render(color, {}))),
+      createElement("defs", null, ...defs, ...(stops ? [gradient("bg", 0)] : [])),
       createElement("g", { opacity: opacity / 100 }, tiles),
-      createElement("rect", { x: 20, y: 20, width: 600, height: 320, rx: 8, fill: color }),
+      createElement("rect", { x: 20, y: 20, width: 600, height: 320, rx: 8, fill: stops ? "url(#bg)" : color }),
     ),
   );
 }

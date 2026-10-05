@@ -1,5 +1,6 @@
 import { z } from "zod";
 import {
+  BORDER_WIDTH_MAX,
   CANVAS_HEIGHT,
   CANVAS_WIDTH,
   MAX_STORED_PHOTO_BYTES,
@@ -173,6 +174,10 @@ export const svgElementSchema = z.object({
   // Only used by the square and rectangle: how round their corners are, in percent of the shorter
   // side (0–50; 50 = fully round ends). Missing = 0 (sharp corners).
   cornerRadius: z.number().min(0).max(50).optional(),
+  // Only used by the square and rectangle: a solid border color and its thickness in px
+  // (1–BORDER_WIDTH_MAX). Missing color = no border; missing thickness = BORDER_WIDTH_DEFAULT.
+  borderColor: colorSchema.optional(),
+  borderWidth: z.number().min(1).max(BORDER_WIDTH_MAX).optional(),
   // Only used by the clocks: the time they show (hours 1–12, minutes 0–59). Missing = 10:10.
   // `pm` is only shown by the digital clock; missing = AM.
   clockTime: z.object({ hours: z.number(), minutes: z.number(), pm: z.boolean().optional() }).optional(),

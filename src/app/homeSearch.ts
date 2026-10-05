@@ -13,6 +13,8 @@ export const LOOK_IN = [
   { id: "quizmatter", label: "From QuizMatter" },
   { id: "teachers", label: "Other teachers" },
   { id: "saved", label: "Saved" },
+  // Editors only (PresentationHome leaves it out for everyone else).
+  { id: "reviewed", label: "My reviews" },
 ] as const;
 
 export const SORTS = [

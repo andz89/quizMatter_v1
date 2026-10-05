@@ -62,10 +62,16 @@ export function autoFitRange(fontSize: number) {
   return { minFontSize: Math.min(AUTO_FIT_MIN_FONT_SIZE, fontSize), maxFontSize: fontSize };
 }
 
+// Gradients are stored in the same color string as "gradient:#from,#to", so the schema stays a plain string.
+export const GRADIENT_PREFIX = "gradient:";
+
 // Lowest opacity (percent) an element can be set to, so it never fully disappears.
 export const OPACITY_MIN = 5;
 // Most rounding for a square/rectangle's corners, in percent of its shorter side (50 = fully round ends).
 export const CORNER_RADIUS_MAX = 50;
+// A square/rectangle's border thickness (px): what a new border starts at, and the most it can be.
+export const BORDER_WIDTH_DEFAULT = 3;
+export const BORDER_WIDTH_MAX = 12;
 
 // The question box and each option card are fixed-size within the fixed CANVAS_WIDTH/HEIGHT layout
 // (p-10 canvas padding, gap-6 between the question, the optional shape strip and the options — or,

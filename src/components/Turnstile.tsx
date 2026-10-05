@@ -31,8 +31,11 @@ function loadScript() {
   return scriptLoad;
 }
 
-// Cloudflare waits about 2 minutes before it says a check froze (error 300030). We give up sooner.
+// Cloudflare waits about 2 minutes before it says a check froze (error 300030). We start over sooner: on some
+// networks (e.g. a broken IPv6 route) Cloudflare's frame never loads and sends no error, and a fresh start opens new
+// connections that often get through. Only after the last try do we show the failure (about 45 seconds in all).
 const CHECK_TIMEOUT_MS = 15_000;
+const QUIET_RESTARTS = 2;
 
 /** What the check is doing, so the page can show the right words on its button. */
 export type TurnstileStatus = "checking" | "needs-click" | "failed" | "passed";
@@ -65,10 +68,12 @@ export function Turnstile({
   useEffect(() => {
     let isCancelled = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
+    let restartsLeft = QUIET_RESTARTS;
+    let lastError: string | null = null; // Cloudflare's last error code while it retries by itself
     const stopTimer = () => clearTimeout(timer);
     const startTimer = () => {
       stopTimer();
-      timer = setTimeout(() => fail("timeout"), CHECK_TIMEOUT_MS);
+      timer = setTimeout(onTimeout, CHECK_TIMEOUT_MS);
     };
     const fail = (reason: string) => {
       stopTimer();
@@ -76,38 +81,53 @@ export function Turnstile({
       onTokenRef.current(null);
       onStatusRef.current?.("failed");
     };
+    const removeWidget = () => {
+      if (widgetIdRef.current) window.turnstile?.remove(widgetIdRef.current);
+      widgetIdRef.current = undefined;
+    };
+    const onTimeout = () => {
+      if (restartsLeft === 0) return fail(lastError ?? "timeout");
+      restartsLeft--;
+      removeWidget();
+      renderWidget();
+    };
+    const renderWidget = () => {
+      if (!boxRef.current || !window.turnstile) return fail("not-ready");
+      startTimer();
+      widgetIdRef.current = window.turnstile.render(boxRef.current, {
+        sitekey: TURNSTILE_SITE_KEY,
+        size: "flexible",
+        theme: "light",
+        retry: "auto", // Cloudflare tries again by itself after an error; our timer still ends it
+        "retry-interval": 2000,
+        callback: (token: string) => {
+          stopTimer();
+          setFailure(null);
+          onTokenRef.current(token);
+          onStatusRef.current?.("passed");
+        },
+        "expired-callback": () => {
+          onTokenRef.current(null);
+          onStatusRef.current?.("checking");
+        },
+        // The user is clicking: no time limit while they do.
+        "before-interactive-callback": () => {
+          stopTimer();
+          onStatusRef.current?.("needs-click");
+        },
+        "after-interactive-callback": () => onStatusRef.current?.("checking"),
+        "error-callback": (code: string) => {
+          // 110xxx / 400xxx: wrong site key or web address, so trying again can't help. Show it at once.
+          if (/^(110|400)/.test(code)) fail(code);
+          else lastError = code || "unknown";
+          return true; // we show the error ourselves
+        },
+      });
+    };
     onStatusRef.current?.("checking");
     loadScript().then(
       () => {
-        if (isCancelled) return;
-        if (!boxRef.current || !window.turnstile) return fail("not-ready");
-        startTimer();
-        widgetIdRef.current = window.turnstile.render(boxRef.current, {
-          sitekey: TURNSTILE_SITE_KEY,
-          size: "flexible",
-          theme: "light",
-          retry: "never", // show a failure at once (with our Try again button) instead of retrying quietly for minutes
-          callback: (token: string) => {
-            stopTimer();
-            setFailure(null);
-            onTokenRef.current(token);
-            onStatusRef.current?.("passed");
-          },
-          "expired-callback": () => {
-            onTokenRef.current(null);
-            onStatusRef.current?.("checking");
-          },
-          // The user is clicking: no time limit while they do.
-          "before-interactive-callback": () => {
-            stopTimer();
-            onStatusRef.current?.("needs-click");
-          },
-          "after-interactive-callback": () => onStatusRef.current?.("checking"),
-          "error-callback": (code: string) => {
-            fail(code || "unknown");
-            return true; // we show the error ourselves
-          },
-        });
+        if (!isCancelled) renderWidget();
       },
       () => {
         if (!isCancelled) fail("load");
@@ -116,8 +136,7 @@ export function Turnstile({
     return () => {
       isCancelled = true;
       stopTimer();
-      if (widgetIdRef.current) window.turnstile?.remove(widgetIdRef.current);
-      widgetIdRef.current = undefined;
+      removeWidget();
     };
   }, [loadAttempt]);
 

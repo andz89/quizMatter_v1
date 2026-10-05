@@ -2,7 +2,7 @@ import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { getAssetViewBox, getElementAsset, svgDataUrl, type RenderSettings } from "@/lib/svgLibrary";
 import { isPeopleArt, isPeopleArtLoaded, loadPeopleArt } from "@/lib/peopleArt";
 import { Spinner } from "@/components/Spinner";
-import { TEXT_BOX_FONT_SIZE, thumbnailUrl } from "@/lib/constants";
+import { GRADIENT_PREFIX, TEXT_BOX_FONT_SIZE, thumbnailUrl } from "@/lib/constants";
 import { SlideText } from "./SlideText";
 
 interface ElementSvgProps {
@@ -14,9 +14,6 @@ interface ElementSvgProps {
   // only for drawings that get trimmed. Lets a placed element fit its box to the drawing's shape.
   onMeasure?: (width: number, height: number) => void;
 }
-
-// Gradients are stored in the same color string as "gradient:#from,#to", so the schema stays a plain string.
-export const GRADIENT_PREFIX = "gradient:";
 
 // Empty space (px) left between a drawing's edges and its element box.
 export const TRIM_PADDING = 2;

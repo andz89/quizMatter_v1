@@ -25,7 +25,8 @@ export type AdminPresentationRow = {
   claudeDraft?: "ready" | "checking" | "unfinished";
   // An editor is reviewing it ("reviewing") or waiting for an admin ("submitted"): it can't change until then.
   reviewStatus: "reviewing" | "submitted" | null;
-  // "Open to all editors": any editor may start the next review, not only its last reviewer.
+  // "Open to all editors": any editor may start the next review. Once a review is published, nobody can start
+  // another (not even its last reviewer) until this is on.
   isOpenToAll: boolean;
   // Everyone whose review an admin published (the Review column).
   reviewers: ApprovedReviewer[];

@@ -6,8 +6,9 @@ import { useEditorStore } from "@/lib/store";
 import { useFormatTexts } from "@/lib/useFormatTexts";
 import { DEFAULT_TEXT_COLOR, formatChain } from "@/lib/richText";
 import { getElementAsset } from "@/lib/svgLibrary";
-import { GRADIENT_PREFIX, toCssBackground } from "./ElementSvg";
-import { SIDE_CONTAINER_ID } from "@/lib/constants";
+import { toCssBackground } from "./ElementSvg";
+import { BORDER_WIDTH_DEFAULT, BORDER_WIDTH_MAX, GRADIENT_PREFIX, SIDE_CONTAINER_ID } from "@/lib/constants";
+import { PanelSlider } from "./PanelControls";
 import { XIcon } from "lucide-react";
 
 // A simple curated palette: the app's own brand colors first, then a broader range for presentation content.
@@ -73,7 +74,7 @@ export function ColorPanel() {
   const slide = useEditorStore((s) => s.presentation.slides.find((sl) => sl.id === s.selectedSlideId));
   const updateElements = useEditorStore((s) => s.updateElements);
   const selectedContainerId = useEditorStore((s) => s.selectedContainerId);
-  const shapeBoxColorTarget = useEditorStore((s) => s.shapeBoxColorTarget);
+  const colorPanelTarget = useEditorStore((s) => s.colorPanelTarget);
   const setShapeBoxColors = useEditorStore((s) => s.setShapeBoxColors);
   const closeColorPanel = useEditorStore((s) => s.closeColorPanel);
   // While typing, the panel colors the selected words instead of the selected shapes — or all the
@@ -96,28 +97,48 @@ export function ColorPanel() {
   const elements = slide?.elements.filter((el) => selectedElementIds.includes(el.id)) ?? [];
   // With no text or shapes to color, the panel paints the selected shape box's fill or border.
   const boxTarget =
-    !textEditor && elements.length === 0 && selectedContainerId === SIDE_CONTAINER_ID ? shapeBoxColorTarget : null;
+    !textEditor && elements.length === 0 && selectedContainerId === SIDE_CONTAINER_ID ? colorPanelTarget : null;
   const boxColor = boxTarget === "fill" ? slide?.shapeBoxFill : slide?.shapeBoxBorder;
+  // Opened on "border" with only squares/rectangles selected, the panel paints their border.
+  const isShapeBorder =
+    !textEditor &&
+    colorPanelTarget === "border" &&
+    elements.length > 0 &&
+    elements.every((el) => getElementAsset(el.assetId)?.roundCorners);
+  const shapeBorderColor = elements.every((el) => el.borderColor === elements[0]?.borderColor) ? elements[0]?.borderColor : null;
+  const hasNone = !!boxTarget || isShapeBorder;
+  const noneSelected = isShapeBorder ? shapeBorderColor === undefined : boxColor === undefined;
 
   const commonColor = textEditor
     ? (textColor ?? DEFAULT_TEXT_COLOR).toUpperCase()
     : boxTarget
       ? (boxColor ?? null)
-      : elements.length > 0 && elements.every((el) => el.color === elements[0].color)
-        ? elements[0].color
-        : null;
+      : isShapeBorder
+        ? (shapeBorderColor ?? null)
+        : elements.length > 0 && elements.every((el) => el.color === elements[0].color)
+          ? elements[0].color
+          : null;
 
-  // undefined = none (shape box only).
+  // undefined = none (shape box and shape borders only).
   const handleColor = (color: string | undefined) => {
     if (textEditor) texts.forEach(({ editor }) => formatChain(editor).setColor(color ?? DEFAULT_TEXT_COLOR).run());
     else if (boxTarget === "fill") setShapeBoxColors(selectedSlideId, { shapeBoxFill: color });
     else if (boxTarget === "border") setShapeBoxColors(selectedSlideId, { shapeBoxBorder: color });
+    else if (isShapeBorder) updateElements(selectedSlideId, Object.fromEntries(elements.map((el) => [el.id, { borderColor: color }])));
     else if (color) updateElements(selectedSlideId, Object.fromEntries(elements.map((el) => [el.id, { color }])));
   };
 
-  // Text, text boxes and box borders can only be a solid color.
+  // The thickness applies to every selected shape at once; the slider starts at the first one's value.
+  const borderWidth = elements[0]?.borderWidth ?? BORDER_WIDTH_DEFAULT;
+  const setBorderWidth = (value: number) => {
+    const clamped = Math.min(BORDER_WIDTH_MAX, Math.max(1, value));
+    updateElements(selectedSlideId, Object.fromEntries(elements.map((el) => [el.id, { borderWidth: clamped }])));
+  };
+
+  // Text, text boxes and borders can only be a solid color.
   const allowGradients =
-    boxTarget === "fill" || (!boxTarget && !textEditor && !elements.some((el) => getElementAsset(el.assetId)?.isTextBox));
+    boxTarget === "fill" ||
+    (!boxTarget && !isShapeBorder && !textEditor && !elements.some((el) => getElementAsset(el.assetId)?.isTextBox));
 
   return (
     <div
@@ -128,7 +149,7 @@ export function ColorPanel() {
     >
       <div className="mb-4 flex items-center justify-between">
         <h2 className="text-[15px] font-extrabold text-text-primary">
-          {boxTarget === "fill" ? "Box fill" : boxTarget === "border" ? "Box border" : "Color"}
+          {boxTarget === "fill" ? "Box fill" : boxTarget === "border" ? "Box border" : isShapeBorder ? "Border" : "Color"}
         </h2>
         <button
           type="button"
@@ -140,13 +161,20 @@ export function ColorPanel() {
         </button>
       </div>
 
-      {boxTarget && (
+      {hasNone && (
         <>
           <h3 className="mb-3 text-[12px] font-bold uppercase tracking-[0.05em] text-text-header">None</h3>
           <div className="mb-6 grid grid-cols-6 justify-items-center gap-3">
-            <Swatch title="None" background={NONE_SWATCH} bordered selected={boxColor === undefined} onClick={() => handleColor(undefined)} />
+            <Swatch title="None" background={NONE_SWATCH} bordered selected={noneSelected} onClick={() => handleColor(undefined)} />
           </div>
         </>
+      )}
+
+      {/* Greyed out until there's a border to make thicker or thinner. */}
+      {isShapeBorder && (
+        <div className={`mb-6 ${shapeBorderColor ? "" : "pointer-events-none opacity-40"}`}>
+          <PanelSlider label="Thickness" unit="px" value={borderWidth} min={1} max={BORDER_WIDTH_MAX} onChange={setBorderWidth} />
+        </div>
       )}
 
       <h3 className="mb-3 text-[12px] font-bold uppercase tracking-[0.05em] text-text-header">Solid</h3>

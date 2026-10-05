@@ -1,25 +1,33 @@
 import Link from "next/link";
-import { ClipboardCheckIcon } from "lucide-react";
 import { LinkPending } from "@/components/LinkPending";
 
-export type MyReviewRow = { presentation_id: string; title: string; status: "reviewing" | "submitted"; admin_note: string | null };
+export type MyReviewRow = {
+  presentation_id: string;
+  title: string;
+  status: "reviewing" | "submitted" | "canceled";
+  admin_note: string | null;
+  canceled_by_admin: boolean;
+};
 
-/** An editor's open reviews, above their presentations. Opening one goes to its page (Continue review is there). */
-export function MyReviews({ rows }: { rows: MyReviewRow[] }) {
-  if (rows.length === 0) return null;
+/**
+ * Rows of an editor's reviews in the My reviews tab: open ones ("In progress") or canceled ones ("Canceled", until
+ * someone starts a new round). Opening one goes to its page (Continue review is there).
+ */
+export function ReviewRows({ rows }: { rows: MyReviewRow[] }) {
   return (
-    <section className="mb-6 rounded-card border border-border-default bg-bg-surface px-5 py-3.5">
-      <h2 className="mb-2 flex items-center gap-2 text-[11px] font-bold tracking-[0.05em] text-text-header uppercase">
-        <ClipboardCheckIcon size={14} />
-        My reviews
-      </h2>
+    <div className="rounded-card border border-border-default bg-bg-surface px-5 py-3.5">
       {rows.map((row) => {
         const status =
-          row.status === "submitted"
-            ? { label: "Waiting for QuizMatter", className: "bg-bg-page text-text-secondary" }
-            : row.admin_note
-              ? { label: "Sent back", className: "bg-highlight-soft text-highlight-strong" }
-              : { label: "Reviewing", className: "bg-accent-soft text-accent" };
+          row.status === "canceled"
+            ? {
+                label: row.canceled_by_admin ? "Canceled by QuizMatter" : "Canceled by you",
+                className: "bg-danger-soft text-danger-strong",
+              }
+            : row.status === "submitted"
+              ? { label: "Waiting for QuizMatter", className: "bg-bg-page text-text-secondary" }
+              : row.admin_note
+                ? { label: "Sent back", className: "bg-highlight-soft text-highlight-strong" }
+                : { label: "Reviewing", className: "bg-accent-soft text-accent" };
         return (
           <Link
             key={row.presentation_id}
@@ -34,6 +42,6 @@ export function MyReviews({ rows }: { rows: MyReviewRow[] }) {
           </Link>
         );
       })}
-    </section>
+    </div>
   );
 }

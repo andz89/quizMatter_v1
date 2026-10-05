@@ -429,10 +429,10 @@ interface EditorState {
   isColorPanelOpen: boolean;
   toggleColorPanel: () => void;
   closeColorPanel: () => void;
-  // Which part of the shape box the Color panel paints, when the box (not a shape) is selected.
-  shapeBoxColorTarget: "fill" | "border";
-  // Opens the Color panel on the box's fill or border; clicking the same one again closes it.
-  openShapeBoxColorPanel: (target: "fill" | "border") => void;
+  // Which part the Color panel paints: the fill, or the border of the selected shape box or squares/rectangles.
+  colorPanelTarget: "fill" | "border";
+  // Opens the Color panel on the fill or border; clicking the same one again closes it.
+  openColorPanelOn: (target: "fill" | "border") => void;
 
   // The Background panel changes the selected slide's background.
   isBackgroundPanelOpen: boolean;
@@ -1371,6 +1371,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       const next = !state.isColorPanelOpen;
       return {
         isColorPanelOpen: next,
+        colorPanelTarget: "fill",
         isElementsPanelOpen: next ? false : state.isElementsPanelOpen,
         isBackgroundPanelOpen: next ? false : state.isBackgroundPanelOpen,
         isDetailsPanelOpen: next ? false : state.isDetailsPanelOpen,
@@ -1380,12 +1381,12 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       };
     }),
   closeColorPanel: () => set({ isColorPanelOpen: false }),
-  shapeBoxColorTarget: "fill",
-  openShapeBoxColorPanel: (target) =>
+  colorPanelTarget: "fill",
+  openColorPanelOn: (target) =>
     set((state) => {
-      const next = !(state.isColorPanelOpen && state.shapeBoxColorTarget === target);
+      const next = !(state.isColorPanelOpen && state.colorPanelTarget === target);
       return {
-        shapeBoxColorTarget: target,
+        colorPanelTarget: target,
         isColorPanelOpen: next,
         isElementsPanelOpen: next ? false : state.isElementsPanelOpen,
         isBackgroundPanelOpen: next ? false : state.isBackgroundPanelOpen,

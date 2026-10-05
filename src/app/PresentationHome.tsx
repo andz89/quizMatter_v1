@@ -10,6 +10,7 @@ import { GRADES } from "@/lib/schema";
 import { LinkPending } from "@/components/LinkPending";
 import { SearchField, SearchForm, SearchSelect, SearchTextInput } from "@/components/SearchForm";
 import { PresentationCard, type PresentationCardData } from "./PresentationCard";
+import { ReviewRows, type MyReviewRow } from "./MyReviews";
 import { DEFAULT_SEARCH, homeSearchQuery, LOOK_IN, SORTS, WITHIN, type HomeSearch } from "./homeSearch";
 
 // Only downloaded when the teacher clicks Present on a card.
@@ -29,6 +30,8 @@ type AdminSort = "updatedAt" | "createdAt";
 const TABS: { id: Tab; label: string }[] = [
   { id: "mine", label: "My presentations" },
   { id: "quizmatter", label: "From QuizMatter" },
+  // Editors only.
+  { id: "reviewed", label: "My reviews" },
   { id: "saved", label: "Saved" },
   { id: "teachers", label: "Other teachers" },
 ];
@@ -41,15 +44,18 @@ const ADMIN_SORTS: { id: AdminSort; label: string }[] = [
 type Tab = Exclude<HomeSearch["in"], "all">;
 
 /**
- * The home page's cards, in four tabs: my newest presentations, the ones admins shared with every teacher ("From
- * QuizMatter"), the ones I saved, then presentations other teachers published. While searching, the server already
- * picked the matches (see page.tsx), so each tab shows exactly what it was given.
+ * The home page's cards, in tabs: my newest presentations, the ones admins shared with every teacher ("From
+ * QuizMatter"), my reviews (editors only), the ones I saved, then presentations other teachers published. While
+ * searching, the server already picked the matches (see page.tsx), so each tab shows exactly what it was given.
  */
 export function PresentationHome({
   myCards,
   adminCards,
   otherCards,
   savedCards,
+  reviewedCards,
+  myReviews,
+  isEditor,
   search,
   isSearching,
 }: {
@@ -57,6 +63,10 @@ export function PresentationHome({
   adminCards: AdminCardData[];
   otherCards: PresentationCardData[];
   savedCards: PresentationCardData[];
+  // Editors: the live presentations I reviewed, and my open and canceled reviews (empty while searching).
+  reviewedCards: PresentationCardData[];
+  myReviews: MyReviewRow[];
+  isEditor: boolean;
   search: HomeSearch;
   isSearching: boolean;
 }) {
@@ -65,7 +75,7 @@ export function PresentationHome({
   // A bookmark click changes these here instead of loading the whole page again (page.tsx's ~8 database queries).
   // page.tsx keys this component by the search, so a new search starts again from the server's data.
   const [savedIds, setSavedIds] = useState(
-    () => new Set([...adminCards, ...otherCards, ...savedCards].filter((card) => card.isSaved).map((card) => card.id))
+    () => new Set([...adminCards, ...otherCards, ...savedCards, ...reviewedCards].filter((card) => card.isSaved).map((card) => card.id))
   );
   const [saved, setSaved] = useState(savedCards);
 
@@ -90,10 +100,19 @@ export function PresentationHome({
     quizmatter: adminCards.length,
     saved: saved.length,
     teachers: otherCards.length,
+    // A presentation I'm reviewing again is in two parts, but counts once.
+    reviewed: new Set([...reviewedCards.map((card) => card.id), ...myReviews.map((row) => row.presentation_id)]).size,
   };
+  const openReviews = myReviews.filter((row) => row.status !== "canceled");
+  const canceledReviews = myReviews.filter((row) => row.status === "canceled");
+  const tabs = isEditor ? TABS : TABS.filter(({ id }) => id !== "reviewed");
   // A search opens the tab "Look in" names, or else the first tab with a match.
   const firstTab: Tab =
-    search.in !== "all" ? search.in : isSearching ? (TABS.find(({ id }) => counts[id] > 0)?.id ?? "mine") : "mine";
+    search.in !== "all" && tabs.some(({ id }) => id === search.in)
+      ? (search.in as Tab)
+      : isSearching
+        ? (tabs.find(({ id }) => counts[id] > 0)?.id ?? "mine")
+        : "mine";
   // The picked tab belongs to one search; a new search starts again from its first tab.
   const searchKey = homeSearchQuery(search);
   const [picked, setPicked] = useState({ searchKey, tab: firstTab });
@@ -107,7 +126,7 @@ export function PresentationHome({
   return (
     <>
       {/* Keyed by the search, so Back (or Clear search) puts the right text back in the box. */}
-      <HomeSearchForm key={searchKey} search={search} />
+      <HomeSearchForm key={searchKey} search={search} isEditor={isEditor} />
 
       {isSearching && (
         <div className="mb-6 flex items-center gap-3">
@@ -127,7 +146,7 @@ export function PresentationHome({
 
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <div role="tablist" className="flex max-w-full gap-1 overflow-x-auto rounded-button bg-bg-surface p-1">
-          {TABS.map(({ id, label }) => (
+          {tabs.map(({ id, label }) => (
             <button
               key={id}
               type="button"
@@ -196,6 +215,34 @@ export function PresentationHome({
             empty={isSearching ? noMatch("QuizMatter presentations") : "QuizMatter hasn't shared any presentations yet."}
           />
         )}
+        {tab === "reviewed" && (
+          <>
+            {openReviews.length > 0 && (
+              <>
+                <PartLabel>In progress</PartLabel>
+                <ReviewRows rows={openReviews} />
+              </>
+            )}
+            {canceledReviews.length > 0 && (
+              <>
+                <PartLabel className={openReviews.length > 0 ? "mt-6" : ""}>Canceled</PartLabel>
+                <ReviewRows rows={canceledReviews} />
+              </>
+            )}
+            {reviewedCards.length > 0 ? (
+              <>
+                {!isSearching && <PartLabel className={myReviews.length > 0 ? "mt-6" : ""}>Published</PartLabel>}
+                <Cards {...cardsProps} cards={reviewedCards} empty="" />
+              </>
+            ) : (
+              myReviews.length === 0 && (
+                <Empty>
+                  {isSearching ? noMatch("presentations you reviewed") : "You haven't reviewed any presentations yet."}
+                </Empty>
+              )
+            )}
+          </>
+        )}
         {tab === "saved" && (
           <Cards
             {...cardsProps}
@@ -221,7 +268,7 @@ export function PresentationHome({
  * The home page's search box and its options. Enter or Search puts the search in the page link, and the server
  * looks it up in the database (page.tsx).
  */
-function HomeSearchForm({ search }: { search: HomeSearch }) {
+function HomeSearchForm({ search, isEditor }: { search: HomeSearch; isEditor: boolean }) {
   const router = useRouter();
   const [values, setValues] = useState(search);
   const [isPending, startTransition] = useTransition();
@@ -268,7 +315,11 @@ function HomeSearchForm({ search }: { search: HomeSearch }) {
         <SearchSelect value={values.within} options={WITHIN} onChange={(within) => set({ within })} />
       </SearchField>
       <SearchField label="Look in">
-        <SearchSelect value={values.in} options={LOOK_IN} onChange={(value) => set({ in: value })} />
+        <SearchSelect
+          value={values.in}
+          options={isEditor ? LOOK_IN : LOOK_IN.filter(({ id }) => id !== "reviewed")}
+          onChange={(value) => set({ in: value })}
+        />
       </SearchField>
       <SearchField label="Sort by">
         <SearchSelect value={values.sort} options={SORTS} onChange={(sort) => set({ sort })} />
@@ -303,6 +354,11 @@ function Cards({
       ))}
     </div>
   );
+}
+
+/** A small heading for one part of a tab, like "In progress" in My reviews. */
+function PartLabel({ children, className = "" }: { children: ReactNode; className?: string }) {
+  return <h3 className={`mb-2 text-[11px] font-bold tracking-[0.05em] text-text-header uppercase ${className}`}>{children}</h3>;
 }
 
 function Empty({ children }: { children: ReactNode }) {

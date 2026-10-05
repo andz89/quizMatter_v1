@@ -10,14 +10,14 @@ export function ShapeBoxToolbar() {
   const selectedContainerId = useEditorStore((s) => s.selectedContainerId);
   const slide = useEditorStore((s) => s.presentation.slides.find((sl) => sl.id === s.selectedSlideId));
   const isColorPanelOpen = useEditorStore((s) => s.isColorPanelOpen);
-  const shapeBoxColorTarget = useEditorStore((s) => s.shapeBoxColorTarget);
-  const openShapeBoxColorPanel = useEditorStore((s) => s.openShapeBoxColorPanel);
+  const colorPanelTarget = useEditorStore((s) => s.colorPanelTarget);
+  const openColorPanelOn = useEditorStore((s) => s.openColorPanelOn);
 
   if (!slide || selectedContainerId !== SIDE_CONTAINER_ID) return null;
 
   // Violet ring on the swatch whose color the panel is editing.
   const outline = (target: "fill" | "border") => ({
-    outline: isColorPanelOpen && shapeBoxColorTarget === target ? "2px solid var(--accent)" : "2px solid transparent",
+    outline: isColorPanelOpen && colorPanelTarget === target ? "2px solid var(--accent)" : "2px solid transparent",
     outlineOffset: 2,
   });
 
@@ -33,14 +33,14 @@ export function ShapeBoxToolbar() {
       <button
         type="button"
         title="Fill"
-        onClick={() => openShapeBoxColorPanel("fill")}
+        onClick={() => openColorPanelOn("fill")}
         className="h-6 w-6 shrink-0 rounded-full border border-border-default"
         style={{ background: slide.shapeBoxFill ? toCssBackground(slide.shapeBoxFill) : NONE_SWATCH, ...outline("fill") }}
       />
       <button
         type="button"
         title="Border"
-        onClick={() => openShapeBoxColorPanel("border")}
+        onClick={() => openColorPanelOn("border")}
         className="h-6 w-6 shrink-0 rounded-full"
         style={{
           ...(slide.shapeBoxBorder

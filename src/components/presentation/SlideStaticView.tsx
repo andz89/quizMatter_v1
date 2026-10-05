@@ -19,6 +19,7 @@ import {
   getQuestionBox,
   getItemCount,
   isFreeCanvas,
+  GRADIENT_PREFIX,
 } from "@/lib/constants";
 import type { Slide } from "@/lib/schema";
 import { svgDataUrl } from "@/lib/svgLibrary";
@@ -36,14 +37,24 @@ export function getShapeBoxFrameStyle(slide: Pick<Slide, "shapeBoxFill" | "shape
   };
 }
 
-/** The slide's background color and artwork. The artwork is a CSS image, so nothing inside it can run. */
+/** A slide's background color as CSS: the color itself, or its gradient from the top of the slide to the bottom. */
+export function slideBackgroundCss(background: string) {
+  return background.startsWith(GRADIENT_PREFIX)
+    ? `linear-gradient(180deg, ${background.slice(GRADIENT_PREFIX.length)})`
+    : background;
+}
+
+/** The slide's background color (or gradient) and artwork. The artwork is a CSS image, so nothing inside it can run. */
 export function getSlideBackgroundStyle(slide: Pick<Slide, "background" | "backgroundSvg">) {
+  const isGradient = !!slide.background?.startsWith(GRADIENT_PREFIX);
+  // The artwork is drawn on top of the gradient.
+  const images = [
+    slide.backgroundSvg && `url("${svgDataUrl(slide.backgroundSvg)}")`,
+    isGradient && slideBackgroundCss(slide.background!),
+  ].filter(Boolean);
   return {
-    backgroundColor: slide.background,
-    ...(slide.backgroundSvg && {
-      backgroundImage: `url("${svgDataUrl(slide.backgroundSvg)}")`,
-      backgroundSize: "100% 100%",
-    }),
+    backgroundColor: isGradient ? undefined : slide.background,
+    ...(images.length > 0 && { backgroundImage: images.join(", "), backgroundSize: "100% 100%" }),
   };
 }
 

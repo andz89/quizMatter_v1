@@ -7,6 +7,7 @@ import { CORNER_RADIUS_MAX, getContainerBounds, OPACITY_MIN } from "@/lib/consta
 import { boxForShownPart, getCropFrame } from "@/lib/crop";
 import { fitInBox } from "@/lib/geometry";
 import { toCssBackground } from "./ElementSvg";
+import { NONE_SWATCH } from "./ColorPanel";
 import { ArrangePanel } from "./ArrangePanel";
 import { MathToolControls } from "./MathToolPanels";
 import { PanelReadout, PanelSlider, ResetButton, ToggleChip, ToolPanelButton } from "./PanelControls";
@@ -31,7 +32,8 @@ export function SelectedElementToolbar({ showColor = true }: { showColor?: boole
   const ungroupSelectedElements = useEditorStore((s) => s.ungroupSelectedElements);
   const selectElements = useEditorStore((s) => s.selectElements);
   const isColorPanelOpen = useEditorStore((s) => s.isColorPanelOpen);
-  const toggleColorPanel = useEditorStore((s) => s.toggleColorPanel);
+  const colorPanelTarget = useEditorStore((s) => s.colorPanelTarget);
+  const openColorPanelOn = useEditorStore((s) => s.openColorPanelOn);
   const updateElement = useEditorStore((s) => s.updateElement);
   const updateElements = useEditorStore((s) => s.updateElements);
   const fitElementsToContainer = useEditorStore((s) => s.fitElementsToContainer);
@@ -98,6 +100,13 @@ export function SelectedElementToolbar({ showColor = true }: { showColor?: boole
     );
 
   const commonColor = elements.every((el) => el.color === elements[0].color) ? elements[0].color : null;
+  // Squares and rectangles also get a border swatch: a ring in the border color, or "none".
+  const commonBorder = elements.every((el) => el.borderColor === elements[0].borderColor) ? elements[0].borderColor : null;
+  // Violet ring on the swatch whose color the panel is editing.
+  const outline = (target: "fill" | "border") => ({
+    outline: isColorPanelOpen && colorPanelTarget === target ? "2px solid var(--accent)" : "2px solid transparent",
+    outlineOffset: 2,
+  });
 
   // Selection is exactly one whole group → offer Ungroup. 2+ elements in one box otherwise → offer Group.
   const isOneGroup = !!elements[0].groupId && elements.every((el) => el.groupId === elements[0].groupId);
@@ -191,14 +200,24 @@ export function SelectedElementToolbar({ showColor = true }: { showColor?: boole
           <button
             type="button"
             title="Color"
-            onClick={toggleColorPanel}
+            onClick={() => openColorPanelOn("fill")}
             className="h-6 w-6 shrink-0 rounded-full"
-            style={{
-              background: commonColor ? toCssBackground(commonColor) : MIXED_COLOR_SWATCH,
-              outline: isColorPanelOpen ? "2px solid var(--accent)" : "2px solid transparent",
-              outlineOffset: 2,
-            }}
+            style={{ background: commonColor ? toCssBackground(commonColor) : MIXED_COLOR_SWATCH, ...outline("fill") }}
           />
+          {canRoundCorners && (
+            <button
+              type="button"
+              title="Border"
+              onClick={() => openColorPanelOn("border")}
+              className="h-6 w-6 shrink-0 rounded-full"
+              style={{
+                ...(commonBorder
+                  ? { border: `4px solid ${commonBorder}` }
+                  : { background: commonBorder === undefined ? NONE_SWATCH : MIXED_COLOR_SWATCH, border: "1px solid var(--border-default)" }),
+                ...outline("border"),
+              }}
+            />
+          )}
           <div className="mx-1 h-5 w-px bg-border-default" />
         </>
       )}

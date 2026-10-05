@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { CheckIcon } from "lucide-react";
 import { CANVAS_WIDTH, CANVAS_HEIGHT, getSlideNumbers } from "@/lib/constants";
 import { Spinner } from "@/components/Spinner";
 import { FluidSlidePreview } from "@/components/presentation/FluidSlidePreview";
@@ -24,6 +25,10 @@ export type PresentationCardData = {
   // Adds the bookmark button (someone else's presentation): `isSaved` = it's in my "Saved" row.
   canSave?: boolean;
   isSaved?: boolean;
+  // It has a published review (someone in its "Reviewed by" list): a mint check over the picture, for everyone.
+  isReviewed?: boolean;
+  // An editor's own published review of it: the check then says "You reviewed this".
+  isReviewedByMe?: boolean;
 };
 
 /**
@@ -55,7 +60,12 @@ export function PresentationCard({
       >
         {card.firstSlide ? (
           // The presentation's first slide, so a question there is number 1 (unless taken out of the numbers).
-          <FluidSlidePreview slide={card.firstSlide} questionNumber={getSlideNumbers([card.firstSlide]).get(card.firstSlide.id)} />
+          <FluidSlidePreview
+            slide={card.firstSlide}
+            questionNumber={getSlideNumbers([card.firstSlide]).get(
+              card.firstSlide.id,
+            )}
+          />
         ) : (
           <div className="flex h-full items-center justify-center gap-2 bg-bg-page text-[13px] text-text-secondary">
             {isChecking && <Spinner size={14} />}
@@ -65,6 +75,14 @@ export function PresentationCard({
                 ? "From Claude"
                 : "No preview"}
           </div>
+        )}
+        {card.isReviewed && (
+          <span
+            title={card.isReviewedByMe ? "You reviewed this" : "Reviewed by QuizMatter"}
+            className="absolute top-2 left-2 flex h-6 w-6 items-center justify-center rounded-full bg-success text-white"
+          >
+            <CheckIcon size={16} strokeWidth={5} />
+          </span>
         )}
       </div>
       <div className="flex flex-col gap-1 px-1 pt-3 pb-1">
@@ -76,7 +94,11 @@ export function PresentationCard({
         >
           {card.title}
         </p>
-        {card.byline && <p className="truncate text-xs font-semibold text-text-secondary">{card.byline}</p>}
+        {card.byline && (
+          <p className="truncate text-xs font-semibold text-text-secondary">
+            {card.byline}
+          </p>
+        )}
         <p className="truncate text-xs text-text-secondary">{card.meta}</p>
       </div>
     </div>
@@ -91,7 +113,12 @@ export function PresentationCard({
       ) : (
         // Opens in a new tab, so the list stays open in this one. No prefetch: a new tab can't use it, and every
         // card on screen would load its page again after each refresh (e.g. after a bookmark click).
-        <Link href={card.href} target="_blank" prefetch={false} className="group block">
+        <Link
+          href={card.href}
+          target="_blank"
+          prefetch={false}
+          className="group block"
+        >
           {body}
         </Link>
       )}
@@ -109,7 +136,10 @@ export function PresentationCard({
 }
 
 // The status as the card's small uppercase label, colored by meaning (dark shades, so the small text reads well).
-const KICKERS: Record<NonNullable<PresentationCardData["badge"]>, { label: string; className: string }> = {
+const KICKERS: Record<
+  NonNullable<PresentationCardData["badge"]>,
+  { label: string; className: string }
+> = {
   draft: { label: "Draft", className: "text-highlight-strong" },
   published: { label: "Published", className: "text-success-strong" },
   hidden: { label: "Hidden by QuizMatter", className: "text-danger-strong" },
@@ -117,7 +147,17 @@ const KICKERS: Record<NonNullable<PresentationCardData["badge"]>, { label: strin
   unfinished: { label: "Not finished", className: "text-text-secondary" },
 };
 
-function Kicker({ badge }: { badge: NonNullable<PresentationCardData["badge"]> }) {
+function Kicker({
+  badge,
+}: {
+  badge: NonNullable<PresentationCardData["badge"]>;
+}) {
   const { label, className } = KICKERS[badge];
-  return <span className={`text-[11px] leading-none font-semibold tracking-[0.06em] uppercase ${className}`}>{label}</span>;
+  return (
+    <span
+      className={`text-[11px] leading-none font-semibold tracking-[0.06em] uppercase ${className}`}
+    >
+      {label}
+    </span>
+  );
 }

@@ -3,9 +3,10 @@
 import { useEffect } from "react";
 import { useEditorStore, isPanelEscape } from "@/lib/store";
 import { getElementAsset } from "@/lib/svgLibrary";
-import { getSlideNumbers } from "@/lib/constants";
+import { getSlideNumbers, GRADIENT_PREFIX } from "@/lib/constants";
 import {
   BACKGROUND_COLORS,
+  BACKGROUND_GRADIENTS,
   BACKGROUND_PATTERN_IDS,
   DEFAULT_PATTERN_OPACITY,
   PATTERN_OPACITY_RANGE,
@@ -14,10 +15,11 @@ import { ElementSvg } from "./ElementSvg";
 import { NONE_SWATCH } from "./ColorPanel";
 import { PanelLabel, PanelSlider } from "./PanelControls";
 import { SlideThumbnailPreview } from "./SlideThumbnailPreview";
+import { slideBackgroundCss } from "@/components/presentation/SlideStaticView";
 import { XIcon } from "lucide-react";
 
 /**
- * Sidebar panel for the selected slide's background: a soft color and an optional pattern frame with
+ * Sidebar panel for the selected slide's background: a soft color or gradient and an optional pattern frame with
  * its strength. Every change goes straight onto the slide; the small preview on top shows it too.
  */
 export function BackgroundPanel() {
@@ -67,6 +69,20 @@ export function BackgroundPanel() {
           {BACKGROUND_COLORS.map((color) => (
             <Tile key={color} title={color} selected={slide.background === color} onClick={() => setSlideBackground(slide.id, { background: color })}>
               <span className="block h-full w-full rounded-dropdown" style={{ background: color }} />
+            </Tile>
+          ))}
+        </div>
+      </section>
+
+      <section className="flex flex-col gap-3">
+        <PanelLabel>Gradient</PanelLabel>
+        <div className="flex flex-wrap gap-2.5">
+          {BACKGROUND_GRADIENTS.map((gradient) => (
+            <Tile
+              key={gradient}
+              title={gradient.slice(GRADIENT_PREFIX.length).replace(",", " → ")}
+              selected={slide.background === gradient} onClick={() => setSlideBackground(slide.id, { background: gradient })}>
+              <span className="block h-full w-full rounded-dropdown" style={{ background: slideBackgroundCss(gradient) }} />
             </Tile>
           ))}
         </div>
