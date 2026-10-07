@@ -35,7 +35,7 @@ function createServer(appUrl: string, userId: string, supabase: SupabaseClient) 
       name,
       {
         description:
-          "Returns the JSON format for quizMatter slides (blank, title, question, and video / slide deck / picture slides), with notes and an example. Call this before send_presentation. " +
+          "Returns the JSON format for quizMatter slides (blank, title, question, and video / slide deck / picture slides), with notes. Call this before send_presentation. " +
           "If the user gives you a reference (a module, book lesson, worksheet, file or link), first ask whether to use all its short quizzes and activities as question slides, or only the final assessment. " +
           "If the reference is a quizMatter presentation link, read it with read_presentation (not web fetch: it needs a login).",
         annotations: { readOnlyHint: true },
