@@ -11,8 +11,6 @@ export const MISSING = [
   { id: "any", label: "Anything" },
   { id: "description", label: "No description" },
   { id: "source", label: "No source" },
-  // Not missing anything, but not done yet either: Claude's uploads, until an admin approves them.
-  { id: "review", label: "Waiting for review" },
 ] as const;
 
 export const PHOTO_SORTS = [
