@@ -1,5 +1,8 @@
 # Zip → Presentation (Claude builds a presentation from a zip of photos and text)
 
+> **Changed:** `for_presentation` was removed — every photo Claude uploads is ready at once. See
+> `2026-10-07-remove-photo-review-design.md`.
+
 ## Goal
 
 An admin attaches a zip in a claude.ai chat (photos plus lesson text, e.g. a .docx, .txt or .md) and asks Claude
