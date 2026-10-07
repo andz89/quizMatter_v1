@@ -8,10 +8,13 @@ import type { ClaudePhotoDetails } from "./schema";
 
 export const PHOTO_TICKET_LIFETIME_MS = 60 * 60 * 1000;
 
-export type PhotoTicket = { ownerId: string; details: ClaudePhotoDetails };
+export type PhotoTicket = { ownerId: string; details: ClaudePhotoDetails; approved: boolean };
 
-/** Stores a ticket for each photo and returns their ids, in the same order. Also clears out expired tickets. */
-export async function createPhotoTickets(ownerId: string, photos: ClaudePhotoDetails[]): Promise<string[]> {
+/**
+ * Stores a ticket for each photo and returns their ids, in the same order. Also clears out expired tickets.
+ * `approved`: the photos are for a presentation Claude is about to send, so they skip the review.
+ */
+export async function createPhotoTickets(ownerId: string, photos: ClaudePhotoDetails[], approved: boolean): Promise<string[]> {
   const db = getCloudflareContext().env.DRAFTS_DB;
   const now = Date.now();
   const ids = photos.map(() => crypto.randomUUID());
@@ -20,7 +23,7 @@ export async function createPhotoTickets(ownerId: string, photos: ClaudePhotoDet
     ...photos.map((photo, i) =>
       db
         .prepare("INSERT INTO photo_tickets (id, owner_id, details, created_at) VALUES (?, ?, ?, ?)")
-        .bind(ids[i], ownerId, JSON.stringify(photo), now),
+        .bind(ids[i], ownerId, JSON.stringify({ ...photo, approved }), now),
     ),
   ]);
   return ids;
@@ -32,7 +35,10 @@ export async function getPhotoTicket(id: string): Promise<PhotoTicket | null> {
     .env.DRAFTS_DB.prepare("SELECT owner_id, details FROM photo_tickets WHERE id = ? AND created_at >= ?")
     .bind(id, Date.now() - PHOTO_TICKET_LIFETIME_MS)
     .first<{ owner_id: string; details: string }>();
-  return row ? { ownerId: row.owner_id, details: JSON.parse(row.details) } : null;
+  if (!row) return null;
+  // Tickets made before "approved" existed don't have it: they wait for review, as they did then.
+  const { approved, ...details } = JSON.parse(row.details);
+  return { ownerId: row.owner_id, details, approved: approved === true };
 }
 
 /**

@@ -13,7 +13,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
  * name, description, tags, category and source, so this needs no login — the proxy lets it through, and the
  * ticket is the permission. Claude converted the photo to WebP in its sandbox, like the admin page does in the
  * browser; the file is stored exactly as it arrives. It waits for an admin's review (approved: false) before
- * teachers see it. The answers are plain sentences, as Claude reads them.
+ * teachers see it, unless the ticket says it's for a presentation (then it's approved right away, so it can go on
+ * the slides Claude sends next). The answers are plain sentences, as Claude reads them.
  */
 export async function POST(request: Request) {
   const ticketId = z.uuid().safeParse(new URL(request.url).searchParams.get("ticket"));
@@ -58,12 +59,29 @@ export async function POST(request: Request) {
   const fileName = await photoFileName(body, type);
   const src = PHOTO_URL_PREFIX + fileName;
 
-  // The same photo is already shared: it's left as it is (an admin may have changed its details).
-  const { data: existing, error: existingError } = await supabase.from("shared_photos").select("file_name").eq("src", src).maybeSingle();
+  // The same photo is already shared: it's left as it is (an admin may have changed its details), except that a
+  // photo still waiting for review is approved when it's for a presentation. Its size comes back so it can go on slides.
+  const { data: existing, error: existingError } = await supabase
+    .from("shared_photos")
+    .select("file_name, width, height, approved")
+    .eq("src", src)
+    .maybeSingle();
   if (existingError) return answer(500, "Couldn't add the photo. Send it again.");
   if (existing) {
+    const shared = { src, width: existing.width, height: existing.height };
+    if (ticket.approved && !existing.approved) {
+      // Approved before the ticket is used up, so a failure can be sent again with the same link.
+      const { error } = await supabase.from("shared_photos").update({ approved: true }).eq("src", src);
+      if (error) return answer(500, "Couldn't approve the photo. Send it again.");
+      await deletePhotoTicket(ticketId.data);
+      return answer(
+        200,
+        `This photo was already in the library, as "${existing.file_name}", waiting for review. It's approved now, so it can go on slides.`,
+        shared,
+      );
+    }
     await deletePhotoTicket(ticketId.data);
-    return answer(200, `This photo is already in the library, as "${existing.file_name}". Nothing was changed.`, { src });
+    return answer(200, `This photo is already in the library, as "${existing.file_name}". Nothing was changed.`, shared);
   }
 
   // The ticket is used up here, before anything is saved, so the same link sent twice at once adds only one photo.
@@ -80,7 +98,7 @@ export async function POST(request: Request) {
     await savePhotoFile(fileName, body, type);
     const { error } = await supabase
       .from("shared_photos")
-      .insert({ ...photo.data, ...info, bytes: sharedPhotoBytesSchema.parse(body.byteLength), approved: false });
+      .insert({ ...photo.data, ...info, bytes: sharedPhotoBytesSchema.parse(body.byteLength), approved: ticket.approved });
     saved = !error;
   }
   if (!saved) {
@@ -91,11 +109,8 @@ export async function POST(request: Request) {
 
   const kb = Math.round(body.byteLength / 1024);
   const added = `Added "${info.file_name}" (${size.width}×${size.height} px, ${kb} KB) to "${category}"`;
-  return answer(200, `${added}. It waits for an admin's review before teachers see it.`, {
-    src,
-    width: size.width,
-    height: size.height,
-  });
+  const review = ticket.approved ? "It's approved, so it can go on slides now." : "It waits for an admin's review before teachers see it.";
+  return answer(200, `${added}. ${review}`, { src, width: size.width, height: size.height });
 }
 
 /**
