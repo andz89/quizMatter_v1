@@ -111,20 +111,11 @@ function createServer(appUrl: string, userId: string, supabase: SupabaseClient) 
         "reuse a category from find_photos when one fits, or give a new name to make a new category. The source (who owns " +
         "the photos or where they came from) is what the user told you; ask them if they didn't. " +
         "This returns a one-time upload link per photo and the steps to send each file from your code sandbox. " +
-        'Set "for_presentation": true when the photos are for a presentation you\'ll send next: they\'re approved right away, so they can go on the slides.',
-      inputSchema: {
-        photos: z.array(claudePhotoSchema).min(1).max(20).describe("One entry per photo, in the order you'll upload them."),
-        for_presentation: z
-          .boolean()
-          .optional()
-          .describe(
-            "true when these photos go on a presentation you'll send next (e.g. from a zip): they're approved right away. Leave it out for photos only meant for the library.",
-          ),
-      },
+        "The photos are ready at once: teachers can find them, and you can put them on slides.",
+      inputSchema: { photos: z.array(claudePhotoSchema).min(1).max(20).describe("One entry per photo, in the order you'll upload them.") },
     },
-    async ({ photos, for_presentation }) => {
-      const approved = for_presentation === true;
-      const ids = await createPhotoTickets(userId, photos, approved);
+    async ({ photos }) => {
+      const ids = await createPhotoTickets(userId, photos);
       const text = [
         "If the photos came in a zip, unzip it first (e.g. unzip -o file.zip -d /tmp/zip) and use the photos from there.",
         "For each photo, in your code sandbox (the user's attached files are in /mnt/user-data/uploads), do what quizMatter's",
@@ -141,15 +132,8 @@ function createServer(appUrl: string, userId: string, supabase: SupabaseClient) 
         "Upload links:",
         ...photos.map((photo, i) => `- ${photo.file_name}: ${appUrl}/api/claude-photo?ticket=${ids[i]}`),
         "",
-        ...(approved
-          ? [
-              "When you're done, tell the user which photos were added. They're approved, so they can go on slides now: put each one in",
-              '"elements" as { "asset": "photo", "photo": { "src", "width", "height" } }, copied exactly from its upload answer.',
-            ]
-          : [
-              "When you're done, tell the user which photos were added. They wait for review: teachers (and find_photos) don't",
-              'see them until an admin approves them on Admin → Photos ("Waiting for review"), where they can also edit them.',
-            ]),
+        "When you're done, tell the user which photos were added. To put one on a slide, use",
+        '{ "asset": "photo", "photo": { "src", "width", "height" } } in "elements", copied exactly from its upload answer.',
       ].join("\n");
       return { content: [{ type: "text", text }] };
     },
@@ -294,8 +278,8 @@ function htmlToText(html: string): string {
 }
 
 /**
- * Every photo on the slides must be an approved shared photo, with its real size (as find_photos or the upload
- * answer gave it). The problems, if any.
+ * Every photo on the slides must be a shared photo, with its real size (as find_photos or the upload answer gave
+ * it). The problems, if any.
  */
 async function checkPhotos(slides: Slide[]): Promise<string[]> {
   // Photos sit in their element's "image", wherever the element is (a box, the answer canvas…).
@@ -311,8 +295,6 @@ async function checkPhotos(slides: Slide[]): Promise<string[]> {
   const { data, error } = await supabase
     .from("shared_photos")
     .select("src, width, height")
-    // Photos waiting for review can't go on slides yet.
-    .eq("approved", true)
     .in("src", [...new Set(used.map((photo) => photo.src))]);
   if (error) return ["Couldn't check the photos. Send again, or leave them out."];
 
@@ -320,7 +302,7 @@ async function checkPhotos(slides: Slide[]): Promise<string[]> {
   const problems = used.map((photo) => {
     const real = known.get(photo.src);
     if (!real) {
-      return `${photo.src} isn't a shared photo. Only use photos from find_photos, or ones you just uploaded with "for_presentation": true.`;
+      return `${photo.src} isn't a shared photo. Only use photos from find_photos, or ones you uploaded with prepare_photo_upload.`;
     }
     if (real.width !== photo.width || real.height !== photo.height) {
       return `${photo.src} is ${real.width}×${real.height}, not ${photo.width}×${photo.height}. Copy "photo" exactly as find_photos or the upload answer gave it.`;
