@@ -57,8 +57,8 @@ Also new, for **all five diagrams**: each box can be a **circle** or a **rounded
 - New optional box field `shape: "circle" | "rounded"`.
 - Missing = the diagram's own default: **circle** for the Factor Tree, **rounded** for the flowchart,
   cycle, mind map and tree (so nothing already made changes).
-- The toolbar's box style group gets a **Shape** choice (Circle / Rounded, Lucide icons `CircleIcon` /
-  `SquareIcon`), going to the picked box, or every box when none is picked, through
+- The toolbar's box style group gets a **Shape** button (it shows `CircleIcon` or `SquareIcon` for the
+  current shape; a click switches it), going to the picked box, or every box when none is picked, through
   `diagramStyleTargets` + `withDiagramBoxStyle`, like the other box styles. New boxes ("+") copy it
   (`diagramBoxLook` includes `shape`).
 - A circle is an `<ellipse>` filling the box (background, tint and border drawn the same way as the
@@ -110,9 +110,9 @@ One layout, used by both the drawing and the editor (`getDiagramBoxes`), as for 
   `box` that has its own place, each kept within `DIAGRAM_BOX_POSITION_MAX`. Boxes under it in their
   automatic spot follow by themselves (see layout).
 - For the other four diagrams it only does `replaceAtPath`, exactly as today.
-- `DiagramBoxEditor.moveDrag` uses it for a **move** drag. The drag starts from the settings at
-  pointer-down (kept in the drag state), so each pointer move applies the total move once, not again on
-  top of the last one. Resize drags don't change.
+- `DiagramBoxEditor.moveDrag` uses it for a **move** drag. The drag keeps the diagram and box from
+  pointer-down (`state.diagram`, `state.box`) and passes them to `moveDiagramBox`, so each pointer move
+  applies the total move once, not again on top of the last one. Resize drags work as before.
 - Everything else stays: `keepInPlace` keeps the rest of the slide still when the drawing area changes,
   the question/option/side box edge stop works, one whole drag is one undo step.
 

@@ -7,6 +7,11 @@ import {
   getNumberLineValue,
   getTenFrameViewBox,
   getBaseTenViewBox,
+  getFlowchartViewBox,
+  getCycleViewBox,
+  getMindMapViewBox,
+  getTreeViewBox,
+  getFactorTreeViewBox,
   DEFAULT_NUMBER_LINE,
   DEFAULT_FRACTION,
   DEFAULT_FRACTION_NUMBER,
@@ -15,6 +20,14 @@ import {
   DEFAULT_THERMOMETER,
   DEFAULT_BAR_GRAPH,
   DEFAULT_PROTRACTOR,
+  DEFAULT_FLOWCHART,
+  DEFAULT_CYCLE,
+  DEFAULT_MIND_MAP,
+  DEFAULT_TREE,
+  DEFAULT_FACTOR_TREE,
+  type FactorTreeSettings,
+  type DiagramBoxItem,
+  diagramBoxLook,
   THERMOMETER_MIN,
   THERMOMETER_MAX,
   NUMBER_LINE_STEPS,
@@ -26,10 +39,33 @@ import {
   BAR_COUNTS,
   BAR_LABEL_MAX,
 } from "@/lib/svgLibrary";
-import { getContainerBounds, type BoxLayout } from "@/lib/constants";
-import type { SvgElement } from "@/lib/schema";
+import {
+  getContainerBounds,
+  CYCLE_STEPS,
+  FLOWCHART_STEPS,
+  MIND_MAP_IDEAS,
+  TREE_BRANCHES,
+  TREE_LEAVES_MAX,
+  type BoxLayout,
+} from "@/lib/constants";
+import type { FactorNode, SvgElement } from "@/lib/schema";
 import { PanelLabel, PanelReadout, PanelSlider, ResetButton, ToggleChip, ToolPanelButton } from "./PanelControls";
-import { BlocksIcon, ChartColumnIcon, ChartPieIcon, GaugeIcon, Grid3x3Icon, MoveHorizontalIcon, ThermometerIcon } from "lucide-react";
+import {
+  BlocksIcon,
+  ChartColumnIcon,
+  ChartPieIcon,
+  GaugeIcon,
+  GitForkIcon,
+  Grid3x3Icon,
+  MoveHorizontalIcon,
+  NetworkIcon,
+  PlusIcon,
+  RefreshCwIcon,
+  ThermometerIcon,
+  WaypointsIcon,
+  WorkflowIcon,
+  XIcon,
+} from "lucide-react";
 
 type Update = (patch: Partial<Omit<SvgElement, "id" | "assetId">>) => void;
 
@@ -40,7 +76,7 @@ interface MathToolControlsProps {
   box: BoxLayout;
 }
 
-/** The settings button + panel for a selected math tool (number line, fraction, counting frame…), or nothing. */
+/** The settings button + panel for a selected math tool or diagram (number line, fraction, flowchart…), or nothing. */
 export function MathToolControls({ element, slideId, box }: MathToolControlsProps) {
   const updateElement = useEditorStore((s) => s.updateElement);
   const asset = getElementAsset(element.assetId);
@@ -63,6 +99,16 @@ export function MathToolControls({ element, slideId, box }: MathToolControlsProp
       return <BarGraphControls element={element} update={update} />;
     case "protractor":
       return <ProtractorControls element={element} update={update} />;
+    case "flowchart":
+      return <FlowchartControls key={element.id} element={element} box={box} update={update} />;
+    case "cycle":
+      return <CycleControls key={element.id} element={element} box={box} update={update} />;
+    case "mindMap":
+      return <MindMapControls key={element.id} element={element} box={box} update={update} />;
+    case "tree":
+      return <TreeControls key={element.id} element={element} box={box} update={update} />;
+    case "factorTree":
+      return <FactorTreeControls key={element.id} element={element} box={box} update={update} />;
     default:
       return null;
   }
@@ -86,6 +132,8 @@ function useResizeForViewBox(element: SvgElement, box: BoxLayout) {
   const base = useRef<{ from: SizeSnapshot; applied: SizeSnapshot } | null>(null);
 
   return (oldViewBox: string, newViewBox: string) => {
+    // Same drawing area (e.g. typing in a diagram box): leave the element where the teacher put it.
+    if (oldViewBox === newViewBox) return {};
     const last = base.current?.applied;
     // Keep the saved starting size only if nothing else changed the element since (a manual resize, undo…).
     const unchanged =
@@ -99,11 +147,19 @@ function useResizeForViewBox(element: SvgElement, box: BoxLayout) {
     const width = newW * pxPerUnit * fit;
     const height = newH * pxPerUnit * fit;
     base.current = { from, applied: { viewBox: newViewBox, width, height } };
+    // A diagram's drawing area can start somewhere other than 0 (a box was dragged up or left). When
+    // that start moves (e.g. that box was removed), shift the element by the same amount so the other
+    // boxes stay where they were. Always 0 for the other tools.
+    const [oldMinX, oldMinY] = oldViewBox.split(" ").map(Number);
+    const [newMinX, newMinY] = newViewBox.split(" ").map(Number);
+    const scale = pxPerUnit * fit;
+    const x = element.x + (newMinX - oldMinX) * scale;
+    const y = element.y + (newMinY - oldMinY) * scale;
     return {
       width,
       height,
-      x: Math.max(0, Math.min(element.x, bounds.width - width)),
-      y: Math.max(0, Math.min(element.y, bounds.height - height)),
+      x: Math.max(0, Math.min(x, bounds.width - width)),
+      y: Math.max(0, Math.min(y, bounds.height - height)),
     };
   };
 }
@@ -383,6 +439,268 @@ function ProtractorControls({ element, update }: { element: SvgElement; update: 
     <ToolPanelButton title="Set angle" icon={<GaugeIcon size={16} />}>
       <PanelSlider label="Angle" value={angle} min={0} max={180} onChange={set} />
       <ResetButton onClick={() => set(DEFAULT_PROTRACTOR.angle)} />
+    </ToolPanelButton>
+  );
+}
+
+// ---------------------------------------------------------------------------------------------
+// Diagrams (flowchart, cycle, mind map, tree, factor tree): how many boxes. Their text is typed on the slide
+// (double-click a box), and their place and size are set by dragging there.
+// ---------------------------------------------------------------------------------------------
+
+// A tree box's text, read-only, on one line (typed on the slide), so the teacher knows which box a × removes.
+function DiagramBoxName({ box }: { box: DiagramBoxItem }) {
+  const text = box.text.replace(/\s+/g, " ").trim();
+  return (
+    <span title={text} className={`min-w-0 flex-1 truncate text-sm ${text ? "text-text-primary" : "text-text-secondary"}`}>
+      {text || "Empty box"}
+    </span>
+  );
+}
+
+// A box back in its automatic spot and size, keeping its text and look.
+const autoPlaced = (box: DiagramBoxItem): DiagramBoxItem => ({ ...diagramBoxLook(box), text: box.text });
+
+// "Tidy up" (every box back in its own spot and size, text kept) and Reset (everything back to the start).
+function DiagramButtons({ onTidy, onReset }: { onTidy: () => void; onReset: () => void }) {
+  return (
+    <div className="flex justify-end gap-4">
+      <button
+        type="button"
+        onClick={onTidy}
+        title="Put every box back in its own spot and size"
+        className="text-xs font-semibold text-accent hover:opacity-80"
+      >
+        Tidy up
+      </button>
+      <ResetButton onClick={onReset} />
+    </div>
+  );
+}
+
+// `list` with item `index` replaced by `value`.
+function replaceAt<T>(list: T[], index: number, value: T) {
+  return list.map((old, i) => (i === index ? value : old));
+}
+
+// How many boxes. Adding boxes keeps the old ones; new ones are named by `newText` and look like the last box.
+function DiagramBoxCount({
+  label,
+  items,
+  min,
+  max,
+  newText,
+  onChange,
+}: {
+  label: string;
+  items: DiagramBoxItem[];
+  min: number;
+  max: number;
+  newText: (index: number) => string;
+  onChange: (items: DiagramBoxItem[]) => void;
+}) {
+  return (
+    <PanelSlider
+      label={label}
+      value={items.length}
+      min={min}
+      max={max}
+      unit=""
+      onChange={(count) =>
+        onChange(Array.from({ length: count }, (_, i) => items[i] ?? { ...diagramBoxLook(items[items.length - 1]), text: newText(i) }))
+      }
+    />
+  );
+}
+
+function FlowchartControls({ element, box, update }: { element: SvgElement; box: BoxLayout; update: Update }) {
+  const flowchart = element.flowchart ?? DEFAULT_FLOWCHART;
+  const resize = useResizeForViewBox(element, box);
+  const set = (patch: Partial<typeof flowchart>) => {
+    const next = { ...flowchart, ...patch };
+    update({ flowchart: next, ...resize(getFlowchartViewBox(flowchart), getFlowchartViewBox(next)) });
+  };
+
+  return (
+    <ToolPanelButton title="Edit flowchart" icon={<WorkflowIcon size={16} />} wide>
+      <div className="flex gap-2">
+        <ToggleChip active={!flowchart.vertical} onClick={() => set({ vertical: false })} className="flex-1">
+          Across
+        </ToggleChip>
+        <ToggleChip active={!!flowchart.vertical} onClick={() => set({ vertical: true })} className="flex-1">
+          Down
+        </ToggleChip>
+      </div>
+      <DiagramBoxCount
+        label="Steps"
+        items={flowchart.steps}
+        min={FLOWCHART_STEPS.min}
+        max={FLOWCHART_STEPS.max}
+        newText={(i) => `Step ${i + 1}`}
+        onChange={(steps) => set({ steps })}
+      />
+      <DiagramButtons onTidy={() => set({ steps: flowchart.steps.map(autoPlaced) })} onReset={() => set(DEFAULT_FLOWCHART)} />
+    </ToolPanelButton>
+  );
+}
+
+function CycleControls({ element, box, update }: { element: SvgElement; box: BoxLayout; update: Update }) {
+  const cycle = element.cycle ?? DEFAULT_CYCLE;
+  const resize = useResizeForViewBox(element, box);
+  const setSteps = (steps: DiagramBoxItem[]) => {
+    const next = { steps };
+    update({ cycle: next, ...resize(getCycleViewBox(cycle), getCycleViewBox(next)) });
+  };
+
+  return (
+    <ToolPanelButton title="Edit cycle" icon={<RefreshCwIcon size={16} />} wide>
+      <DiagramBoxCount
+        label="Steps"
+        items={cycle.steps}
+        min={CYCLE_STEPS.min}
+        max={CYCLE_STEPS.max}
+        newText={(i) => `Step ${i + 1}`}
+        onChange={setSteps}
+      />
+      <DiagramButtons onTidy={() => setSteps(cycle.steps.map(autoPlaced))} onReset={() => setSteps(DEFAULT_CYCLE.steps)} />
+    </ToolPanelButton>
+  );
+}
+
+function MindMapControls({ element, box, update }: { element: SvgElement; box: BoxLayout; update: Update }) {
+  const mindMap = element.mindMap ?? DEFAULT_MIND_MAP;
+  const resize = useResizeForViewBox(element, box);
+  const set = (patch: Partial<typeof mindMap>) => {
+    const next = { ...mindMap, ...patch };
+    update({ mindMap: next, ...resize(getMindMapViewBox(mindMap), getMindMapViewBox(next)) });
+  };
+
+  return (
+    <ToolPanelButton title="Edit mind map" icon={<WaypointsIcon size={16} />} wide>
+      <DiagramBoxCount
+        label="Ideas"
+        items={mindMap.ideas}
+        min={MIND_MAP_IDEAS.min}
+        max={MIND_MAP_IDEAS.max}
+        newText={(i) => `Idea ${i + 1}`}
+        onChange={(ideas) => set({ ideas })}
+      />
+      <DiagramButtons
+        onTidy={() => set({ center: autoPlaced(mindMap.center), ideas: mindMap.ideas.map(autoPlaced) })}
+        onReset={() => set(DEFAULT_MIND_MAP)}
+      />
+    </ToolPanelButton>
+  );
+}
+
+// A small icon button to remove a box in the tree panel.
+function TreeRemoveButton({ title, onClick }: { title: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      title={title}
+      aria-label={title}
+      onClick={onClick}
+      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-dropdown text-text-secondary hover:bg-bg-page hover:text-text-primary"
+    >
+      <XIcon size={14} />
+    </button>
+  );
+}
+
+// A text button like "+ Add branch".
+function TreeAddButton({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex items-center gap-1 self-start text-xs font-semibold text-accent hover:opacity-80"
+    >
+      <PlusIcon size={14} />
+      {label}
+    </button>
+  );
+}
+
+function TreeControls({ element, box, update }: { element: SvgElement; box: BoxLayout; update: Update }) {
+  const tree = element.tree ?? DEFAULT_TREE;
+  const resize = useResizeForViewBox(element, box);
+  const set = (patch: Partial<typeof tree>) => {
+    const next = { ...tree, ...patch };
+    update({ tree: next, ...resize(getTreeViewBox(tree), getTreeViewBox(next)) });
+  };
+  const setBranch = (index: number, patch: Partial<(typeof tree.branches)[number]>) =>
+    set({ branches: replaceAt(tree.branches, index, { ...tree.branches[index], ...patch }) });
+
+  return (
+    <ToolPanelButton title="Edit tree" icon={<NetworkIcon size={16} />} wide>
+      <div className="flex max-h-80 flex-col gap-3 overflow-y-auto">
+        <PanelLabel>Branches</PanelLabel>
+        {tree.branches.map((branch, i) => (
+          <div key={i} className="flex flex-col gap-1.5">
+            <div className="flex items-center gap-1">
+              <DiagramBoxName box={branch.label} />
+              {tree.branches.length > TREE_BRANCHES.min && (
+                <TreeRemoveButton title="Remove branch" onClick={() => set({ branches: tree.branches.filter((_, j) => j !== i) })} />
+              )}
+            </div>
+            {/* The smaller boxes under this branch, indented. */}
+            <div className="flex flex-col gap-1.5 pl-4">
+              {branch.leaves.map((leaf, j) => (
+                <div key={j} className="flex items-center gap-1">
+                  <DiagramBoxName box={leaf} />
+                  <TreeRemoveButton
+                    title="Remove box"
+                    onClick={() => setBranch(i, { leaves: branch.leaves.filter((_, k) => k !== j) })}
+                  />
+                </div>
+              ))}
+              {branch.leaves.length < TREE_LEAVES_MAX && (
+                <TreeAddButton
+                  label="Add box"
+                  onClick={() => setBranch(i, { leaves: [...branch.leaves, { ...diagramBoxLook(branch.leaves.at(-1) ?? branch.label), text: "Item" }] })}
+                />
+              )}
+            </div>
+          </div>
+        ))}
+        {tree.branches.length < TREE_BRANCHES.max && (
+          <TreeAddButton
+            label="Add branch"
+            onClick={() =>
+              set({ branches: [...tree.branches, { label: { ...diagramBoxLook(tree.branches.at(-1)?.label), text: "Group" }, leaves: [] }] })
+            }
+          />
+        )}
+      </div>
+      <DiagramButtons
+        onTidy={() =>
+          set({
+            root: autoPlaced(tree.root),
+            branches: tree.branches.map((branch) => ({ label: autoPlaced(branch.label), leaves: branch.leaves.map(autoPlaced) })),
+          })
+        }
+        onReset={() => set(DEFAULT_TREE)}
+      />
+    </ToolPanelButton>
+  );
+}
+
+function FactorTreeControls({ element, box, update }: { element: SvgElement; box: BoxLayout; update: Update }) {
+  const factorTree = element.factorTree ?? DEFAULT_FACTOR_TREE;
+  const resize = useResizeForViewBox(element, box);
+  const set = (next: FactorTreeSettings) =>
+    update({ factorTree: next, ...resize(getFactorTreeViewBox(factorTree), getFactorTreeViewBox(next)) });
+  // Every number back in its automatic spot and size, keeping its text, look and split.
+  const tidy = (node: FactorNode): FactorNode => ({
+    ...autoPlaced(node),
+    ...(node.children && { children: [tidy(node.children[0]), tidy(node.children[1])] }),
+  });
+
+  return (
+    <ToolPanelButton title="Edit factor tree" icon={<GitForkIcon size={16} />} wide>
+      <p className="text-xs text-text-secondary">Use + under a number to split it, or × to remove a pair.</p>
+      <DiagramButtons onTidy={() => set({ root: tidy(factorTree.root) })} onReset={() => set(DEFAULT_FACTOR_TREE)} />
     </ToolPanelButton>
   );
 }

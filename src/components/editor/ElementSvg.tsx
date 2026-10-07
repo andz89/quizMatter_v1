@@ -1,4 +1,4 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import { getAssetViewBox, getElementAsset, svgDataUrl, type RenderSettings } from "@/lib/svgLibrary";
 import { isPeopleArt, isPeopleArtLoaded, loadPeopleArt } from "@/lib/peopleArt";
 import { Spinner } from "@/components/Spinner";
@@ -91,7 +91,19 @@ function SlidePhoto({ src }: { src: string }) {
   );
 }
 
+// Whether the page's fonts have loaded. Diagram text is measured with real letter widths only then;
+// the server and the browser's first draw both say no, so they draw the same lines.
+function subscribeToFonts(onChange: () => void) {
+  document.fonts.addEventListener("loadingdone", onChange);
+  return () => document.fonts.removeEventListener("loadingdone", onChange);
+}
+
 function ElementDrawing({ assetId, color, settings = {}, onMeasure }: ElementSvgProps) {
+  const fontsReady = useSyncExternalStore(
+    subscribeToFonts,
+    () => document.fonts.status === "loaded",
+    () => false,
+  );
   // Strip anything that isn't safe inside url(#...), since useId output can contain ":" or "«»".
   const gradientId = `grad-${useId().replace(/[^a-zA-Z0-9_-]/g, "")}`;
   const asset = getElementAsset(assetId);
@@ -201,7 +213,7 @@ function ElementDrawing({ assetId, color, settings = {}, onMeasure }: ElementSvg
           </linearGradient>
         </defs>
       )}
-      <g ref={contentRef}>{asset.render(gradientStops ? `url(#${gradientId})` : color, settings)}</g>
+      <g ref={contentRef}>{asset.render(gradientStops ? `url(#${gradientId})` : color, { ...settings, fontsReady })}</g>
     </svg>
   );
 }

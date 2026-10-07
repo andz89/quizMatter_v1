@@ -1,22 +1,48 @@
 "use client";
 
-import { useEditorStore } from "@/lib/store";
-import { canCrop, getElementAsset, DEFAULT_CLOCK_TIME } from "@/lib/svgLibrary";
+import { useEditorStore, type ColorPanelTarget } from "@/lib/store";
+import {
+  canCrop,
+  getElementAsset,
+  DEFAULT_CLOCK_TIME,
+  DIAGRAM_TEXT_COLOR,
+  diagramStyleTargets,
+  getDiagramBoxes,
+  withDiagramBoxStyle,
+  type DiagramBoxStyle,
+} from "@/lib/svgLibrary";
 import { DEFAULT_ROTATION_3D } from "@/lib/solids";
-import { CORNER_RADIUS_MAX, getContainerBounds, OPACITY_MIN } from "@/lib/constants";
+import {
+  CORNER_RADIUS_MAX,
+  DIAGRAM_FONT_SIZE,
+  DIAGRAM_FONT_SIZES,
+  DIAGRAM_NONE,
+  getContainerBounds,
+  GRADIENT_PREFIX,
+  OPACITY_MIN,
+} from "@/lib/constants";
 import { boxForShownPart, getCropFrame } from "@/lib/crop";
 import { fitInBox } from "@/lib/geometry";
 import { toCssBackground } from "./ElementSvg";
 import { NONE_SWATCH } from "./ColorPanel";
 import { ArrangePanel } from "./ArrangePanel";
 import { MathToolControls } from "./MathToolPanels";
+import { FontSizePicker } from "./TextFormatToolbar";
 import { PanelReadout, PanelSlider, ResetButton, ToggleChip, ToolPanelButton } from "./PanelControls";
-import { BlendIcon, ClockIcon, CopyIcon, CropIcon, FlipHorizontal2Icon, FullscreenIcon, GroupIcon, LayersIcon, Rotate3dIcon, RotateCwIcon, SquareRoundCornerIcon, Trash2Icon, UngroupIcon } from "lucide-react";
+import { BlendIcon, CircleIcon, ClockIcon, CopyIcon, CropIcon, FlipHorizontal2Icon, FullscreenIcon, GroupIcon, LayersIcon, Rotate3dIcon, RotateCwIcon, SquareIcon, SquareRoundCornerIcon, Trash2Icon, UngroupIcon } from "lucide-react";
 
 // Quick angles shown above the Rotate slider.
 const ANGLE_PRESETS = [-90, -45, 0, 45, 90, 180];
 
 const MIXED_COLOR_SWATCH = "conic-gradient(#6B3DF5, #14C8A0, #FFC233, #FF5A5F, #2F9BFF, #6B3DF5)";
+
+// A diagram box border swatch: "none", a ring in its color, or (unset) the diagram's Color it uses.
+// A gradient Color can't be a ring, so it shows as a filled circle.
+function borderSwatch(border: string | undefined, diagramColor: string): React.CSSProperties {
+  if (border === DIAGRAM_NONE) return { background: NONE_SWATCH, border: "1px solid var(--border-default)" };
+  const color = border ?? diagramColor;
+  return color.startsWith(GRADIENT_PREFIX) ? { background: toCssBackground(color) } : { border: `4px solid ${color}` };
+}
 
 /**
  * Header container for the selected SVG element(s)' color, duplicate, and delete controls.
@@ -39,6 +65,7 @@ export function SelectedElementToolbar({ showColor = true }: { showColor?: boole
   const fitElementsToContainer = useEditorStore((s) => s.fitElementsToContainer);
   const croppingElementId = useEditorStore((s) => s.croppingElementId);
   const setCroppingElementId = useEditorStore((s) => s.setCroppingElementId);
+  const pickedDiagramBox = useEditorStore((s) => s.pickedDiagramBox);
 
   const elements = slide?.elements.filter((el) => selectedElementIds.includes(el.id)) ?? [];
   if (elements.length === 0) return null;
@@ -58,6 +85,18 @@ export function SelectedElementToolbar({ showColor = true }: { showColor?: boole
   const time = clock?.clockTime ?? DEFAULT_CLOCK_TIME;
   const setTime = (patch: Partial<typeof time>) =>
     clock && updateElement(selectedSlideId, clock.id, { clockTime: { ...time, ...patch } });
+
+  // Box style is offered when exactly one diagram is selected: for its picked box, or every box.
+  const diagramElement = elements.length === 1 ? elements[0] : null;
+  const diagram = diagramElement ? getDiagramBoxes(diagramElement.assetId, diagramElement) : null;
+  const styleTargets =
+    diagram && diagramElement
+      ? diagramStyleTargets(diagram, pickedDiagramBox?.elementId === diagramElement.id ? pickedDiagramBox.path : undefined)
+      : [];
+  const firstBox = styleTargets[0]?.item;
+  const boxShape = styleTargets[0]?.shape;
+  const setBoxStyle = (style: DiagramBoxStyle) =>
+    diagram && diagramElement && updateElement(selectedSlideId, diagramElement.id, withDiagramBoxStyle(diagram, styleTargets, style));
 
   // Opacity applies to every selected element at once; the slider starts at the first one's value.
   const opacity = elements[0].opacity ?? 100;
@@ -103,7 +142,7 @@ export function SelectedElementToolbar({ showColor = true }: { showColor?: boole
   // Squares and rectangles also get a border swatch: a ring in the border color, or "none".
   const commonBorder = elements.every((el) => el.borderColor === elements[0].borderColor) ? elements[0].borderColor : null;
   // Violet ring on the swatch whose color the panel is editing.
-  const outline = (target: "fill" | "border") => ({
+  const outline = (target: ColorPanelTarget) => ({
     outline: isColorPanelOpen && colorPanelTarget === target ? "2px solid var(--accent)" : "2px solid transparent",
     outlineOffset: 2,
   });
@@ -218,6 +257,50 @@ export function SelectedElementToolbar({ showColor = true }: { showColor?: boole
               }}
             />
           )}
+          <div className="mx-1 h-5 w-px bg-border-default" />
+        </>
+      )}
+      {/* A diagram's box look: the picked box, or all boxes when none is picked. */}
+      {diagramElement && firstBox && (
+        <>
+          <span className="text-xs font-medium text-text-secondary">{styleTargets.length === 1 ? "This box" : "All boxes"}</span>
+          <button
+            type="button"
+            title="Box background"
+            onClick={() => openColorPanelOn("boxFill")}
+            className="h-6 w-6 shrink-0 rounded-full border border-border-default"
+            style={{
+              background: firstBox.fill === DIAGRAM_NONE ? NONE_SWATCH : (firstBox.fill ?? toCssBackground(diagramElement.color)),
+              ...outline("boxFill"),
+            }}
+          />
+          <button
+            type="button"
+            title="Box border"
+            onClick={() => openColorPanelOn("boxBorder")}
+            className="h-6 w-6 shrink-0 rounded-full"
+            style={{ ...borderSwatch(firstBox.border, diagramElement.color), ...outline("boxBorder") }}
+          />
+          <button
+            type="button"
+            title="Box text color"
+            onClick={() => openColorPanelOn("boxText")}
+            className="h-6 w-6 shrink-0 rounded-full border border-border-default"
+            style={{ background: firstBox.textColor ?? DIAGRAM_TEXT_COLOR, ...outline("boxText") }}
+          />
+          <FontSizePicker
+            size={firstBox.fontSize ?? DIAGRAM_FONT_SIZE.default}
+            sizes={DIAGRAM_FONT_SIZES}
+            onChoose={(fontSize) => setBoxStyle({ fontSize })}
+          />
+          <button
+            type="button"
+            title={boxShape === "circle" ? "Box shape: circle (click for rounded)" : "Box shape: rounded (click for circle)"}
+            onClick={() => setBoxStyle({ shape: boxShape === "circle" ? "rounded" : "circle" })}
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-dropdown text-text-primary hover:bg-bg-page"
+          >
+            {boxShape === "circle" ? <CircleIcon size={16} /> : <SquareIcon size={16} />}
+          </button>
           <div className="mx-1 h-5 w-px bg-border-default" />
         </>
       )}

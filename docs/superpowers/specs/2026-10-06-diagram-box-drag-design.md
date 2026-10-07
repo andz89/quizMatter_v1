@@ -1,111 +1,134 @@
-# Diagram boxes: free resize and move on the slide
+# Diagrams: flowchart, cycle, mind map, tree and factor tree
 
-Date: 2026-10-06
+Date: 2026-10-06 (updated the same day as the feature changed; this file describes how it works now)
 
-## Goal
+## What it is
 
-The four diagrams (Flowchart, Cycle, Mind Map, Tree, in the "Diagrams" group of the Elements panel)
-draw their boxes in an automatic layout. Teachers want to change **one box at a time, freely**:
-drag its corner to any size, and drag the box itself to a new spot, right on the slide.
+The **Diagrams** group of the Elements panel (right after Math Tools) has five pictures that show how
+ideas connect:
 
-This replaces the Small / Medium / Large buttons, which are removed.
+| Picture | Asset id | Setting | Boxes |
+|---|---|---|---|
+| Flowchart | `flowchart` | `flowchart` | 2–8 steps in a row (Across) or column (Down), joined by dark arrows |
+| Cycle | `cycle` | `cycle` | 3–8 steps in a ring, the first at the top, arrows going clockwise |
+| Mind Map | `mind-map` | `mindMap` | a main idea in the middle, 2–8 ideas around it, joined by colored lines |
+| Tree | `tree-diagram` | `tree` | a top box, 2–4 branches under it, 0–4 boxes under each branch, joined by colored lines |
+| Factor Tree | `factor-tree` | `factorTree` | a top box; each box splits into exactly 2 or none; up to 8 levels and 31 boxes; circles joined by colored lines, edge to edge |
 
-## What the teacher sees
+Boxes are rounded, with a light tint of the element color and dark text. The mind map's main idea and
+the tree's top box get a stronger tint. Factor Tree boxes start as circles; any box can be switched
+between a circle and a rounded box (the toolbar's shape button).
 
-- **Click a diagram once:** it is selected as today (move, resize, rotate the whole diagram).
-- **Click a box inside the selected diagram:** that box is *picked*. It gets a violet outline
-  (`--accent`) and 4 round corner handles, styled like the element's own resize handles.
-  - **Drag a corner:** free resize, any width and height. The opposite corner stays still.
-  - **Drag the picked box:** it moves. Its arrows (flowchart, cycle) or lines (mind map, tree) follow.
-  - **Click outside the picked box, or press Esc:** back to the whole diagram.
-    Selecting another element, or deselecting, also un-picks.
-- **Other boxes never move** when one box is resized or moved. Boxes may overlap.
-- **Text re-fits** as the box changes: a bigger box allows bigger text (up to 2× the normal 12, so 24),
-  a smaller one shrinks it (never below the current minimum).
-- **The diagram grows to fit:** if a box goes past the diagram's edge, the drawing area grows to
-  include it. Everything already drawn stays in the same place on the slide (also when the
-  diagram is rotated or flipped). The diagram can't grow past the box it sits in (canvas, question,
-  option or side box); a drag that would do that stops at the edge.
-- **Undo:** one whole drag is one undo step (the store already merges quick changes).
+## What the teacher does
 
-## Settings panel
+- **Click a diagram once:** it is selected like any element (move, resize, rotate the whole diagram).
+- **Click a box inside the selected diagram:** that box is *picked*. It gets a violet outline and the
+  **same handles as a text box**:
+  - **Corners:** resize the box keeping its shape; the opposite corner stays put.
+  - **Left / right handles:** change only its width. **Top / bottom handles:** change only its height.
+  - **Drag the box itself:** move it. Its arrows or lines follow it. Other boxes never move; boxes may overlap.
+    In the **Factor Tree**, every box under it (children, grandchildren, …) moves with it, also ones placed by hand.
+- **Double-click a box:** type its text right on the slide (a typing area over the box, in the drawn
+  text's size). **Shift+Enter** = new line; **Enter**, **Esc** or a click outside finishes.
+- **"+" / ×** on every box (diagram selected): add a box next to it, or remove it. Factor Tree: "+" = Split into
+  two (a `?` and a `?` under a box with no split), × = Remove this pair (the box, its partner and everything under them).
+- **Esc** (not typing) or a click outside the box lets go of it. Selecting something else or
+  deselecting does too.
+- **Undo:** one whole drag is one undo step; typing is grouped like any typing.
 
-- Text and box count work as today. The S | M | L buttons are removed.
-- New **"Tidy up"** text button (next to Reset, same style): puts every box back in its automatic
-  spot and size, keeping all text. **Reset** still resets everything.
-- Adding a box puts it in its automatic spot. Boxes the teacher moved stay where they are, even if
-  that makes them overlap; Tidy up fixes it.
+## Text, like a text box
+
+- A box **keeps its size** whatever its text (it never grows by itself).
+- Text is size 12 (drawing units) and **shrinks to fit** the box when it's too long, down to 1. A bigger
+  box does not make the text bigger.
+- Lines wrap between words (a word too wide on its own is cut), and each Shift+Enter line starts a new line.
+- Letter widths are **measured** with the page's font (canvas `measureText`, semibold), so the drawing
+  breaks lines where the typing area does. Only once the page's fonts have loaded: before that, and on
+  the server, an average letter width is used, so the server and the browser's first draw match
+  (no hydration mismatch). The drawing redraws when the fonts finish loading.
+- Up to 50,000 letters per box, the same as a text box.
+
+## The diagram on the slide
+
+- When a box goes past the diagram's edge, the drawing area grows to include it, and the element is
+  moved and resized so **nothing already drawn moves on the slide** (also when rotated or flipped).
+- Inside a question, option or side box, a drag that would push the diagram past that box's edge stops
+  (compared with how far it already sticks out, so a turned diagram near the edge still works). On the
+  slide itself, elements may already stick out past the edge, so there it may grow.
+
+## Settings panel (button on the selected-element toolbar)
+
+- **Box count** slider (Steps / Ideas); the Flowchart also has **Across / Down**.
+- **Factor Tree:** only Tidy up and Reset (splitting is done with "+" and × on the slide).
+- **Tree:** each branch and box is listed by its text (read-only) with **×** to remove it, plus
+  **+ Add box** and **+ Add branch**.
+- **Tidy up:** puts every box back in its automatic spot and size, keeping its text.
+- **Reset:** everything back to the start.
+- There are no text boxes in the panel: text is typed on the slide.
+- Changing the box count keeps the diagram where it is: typing in a box doesn't move it, and removing a
+  moved box doesn't make the others jump.
 
 ## Saved data
 
-Each diagram box is `{ text, x?, y?, width?, height? }`, all in drawing units (the diagram's
-viewBox units). The four numbers are saved together or not at all:
+Each box is `{ text, x?, y?, width?, height?, fill?, border?, borderWidth?, textColor?, fontSize?, shape? }` in drawing units (the diagram's viewBox units):
 
-- **Missing:** the box uses its automatic spot and size (today's layout, medium size).
-- **Present:** `x, y` = the box's top-left corner, `width, height` = its size. The automatic
-  layout is ignored for that box.
+- No `x, y, width, height`: the box uses its automatic spot and size.
+- All four: the box's own place (top-left) and size. The four are saved together or not at all.
 
-Zod (in `schema.ts`, limits in `constants.ts`): `width` 24–400, `height` 16–300, `x`/`y` any finite
-number in −2000…2000. The `size` field and `DIAGRAM_BOX_SIZES` are removed (nothing saved uses them:
-the diagrams are not committed yet).
+- Factor Tree boxes also have `children?`: exactly 2 boxes (`factorNodeSchema`, a nested `z.lazy` schema).
+  The whole tree is at most `FACTOR_TREE_LEVELS` (8) levels and `FACTOR_TREE_BOXES` (31) boxes.
+- `shape`: `rounded` or `circle`; missing = the diagram's own (circle for the Factor Tree, rounded for the rest).
 
-## How it is built
+Zod (`diagramBoxSchema` in `schema.ts`, limits in `constants.ts`): text up to `DIAGRAM_TEXT_MAX`
+(50,000), width 24–400, height 16–300, x/y −2000…2000, box counts as in the table above.
 
-### `src/lib/svgLibrary.tsx`
+## Claude (JSON import / MCP)
 
-- Each diagram's layout function already places every box. It now:
-  - uses a box's saved `x, y, width, height` when it has them, else the automatic spot;
-  - works out the drawing area as **all boxes together plus a 4-unit margin**, so it can start
-    below 0 (a box dragged up or left). The viewBox's min-x / min-y can be negative.
-- New export `getDiagramBoxes(assetId, settings)`: the placed boxes of a diagram in drawing units,
-  each with a **path** saying which box it is (`["steps", 2]`, `["center"]`, `["ideas", 0]`,
-  `["root"]`, `["branches", 1, "label"]`, `["branches", 1, "leaves", 0]`), plus the viewBox.
-  Returns `null` for any other asset. The renderers use the same layouts, so the overlay always
-  matches the drawing.
-- Text font max = 12 × √(box area ÷ automatic box area), kept between 9 and 24.
-- Arrows and lines are still drawn from box centers to box edges, so they follow moved boxes.
+Claude adds diagrams with the `flowchart`, `cycle`, `mindMap`, `tree` and `factorTree` element settings, boxes as
+`{ "text": "…" }` (`\n` = new line). Claude always uses the automatic layout; it can't place or size
+single boxes. A factor tree's numbers are `{ "text": "…", "children"?: [two numbers] }`.
 
-### `src/components/editor/DiagramBoxEditor.tsx` (new)
+## Where the code lives
 
-A layer inside the selected diagram element (in `SvgElementItem`, shown only when the diagram is the
-one selected element and not being cropped — diagrams can't be cropped anyway):
+- `src/lib/svgLibrary.tsx`, section "Diagrams": layouts (`flowchartBoxes`, `cycleBoxes`,
+  `mindMapBoxes`, `treeBoxes`, `factorTreeLayout`), `placeBox`, text measuring and fitting (`textWidth`, `wrapLines`,
+  `fitDiagramText`), drawing (`DiagramBox`, `DiagramArrow`, `DiagramLine`), `getDiagramBoxes`
+  (every placed box of a diagram, used by the editor), `diagramTextRoom` (text room per shape) and
+  `moveDiagramBox` (a dragged box's new setting; in the Factor Tree also the boxes under it).
+- `src/components/editor/DiagramBoxEditor.tsx`: the picked box's outline and handles, moving and
+  resizing (`resizeBox`, `keepInPlace`), finding the box under the pointer (`findDiagramBoxAt`), and the
+  typing area (`DiagramTextArea`).
+- `src/components/editor/handles.ts`: the resize handles shared with every element (`CORNERS`, `EDGE_HANDLES`).
+- `src/components/editor/SvgElementItem.tsx`: a click on a selected diagram picks a box; a double-click
+  starts typing.
+- `src/lib/store.ts`: `pickedDiagramBox` and `editingDiagramBox` (UI state, not saved).
+- `src/components/editor/ElementSvg.tsx`: tells the drawing when the fonts have loaded (`fontsReady`).
+- `src/components/editor/MathToolPanels.tsx`: the four settings panels.
+- `src/lib/importPresentation.ts`: Claude's diagram settings.
 
-- Turns each box from drawing units into element px with the same "meet" fit the `<svg>` uses
-  (scale = the smaller of width/viewBox-width and height/viewBox-height, centered), mirrored when
-  flipped. The element's rotation is already applied by the parent box, so pointer moves are turned
-  into element space by rotating them back by the element's angle (and mirroring for flips) and
-  dividing by zoom and scale.
-- Clicking a box picks it (state kept in this component; cleared when the element is no longer
-  the only one selected). Pointer down on the picked box starts a move; on a corner, a resize.
-  Clicks on the diagram outside any box fall through to today's whole-element drag.
-- On each pointer move it writes the box's new `{ x, y, width, height }` (clamped to the limits) into
-  the diagram's settings at the box's path, and works out the new viewBox. If the viewBox changed,
-  it also updates the element's `x, y, width, height` so drawn content stays still on the slide:
-  the px-per-unit scale stays the same, and the shift of the viewBox's corner (rotated by the element's
-  angle around the old center) moves the element. If the new element box would leave its container,
-  that move is skipped (the drag stops at the edge).
-- Esc un-picks.
+## History
 
-### `src/components/editor/MathToolPanels.tsx`
+1. Built as four diagrams with text boxes in the panel and Small / Medium / Large box sizes.
+2. S/M/L replaced by picking a box on the slide and dragging it or its corners freely (plan:
+   `docs/superpowers/plans/2026-10-06-diagram-box-drag.md`).
+3. Text typed on the slide (panel text boxes removed); boxes grew taller for long text.
+4. Boxes made to work exactly like a text box: no growing, shrink-to-fit text, corner + side handles,
+   real letter widths.
+5. Box background, border, text color and text size (spec: `2026-10-07-diagram-box-style-design.md`).
+6. "+" / × on every box, and box border width (spec: `2026-10-07-diagram-box-add-remove-design.md`).
+7. Factor Tree, and box shape (circle / rounded) for every diagram (spec: `2026-10-07-factor-tree-design.md`).
 
-- Remove the S | M | L chips; each box row is just its text input again.
-- Add the "Tidy up" button to all four panels (clears `x, y, width, height` from every box, then
-  resizes the element with the existing `useResizeForViewBox`).
-- Box count and Reset work as today.
+## Known gaps (not done yet)
 
-### `src/lib/importPresentation.ts`
-
-- Claude's boxes go back to `{ text }` only (no `size`, no positions); Claude keeps the automatic
-  layout. Its notes drop the small/medium/large sentence.
-
-## Out of scope
-
-- Resizing by dragging the box's edges (corners only).
-- Snapping boxes to each other or to guides.
-- Moving arrows on their own, or adding arrows between any two boxes.
-- Keeping a box's shape while resizing (Shift).
-
-## Checking
-
-`npx tsc --noEmit` and eslint on the changed files; read the diff against this spec. The teacher
-tests in the browser.
+- Runs of spaces show while typing but shrink to one in the drawing; words with "-" or "/" may break
+  a little differently from the typing area.
+- Very long text (thousands of letters) can't fit a small box even at size 1, so it spills out.
+- A box at the diagram's corner has its corner handle under the diagram's own; on a tiny box the
+  handles can cover it.
+- A picked box can stay picked after switching slides and back, or point at a neighbor after the panel
+  removes a box.
+- With a gradient color, the gradient shifts when the drawing area changes.
+- Delete and arrow keys act on the whole diagram while a box is picked.
+- Switching the Flowchart between Across and Down keeps moved boxes where they were.
+- Factor Tree: splitting a number widens its side, so the boxes beside it spread apart (the top box stays still).
+- A circle is picked by its whole box, so a click just outside the oval near a corner still picks it.

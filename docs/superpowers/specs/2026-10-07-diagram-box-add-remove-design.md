@@ -43,9 +43,8 @@ Each "+" sits on the box's edge, on the side where the new box goes:
   - any box whose list is at its smallest (`FLOWCHART_STEPS.min`, `CYCLE_STEPS.min`,
     `MIND_MAP_IDEAS.min`, `TREE_BRANCHES.min`). Tree boxes under a branch can always be removed (min 0).
 - Removing a tree **branch** removes the boxes under it too (as the panel's × does today).
-- If the removed box was picked or being typed in, it is let go of (`pickedDiagramBox` and
-  `editingDiagramBox` cleared). Otherwise, a picked box that shifts in its list keeps pointing at the
-  same list place (known gap, same as the panel today).
+- After any remove, a picked box of that diagram is let go of (the boxes shift, so it would point at
+  the wrong one).
 
 ## What happens to the other boxes
 
@@ -60,14 +59,15 @@ Each "+" sits on the box's edge, on the side where the new box goes:
 
 ## Look and feel
 
-- **"+"**: an 18px (on screen, any zoom) violet circle (`bg-accent`, `hover:bg-accent-hover`) with a
+- **"+"**: an 18px (grows and shrinks with zoom, like the handles) violet circle (`bg-accent`, `hover:bg-accent-hover`) with a
   white Lucide `PlusIcon` (size 12), centered on the box edge's middle. Title: "Add a step after",
   "Add a step before", "Add an idea", "Add a box under", "Add a branch", "Add a box after".
 - **×**: an 18px white circle (`bg-bg-surface`, `border border-border-default`) with a Lucide `XIcon`
   (size 12, `text-text-secondary`), turning coral on hover (`hover:bg-danger-soft hover:text-danger-strong`).
   Title: "Remove this box" / "Remove this branch".
-- Hidden while a box is being **dragged** or **typed in**. Clicking them never picks, moves or deselects
-  anything.
+- Hidden while a box is **typed in**; while a box is dragged they follow it. "+" sits 16px past the
+  edge's middle and × 12px out from the top-right corner, so they never cover the picked box's handles.
+  Clicking them never picks, moves or deselects anything.
 - They are drawn by the editor only (never in present mode, thumbnails or the server).
 
 ## Border width

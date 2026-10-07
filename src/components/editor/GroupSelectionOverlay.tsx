@@ -4,7 +4,7 @@ import { useRef } from "react";
 import { useEditorStore, selectedIdsOn } from "@/lib/store";
 import { getOuterEdges, MIN_ELEMENT_SIZE, overhangFor, pullIntoBox } from "@/lib/geometry";
 import type { SvgElement } from "@/lib/schema";
-import { CORNERS, type Corner } from "./SvgElementItem";
+import { CORNERS, type Corner } from "./handles";
 
 interface ResizeItem {
   id: string;

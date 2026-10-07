@@ -90,3 +90,13 @@ export function findSnap(points: number[], targets: number[], threshold: number)
   const lines = targets.filter((target) => points.some((point) => Math.abs(point + move - target) < 0.5));
   return { shift: move, lines: [...new Set(lines)] };
 }
+
+/** How far a (maybe turned) box sticks out past the bounds on its worst side, 0 = fully inside. */
+export function overflowAmount(box: Rect, angle: number, bounds: { width: number; height: number }) {
+  const rad = (angle * Math.PI) / 180;
+  const halfX = (box.width * Math.abs(Math.cos(rad)) + box.height * Math.abs(Math.sin(rad))) / 2;
+  const halfY = (box.width * Math.abs(Math.sin(rad)) + box.height * Math.abs(Math.cos(rad))) / 2;
+  const centerX = box.x + box.width / 2;
+  const centerY = box.y + box.height / 2;
+  return Math.max(0, halfX - centerX, centerX + halfX - bounds.width, halfY - centerY, centerY + halfY - bounds.height);
+}

@@ -73,6 +73,41 @@ export const CORNER_RADIUS_MAX = 50;
 export const BORDER_WIDTH_DEFAULT = 3;
 export const BORDER_WIDTH_MAX = 12;
 
+// Limits for the Diagrams (flowchart, cycle, mind map, tree, factor tree). Kept here so the zod schema, the
+// editor panels and Claude's import all check the same numbers.
+// Most letters in one diagram box: the same as a text box. Like a text box, the box keeps its size and
+// long text shrinks to fit it (down to 1px).
+export const DIAGRAM_TEXT_MAX = 50_000;
+// A diagram box the teacher resized or moved (on the slide): its size limits, and how far from the
+// diagram's start it can go. All in drawing units.
+export const DIAGRAM_BOX_WIDTH = { min: 24, max: 400 };
+export const DIAGRAM_BOX_HEIGHT = { min: 16, max: 300 };
+export const DIAGRAM_BOX_POSITION_MAX = 2000;
+// A diagram box's own text size (drawing units): the biggest its text gets; like a text box, it still
+// shrinks to fit. `default` is the size of a box with none chosen.
+export const DIAGRAM_FONT_SIZE = { min: 6, max: 36, default: 12 };
+// Sizes offered in the diagram's size list; − and + step between them.
+export const DIAGRAM_FONT_SIZES = [6, 8, 10, 12, 14, 16, 18, 20, 24, 28, 32, 36];
+// A box background or border set to this is left out (see-through box / no border).
+// `as const` so zod's z.literal gives the type "none".
+export const DIAGRAM_NONE = "none" as const;
+// A diagram box's border width (drawing units). `default` is the width of a box with none chosen.
+export const DIAGRAM_BORDER_WIDTH = { min: 1, max: 8, default: 2 };
+// A diagram box's shape: a rounded box, or a circle (an oval filling the box). Missing = the diagram's
+// own default: circle for the Factor Tree, rounded for the others.
+export const DIAGRAM_SHAPES = ["rounded", "circle"] as const;
+export type DiagramShape = (typeof DIAGRAM_SHAPES)[number];
+export const FLOWCHART_STEPS = { min: 2, max: 8 };
+export const CYCLE_STEPS = { min: 3, max: 8 };
+export const MIND_MAP_IDEAS = { min: 2, max: 8 };
+// Tree: the top box, 2–4 branches under it, and up to 4 smaller boxes under each branch.
+export const TREE_BRANCHES = { min: 2, max: 4 };
+export const TREE_LEAVES_MAX = 4;
+// Factor Tree: each number splits into exactly 2 or none; at most this many levels (the top box = 1)
+// and boxes in all. 2⁶ = 64 broken down fully is 7 levels and 13 boxes.
+export const FACTOR_TREE_LEVELS = 8;
+export const FACTOR_TREE_BOXES = 31;
+
 // The question box and each option card are fixed-size within the fixed CANVAS_WIDTH/HEIGHT layout
 // (p-10 canvas padding, gap-6 between the question, the optional shape strip and the options — or,
 // in grid/list without a strip, the "add shape box" row in place of that gap — gap-x-24 / gap-y-5

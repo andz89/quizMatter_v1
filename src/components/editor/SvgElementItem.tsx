@@ -2,9 +2,12 @@
 
 import { memo, useEffect, useRef, useState } from "react";
 import { useEditorStore, withoutHistory } from "@/lib/store";
-import { canCrop, getElementAsset } from "@/lib/svgLibrary";
+import { canCrop, getDiagramBoxes, getElementAsset } from "@/lib/svgLibrary";
 import { ElementSvg, TRIM_PADDING } from "./ElementSvg";
 import { TextBoxContent } from "./TextBoxContent";
+import { DiagramBoxEditor, findDiagramBoxAt } from "./DiagramBoxEditor";
+import { DiagramBoxButtons } from "./DiagramBoxButtons";
+import { CORNERS, EDGE_HANDLES, type Corner, type EdgeHandle } from "./handles";
 import {
   clamp,
   findSnap,
@@ -12,10 +15,10 @@ import {
   getOuterEdges,
   maxScaleFor,
   MIN_ELEMENT_SIZE,
+  overflowAmount,
   overhangFor,
   positionRange,
   pullIntoBox,
-  type Rect,
   type Snap,
 } from "@/lib/geometry";
 import { boxForShownPart, getCropFrame, toCrop, type CropFrame } from "@/lib/crop";
@@ -25,34 +28,8 @@ import { RotateCwIcon } from "lucide-react";
 const ROTATE_SNAP = 15;
 // How close (in screen pixels) an edge or center must get to a line before it snaps onto it.
 const SNAP_DISTANCE = 6;
-/** A text box's, line's or stretchable shape's edge handle: "x" changes the width, "y" the height; dir = which way is outward. */
-export interface EdgeHandle {
-  axis: "x" | "y";
-  dir: 1 | -1;
-  className: string;
-}
-
-export const EDGE_HANDLES: EdgeHandle[] = [
-  { axis: "x", dir: -1, className: "top-1/2 -left-[5px] h-6 w-2.5 -translate-y-1/2 cursor-ew-resize" },
-  { axis: "x", dir: 1, className: "top-1/2 -right-[5px] h-6 w-2.5 -translate-y-1/2 cursor-ew-resize" },
-  { axis: "y", dir: -1, className: "left-1/2 -top-[5px] h-2.5 w-6 -translate-x-1/2 cursor-ns-resize" },
-  { axis: "y", dir: 1, className: "left-1/2 -bottom-[5px] h-2.5 w-6 -translate-x-1/2 cursor-ns-resize" },
-];
-
-/** A resize handle corner: sx/sy say which way "outward" is (+1 = right/down, -1 = left/up). */
-export interface Corner {
-  sx: 1 | -1;
-  sy: 1 | -1;
-  className: string;
-}
-
-export const CORNERS: Corner[] = [
-  { sx: -1, sy: -1, className: "-top-2 -left-2 cursor-nwse-resize" },
-  { sx: 1, sy: -1, className: "-top-2 -right-2 cursor-nesw-resize" },
-  { sx: -1, sy: 1, className: "-bottom-2 -left-2 cursor-nesw-resize" },
-  { sx: 1, sy: 1, className: "-bottom-2 -right-2 cursor-nwse-resize" },
-];
-
+// How far (in screen pixels) the pointer may move between press and release and still count as a click.
+const CLICK_DISTANCE = 4;
 /** A crop handle: sx/sy say which sides it moves (-1 = left/top, 1 = right/bottom, 0 = neither). */
 interface CropHandle {
   sx: -1 | 0 | 1;
@@ -69,16 +46,6 @@ const CROP_HANDLES: CropHandle[] = [
     className: handle.className,
   })),
 ];
-
-/** How far a (maybe turned) box sticks out past the bounds on its worst side, 0 = fully inside. */
-function overflowAmount(box: Rect, angle: number, bounds: { width: number; height: number }) {
-  const rad = (angle * Math.PI) / 180;
-  const halfX = (box.width * Math.abs(Math.cos(rad)) + box.height * Math.abs(Math.sin(rad))) / 2;
-  const halfY = (box.width * Math.abs(Math.sin(rad)) + box.height * Math.abs(Math.cos(rad))) / 2;
-  const centerX = box.x + box.width / 2;
-  const centerY = box.y + box.height / 2;
-  return Math.max(0, halfX - centerX, centerX + halfX - bounds.width, halfY - centerY, centerY + halfY - bounds.height);
-}
 
 interface SvgElementItemProps {
   slideId: string;
@@ -116,6 +83,8 @@ interface DragState {
   /** Where inside this element the pointer grabbed it — keeps that same spot under the cursor in another box. */
   grabOffsetX: number;
   grabOffsetY: number;
+  /** A click (no drag) on an already selected diagram picks the box under the pointer. */
+  pickOnClick: boolean;
 }
 
 /**
@@ -141,6 +110,8 @@ export const SvgElementItem = memo(function SvgElementItem({ slideId, element, i
   const isGhosting = useEditorStore((s) => s.elementDragGhosts.some((g) => g.id === element.id));
 
   const dragState = useRef<DragState | null>(null);
+  // Set when a pointer press and release on a selected diagram was a click (see stopDrag).
+  const pickOnNextClick = useRef(false);
   const resizeState = useRef<
     { pointerX: number; pointerY: number; x: number; y: number; w: number; h: number; sx: 1 | -1; sy: 1 | -1 } | null
   >(null);
@@ -168,11 +139,23 @@ export const SvgElementItem = memo(function SvgElementItem({ slideId, element, i
   const setCroppingElementId = useEditorStore((s) => s.setCroppingElementId);
   const isCropTarget = useEditorStore((s) => s.croppingElementId === element.id);
   const isCropping = isCropTarget && isOnlySelected;
+  const setPickedDiagramBox = useEditorStore((s) => s.setPickedDiagramBox);
+  const isPickTarget = useEditorStore((s) => s.pickedDiagramBox?.elementId === element.id);
+  const setEditingDiagramBox = useEditorStore((s) => s.setEditingDiagramBox);
+  // The box of this diagram being typed in on the slide; its text is left out of the drawing.
+  const editingDiagramBox = useEditorStore((s) =>
+    s.editingDiagramBox?.elementId === element.id ? s.editingDiagramBox.path : undefined,
+  );
 
   // Cropping ends once this isn't the one selected element anymore (e.g. after a click elsewhere).
   useEffect(() => {
     if (isCropTarget && !isOnlySelected) setCroppingElementId(null);
   }, [isCropTarget, isOnlySelected, setCroppingElementId]);
+
+  // A picked diagram box is let go once this isn't the one selected element anymore.
+  useEffect(() => {
+    if (isPickTarget && !isOnlySelected) setPickedDiagramBox(null);
+  }, [isPickTarget, isOnlySelected, setPickedDiagramBox]);
 
   // The elements in this element's box, read from the store when a drag needs them. Not a prop: that
   // list changes whenever any of them moves, which would redraw every element in the box.
@@ -219,6 +202,8 @@ export const SvgElementItem = memo(function SvgElementItem({ slideId, element, i
       canvasRootEl: e.currentTarget.closest<HTMLElement>("[data-canvas-root]"),
       grabOffsetX: (e.clientX - elementRect.left) / zoom,
       grabOffsetY: (e.clientY - elementRect.top) / zoom,
+      // Read from before this click, so the first click on a diagram only selects it.
+      pickOnClick: isOnlySelected && !!getDiagramBoxes(element.assetId, element),
     };
     e.currentTarget.setPointerCapture(e.pointerId);
   };
@@ -327,6 +312,11 @@ export const SvgElementItem = memo(function SvgElementItem({ slideId, element, i
     const state = dragState.current;
     dragState.current = null;
     if (!state) return;
+    // A click without dragging on an already selected diagram picks a box: done in the click that
+    // follows (onClick), not here, so the box's outline only appears once the click is over and a
+    // double-click still lands on the diagram. A small wobble (trackpad, touch) still counts as a click.
+    pickOnNextClick.current =
+      e.type === "pointerup" && state.pickOnClick && Math.hypot(e.clientX - state.x, e.clientY - state.y) < CLICK_DISTANCE;
     setDragOverContainerId(null);
     setElementDragGhosts([]);
     setSnapGuides(null);
@@ -638,11 +628,24 @@ export const SvgElementItem = memo(function SvgElementItem({ slideId, element, i
           onPointerMove={handleBodyPointerMove}
           onPointerUp={stopDrag}
           onPointerLeave={stopDrag}
-          onClick={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation();
+            // Picks the diagram box under the pointer (or lets go of the picked one when it's not on a box).
+            if (pickOnNextClick.current && boxRef.current) {
+              const path = findDiagramBoxAt(element, e.clientX, e.clientY, boxRef.current, zoom);
+              setPickedDiagramBox(path ? { elementId: element.id, path } : null);
+            }
+            pickOnNextClick.current = false;
+          }}
           // Double-click picks just this one element out of its group, to edit it on its own.
           // On a text box it also starts typing.
           onDoubleClick={(e) => {
             if (element.groupId && !isOnlySelected) selectElements([element.id]);
+            // On a diagram that's selected on its own, it starts typing in the box under the pointer.
+            else if (isOnlySelected && getDiagramBoxes(element.assetId, element)) {
+              const path = boxRef.current && findDiagramBoxAt(element, e.clientX, e.clientY, boxRef.current, zoom);
+              if (path) setEditingDiagramBox({ elementId: element.id, path });
+            }
             // On a picture that's already selected on its own, it starts cropping.
             else if (canCrop(element)) setCroppingElementId(element.id);
             // Already typing: leave it be, so a double-click selects a word instead of moving the cursor.
@@ -668,11 +671,16 @@ export const SvgElementItem = memo(function SvgElementItem({ slideId, element, i
             <ElementSvg
               assetId={element.assetId}
               color={element.color}
-              settings={element}
+              settings={editingDiagramBox ? { ...element, editingDiagramBox } : element}
               onMeasure={element.crop || isCropping ? undefined : fitBoxToDrawing}
             />
           )}
         </div>
+      )}
+
+      {/* A picked diagram box: its own outline and handles (under the element's own handles). */}
+      {showSelection && isOnlySelected && !isCropping && (
+        <DiagramBoxEditor slideId={slideId} element={element} bounds={bounds} overhang={overhang} />
       )}
 
       {showSelection && isOnlySelected && canRotate && !isCropping && (
@@ -740,6 +748,10 @@ export const SvgElementItem = memo(function SvgElementItem({ slideId, element, i
             style={{ borderColor: "var(--accent)" }}
           />
         ))}
+
+      {/* "+" and × on every box of the selected diagram: last, so they sit on top of the element's own
+          handles (a corner box's × is next to the diagram's corner handle). */}
+      {showSelection && isOnlySelected && !isCropping && <DiagramBoxButtons slideId={slideId} element={element} />}
     </div>
   );
 },

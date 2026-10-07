@@ -1,13 +1,27 @@
 import type { ReactNode } from "react";
 import { renderSolid, SOLIDS } from "./solids";
-import type { SvgElement } from "./schema";
+import { factorTreeSize, type FactorNode, type SvgElement } from "./schema";
 import { DEFAULT_TEXT_COLOR } from "./richText";
 import { KIDS, KID_VIEWBOX } from "./kids";
 import { CLIPART_KIDS, drawPeopleArt, SCHOOL_BOY } from "./peopleArt";
 import { FLAGS } from "./flags";
-import { BORDER_WIDTH_DEFAULT } from "./constants";
+import {
+  BORDER_WIDTH_DEFAULT,
+  CYCLE_STEPS,
+  DIAGRAM_BORDER_WIDTH,
+  DIAGRAM_BOX_POSITION_MAX,
+  DIAGRAM_FONT_SIZE,
+  DIAGRAM_NONE,
+  FACTOR_TREE_BOXES,
+  FACTOR_TREE_LEVELS,
+  FLOWCHART_STEPS,
+  MIND_MAP_IDEAS,
+  TREE_BRANCHES,
+  TREE_LEAVES_MAX,
+  type DiagramShape,
+} from "./constants";
 
-export type ElementCategory = "shape" | "line" | "arrow" | "solid" | "icon" | "time" | "math" | "decorative" | "blob" | "ribbon" | "cloud" | "number" | "letter" | "symbol" | "emoji" | "music" | "fruit" | "kitchen" | "book" | "vehicle" | "person" | "animal" | "space" | "sport" | "tree" | "leaf" | "flag" | "background" | "text";
+export type ElementCategory = "shape" | "line" | "arrow" | "solid" | "icon" | "time" | "math" | "diagram" | "decorative" | "blob" | "ribbon" | "cloud" | "number" | "letter" | "symbol" | "emoji" | "music" | "fruit" | "kitchen" | "book" | "vehicle" | "person" | "animal" | "space" | "sport" | "tree" | "leaf" | "flag" | "background" | "text";
 
 // The per-element settings some assets draw from (3D angle, clock time, number line numbers).
 // A whole SvgElement fits here, so callers can just pass the element.
@@ -22,6 +36,11 @@ export type RenderSettings = Partial<Pick<
   | "thermometer"
   | "barGraph"
   | "protractor"
+  | "flowchart"
+  | "cycle"
+  | "mindMap"
+  | "tree"
+  | "factorTree"
   | "text"
   | "svg"
   | "image"
@@ -33,7 +52,13 @@ export type RenderSettings = Partial<Pick<
   | "borderWidth"
   | "width"
   | "height"
->>;
+>> & {
+  // A diagram box being typed in on the slide: its text is left out of the drawing (the typing area shows it).
+  editingDiagramBox?: DiagramBoxPath;
+  // The page's font has loaded, so diagram text can be measured with real letter widths. False on the
+  // server and on the browser's first draw, so both draw the same (estimated) lines.
+  fontsReady?: boolean;
+};
 
 interface ElementAsset {
   id: string;
@@ -59,7 +84,20 @@ interface ElementAsset {
   // Which math tool this is, for the ones with their own settings panel (each uses its matching
   // setting, e.g. "fraction" uses `fraction`). Fraction bars and circles share "fraction".
   // The written fraction ("fractionNumber") also uses `fraction`: shaded = numerator, parts = denominator.
-  mathTool?: "fraction" | "fractionNumber" | "tenFrame" | "baseTen" | "thermometer" | "barGraph" | "protractor";
+  // The Diagrams (flowchart, cycle, mind map, tree, factor tree) use this too, with their own setting each.
+  mathTool?:
+    | "fraction"
+    | "fractionNumber"
+    | "tenFrame"
+    | "baseTen"
+    | "thermometer"
+    | "barGraph"
+    | "protractor"
+    | "flowchart"
+    | "cycle"
+    | "mindMap"
+    | "tree"
+    | "factorTree";
   // Drawing area; missing = the shared square "0 0 100 100". Wide assets use a wide one so they
   // aren't squeezed into a square, and start at `defaultSize` (px) instead of a square box.
   // A function when the area depends on the element's settings (e.g. the counting frame's grid).
@@ -503,6 +541,822 @@ function renderProtractor(color: string, { angle }: ProtractorSettings = DEFAULT
       <circle cx={CX} cy={CY} r="2.5" fill={color} />
     </>
   );
+}
+
+// ---------------------------------------------------------------------------------------------
+// Diagrams: flowchart, cycle, mind map, tree and factor tree. Rounded boxes or circles with a light tint of
+// the element color and dark text (unless the teacher gave a box its own background, border, text color,
+// size or shape), joined by dark arrows (flowchart, cycle) or colored lines (mind map, tree, factor tree).
+// Each box sits in its automatic spot unless the teacher moved or resized it on the slide; then it
+// keeps its own place and size, and its arrows or lines follow it.
+// ---------------------------------------------------------------------------------------------
+
+export const DIAGRAM_TEXT_COLOR = "#1F1F1F";
+export const DIAGRAM_LINE_HEIGHT = 1.2;
+// Space between a box's edge and its text, in drawing units (each side).
+export const DIAGRAM_TEXT_PADDING = { x: 4, y: 3 };
+// Like a text box: the text is the box's own size (else DIAGRAM_FONT_SIZE.default), and shrinks down to
+// this when it doesn't fit its box. A bigger box doesn't make the text bigger.
+const DIAGRAM_SMALLEST_FONT = 1;
+// Empty space around the boxes, in drawing units.
+const DIAGRAM_MARGIN = 4;
+
+// One box of a diagram: its text, and its own place and size once moved or resized.
+export type DiagramBoxItem = NonNullable<SvgElement["cycle"]>["steps"][number];
+// Which box: the keys and list positions leading to it inside the diagram's setting,
+// e.g. ["steps", 2] or ["branches", 1, "leaves", 0].
+export type DiagramBoxPath = (string | number)[];
+// The element setting each diagram keeps its boxes in.
+export type DiagramKey = "flowchart" | "cycle" | "mindMap" | "tree" | "factorTree";
+
+interface DiagramSize {
+  width: number;
+  height: number;
+}
+
+// A box where it's drawn: top-left (x, y) and size in drawing units.
+export interface PlacedDiagramBox extends DiagramSize {
+  x: number;
+  y: number;
+  // Its shape: the box's own, else the diagram's default.
+  shape: DiagramShape;
+  item: DiagramBoxItem;
+  path: DiagramBoxPath;
+}
+
+// Where a box is drawn: its own place and size if the teacher set one, else its automatic spot
+// (centered on `center`). Like a text box, it keeps that size whatever its text; the text shrinks instead.
+function placeBox(
+  item: DiagramBoxItem,
+  path: DiagramBoxPath,
+  center: { x: number; y: number },
+  auto: DiagramSize,
+  defaultShape: DiagramShape = "rounded",
+): PlacedDiagramBox {
+  const shape = item.shape ?? defaultShape;
+  if (item.x !== undefined && item.y !== undefined && item.width !== undefined && item.height !== undefined) {
+    return { x: item.x, y: item.y, width: item.width, height: item.height, shape, item, path };
+  }
+  return { x: center.x - auto.width / 2, y: center.y - auto.height / 2, ...auto, shape, item, path };
+}
+
+// Two box paths point at the same box.
+export function sameDiagramPath(a: DiagramBoxPath, b: DiagramBoxPath | undefined) {
+  return !!b && a.length === b.length && a.every((part, i) => part === b[i]);
+}
+
+function boxCenter(box: PlacedDiagramBox) {
+  return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+}
+
+// Drawing area around all the boxes plus a margin. It can start below 0 when a box was moved up or left.
+function viewBoxAround(boxes: PlacedDiagramBox[]) {
+  const minX = Math.min(...boxes.map((box) => box.x)) - DIAGRAM_MARGIN;
+  const minY = Math.min(...boxes.map((box) => box.y)) - DIAGRAM_MARGIN;
+  const maxX = Math.max(...boxes.map((box) => box.x + box.width)) + DIAGRAM_MARGIN;
+  const maxY = Math.max(...boxes.map((box) => box.y + box.height)) + DIAGRAM_MARGIN;
+  return `${minX} ${minY} ${maxX - minX} ${maxY - minY}`;
+}
+
+// `value` with the part at `path` replaced by `next`. Copies only what's on the way; nothing is changed in place.
+export function replaceAtPath<T>(value: T, path: DiagramBoxPath, next: unknown): T {
+  if (path.length === 0) return next as T;
+  const [key, ...rest] = path;
+  if (Array.isArray(value)) return value.map((item, i) => (i === key ? replaceAtPath(item, rest, next) : item)) as T;
+  const record = value as Record<string, unknown>;
+  return { ...record, [key]: replaceAtPath(record[key as string], rest, next) } as T;
+}
+
+// Measures text the way the browser draws it (the page's font, semibold), like a text box does, so the
+// drawn lines break where the typing area's do. Only once the font has loaded (`measured`); before
+// that, and on the server, an average letter width is used. Widths are kept per word at size 100.
+const textWidthCache = new Map<string, number>();
+let measureContext: CanvasRenderingContext2D | null | undefined;
+
+function textWidth(text: string, fontSize: number, measured: boolean) {
+  if (!measured) return text.length * fontSize * 0.58;
+  let width = textWidthCache.get(text);
+  if (width === undefined) {
+    if (measureContext === undefined) measureContext = document.createElement("canvas").getContext("2d");
+    if (!measureContext) return text.length * fontSize * 0.58;
+    measureContext.font = `600 100px ${getComputedStyle(document.body).fontFamily}`;
+    width = measureContext.measureText(text).width;
+    // Every word typed adds one; start over now and then so it can't grow without end.
+    if (textWidthCache.size > 5000) textWidthCache.clear();
+    textWidthCache.set(text, width);
+  }
+  return (width * fontSize) / 100;
+}
+
+// Splits text into lines that fit `room` at `fontSize`: each typed line (Shift+Enter) on its own,
+// breaking between words, and inside a word only when the word alone is too wide.
+function wrapLines(text: string, room: number, fontSize: number, measured: boolean) {
+  const space = textWidth(" ", fontSize, measured);
+  return text.split("\n").flatMap((paragraph) => {
+    const lines: string[] = [];
+    let line = "";
+    let lineWidth = 0;
+    for (const word of paragraph.split(/\s+/).filter(Boolean)) {
+      const wordWidth = textWidth(word, fontSize, measured);
+      if (line && lineWidth + space + wordWidth <= room) {
+        line += ` ${word}`;
+        lineWidth += space + wordWidth;
+        continue;
+      }
+      if (line) lines.push(line);
+      if (wordWidth <= room) {
+        line = word;
+        lineWidth = wordWidth;
+        continue;
+      }
+      // Too wide for the box on its own: cut it into pieces that fit.
+      line = "";
+      lineWidth = 0;
+      for (const letter of word) {
+        const letterWidth = textWidth(letter, fontSize, measured);
+        if (line && lineWidth + letterWidth > room) {
+          lines.push(line);
+          line = "";
+          lineWidth = 0;
+        }
+        line += letter;
+        lineWidth += letterWidth;
+      }
+    }
+    if (line) lines.push(line);
+    // An empty typed line still takes a line.
+    return lines.length ? lines : [""];
+  });
+}
+
+// Where a box's text goes: the box minus padding, or for a circle the biggest rectangle inside the oval
+// (the box's width and height ÷ √2) minus padding. The typing area on the slide uses the same room.
+export function diagramTextRoom(box: PlacedDiagramBox) {
+  const inner = box.shape === "circle" ? Math.SQRT1_2 : 1;
+  return {
+    width: box.width * inner - DIAGRAM_TEXT_PADDING.x * 2,
+    height: box.height * inner - DIAGRAM_TEXT_PADDING.y * 2,
+  };
+}
+
+/**
+ * A box's text as drawn, like a text box: the box's size if it fits, else the biggest size (down to 1)
+ * at which all of it fits inside the box, and its lines.
+ */
+export function fitDiagramText(box: PlacedDiagramBox, measured: boolean) {
+  const largest = box.item.fontSize ?? DIAGRAM_FONT_SIZE.default;
+  const room = diagramTextRoom(box);
+  const linesAt = (fontSize: number) => wrapLines(box.item.text, room.width, fontSize, measured);
+  const fits = (lines: string[], fontSize: number) => lines.length * fontSize * DIAGRAM_LINE_HEIGHT <= room.height;
+  const full = linesAt(largest);
+  if (fits(full, largest)) return { fontSize: largest, lines: full };
+  // Bigger text needs more lines, so the biggest size that fits is found by halving (in 0.5 steps).
+  let low = 0;
+  let high = (largest - DIAGRAM_SMALLEST_FONT) * 2;
+  let best: { fontSize: number; lines: string[] } | null = null;
+  while (low <= high) {
+    const step = Math.floor((low + high) / 2);
+    const fontSize = DIAGRAM_SMALLEST_FONT + step / 2;
+    const lines = linesAt(fontSize);
+    if (fits(lines, fontSize)) {
+      best = { fontSize, lines };
+      low = step + 1;
+    } else {
+      high = step - 1;
+    }
+  }
+  return best ?? { fontSize: DIAGRAM_SMALLEST_FONT, lines: linesAt(DIAGRAM_SMALLEST_FONT) };
+}
+
+// How a diagram's text is drawn: the box being typed in (its text is left out; the typing area shows
+// it), and whether real letter widths can be measured yet.
+type DiagramTextOptions = Pick<RenderSettings, "editingDiagramBox" | "fontsReady">;
+
+// A box's outline in `paint`: a rounded rectangle, or an oval filling the box.
+function boxOutline(box: PlacedDiagramBox, paint: { fill: string; fillOpacity?: number; stroke?: string; strokeWidth?: number }) {
+  const { x, y, width, height } = box;
+  return box.shape === "circle" ? (
+    <ellipse cx={x + width / 2} cy={y + height / 2} rx={width / 2} ry={height / 2} {...paint} />
+  ) : (
+    <rect x={x} y={y} width={width} height={height} rx="8" {...paint} />
+  );
+}
+
+// A rounded box or circle with its text wrapped and shrunk to fit inside. `strong` = a stronger tint, for the
+// mind map's main idea and the tree's top box.
+function DiagramBox({
+  box,
+  color,
+  strong = false,
+  text,
+}: {
+  box: PlacedDiagramBox;
+  color: string;
+  strong?: boolean;
+  text: DiagramTextOptions;
+}) {
+  const { fill, border, borderWidth, textColor } = box.item;
+  const { fontSize, lines } = fitDiagramText(box, !!text.fontsReady);
+  const center = boxCenter(box);
+  return (
+    <>
+      {/* Background: the box's own color, none, or (unset) white with a tint of the element color. */}
+      {fill === undefined ? (
+        <>
+          {boxOutline(box, { fill: "#FFFFFF" })}
+          {boxOutline(box, { fill: color, fillOpacity: strong ? 0.5 : 0.2 })}
+        </>
+      ) : (
+        fill !== DIAGRAM_NONE && boxOutline(box, { fill })
+      )}
+      {border !== DIAGRAM_NONE &&
+        boxOutline(box, { fill: "none", stroke: border ?? color, strokeWidth: borderWidth ?? DIAGRAM_BORDER_WIDTH.default })}
+      {!sameDiagramPath(box.path, text.editingDiagramBox) && (
+        <text textAnchor="middle" dominantBaseline="central" fontSize={fontSize} fontWeight="600" fill={textColor ?? DIAGRAM_TEXT_COLOR}>
+          {lines.map((line, i) => (
+            <tspan key={i} x={center.x} y={center.y + (i - (lines.length - 1) / 2) * fontSize * DIAGRAM_LINE_HEIGHT}>
+              {line}
+            </tspan>
+          ))}
+        </text>
+      )}
+    </>
+  );
+}
+
+// Where a line from the middle of `box`, going toward `to`, leaves the box (plus a small gap).
+function boxEdge(box: PlacedDiagramBox, to: { x: number; y: number }, gap = 3) {
+  const from = boxCenter(box);
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  const length = Math.hypot(dx, dy) || 1;
+  const ux = dx / length;
+  const uy = dy / length;
+  // How far from the middle the edge is: for an oval with half-sizes a, b it's 1 / √((ux/a)² + (uy/b)²).
+  const edge =
+    box.shape === "circle"
+      ? 1 / Math.hypot(ux / (box.width / 2), uy / (box.height / 2))
+      : Math.min(ux ? box.width / 2 / Math.abs(ux) : Infinity, uy ? box.height / 2 / Math.abs(uy) : Infinity);
+  const t = edge + gap;
+  return { x: from.x + ux * t, y: from.y + uy * t };
+}
+
+// A dark arrow from box `from` to box `to`, edge to edge, with a filled arrowhead at `to`.
+function DiagramArrow({ from: fromBox, to: toBox }: { from: PlacedDiagramBox; to: PlacedDiagramBox }) {
+  const HEAD = 7;
+  const from = boxEdge(fromBox, boxCenter(toBox));
+  const to = boxEdge(toBox, boxCenter(fromBox));
+  const angle = Math.atan2(to.y - from.y, to.x - from.x);
+  const corner = (turn: number) => `${to.x - HEAD * Math.cos(angle + turn)},${to.y - HEAD * Math.sin(angle + turn)}`;
+  return (
+    <>
+      <line
+        x1={from.x}
+        y1={from.y}
+        x2={to.x - (HEAD - 1) * Math.cos(angle)}
+        y2={to.y - (HEAD - 1) * Math.sin(angle)}
+        stroke={DIAGRAM_TEXT_COLOR}
+        strokeWidth="1.8"
+      />
+      <polygon points={`${to.x},${to.y} ${corner(0.45)} ${corner(-0.45)}`} fill={DIAGRAM_TEXT_COLOR} />
+    </>
+  );
+}
+
+// A colored joining line between the middles of two boxes (drawn before the boxes, so it hides behind them).
+function DiagramLine({ from, to, color }: { from: PlacedDiagramBox; to: PlacedDiagramBox; color: string }) {
+  const a = boxCenter(from);
+  const b = boxCenter(to);
+  return <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={color} strokeWidth="2" />;
+}
+
+// Points evenly around a circle, the first at `startDeg` (0 = right, 90 = down), going clockwise.
+function ringCenters(count: number, center: { x: number; y: number }, radius: number, startDeg: number) {
+  return Array.from({ length: count }, (_, i) => {
+    const rad = ((startDeg + (i * 360) / count) * Math.PI) / 180;
+    return { x: center.x + radius * Math.cos(rad), y: center.y + radius * Math.sin(rad) };
+  });
+}
+
+// Smallest ring radius (at least `min`) that keeps `count` boxes about `spacing` units apart.
+function ringRadius(count: number, spacing: number, min: number) {
+  return Math.max(min, spacing / 2 / Math.sin(Math.PI / count));
+}
+
+export type FlowchartSettings = NonNullable<SvgElement["flowchart"]>;
+export const DEFAULT_FLOWCHART: FlowchartSettings = { steps: [{ text: "First" }, { text: "Next" }, { text: "Last" }] };
+const FLOW_ACROSS = { width: 64, height: 44 };
+const FLOW_DOWN = { width: 110, height: 36 };
+const FLOW_GAP = 22; // room for the arrow between two steps
+
+// Across = a row, left to right; down = a column, top to bottom.
+function flowchartBoxes({ steps, vertical }: FlowchartSettings) {
+  const auto = vertical ? FLOW_DOWN : FLOW_ACROSS;
+  const length = vertical ? auto.height : auto.width;
+  const thickness = vertical ? auto.width : auto.height;
+  return steps.map((item, i) => {
+    const along = DIAGRAM_MARGIN + length / 2 + i * (length + FLOW_GAP);
+    const across = DIAGRAM_MARGIN + thickness / 2;
+    return placeBox(item, ["steps", i], vertical ? { x: across, y: along } : { x: along, y: across }, auto);
+  });
+}
+
+export function getFlowchartViewBox(settings: FlowchartSettings = DEFAULT_FLOWCHART) {
+  return viewBoxAround(flowchartBoxes(settings));
+}
+
+function renderFlowchart(color: string, settings: FlowchartSettings = DEFAULT_FLOWCHART, text: DiagramTextOptions = {}) {
+  const boxes = flowchartBoxes(settings);
+  return (
+    <>
+      {boxes.slice(1).map((to, i) => (
+        <DiagramArrow key={`a${i}`} from={boxes[i]} to={to} />
+      ))}
+      {boxes.map((box, i) => (
+        <DiagramBox key={i} box={box} color={color} text={text} />
+      ))}
+    </>
+  );
+}
+
+export type CycleSettings = NonNullable<SvgElement["cycle"]>;
+export const DEFAULT_CYCLE: CycleSettings = {
+  steps: [{ text: "Egg" }, { text: "Caterpillar" }, { text: "Pupa" }, { text: "Butterfly" }],
+};
+const CYCLE_BOX = { width: 64, height: 36 };
+
+// The steps sit on a ring, the first at the top, going clockwise.
+function cycleBoxes({ steps }: CycleSettings) {
+  const radius = ringRadius(steps.length, CYCLE_BOX.width + 24, 55);
+  const center = { x: radius + CYCLE_BOX.width / 2 + DIAGRAM_MARGIN, y: radius + CYCLE_BOX.height / 2 + DIAGRAM_MARGIN };
+  return ringCenters(steps.length, center, radius, -90).map((spot, i) => placeBox(steps[i], ["steps", i], spot, CYCLE_BOX));
+}
+
+export function getCycleViewBox(settings: CycleSettings = DEFAULT_CYCLE) {
+  return viewBoxAround(cycleBoxes(settings));
+}
+
+function renderCycle(color: string, settings: CycleSettings = DEFAULT_CYCLE, text: DiagramTextOptions = {}) {
+  const boxes = cycleBoxes(settings);
+  return (
+    <>
+      {boxes.map((from, i) => (
+        <DiagramArrow key={`a${i}`} from={from} to={boxes[(i + 1) % boxes.length]} />
+      ))}
+      {boxes.map((box, i) => (
+        <DiagramBox key={i} box={box} color={color} text={text} />
+      ))}
+    </>
+  );
+}
+
+export type MindMapSettings = NonNullable<SvgElement["mindMap"]>;
+export const DEFAULT_MIND_MAP: MindMapSettings = {
+  center: { text: "Topic" },
+  ideas: [{ text: "Idea 1" }, { text: "Idea 2" }, { text: "Idea 3" }, { text: "Idea 4" }],
+};
+const MIND_CENTER_BOX = { width: 80, height: 44 };
+const MIND_IDEA_BOX = { width: 64, height: 36 };
+
+// The main idea first, then the ideas on a ring around it (turned so 2 ideas go left and right).
+function mindMapBoxes({ center, ideas }: MindMapSettings) {
+  const radius = ringRadius(ideas.length, MIND_IDEA_BOX.width + 24, 90);
+  const middle = { x: radius + MIND_IDEA_BOX.width / 2 + DIAGRAM_MARGIN, y: radius + MIND_IDEA_BOX.height / 2 + DIAGRAM_MARGIN };
+  return [
+    placeBox(center, ["center"], middle, MIND_CENTER_BOX),
+    ...ringCenters(ideas.length, middle, radius, -90 + 180 / ideas.length).map((spot, i) =>
+      placeBox(ideas[i], ["ideas", i], spot, MIND_IDEA_BOX),
+    ),
+  ];
+}
+
+export function getMindMapViewBox(settings: MindMapSettings = DEFAULT_MIND_MAP) {
+  return viewBoxAround(mindMapBoxes(settings));
+}
+
+function renderMindMap(color: string, settings: MindMapSettings = DEFAULT_MIND_MAP, text: DiagramTextOptions = {}) {
+  const [centerBox, ...ideaBoxes] = mindMapBoxes(settings);
+  return (
+    <>
+      {ideaBoxes.map((box, i) => (
+        <DiagramLine key={`l${i}`} from={centerBox} to={box} color={color} />
+      ))}
+      <DiagramBox box={centerBox} color={color} strong text={text} />
+      {ideaBoxes.map((box, i) => (
+        <DiagramBox key={i} box={box} color={color} text={text} />
+      ))}
+    </>
+  );
+}
+
+export type TreeSettings = NonNullable<SvgElement["tree"]>;
+export const DEFAULT_TREE: TreeSettings = {
+  root: { text: "Animals" },
+  branches: [
+    { label: { text: "Mammals" }, leaves: [{ text: "Dog" }, { text: "Cat" }] },
+    { label: { text: "Birds" }, leaves: [{ text: "Eagle" }] },
+  ],
+};
+const TREE_ROOT_BOX = { width: 90, height: 36 };
+const TREE_BOX = { width: 64, height: 32 };
+const TREE_COLUMN = 76; // width of each branch's column
+const TREE_ROW_GAP = 14; // from the top box's bottom to the branches' tops
+const TREE_LEAF_STEP = 42; // from one box's middle to the next one down
+
+// The top box is centered over a row of branches; each branch's leaves stack in a column under it.
+function treeBoxes({ root, branches }: TreeSettings) {
+  const width = Math.max(branches.length * TREE_COLUMN, TREE_ROOT_BOX.width) + 2 * DIAGRAM_MARGIN;
+  const left = (width - branches.length * TREE_COLUMN) / 2;
+  const branchY = DIAGRAM_MARGIN + TREE_ROOT_BOX.height + TREE_ROW_GAP + TREE_BOX.height / 2;
+  const rootBox = placeBox(root, ["root"], { x: width / 2, y: DIAGRAM_MARGIN + TREE_ROOT_BOX.height / 2 }, TREE_ROOT_BOX);
+  const branchBoxes = branches.map((branch, i) => {
+    const x = left + (i + 0.5) * TREE_COLUMN;
+    return {
+      label: placeBox(branch.label, ["branches", i, "label"], { x, y: branchY }, TREE_BOX),
+      leaves: branch.leaves.map((leaf, j) =>
+        placeBox(leaf, ["branches", i, "leaves", j], { x, y: branchY + (j + 1) * TREE_LEAF_STEP }, TREE_BOX),
+      ),
+    };
+  });
+  return { rootBox, branchBoxes };
+}
+
+function allTreeBoxes(settings: TreeSettings) {
+  const { rootBox, branchBoxes } = treeBoxes(settings);
+  return [rootBox, ...branchBoxes.flatMap((branch) => [branch.label, ...branch.leaves])];
+}
+
+export function getTreeViewBox(settings: TreeSettings = DEFAULT_TREE) {
+  return viewBoxAround(allTreeBoxes(settings));
+}
+
+function renderTree(color: string, settings: TreeSettings = DEFAULT_TREE, text: DiagramTextOptions = {}) {
+  const { rootBox, branchBoxes } = treeBoxes(settings);
+  const rootMiddle = boxCenter(rootBox);
+  const rootBottom = rootBox.y + rootBox.height;
+  return (
+    <>
+      {/* An elbow line from the top box down into each branch. */}
+      {branchBoxes.map(({ label }, i) => {
+        const middleY = (rootBottom + label.y) / 2;
+        return (
+          <path
+            key={`e${i}`}
+            d={`M${rootMiddle.x} ${rootBottom}V${middleY}H${boxCenter(label).x}V${label.y}`}
+            fill="none"
+            stroke={color}
+            strokeWidth="2"
+          />
+        );
+      })}
+      {/* A line from each branch to each of its leaves (stacked leaves make one straight line). */}
+      {branchBoxes.flatMap(({ label, leaves }, i) =>
+        leaves.map((leaf, j) => <DiagramLine key={`l${i}-${j}`} from={label} to={leaf} color={color} />),
+      )}
+      <DiagramBox box={rootBox} color={color} strong text={text} />
+      {branchBoxes.map(({ label, leaves }, i) => (
+        <g key={i}>
+          <DiagramBox box={label} color={color} text={text} />
+          {leaves.map((leaf, j) => (
+            <DiagramBox key={j} box={leaf} color={color} text={text} />
+          ))}
+        </g>
+      ))}
+    </>
+  );
+}
+
+export type FactorTreeSettings = NonNullable<SvgElement["factorTree"]>;
+export const DEFAULT_FACTOR_TREE: FactorTreeSettings = {
+  root: {
+    text: "48",
+    children: [
+      { text: "6", children: [{ text: "2" }, { text: "3" }] },
+      { text: "8", children: [{ text: "2" }, { text: "4", children: [{ text: "2" }, { text: "2" }] }] },
+    ],
+  },
+};
+const FACTOR_BOX = { width: 44, height: 34 };
+const FACTOR_GAP = 12; // between the two sides of a split
+const FACTOR_LEVEL_GAP = 22; // from a box's bottom to its children's tops
+
+// How wide a number and everything under it are in the automatic layout. A resized box has its own place,
+// so only the automatic size counts: resizing one box never moves the others.
+function factorWidth(node: FactorNode): number {
+  if (!node.children) return FACTOR_BOX.width;
+  return Math.max(FACTOR_BOX.width, factorWidth(node.children[0]) + FACTOR_GAP + factorWidth(node.children[1]));
+}
+
+// Every box (each parent before its children) and each parent–child pair. The top box has a fixed
+// automatic spot; a child's automatic spot is just under its parent's drawn box, left or right by half the
+// room its side needs. So children in their automatic spot follow their parent when it moves.
+function factorTreeLayout({ root }: FactorTreeSettings) {
+  const boxes: PlacedDiagramBox[] = [];
+  const links: [PlacedDiagramBox, PlacedDiagramBox][] = [];
+  const place = (node: FactorNode, path: DiagramBoxPath, center: { x: number; y: number }): PlacedDiagramBox => {
+    const box = placeBox(node, path, center, FACTOR_BOX, "circle");
+    boxes.push(box);
+    if (node.children) {
+      const [left, right] = node.children;
+      const leftWidth = factorWidth(left);
+      const rightWidth = factorWidth(right);
+      const middle = boxCenter(box).x;
+      const span = leftWidth + FACTOR_GAP + rightWidth;
+      const y = box.y + box.height + FACTOR_LEVEL_GAP + FACTOR_BOX.height / 2;
+      links.push([box, place(left, [...path, "children", 0], { x: middle - span / 2 + leftWidth / 2, y })]);
+      links.push([box, place(right, [...path, "children", 1], { x: middle + span / 2 - rightWidth / 2, y })]);
+    }
+    return box;
+  };
+  place(root, ["root"], { x: DIAGRAM_MARGIN + FACTOR_BOX.width / 2, y: DIAGRAM_MARGIN + FACTOR_BOX.height / 2 });
+  return { boxes, links };
+}
+
+export function getFactorTreeViewBox(settings: FactorTreeSettings = DEFAULT_FACTOR_TREE) {
+  return viewBoxAround(factorTreeLayout(settings).boxes);
+}
+
+// Lines in the element color from each parent's edge to each child's edge (so they never run behind a
+// number, even with no background), then the boxes.
+function renderFactorTree(color: string, settings: FactorTreeSettings = DEFAULT_FACTOR_TREE, text: DiagramTextOptions = {}) {
+  const { boxes, links } = factorTreeLayout(settings);
+  return (
+    <>
+      {links.map(([parent, child]) => {
+        const from = boxEdge(parent, boxCenter(child), 2);
+        const to = boxEdge(child, boxCenter(parent), 2);
+        return <line key={child.path.join(".")} x1={from.x} y1={from.y} x2={to.x} y2={to.y} stroke={color} strokeWidth="2" />;
+      })}
+      {boxes.map((box) => (
+        <DiagramBox key={box.path.join(".")} box={box} color={color} text={text} />
+      ))}
+    </>
+  );
+}
+
+export interface DiagramBoxes {
+  key: DiagramKey;
+  // The element's setting, or the default when it has none yet (a diagram nobody edited yet).
+  settings: FlowchartSettings | CycleSettings | MindMapSettings | TreeSettings | FactorTreeSettings;
+  boxes: PlacedDiagramBox[];
+}
+
+/**
+ * Every box of a diagram element, where it's drawn (drawing units), and the setting they live in.
+ * Null for anything that isn't a diagram. The editor uses this to pick, move and resize single boxes.
+ */
+export function getDiagramBoxes(assetId: string, settings: RenderSettings): DiagramBoxes | null {
+  switch (getElementAsset(assetId)?.mathTool) {
+    case "flowchart": {
+      const flowchart = settings.flowchart ?? DEFAULT_FLOWCHART;
+      return { key: "flowchart", settings: flowchart, boxes: flowchartBoxes(flowchart) };
+    }
+    case "cycle": {
+      const cycle = settings.cycle ?? DEFAULT_CYCLE;
+      return { key: "cycle", settings: cycle, boxes: cycleBoxes(cycle) };
+    }
+    case "mindMap": {
+      const mindMap = settings.mindMap ?? DEFAULT_MIND_MAP;
+      return { key: "mindMap", settings: mindMap, boxes: mindMapBoxes(mindMap) };
+    }
+    case "tree": {
+      const tree = settings.tree ?? DEFAULT_TREE;
+      return { key: "tree", settings: tree, boxes: allTreeBoxes(tree) };
+    }
+    case "factorTree": {
+      const factorTree = settings.factorTree ?? DEFAULT_FACTOR_TREE;
+      return { key: "factorTree", settings: factorTree, boxes: factorTreeLayout(factorTree).boxes };
+    }
+    default:
+      return null;
+  }
+}
+
+// A box's own look (the fields a style change writes).
+export type DiagramBoxStyle = Partial<Pick<DiagramBoxItem, "fill" | "border" | "borderWidth" | "textColor" | "fontSize" | "shape">>;
+
+// A box's look only (no text, place or size), so a new box can match the one it's added next to.
+export function diagramBoxLook(box: DiagramBoxItem | undefined): DiagramBoxStyle {
+  return {
+    fill: box?.fill,
+    border: box?.border,
+    borderWidth: box?.borderWidth,
+    textColor: box?.textColor,
+    fontSize: box?.fontSize,
+    shape: box?.shape,
+  };
+}
+
+// The boxes a style change goes to: the picked box, or every box when none is picked (or the picked one is gone).
+export function diagramStyleTargets(diagram: DiagramBoxes, pickedPath: DiagramBoxPath | undefined) {
+  const picked = pickedPath && diagram.boxes.find((box) => sameDiagramPath(box.path, pickedPath));
+  return picked ? [picked] : diagram.boxes;
+}
+
+// The element change that writes `style` into each of `targets` (their text, place and size kept).
+export function withDiagramBoxStyle(diagram: DiagramBoxes, targets: PlacedDiagramBox[], style: DiagramBoxStyle) {
+  const settings = targets.reduce((next, box) => replaceAtPath(next, box.path, { ...box.item, ...style }), diagram.settings);
+  return { [diagram.key]: settings } as Partial<SvgElement>;
+}
+
+/**
+ * The diagram's setting with `box` at `next` (its own place and size). In the Factor Tree, every box
+ * under it that has its own place moves by the same amount; the ones in their automatic spot follow
+ * by themselves (their spot is measured from their parent).
+ */
+export function moveDiagramBox(
+  diagram: DiagramBoxes,
+  box: PlacedDiagramBox,
+  next: { x: number; y: number; width: number; height: number },
+): DiagramBoxes["settings"] {
+  let settings = replaceAtPath(diagram.settings, box.path, { ...box.item, ...next });
+  if (diagram.key !== "factorTree") return settings;
+  const dx = next.x - box.x;
+  const dy = next.y - box.y;
+  const keep = (value: number) => Math.min(DIAGRAM_BOX_POSITION_MAX, Math.max(-DIAGRAM_BOX_POSITION_MAX, value));
+  // Parents come before their children in `boxes`, so each box is written before the boxes under it.
+  for (const under of diagram.boxes) {
+    const isUnder = under.path.length > box.path.length && sameDiagramPath(box.path, under.path.slice(0, box.path.length));
+    if (!isUnder || under.item.x === undefined || under.item.y === undefined) continue;
+    settings = replaceAtPath(settings, under.path, { ...under.item, x: keep(under.item.x + dx), y: keep(under.item.y + dy) });
+  }
+  return settings;
+}
+
+// Which side of a box (in drawing units) a "+" sits on: where the new box will go.
+export type DiagramEdge = "left" | "right" | "top" | "bottom";
+
+// One "+" of a box: where it sits, its tooltip, and the diagram's setting once it's clicked. `shift` =
+// how far (drawing units) the boxes already there move in the drawing, so the editor can keep them
+// still on the slide (adding before the first flowchart step pushes every step along).
+export interface DiagramBoxAdd {
+  edge: DiagramEdge;
+  title: string;
+  settings: DiagramBoxes["settings"];
+  shift?: { x: number; y: number };
+}
+
+// The "+" buttons of a box, and its × (null when it can't be removed).
+export interface DiagramBoxActions {
+  adds: DiagramBoxAdd[];
+  remove: { title: string; settings: DiagramBoxes["settings"] } | null;
+}
+
+// `list` with `item` put in at `index`, or with the item at `index` taken out.
+const insertAt = <T,>(list: T[], index: number, item: T) => [...list.slice(0, index), item, ...list.slice(index)];
+const removeAt = <T,>(list: T[], index: number) => list.filter((_, i) => i !== index);
+
+/**
+ * What the "+" and × buttons on a box do. A new box goes next to this one (in the factor tree, a pair
+ * under it), copies its look (not its place or size), and sits in its automatic spot. Lists never go
+ * past their limits.
+ */
+export function diagramBoxActions(diagram: DiagramBoxes, box: PlacedDiagramBox): DiagramBoxActions {
+  const look = diagramBoxLook(box.item);
+  const [key, i, sub, j] = box.path as [string, number?, string?, number?];
+
+  switch (diagram.key) {
+    case "flowchart": {
+      const settings = diagram.settings as FlowchartSettings;
+      const index = i ?? 0;
+      const step = (at: number) => ({ ...look, text: `Step ${at + 1}` });
+      const adds: DiagramBoxAdd[] = [];
+      if (settings.steps.length < FLOWCHART_STEPS.max) {
+        adds.push({
+          edge: settings.vertical ? "bottom" : "right",
+          title: "Add a step after",
+          settings: { ...settings, steps: insertAt(settings.steps, index + 1, step(index + 1)) },
+        });
+        if (index === 0) {
+          // Every step moves one step along; moved steps go along too, so they stay next to their neighbors.
+          const along = (settings.vertical ? FLOW_DOWN.height : FLOW_ACROSS.width) + FLOW_GAP;
+          const shift = settings.vertical ? { x: 0, y: along } : { x: along, y: 0 };
+          const shifted = settings.steps.map((item) =>
+            item.x === undefined || item.y === undefined
+              ? item
+              : { ...item, x: Math.min(item.x + shift.x, DIAGRAM_BOX_POSITION_MAX), y: Math.min(item.y + shift.y, DIAGRAM_BOX_POSITION_MAX) },
+          );
+          adds.push({
+            edge: settings.vertical ? "top" : "left",
+            title: "Add a step before",
+            settings: { ...settings, steps: [step(0), ...shifted] },
+            shift,
+          });
+        }
+      }
+      const remove =
+        settings.steps.length > FLOWCHART_STEPS.min
+          ? { title: "Remove this box", settings: { ...settings, steps: removeAt(settings.steps, index) } }
+          : null;
+      return { adds, remove };
+    }
+    case "cycle": {
+      const settings = diagram.settings as CycleSettings;
+      const index = i ?? 0;
+      const adds: DiagramBoxAdd[] =
+        settings.steps.length < CYCLE_STEPS.max
+          ? [
+              {
+                edge: "right",
+                title: "Add the next step",
+                settings: { ...settings, steps: insertAt(settings.steps, index + 1, { ...look, text: `Step ${index + 2}` }) },
+              },
+            ]
+          : [];
+      const remove =
+        settings.steps.length > CYCLE_STEPS.min
+          ? { title: "Remove this box", settings: { ...settings, steps: removeAt(settings.steps, index) } }
+          : null;
+      return { adds, remove };
+    }
+    case "mindMap": {
+      const settings = diagram.settings as MindMapSettings;
+      // The main idea adds at the end; an idea adds right after itself.
+      const at = key === "center" ? settings.ideas.length : (i ?? 0) + 1;
+      const adds: DiagramBoxAdd[] =
+        settings.ideas.length < MIND_MAP_IDEAS.max
+          ? [{ edge: "right", title: "Add an idea", settings: { ...settings, ideas: insertAt(settings.ideas, at, { ...look, text: "Idea" }) } }]
+          : [];
+      const remove =
+        key === "ideas" && settings.ideas.length > MIND_MAP_IDEAS.min
+          ? { title: "Remove this box", settings: { ...settings, ideas: removeAt(settings.ideas, i ?? 0) } }
+          : null;
+      return { adds, remove };
+    }
+    case "tree": {
+      const settings = diagram.settings as TreeSettings;
+      const canAddBranch = settings.branches.length < TREE_BRANCHES.max;
+      const newBranch: TreeSettings["branches"][number] = { label: { ...look, text: "Group" }, leaves: [] };
+      if (key === "root") {
+        return {
+          adds: canAddBranch
+            ? [{ edge: "bottom", title: "Add a branch", settings: { ...settings, branches: [...settings.branches, newBranch] } }]
+            : [],
+          remove: null,
+        };
+      }
+      const b = i ?? 0;
+      const branch = settings.branches[b];
+      const withBranch = (next: typeof branch) => ({ ...settings, branches: settings.branches.map((old, k) => (k === b ? next : old)) });
+      if (sub === "label") {
+        const adds: DiagramBoxAdd[] = [];
+        if (branch.leaves.length < TREE_LEAVES_MAX) {
+          adds.push({ edge: "bottom", title: "Add a box under", settings: withBranch({ ...branch, leaves: [...branch.leaves, { ...look, text: "Item" }] }) });
+        }
+        if (canAddBranch) {
+          adds.push({ edge: "right", title: "Add a branch", settings: { ...settings, branches: insertAt(settings.branches, b + 1, newBranch) } });
+        }
+        const remove =
+          settings.branches.length > TREE_BRANCHES.min
+            ? { title: "Remove this branch", settings: { ...settings, branches: removeAt(settings.branches, b) } }
+            : null;
+        return { adds, remove };
+      }
+      // A box under a branch.
+      const leaf = j ?? 0;
+      const adds: DiagramBoxAdd[] =
+        branch.leaves.length < TREE_LEAVES_MAX
+          ? [
+              {
+                edge: "bottom",
+                title: "Add a box after",
+                settings: withBranch({ ...branch, leaves: insertAt(branch.leaves, leaf + 1, { ...look, text: "Item" }) }),
+              },
+            ]
+          : [];
+      return { adds, remove: { title: "Remove this box", settings: withBranch({ ...branch, leaves: removeAt(branch.leaves, leaf) }) } };
+    }
+    case "factorTree": {
+      const settings = diagram.settings as FactorTreeSettings;
+      const node = box.item as FactorNode;
+      // The top box is level 1; each split adds ["children", n] to the path.
+      const level = (box.path.length + 1) / 2;
+      const adds: DiagramBoxAdd[] = [];
+      if (!node.children && factorTreeSize(settings.root).boxes + 2 <= FACTOR_TREE_BOXES && level < FACTOR_TREE_LEVELS) {
+        const child = { ...look, text: "?" };
+        adds.push({
+          edge: "bottom",
+          title: "Split into two",
+          settings: replaceAtPath(settings, box.path, { ...node, children: [child, { ...child }] }),
+        });
+      }
+      // The top box (every path starts with "root", so it's the one with nothing after it) has no ×.
+      if (box.path.length === 1) return { adds, remove: null };
+      // × takes away this number, its partner and everything under both: the parent has no split again.
+      const parentPath = box.path.slice(0, -2);
+      const parent = diagram.boxes.find((b) => sameDiagramPath(b.path, parentPath));
+      const remove = parent
+        ? { title: "Remove this pair", settings: replaceAtPath(settings, parentPath, { ...parent.item, children: undefined }) }
+        : null;
+      return { adds, remove };
+    }
+  }
+}
+
+// A diagram's starting size: its default drawing area at 1.5 px per unit.
+function diagramDefaultSize(viewBox: string) {
+  const [, , width, height] = viewBox.split(" ").map(Number);
+  return { width: Math.round(width * 1.5), height: Math.round(height * 1.5) };
 }
 
 // Draws ruler ticks and numbers along a flat edge, starting at (x, y) and going right.
@@ -1784,6 +2638,57 @@ const ASSETS: ElementAsset[] = [
     viewBox: "0 0 200 110",
     defaultSize: { width: 240, height: 132 },
     render: (color, { protractor }) => renderProtractor(color, protractor),
+  },
+  {
+    id: "flowchart",
+    category: "diagram",
+    label: "Flowchart",
+    defaultColor: "#3B82F6",
+    mathTool: "flowchart",
+    viewBox: ({ flowchart }) => getFlowchartViewBox(flowchart),
+    defaultSize: diagramDefaultSize(getFlowchartViewBox()),
+    render: (color, { flowchart, editingDiagramBox, fontsReady }) => renderFlowchart(color, flowchart, { editingDiagramBox, fontsReady }),
+  },
+  {
+    id: "cycle",
+    category: "diagram",
+    label: "Cycle",
+    defaultColor: "#22C55E",
+    mathTool: "cycle",
+    viewBox: ({ cycle }) => getCycleViewBox(cycle),
+    defaultSize: diagramDefaultSize(getCycleViewBox()),
+    render: (color, { cycle, editingDiagramBox, fontsReady }) => renderCycle(color, cycle, { editingDiagramBox, fontsReady }),
+  },
+  {
+    id: "mind-map",
+    category: "diagram",
+    label: "Mind Map",
+    defaultColor: "#8B5CF6",
+    mathTool: "mindMap",
+    viewBox: ({ mindMap }) => getMindMapViewBox(mindMap),
+    defaultSize: diagramDefaultSize(getMindMapViewBox()),
+    render: (color, { mindMap, editingDiagramBox, fontsReady }) => renderMindMap(color, mindMap, { editingDiagramBox, fontsReady }),
+  },
+  {
+    id: "tree-diagram",
+    category: "diagram",
+    label: "Tree",
+    defaultColor: "#F59E0B",
+    mathTool: "tree",
+    viewBox: ({ tree }) => getTreeViewBox(tree),
+    defaultSize: diagramDefaultSize(getTreeViewBox()),
+    render: (color, { tree, editingDiagramBox, fontsReady }) => renderTree(color, tree, { editingDiagramBox, fontsReady }),
+  },
+  {
+    id: "factor-tree",
+    category: "diagram",
+    label: "Factor Tree",
+    defaultColor: "#22C55E",
+    mathTool: "factorTree",
+    viewBox: ({ factorTree }) => getFactorTreeViewBox(factorTree),
+    defaultSize: diagramDefaultSize(getFactorTreeViewBox()),
+    render: (color, { factorTree, editingDiagramBox, fontsReady }) =>
+      renderFactorTree(color, factorTree, { editingDiagramBox, fontsReady }),
   },
   // Rulers: no settings; sizes keep the drawing's shape so the numbers never get squashed.
   {
@@ -5508,7 +6413,7 @@ export function getElementAsset(assetId: string): ElementAsset | undefined {
 }
 
 // The categories shown in the Elements panel, in order (background and text live elsewhere).
-export const ELEMENT_PANEL_CATEGORIES = ["shape", "line", "arrow", "solid", "icon", "time", "math", "decorative", "blob", "ribbon", "cloud", "number", "letter", "symbol", "emoji", "music", "fruit", "kitchen", "book", "vehicle", "person", "animal", "space", "sport", "tree", "leaf", "flag"] as const satisfies readonly ElementCategory[];
+export const ELEMENT_PANEL_CATEGORIES = ["shape", "line", "arrow", "solid", "icon", "time", "math", "diagram", "decorative", "blob", "ribbon", "cloud", "number", "letter", "symbol", "emoji", "music", "fruit", "kitchen", "book", "vehicle", "person", "animal", "space", "sport", "tree", "leaf", "flag"] as const satisfies readonly ElementCategory[];
 
 export const ELEMENT_CATEGORY_LABELS: Record<ElementCategory, string> = {
   shape: "Shapes",
@@ -5518,6 +6423,7 @@ export const ELEMENT_CATEGORY_LABELS: Record<ElementCategory, string> = {
   icon: "Icons",
   time: "Time & Date",
   math: "Math Tools",
+  diagram: "Diagrams",
   decorative: "Decorative",
   blob: "Blobs",
   ribbon: "Ribbons",

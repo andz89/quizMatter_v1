@@ -19,6 +19,10 @@ export function TextFormatToolbar({ texts }: { texts: TextEditorEntry[] }) {
   const isColorPanelOpen = useEditorStore((s) => s.isColorPanelOpen);
   const toggleColorPanel = useEditorStore((s) => s.toggleColorPanel);
   const clearContainerElements = useEditorStore((s) => s.clearContainerElements);
+  const targets = texts.map((text) => text.target);
+  // The texts all get the same size, stepping from the first one's.
+  const fontSize = useEditorStore((s) => chosenFontSize(s.presentation, targets[0]));
+  const setTextFontSizes = useEditorStore((s) => s.setTextFontSizes);
   const state = useEditorState({
     editor: texts[0].editor,
     selector: ({ editor }) => ({
@@ -52,7 +56,7 @@ export function TextFormatToolbar({ texts }: { texts: TextEditorEntry[] }) {
       data-keep-container-selection="true"
       className="flex items-center gap-0.5 rounded-button border border-border-default bg-bg-surface p-1"
     >
-      <FontSizePicker targets={texts.map((text) => text.target)} />
+      {fontSize !== null && <FontSizePicker size={fontSize} sizes={FONT_SIZES} onChoose={(size) => setTextFontSizes(targets, size)} />}
 
       <Divider />
 
@@ -151,20 +155,16 @@ function ToolButton({
 const FONT_SIZES = [12, 14, 16, 18, 20, 24, 28, 32, 36, 40, 44, 48, 56, 64, 72, 80, 96];
 
 /**
- * − / size / + for the texts being changed (the question, options, or a text box) — they all get the
- * same size, stepping from the first one's. The size is the largest the text gets: it still shrinks
- * to fit its box when it's too long.
+ * − / size / + with a list of `sizes`. The size is the largest the text gets: it still shrinks to fit
+ * its box when it's too long. Used by the text toolbar and by diagram boxes.
  */
-function FontSizePicker({ targets }: { targets: TextTarget[] }) {
-  const size = useEditorStore((s) => chosenFontSize(s.presentation, targets[0]));
-  const setTextFontSizes = useEditorStore((s) => s.setTextFontSizes);
+export function FontSizePicker({ size, sizes, onChoose }: { size: number; sizes: number[]; onChoose: (size: number) => void }) {
   const [isListOpen, setIsListOpen] = useState(false);
-  if (size === null) return null;
 
-  const smaller = FONT_SIZES.findLast((option) => option < size);
-  const bigger = FONT_SIZES.find((option) => option > size);
+  const smaller = sizes.findLast((option) => option < size);
+  const bigger = sizes.find((option) => option > size);
   const choose = (next: number | undefined) => {
-    if (next !== undefined) setTextFontSizes(targets, next);
+    if (next !== undefined) onChoose(next);
     setIsListOpen(false);
   };
 
@@ -187,7 +187,7 @@ function FontSizePicker({ targets }: { targets: TextTarget[] }) {
 
       {isListOpen && (
         <div className="absolute top-full left-1/2 z-30 mt-2 flex max-h-72 w-20 -translate-x-1/2 flex-col overflow-y-auto rounded-dropdown border border-border-default bg-bg-surface p-1">
-          {FONT_SIZES.map((option) => (
+          {sizes.map((option) => (
             <button
               key={option}
               type="button"

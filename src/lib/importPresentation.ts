@@ -32,6 +32,14 @@ import {
   SIDE_CONTAINER_ID,
   ANSWER_CONTAINER_ID,
   TEXT_BOX_FONT_SIZE,
+  CYCLE_STEPS,
+  DIAGRAM_TEXT_MAX,
+  FACTOR_TREE_BOXES,
+  FACTOR_TREE_LEVELS,
+  FLOWCHART_STEPS,
+  MIND_MAP_IDEAS,
+  TREE_BRANCHES,
+  TREE_LEAVES_MAX,
 } from "./constants";
 import { markupToHtml, stripMarkup } from "./richText";
 import { BACKGROUND_COLORS, BACKGROUND_GRADIENTS, BACKGROUND_PATTERN_IDS, PATTERN_OPACITY_RANGE, withBackground } from "./slideBackground";
@@ -61,6 +69,8 @@ import {
 import {
   DETAIL_MAX_LENGTH,
   embedLinkSchema,
+  FACTOR_TREE_LIMIT_MESSAGE,
+  factorTreeFits,
   FONT_SIZE_RANGE,
   GRADES,
   MAX_ANSWER_LENGTH,
@@ -128,6 +138,22 @@ const calloutRecipe = z.object({
   label: z.string().max(30).describe('Short label at the arrow\'s tail, e.g. "Numerator".'),
   color: hexColor.optional().describe("Arrow color. Leave out for dark navy."),
 });
+
+// One box of a diagram: its text ("\n" = a new line). Like a text box, long text shrinks to fit the box. Claude
+// always uses the automatic layout; teachers can move and resize boxes in the editor.
+const diagramBox = z.object({ text: z.string().max(DIAGRAM_TEXT_MAX) });
+
+// One number of Claude's factor tree: its text, and the two numbers it splits into (left out for a prime).
+type ClaudeFactorNode = { text: string; children?: [ClaudeFactorNode, ClaudeFactorNode] };
+const claudeFactorNode: z.ZodType<ClaudeFactorNode> = z.lazy(() =>
+  z.object({
+    text: z.string().max(DIAGRAM_TEXT_MAX),
+    children: z
+      .tuple([claudeFactorNode, claudeFactorNode])
+      .optional()
+      .describe("The two numbers it splits into. Leave out when it doesn't split (a prime)."),
+  }),
+);
 
 const elementRecipe = z.object({
   asset: elementAssetId.describe('Which picture. "photo" = a real photo: then give "photo" too.'),
@@ -198,6 +224,66 @@ const elementRecipe = z.object({
     .optional()
     .describe("Only for bar-graph. Bars from left to right."),
   protractor: z.object({ angle: whole(0, 180) }).optional().describe("Only for protractor."),
+  flowchart: z
+    .object({
+      steps: z
+        .array(diagramBox)
+        .min(FLOWCHART_STEPS.min)
+        .max(FLOWCHART_STEPS.max)
+        .describe('Each step, in order, e.g. [{ "text": "Read" }, { "text": "Plan" }, { "text": "Solve" }, { "text": "Check" }].'),
+      vertical: z.boolean().optional().describe("true = the steps go down; leave out for across."),
+    })
+    .optional()
+    .describe("Only for flowchart."),
+  cycle: z
+    .object({
+      steps: z
+        .array(diagramBox)
+        .min(CYCLE_STEPS.min)
+        .max(CYCLE_STEPS.max)
+        .describe('Each step, clockwise from the top, e.g. [{ "text": "Evaporation" }, { "text": "Condensation" }, { "text": "Precipitation" }, { "text": "Collection" }].'),
+    })
+    .optional()
+    .describe("Only for cycle."),
+  mindMap: z
+    .object({
+      center: diagramBox.describe('The main idea in the middle, e.g. { "text": "Plants" }.'),
+      ideas: z
+        .array(diagramBox)
+        .min(MIND_MAP_IDEAS.min)
+        .max(MIND_MAP_IDEAS.max)
+        .describe('The ideas around it, e.g. [{ "text": "Roots" }, { "text": "Stem" }, { "text": "Leaves" }].'),
+    })
+    .optional()
+    .describe("Only for mind-map."),
+  tree: z
+    .object({
+      root: diagramBox.describe('The top box, e.g. { "text": "Animals" }.'),
+      branches: z
+        .array(
+          z.object({
+            label: diagramBox.describe('e.g. { "text": "Mammals" }.'),
+            leaves: z
+              .array(diagramBox)
+              .max(TREE_LEAVES_MAX)
+              .default([])
+              .describe('Smaller boxes under it, e.g. [{ "text": "Dog" }, { "text": "Cat" }].'),
+          }),
+        )
+        .min(TREE_BRANCHES.min)
+        .max(TREE_BRANCHES.max),
+    })
+    .optional()
+    .describe("Only for tree-diagram."),
+  factorTree: z
+    .object({
+      root: claudeFactorNode.describe(
+        'The top number, e.g. { "text": "12", "children": [{ "text": "3" }, { "text": "4", "children": [{ "text": "2" }, { "text": "2" }] }] }.',
+      ),
+    })
+    .refine(factorTreeFits, FACTOR_TREE_LIMIT_MESSAGE)
+    .optional()
+    .describe(`Only for factor-tree. At most ${FACTOR_TREE_LEVELS} levels and ${FACTOR_TREE_BOXES} numbers.`),
   rotation: whole(0, 359).optional().describe("Turn a flat picture, in degrees clockwise. Not for 3D solids (use tilt/turn)."),
   tilt: whole(-90, 90).optional().describe(`Only for 3D solids: tilt toward you, in degrees. Leave out for ${DEFAULT_ROTATION_3D.x}.`),
   turn: whole(-180, 180).optional().describe(`Only for 3D solids: turn left/right, in degrees. Leave out for ${DEFAULT_ROTATION_3D.y}.`),
@@ -637,12 +723,14 @@ How they look:
 - Vary the kids: inside one presentation, you decide when to use a kid again. But each new presentation gets new kids, different from the ones you used before (not always "student-pointing" or "student-globe"). Show girls and boys about equally.
 - Fruits include apple, banana, grapes, mango, papaya, coconut, rambutan, dragon-fruit, kiwi, avocado, peach, pomegranate, blueberries and more.
 - Shapes include every kind of triangle (equilateral, isosceles, scalene, right, acute, obtuse) and four-sided shape (square, rectangle, trapezoid, right trapezoid, rhombus, kite, parallelogram…). 3D solids include prisms and pyramids with 3–6 sided bases, frustum, hemisphere, octahedron and icosahedron.
-- Settings like "clockTime", "fraction", "numberLine", "tenFrame", "baseTen", "thermometer", "barGraph" and "protractor" only work on the pictures named in their description.
+- Settings like "clockTime", "fraction", "numberLine", "tenFrame", "baseTen", "thermometer", "barGraph", "protractor", "flowchart", "cycle", "mindMap", "tree" and "factorTree" only work on the pictures named in their description.
+- Diagrams show how ideas connect: flowchart (steps in order, joined by arrows), cycle (steps that repeat in a ring, e.g. the water cycle or a life cycle), mind-map (a main idea with ideas around it), tree-diagram (a top box that splits into groups, each with its own items, e.g. a classification) and factor-tree (a number split into two factors, each split again until only primes are left, for prime factorization). Keep each box's text short: a word or a few.
 - Keep "elements" useful: they should help answer the question or explain the topic. Decoration goes in "design".
 
 Real photos:
 - The app has a library of shared photos, each with a file name, description and tags saying what it shows. When a slide really needs a real photo (a real frog, a volcano, a map), call find_photos with a few words (e.g. "frog rainforest") and pick the one whose description fits best.
-- Put it in "elements" like any picture: { "asset": "photo", "photo": { "src": …, "width": …, "height": … } }, copying "photo" exactly as find_photos returned it. "in", "size", "position", "callouts", "opacity", "rotation", "flipX" and "flipY" work on photos; "color", "crop" and the math/clock settings don't. Only use photos find_photos gave you: any other photo is refused.
+- Put it in "elements" like any picture: { "asset": "photo", "photo": { "src": …, "width": …, "height": … } }, copying "photo" exactly as find_photos returned it. "in", "size", "position", "callouts", "opacity", "rotation", "flipX" and "flipY" work on photos; "color", "crop" and the math/clock settings don't. Only use photos find_photos gave you, or ones you just uploaded with prepare_photo_upload and "for_presentation": true (copy "src", "width" and "height" from its upload answer): any other photo is refused.
+- From a zip the user attached (photos plus lesson text): unzip it, read the text and plan the slides from it, upload the zip's photos with prepare_photo_upload and "for_presentation": true (ask the user for the photos' source if the zip doesn't say), then put each photo on the slide it fits best. Leave a photo out only if it fits nowhere, and tell the user which ones you left out.
 - A photo's "source" says who owns it or where it came from. When it has one, credit it on the slide in a small text box near the photo (e.g. "Photo: Juan Cruz, Pexels"), unless the user says not to. Also list it on the last slide, "References" (see above).
 - If find_photos has nothing that fits, leave room for a photo (e.g. a blank slide with "layout": "text-left" and no pictures on the right), and tell the user in your reply which slides need a photo and what it should show. The teacher can add one in the editor with the Photos button (upload from their computer, or paste a photo link).
 - For one photo that fills the whole slide from a link the user gave you, use an "image" embed slide instead.
@@ -656,7 +744,7 @@ Placing them yourself:
 - Pictures you place yourself are drawn in list order (a later one sits on top of an earlier one), and behind the pictures the app places. So list a background panel before what goes on it.
 - "textBoxes" (blank, title and custom slides) are placed the same way, and sit on top of pictures — good for labels on a picture.
 
-Diagrams (a food web, a cycle, a flow chart, a mind map) — build them from pieces the teacher can move and edit:
+Other diagrams — use the ready-made "flowchart", "cycle", "mind-map", "tree-diagram" and "factor-tree" pictures when they fit. For any other diagram (a food web, a map of places, a labeled process with branches), build it from pieces the teacher can move and edit:
 - Every box, arrow and label must be its own picture or text box. Never draw a diagram as one picture: the teacher couldn't move a box, change an arrow or type in it.
 - Boxes: "rectangle" (or "square") with "position", "cornerRadius" (e.g. 15), a soft "color" and a darker "border".
 - Words in the boxes: a "textBoxes" entry with the same position as its box, listed so it sits on top. Keep each to a word or two.
@@ -1522,7 +1610,19 @@ function toContainerId(box: BoxName, slide: Slide): string | null {
 }
 
 // The math tools' setting names, and which asset's `mathTool` each belongs to.
-const MATH_SETTINGS = ["fraction", "tenFrame", "baseTen", "thermometer", "barGraph", "protractor"] as const;
+const MATH_SETTINGS = [
+  "fraction",
+  "tenFrame",
+  "baseTen",
+  "thermometer",
+  "barGraph",
+  "protractor",
+  "flowchart",
+  "cycle",
+  "mindMap",
+  "tree",
+  "factorTree",
+] as const;
 
 /** The element's settings in the app's own format, or an error message. */
 /**
@@ -1576,6 +1676,11 @@ function buildSettings(el: ElementRecipe, asset: Asset): Partial<SvgElement> | s
   if (el.thermometer) settings.thermometer = el.thermometer;
   if (el.barGraph) settings.barGraph = el.barGraph;
   if (el.protractor) settings.protractor = el.protractor;
+  if (el.flowchart) settings.flowchart = el.flowchart;
+  if (el.cycle) settings.cycle = el.cycle;
+  if (el.mindMap) settings.mindMap = el.mindMap;
+  if (el.tree) settings.tree = el.tree;
+  if (el.factorTree) settings.factorTree = el.factorTree;
 
   if (el.rotation !== undefined) {
     if (asset.is3d) return `"rotation" doesn't work on 3D solids. Use "tilt" and "turn".`;

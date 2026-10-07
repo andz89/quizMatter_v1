@@ -94,11 +94,12 @@ Each box gains four optional fields:
 | `src/lib/constants.ts` | `DIAGRAM_FONT_SIZE`, `DIAGRAM_FONT_SIZES` |
 | `src/lib/schema.ts` | the four new fields on `diagramBoxSchema` |
 | `src/lib/svgLibrary.tsx` | `DiagramBox` and `fitDiagramText` use the box's look; `DIAGRAM_FONT.normal` becomes the default only |
-| `src/lib/store.ts` | `colorPanelTarget` gains `"boxFill" \| "boxBorder" \| "boxText"`; one action that writes style fields to the picked box or all boxes |
+| `src/lib/store.ts` | `colorPanelTarget` gains `"boxFill" \| "boxBorder" \| "boxText"` (`ColorPanelTarget`) |
+| `src/lib/svgLibrary.tsx` (helpers) | `diagramStyleTargets` (picked box or all) and `withDiagramBoxStyle` (the element change), used by the toolbar and the Color panel |
 | `src/components/editor/ColorPanel.tsx` | paints the box targets (None for background/border, solid only) |
 | `src/components/editor/SelectedElementToolbar.tsx` | the box style group |
 | `src/components/editor/TextFormatToolbar.tsx` | `FontSizePicker` takes `size`, `sizes` and `onChoose`, so the diagram can reuse it |
-| `src/components/editor/DiagramBoxEditor.tsx` | typing area uses the box's text color and size |
+| `src/components/editor/DiagramBoxEditor.tsx` | typing area uses the box's text color and size; dragging keeps the box's look |
 | `src/components/editor/MathToolPanels.tsx` | new boxes copy the look; Tidy up keeps it |
 
 No new packages. Everything uses the design system classes and Lucide icons.

@@ -12,7 +12,8 @@ Status: **test version built.**
 - **Question and strip heights:** the question box fits its text (1 line ≈ 82px, max 160px). When a grid/list slide has pictures in the strip, the strip grows into the room the options can spare (up to 240px), leaving each option box at least ~70px tall.
 - **Options with text:** pictures go on the right half, so the text keeps the left. Options with no text: pictures are centered. Claude is told to keep option text short (1–3 words) when there's a picture, or leave it empty.
 - **Number lines:** `hidden` lists the *numbers* to hide (e.g. `[6]`), not tick positions.
-- **Shared limits:** the math tools' limits (fraction parts, bar count…) live in `svgLibrary.tsx`, used by both the settings panels and the importer.
+- **Shared limits:** the math tools' limits (fraction parts, bar count…) live in `svgLibrary.tsx`, used by both the settings panels and the importer. The diagrams' limits (box counts, text length, box sizes) live in `constants.ts`, used by the zod schema, the panels and the importer.
+- **Diagrams:** `flowchart`, `cycle`, `mind-map` and `tree-diagram` take boxes as `{ "text": … }` and always use the automatic layout. See `docs/superpowers/specs/2026-10-06-diagram-box-drag-design.md`.
 - **Layout auto-pick:** if a choice slide has no `layout`, the app picks: picture answers → grid; a reading tool (clock, thermometer, bar graph, protractor, base-ten, fraction circle) → list-side; an option over 25 characters → list; else grid. Claude's notes give the same table.
 - **Defaults:** `in` defaults to `"side"`; `size` defaults to medium, or large for reading tools.
 - **Counting:** at most 5 copies of the same picture per row (8 = 5 + 3).

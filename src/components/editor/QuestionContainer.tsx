@@ -16,7 +16,8 @@ import {
 import { clamp } from "@/lib/geometry";
 import { useElementDropTarget } from "@/lib/useElementDropTarget";
 import { EditableText } from "./EditableText";
-import { CORNERS, EDGE_HANDLES, SvgElementItem } from "./SvgElementItem";
+import { SvgElementItem } from "./SvgElementItem";
+import { CORNERS, EDGE_HANDLES } from "./handles";
 import { GroupSelectionOverlay } from "./GroupSelectionOverlay";
 import { SnapGuides } from "./SnapGuides";
 import { ResizeHandle } from "./ResizeHandle";

@@ -3,7 +3,14 @@ import { toast } from "sonner";
 import type { Editor } from "@tiptap/react";
 import { createBlankPresentation, createBlankSlide, duplicateSlide as cloneSlide } from "./factories";
 import { createId } from "./id";
-import { DEFAULT_ELEMENT_COLOR, DEFAULT_ELEMENT_SIZE, getElementAsset, type ElementCategory, type RenderSettings } from "./svgLibrary";
+import {
+  DEFAULT_ELEMENT_COLOR,
+  DEFAULT_ELEMENT_SIZE,
+  getElementAsset,
+  type DiagramBoxPath,
+  type ElementCategory,
+  type RenderSettings,
+} from "./svgLibrary";
 import {
   CANVAS_HEIGHT,
   CANVAS_WIDTH,
@@ -96,6 +103,10 @@ export function withGroupMembers(elements: SvgElement[], ids: string[]): string[
 }
 
 export type LayerMove = "forward" | "backward" | "front" | "back";
+
+// Which part the Color panel paints: an element's fill (or a shape box's), a border (shape box or
+// squares/rectangles), or a diagram box's background, border or text (the picked box, or every box).
+export type ColorPanelTarget = "fill" | "border" | "boxFill" | "boxBorder" | "boxText";
 
 /**
  * Changes which elements draw on top. Later in the list = drawn on top, and only elements in the same
@@ -352,6 +363,13 @@ interface EditorState {
   // The element being cropped (its crop handles show), or null. Only while it's the one selected element.
   croppingElementId: string | null;
   setCroppingElementId: (elementId: string | null) => void;
+  // One box picked inside the selected diagram (its own outline and handles show, so it can be moved
+  // or resized on its own), or null. Only while that diagram is the one selected element.
+  pickedDiagramBox: { elementId: string; path: DiagramBoxPath } | null;
+  setPickedDiagramBox: (pick: { elementId: string; path: DiagramBoxPath } | null) => void;
+  // The diagram box being typed in on the slide (it is also the picked one), or null.
+  editingDiagramBox: { elementId: string; path: DiagramBoxPath } | null;
+  setEditingDiagramBox: (edit: { elementId: string; path: DiagramBoxPath } | null) => void;
   // Group needs 2+ selected elements in the same box. Both act on the current slide's selection.
   groupSelectedElements: () => void;
   ungroupSelectedElements: () => void;
@@ -429,10 +447,10 @@ interface EditorState {
   isColorPanelOpen: boolean;
   toggleColorPanel: () => void;
   closeColorPanel: () => void;
-  // Which part the Color panel paints: the fill, or the border of the selected shape box or squares/rectangles.
-  colorPanelTarget: "fill" | "border";
-  // Opens the Color panel on the fill or border; clicking the same one again closes it.
-  openColorPanelOn: (target: "fill" | "border") => void;
+  // Which part the Color panel paints (see ColorPanelTarget).
+  colorPanelTarget: ColorPanelTarget;
+  // Opens the Color panel on that part; clicking the same one again closes it.
+  openColorPanelOn: (target: ColorPanelTarget) => void;
 
   // The Background panel changes the selected slide's background.
   isBackgroundPanelOpen: boolean;
@@ -1013,6 +1031,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   clearElementSelection: () => set({ selectedElementIds: [] }),
   croppingElementId: null,
   setCroppingElementId: (elementId) => set({ croppingElementId: elementId }),
+  pickedDiagramBox: null,
+  // Picking another box (or none) also stops typing.
+  setPickedDiagramBox: (pick) => set({ pickedDiagramBox: pick, editingDiagramBox: null }),
+  editingDiagramBox: null,
+  setEditingDiagramBox: (edit) => set(edit ? { editingDiagramBox: edit, pickedDiagramBox: edit } : { editingDiagramBox: null }),
 
   groupSelectedElements: () => {
     const { presentation, selectedSlideId, selectedElementIds } = get();

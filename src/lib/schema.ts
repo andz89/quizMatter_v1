@@ -1,6 +1,21 @@
 import { z } from "zod";
 import {
   BORDER_WIDTH_MAX,
+  CYCLE_STEPS,
+  DIAGRAM_BOX_HEIGHT,
+  DIAGRAM_BOX_POSITION_MAX,
+  DIAGRAM_BORDER_WIDTH,
+  DIAGRAM_BOX_WIDTH,
+  DIAGRAM_FONT_SIZE,
+  DIAGRAM_NONE,
+  DIAGRAM_SHAPES,
+  DIAGRAM_TEXT_MAX,
+  FACTOR_TREE_BOXES,
+  FACTOR_TREE_LEVELS,
+  FLOWCHART_STEPS,
+  MIND_MAP_IDEAS,
+  TREE_BRANCHES,
+  TREE_LEAVES_MAX,
   CANVAS_HEIGHT,
   CANVAS_WIDTH,
   MAX_STORED_PHOTO_BYTES,
@@ -151,6 +166,67 @@ export const claudePhotoSchema = sharedPhotoInfoSchema.extend({
 });
 export type ClaudePhotoDetails = z.infer<typeof claudePhotoSchema>;
 
+const diagramBoxPosition = z.number().min(-DIAGRAM_BOX_POSITION_MAX).max(DIAGRAM_BOX_POSITION_MAX);
+
+// A diagram box's own color: a plain #RRGGBB (the Color panel's solid colors).
+const diagramBoxColor = z.string().regex(/^#[0-9A-Fa-f]{6}$/);
+
+// One box of a diagram (flowchart, cycle, mind map, tree, factor tree): its text and, once the teacher
+// resized or moved it on the slide, its own place (top-left) and size in drawing units. The four are saved
+// together or not at all; missing = the box's automatic spot and size.
+// Its own look is optional too: background and border (a color or "none"), border width, text color,
+// the biggest text size, and its shape (rounded box or circle). Missing = the diagram's Color tint, a Color
+// border 2 wide, dark text, size 12, the diagram's own shape.
+const diagramBoxFields = z.object({
+  text: z.string().max(DIAGRAM_TEXT_MAX),
+  x: diagramBoxPosition.optional(),
+  y: diagramBoxPosition.optional(),
+  width: z.number().min(DIAGRAM_BOX_WIDTH.min).max(DIAGRAM_BOX_WIDTH.max).optional(),
+  height: z.number().min(DIAGRAM_BOX_HEIGHT.min).max(DIAGRAM_BOX_HEIGHT.max).optional(),
+  fill: z.union([diagramBoxColor, z.literal(DIAGRAM_NONE)]).optional(),
+  border: z.union([diagramBoxColor, z.literal(DIAGRAM_NONE)]).optional(),
+  borderWidth: z.number().min(DIAGRAM_BORDER_WIDTH.min).max(DIAGRAM_BORDER_WIDTH.max).optional(),
+  textColor: diagramBoxColor.optional(),
+  fontSize: z.number().min(DIAGRAM_FONT_SIZE.min).max(DIAGRAM_FONT_SIZE.max).optional(),
+  shape: z.enum(DIAGRAM_SHAPES).optional(),
+});
+
+// A box's place and size are saved together or not at all.
+const placeSavedTogether = (box: { x?: number; y?: number; width?: number; height?: number }) =>
+  [box.x, box.y, box.width, box.height].every((value) => value === undefined) ||
+  [box.x, box.y, box.width, box.height].every((value) => value !== undefined);
+const PLACE_MESSAGE = "A diagram box's place and size are saved together.";
+
+const diagramBoxSchema = diagramBoxFields.refine(placeSavedTogether, PLACE_MESSAGE);
+
+// One number of a factor tree: a diagram box, and the two numbers it splits into (missing = none).
+export type FactorNode = z.infer<typeof diagramBoxFields> & { children?: [FactorNode, FactorNode] };
+const factorNodeSchema: z.ZodType<FactorNode> = z.lazy(() =>
+  diagramBoxFields
+    .extend({ children: z.tuple([factorNodeSchema, factorNodeSchema]).optional() })
+    .refine(placeSavedTogether, PLACE_MESSAGE),
+);
+
+// Anything shaped like a factor tree (the app's or Claude's).
+interface Splits {
+  children?: [Splits, Splits];
+}
+
+/** How many boxes a factor tree has, and how many levels deep it goes (the top box alone = 1). */
+export function factorTreeSize(node: Splits): { boxes: number; levels: number } {
+  if (!node.children) return { boxes: 1, levels: 1 };
+  const a = factorTreeSize(node.children[0]);
+  const b = factorTreeSize(node.children[1]);
+  return { boxes: 1 + a.boxes + b.boxes, levels: 1 + Math.max(a.levels, b.levels) };
+}
+
+// A factor tree within its limits (levels and boxes). Claude's import checks the same.
+export const factorTreeFits = ({ root }: { root: Splits }) => {
+  const { boxes, levels } = factorTreeSize(root);
+  return boxes <= FACTOR_TREE_BOXES && levels <= FACTOR_TREE_LEVELS;
+};
+export const FACTOR_TREE_LIMIT_MESSAGE = `A factor tree has at most ${FACTOR_TREE_LEVELS} levels and ${FACTOR_TREE_BOXES} boxes.`;
+
 export const svgElementSchema = z.object({
   id: idSchema,
   assetId: idSchema,
@@ -198,6 +274,32 @@ export const svgElementSchema = z.object({
   barGraph: z.object({ bars: z.array(z.object({ label: z.string().max(100), value: z.number() })).max(50) }).optional(),
   // Only used by the protractor: the angle between its two lines, 0–180°.
   protractor: z.object({ angle: z.number() }).optional(),
+  // Only used by the flowchart: each step's box, in order, in order, and whether the steps go down
+  // instead of across. Missing vertical = across.
+  flowchart: z
+    .object({
+      steps: z.array(diagramBoxSchema).min(FLOWCHART_STEPS.min).max(FLOWCHART_STEPS.max),
+      vertical: z.boolean().optional(),
+    })
+    .optional(),
+  // Only used by the cycle: each step's box, going clockwise from the top.
+  cycle: z.object({ steps: z.array(diagramBoxSchema).min(CYCLE_STEPS.min).max(CYCLE_STEPS.max) }).optional(),
+  // Only used by the mind map: the main idea in the middle and the ideas around it.
+  mindMap: z
+    .object({ center: diagramBoxSchema, ideas: z.array(diagramBoxSchema).min(MIND_MAP_IDEAS.min).max(MIND_MAP_IDEAS.max) })
+    .optional(),
+  // Only used by the tree: the top box, its branches, and the smaller boxes ("leaves") under each branch.
+  tree: z
+    .object({
+      root: diagramBoxSchema,
+      branches: z
+        .array(z.object({ label: diagramBoxSchema, leaves: z.array(diagramBoxSchema).max(TREE_LEAVES_MAX) }))
+        .min(TREE_BRANCHES.min)
+        .max(TREE_BRANCHES.max),
+    })
+    .optional(),
+  // Only used by the factor tree: the top number; each number splits into two (children) or none.
+  factorTree: z.object({ root: factorNodeSchema }).refine(factorTreeFits, FACTOR_TREE_LIMIT_MESSAGE).optional(),
   // Only used by the text box: its styled text, as HTML from the text editor (empty string = no
   // text), and its chosen font size (missing = TEXT_BOX_FONT_SIZE).
   text: z.object({ html: htmlSchema, fontSize: fontSizeSchema.optional() }).optional(),

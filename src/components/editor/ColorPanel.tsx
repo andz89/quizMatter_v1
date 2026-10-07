@@ -5,9 +5,9 @@ import { useEditorState } from "@tiptap/react";
 import { useEditorStore } from "@/lib/store";
 import { useFormatTexts } from "@/lib/useFormatTexts";
 import { DEFAULT_TEXT_COLOR, formatChain } from "@/lib/richText";
-import { getElementAsset } from "@/lib/svgLibrary";
+import { diagramStyleTargets, getDiagramBoxes, getElementAsset, withDiagramBoxStyle } from "@/lib/svgLibrary";
 import { toCssBackground } from "./ElementSvg";
-import { BORDER_WIDTH_DEFAULT, BORDER_WIDTH_MAX, GRADIENT_PREFIX, SIDE_CONTAINER_ID } from "@/lib/constants";
+import { BORDER_WIDTH_DEFAULT, BORDER_WIDTH_MAX, DIAGRAM_BORDER_WIDTH, DIAGRAM_NONE, GRADIENT_PREFIX, SIDE_CONTAINER_ID } from "@/lib/constants";
 import { PanelSlider } from "./PanelControls";
 import { XIcon } from "lucide-react";
 
@@ -68,11 +68,20 @@ const GRADIENTS: [string, string][] = [
   ["#495057", "#1F1F1F"],
 ];
 
+// The diagram box field each box target paints, and the panel's title for it.
+const BOX_STYLE = {
+  boxFill: { key: "fill", title: "Box background" },
+  boxBorder: { key: "border", title: "Box border" },
+  boxText: { key: "textColor", title: "Box text" },
+} as const;
+
 export function ColorPanel() {
   const selectedSlideId = useEditorStore((s) => s.selectedSlideId);
   const selectedElementIds = useEditorStore((s) => s.selectedElementIds);
   const slide = useEditorStore((s) => s.presentation.slides.find((sl) => sl.id === s.selectedSlideId));
   const updateElements = useEditorStore((s) => s.updateElements);
+  const updateElement = useEditorStore((s) => s.updateElement);
+  const pickedDiagramBox = useEditorStore((s) => s.pickedDiagramBox);
   const selectedContainerId = useEditorStore((s) => s.selectedContainerId);
   const colorPanelTarget = useEditorStore((s) => s.colorPanelTarget);
   const setShapeBoxColors = useEditorStore((s) => s.setShapeBoxColors);
@@ -88,17 +97,37 @@ export function ColorPanel() {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") closeColorPanel();
+      if (e.key !== "Escape") return;
+      closeColorPanel();
+      // One Escape does one thing: with a diagram box picked (not typing), it only closes the panel.
+      // Otherwise the editor's Escape would also let go of the box, and the next change would go to every box.
+      const { pickedDiagramBox, editingDiagramBox } = useEditorStore.getState();
+      if (pickedDiagramBox && !editingDiagramBox) e.stopPropagation();
     };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
+    // Capture, so this runs before the editor's own Escape shortcut.
+    window.addEventListener("keydown", handleKeyDown, true);
+    return () => window.removeEventListener("keydown", handleKeyDown, true);
   }, [closeColorPanel]);
 
   const elements = slide?.elements.filter((el) => selectedElementIds.includes(el.id)) ?? [];
   // With no text or shapes to color, the panel paints the selected shape box's fill or border.
   const boxTarget =
-    !textEditor && elements.length === 0 && selectedContainerId === SIDE_CONTAINER_ID ? colorPanelTarget : null;
+    !textEditor &&
+    elements.length === 0 &&
+    selectedContainerId === SIDE_CONTAINER_ID &&
+    (colorPanelTarget === "fill" || colorPanelTarget === "border")
+      ? colorPanelTarget
+      : null;
   const boxColor = boxTarget === "fill" ? slide?.shapeBoxFill : slide?.shapeBoxBorder;
+  // One diagram selected and the panel opened on a box swatch: it paints the picked box, or every box.
+  const diagramElement = !textEditor && elements.length === 1 ? elements[0] : null;
+  const diagram = diagramElement ? getDiagramBoxes(diagramElement.assetId, diagramElement) : null;
+  const boxStyle = diagram && colorPanelTarget in BOX_STYLE ? BOX_STYLE[colorPanelTarget as keyof typeof BOX_STYLE] : null;
+  const styleTargets =
+    diagram && diagramElement
+      ? diagramStyleTargets(diagram, pickedDiagramBox?.elementId === diagramElement.id ? pickedDiagramBox.path : undefined)
+      : [];
+  const boxStyleColor = boxStyle ? styleTargets[0]?.item[boxStyle.key] : undefined;
   // Opened on "border" with only squares/rectangles selected, the panel paints their border.
   const isShapeBorder =
     !textEditor &&
@@ -106,12 +135,21 @@ export function ColorPanel() {
     elements.length > 0 &&
     elements.every((el) => getElementAsset(el.assetId)?.roundCorners);
   const shapeBorderColor = elements.every((el) => el.borderColor === elements[0]?.borderColor) ? elements[0]?.borderColor : null;
-  const hasNone = !!boxTarget || isShapeBorder;
-  const noneSelected = isShapeBorder ? shapeBorderColor === undefined : boxColor === undefined;
+  // Box text has no "none": text always needs a color.
+  const hasNone = !!boxTarget || isShapeBorder || (!!boxStyle && boxStyle.key !== "textColor");
+  const noneSelected = boxStyle
+    ? boxStyleColor === DIAGRAM_NONE
+    : isShapeBorder
+      ? shapeBorderColor === undefined
+      : boxColor === undefined;
 
   const commonColor = textEditor
     ? (textColor ?? DEFAULT_TEXT_COLOR).toUpperCase()
-    : boxTarget
+    : boxStyle
+      ? boxStyleColor && boxStyleColor !== DIAGRAM_NONE
+        ? boxStyleColor
+        : null
+      : boxTarget
       ? (boxColor ?? null)
       : isShapeBorder
         ? (shapeBorderColor ?? null)
@@ -122,6 +160,8 @@ export function ColorPanel() {
   // undefined = none (shape box and shape borders only).
   const handleColor = (color: string | undefined) => {
     if (textEditor) texts.forEach(({ editor }) => formatChain(editor).setColor(color ?? DEFAULT_TEXT_COLOR).run());
+    else if (boxStyle && diagram && diagramElement)
+      updateElement(selectedSlideId, diagramElement.id, withDiagramBoxStyle(diagram, styleTargets, { [boxStyle.key]: color ?? DIAGRAM_NONE }));
     else if (boxTarget === "fill") setShapeBoxColors(selectedSlideId, { shapeBoxFill: color });
     else if (boxTarget === "border") setShapeBoxColors(selectedSlideId, { shapeBoxBorder: color });
     else if (isShapeBorder) updateElements(selectedSlideId, Object.fromEntries(elements.map((el) => [el.id, { borderColor: color }])));
@@ -138,7 +178,7 @@ export function ColorPanel() {
   // Text, text boxes and borders can only be a solid color.
   const allowGradients =
     boxTarget === "fill" ||
-    (!boxTarget && !isShapeBorder && !textEditor && !elements.some((el) => getElementAsset(el.assetId)?.isTextBox));
+    (!boxTarget && !boxStyle && !isShapeBorder && !textEditor && !elements.some((el) => getElementAsset(el.assetId)?.isTextBox));
 
   return (
     <div
@@ -149,7 +189,7 @@ export function ColorPanel() {
     >
       <div className="mb-4 flex items-center justify-between">
         <h2 className="text-[15px] font-extrabold text-text-primary">
-          {boxTarget === "fill" ? "Box fill" : boxTarget === "border" ? "Box border" : isShapeBorder ? "Border" : "Color"}
+          {boxStyle ? boxStyle.title : boxTarget === "fill" ? "Box fill" : boxTarget === "border" ? "Box border" : isShapeBorder ? "Border" : "Color"}
         </h2>
         <button
           type="button"
@@ -174,6 +214,28 @@ export function ColorPanel() {
       {isShapeBorder && (
         <div className={`mb-6 ${shapeBorderColor ? "" : "pointer-events-none opacity-40"}`}>
           <PanelSlider label="Thickness" unit="px" value={borderWidth} min={1} max={BORDER_WIDTH_MAX} onChange={setBorderWidth} />
+        </div>
+      )}
+
+      {/* Diagram box border: greyed out while the border is "none". */}
+      {boxStyle?.key === "border" && diagram && diagramElement && (
+        <div className={`mb-6 ${boxStyleColor === DIAGRAM_NONE ? "pointer-events-none opacity-40" : ""}`}>
+          <PanelSlider
+            label="Thickness"
+            unit=""
+            value={styleTargets[0]?.item.borderWidth ?? DIAGRAM_BORDER_WIDTH.default}
+            min={DIAGRAM_BORDER_WIDTH.min}
+            max={DIAGRAM_BORDER_WIDTH.max}
+            onChange={(width) =>
+              updateElement(
+                selectedSlideId,
+                diagramElement.id,
+                withDiagramBoxStyle(diagram, styleTargets, {
+                  borderWidth: Math.min(DIAGRAM_BORDER_WIDTH.max, Math.max(DIAGRAM_BORDER_WIDTH.min, width)),
+                }),
+              )
+            }
+          />
         </div>
       )}
 

@@ -76,6 +76,21 @@ Editors (teachers an admin trusts) review shared QuizMatter presentations; an ad
 - **In the app:** reviewer saves go through `src/lib/reviews.ts` (zod first); reads through `src/lib/reviewStatus.ts`. The editor's review mode is `review` in the store plus `ReviewControls` (Save as draft + the ⋮ menu). A submitted review opens view only (`ReviewSubmittedView`, no editor). Admin pages are under `src/app/admin/presentations/reviews`. On the home page, editors get a "My reviews" tab (`PresentationHome.tsx`): open rounds ("In progress") and canceled ones ("Canceled by QuizMatter" / "by you"), both `ReviewRows` from `my_reviews()`, and the live presentations they reviewed ("Published"). After an admin publishes a review, nobody can start another until the admin turns on "Open to all editors". `ReviewDraftView` and `PresentDraftButton` are shared by the reviewer's and the admin's pages; reuse them.
 - **Photos in drafts count as used** in `used_photo_srcs`, so the weekly photo cleanup keeps them. Keep that if the cleanup changes.
 
+# Diagrams (Flowchart, Cycle, Mind Map, Tree)
+
+The "Diagrams" group of the Elements panel. Full design: `docs/superpowers/specs/2026-10-06-diagram-box-drag-design.md`. When changing them, keep these rules:
+
+- **Each box works like a text box:** it keeps its size, its text shrinks to fit (size 12 down to 1), and a picked box has the same handles (corners keep the shape, side handles change width or height). Reuse `CORNERS` / `EDGE_HANDLES` from `src/components/editor/handles.ts`; don't make new handles.
+- **One layout, two users:** the layouts in `svgLibrary.tsx` place every box, and `getDiagramBoxes` gives those same boxes to the editor (`DiagramBoxEditor.tsx`). Never place boxes a second way in the editor, or the outline won't match the drawing.
+- **Text is typed on the slide** (double-click a box; Shift+Enter = new line, Enter/Esc/click outside = done). The panels have no text boxes, only box count, Across/Down, Tidy up, Reset (and the Tree's add/remove).
+- **A box's own place and size** (`x, y, width, height`) are saved all together or not at all; missing = its automatic spot. Limits live in `constants.ts` and are checked by `diagramBoxSchema` (zod) before saving.
+- **A box's own look** (`fill`, `border`, `borderWidth`, `textColor`, `fontSize`) is optional; missing = the diagram's Color tint and border, dark text, size 12. The toolbar's box style group and the Color panel (`boxFill` / `boxBorder` / `boxText`) change the picked box, or every box when none is picked, through `diagramStyleTargets` + `withDiagramBoxStyle`. Moving, Tidy up and new boxes keep or copy the look. Spec: `docs/superpowers/specs/2026-10-07-diagram-box-style-design.md`.
+- **"+" and × on every box** of a selected diagram (`DiagramBoxButtons.tsx`) add a box next to it or remove it. The rules per diagram (where, limits, new text, copying the look) live only in `diagramBoxActions` (`svgLibrary.tsx`); the element is kept in place with `keepInPlace`. Spec: `docs/superpowers/specs/2026-10-07-diagram-box-add-remove-design.md`.
+- **Nothing else moves on the slide** when the drawing area changes: use `keepInPlace` (dragging) or `useResizeForViewBox` (panel), which both keep the other boxes still.
+- **Text widths are measured only once the fonts have loaded** (`fontsReady` from `ElementSvg.tsx`); before that, and on the server, use the estimate, so server and browser draw the same.
+- **Picked / typing box** is UI state in the store (`pickedDiagramBox`, `editingDiagramBox`), never saved.
+- **Claude** adds diagrams with `{ "text": … }` boxes only (automatic layout).
+
 # Loading Spinner
 
 Whenever the user waits for something (opening a quiz, loading a page, saving, any slow action), show a spinner — always.

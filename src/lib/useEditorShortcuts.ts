@@ -99,6 +99,15 @@ export function useEditorShortcuts() {
         // Also stops Enter from clicking a focused button (like Crop, which would start cropping again).
         e.preventDefault();
         state.setCroppingElementId(null);
+      } else if (
+        // A picked diagram box: Escape goes back to the whole diagram (it stays selected).
+        state.pickedDiagramBox &&
+        selectedElementIds.length === 1 &&
+        selectedElementIds[0] === state.pickedDiagramBox.elementId &&
+        e.key === "Escape"
+      ) {
+        e.preventDefault();
+        state.setPickedDiagramBox(null);
       } else if (selectedElementIds.length > 0 && e.key === "Delete") {
         // Only the Delete key, not Backspace, so a stray Backspace can't remove elements.
         e.preventDefault();
