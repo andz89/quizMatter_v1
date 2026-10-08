@@ -4,6 +4,7 @@ import type { User } from "@supabase/supabase-js";
 import { joinParts, timeAgo } from "@/lib/format";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { EDUCATION_LEVEL_LABELS, EDUCATION_LEVELS, type EducationLevel } from "@/lib/userSettings";
 import { AdminTeachers, type TeacherRow } from "./AdminTeachers";
 
 /**
@@ -25,12 +26,14 @@ export default async function AdminTeachersPage() {
 
   const supabase = await createClient();
   const [users, bans, admins, editors, settings] = await Promise.all([
-    // Teachers are added by hand, so one page of 1,000 is plenty.
+    // One page of 1,000 is plenty for now (teachers who sign up count too).
     admin.auth.admin.listUsers({ perPage: 1000 }),
     supabase.from("banned_users").select("user_id, reason, banned_at, is_automatic"),
     admin.from("admins").select("user_id"),
     admin.from("editors").select("user_id"),
-    admin.from("user_settings").select("user_id, display_name"),
+    admin
+      .from("user_settings")
+      .select("user_id, display_name, first_name, last_name, contact_number, education_level, education_field"),
   ]);
   if (users.error) throw users.error;
   if (bans.error) throw bans.error;
@@ -45,7 +48,7 @@ export default async function AdminTeachersPage() {
         bans.data as Ban[],
         admins.data.map((row) => row.user_id as string),
         editors.data.map((row) => row.user_id as string),
-        settings.data as { user_id: string; display_name: string | null }[],
+        settings.data as Settings[],
       )}
     />
   );
@@ -54,27 +57,54 @@ export default async function AdminTeachersPage() {
 // is_automatic: banned by the database for clicking too fast (see the click_auto_ban migration), not by an admin.
 type Ban = { user_id: string; reason: string; banned_at: string; is_automatic: boolean };
 
+type Settings = {
+  user_id: string;
+  display_name: string;
+  first_name: string;
+  last_name: string;
+  contact_number: string;
+  education_level: string;
+  education_field: string;
+};
+
+/** "Ana Cruz · +63 917 123 4567 · Master's degree in English" ("" when the teacher gave no details). */
+function detailsLine(row: Settings) {
+  const level = EDUCATION_LEVELS.includes(row.education_level as EducationLevel)
+    ? EDUCATION_LEVEL_LABELS[row.education_level as EducationLevel]
+    : "";
+  // "Other" alone says nothing, so show just the field.
+  const education =
+    level && row.education_field && row.education_level !== "other"
+      ? `${level} in ${row.education_field}`
+      : row.education_field || level;
+  return joinParts([`${row.first_name} ${row.last_name}`.trim(), row.contact_number, education]);
+}
+
 /** One row per account: banned teachers first, then by email. */
 function buildRows(
   users: User[],
   bans: Ban[],
   adminIds: string[],
   editorIds: string[],
-  settings: { user_id: string; display_name: string | null }[],
+  settings: Settings[],
 ): TeacherRow[] {
   const banByUser = new Map(bans.map((ban) => [ban.user_id, ban]));
   const admins = new Set(adminIds);
   const editors = new Set(editorIds);
-  const names = new Map(settings.map((row) => [row.user_id, row.display_name ?? ""]));
+  const settingsByUser = new Map(settings.map((row) => [row.user_id, row]));
   const now = Date.now();
 
   return users
     .map((user) => {
       const ban = banByUser.get(user.id);
+      const settingsRow = settingsByUser.get(user.id);
       return {
         id: user.id,
         email: user.email ?? "",
-        name: names.get(user.id) ?? "",
+        name: settingsRow?.display_name ?? "",
+        details: settingsRow ? detailsLine(settingsRow) : "",
+        // Signed up but hasn't clicked the link in the email yet.
+        isConfirmed: Boolean(user.email_confirmed_at),
         meta: joinParts([
           `Joined ${timeAgo(Date.parse(user.created_at), now)}`,
           user.last_sign_in_at && `Last login ${timeAgo(Date.parse(user.last_sign_in_at), now)}`,
