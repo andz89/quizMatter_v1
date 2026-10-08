@@ -7,7 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { CANVAS_WIDTH, CANVAS_HEIGHT, SLIDE_DRAG_MIME, getSlideNumbers } from "@/lib/constants";
 import { joinParts, publishedByLine, slideCountLabel } from "@/lib/format";
 import { loadPublisherNames } from "@/lib/publishers";
-import { MAX_SLIDES, TOO_MANY_SLIDES_MESSAGE, parseSlide, type Slide } from "@/lib/schema";
+import { MAX_SLIDES, TOO_MANY_SLIDES_MESSAGE, gradesLabel, parseSlide, type Slide } from "@/lib/schema";
 import { Spinner } from "@/components/Spinner";
 import { FluidSlidePreview } from "@/components/presentation/FluidSlidePreview";
 import { SaveCardButton } from "@/app/SaveCardButton";
@@ -19,7 +19,7 @@ const PRESENTATION_LIMIT = 50;
 const DRAG_IMAGE_WIDTH = 180;
 
 // Each presentation's first slide only (for its picture), not all of them, to keep the panel light.
-const SUMMARY_COLUMNS = "id, owner_id, title, grade, subject, author, slides(count), first_slide:slides(data, position)";
+const SUMMARY_COLUMNS = "id, owner_id, title, grades, subject, author, slides(count), first_slide:slides(data, position)";
 
 type PresentationSummary = {
   id: string;
@@ -379,7 +379,7 @@ type SummaryRow = {
   id: string;
   owner_id: string;
   title: string;
-  grade: string;
+  grades: string[];
   subject: string;
   author: string;
   slides: { count: number }[];
@@ -394,7 +394,7 @@ async function toSummaries(supabase: SupabaseClient, rows: SummaryRow[]): Promis
     title: row.title || "Untitled presentation",
     meta: joinParts([
       publishedByLine(row.author, publisherNames.get(row.owner_id)),
-      row.grade,
+      gradesLabel(row.grades),
       row.subject,
       slideCountLabel(row.slides[0]?.count ?? 0),
     ]),

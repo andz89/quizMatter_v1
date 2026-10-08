@@ -1,14 +1,25 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { useEditorStore, isPanelEscape } from "@/lib/store";
 import { createClient } from "@/lib/supabase/client";
-import { DETAIL_MAX_LENGTH, GRADES, MAX_REFERENCE_LINKS, isWebLink, referenceSchema, tagsSchema, type PresentationDetails } from "@/lib/schema";
+import {
+  DETAIL_MAX_LENGTH,
+  GRADES,
+  MAX_REFERENCE_LINKS,
+  OTHER_CHOICE,
+  SUBJECTS,
+  gradesLabel,
+  isOtherGrade,
+  isWebLink,
+  referenceSchema,
+  tagsSchema,
+} from "@/lib/schema";
 import { parseTags } from "@/lib/photos";
 import { PanelLabel } from "./PanelControls";
 import { Spinner } from "@/components/Spinner";
-import { ExternalLinkIcon, XIcon } from "lucide-react";
+import { ChevronDownIcon, ExternalLinkIcon, XIcon } from "lucide-react";
 
 /**
  * Sidebar panel for the presentation as a whole: title, description, grade, subject, curriculum,
@@ -49,7 +60,7 @@ export function DetailsPanel() {
     else toast.success(isAdmin ? "Back to a draft — only you can see it." : "Presentation is private now.");
   };
 
-  const textField = (key: keyof typeof DETAIL_MAX_LENGTH, label: string, placeholder: string, multiline = false) => (
+  const textField = (key: Exclude<keyof typeof DETAIL_MAX_LENGTH, "grade">, label: string, placeholder: string, multiline = false) => (
     <Field label={label}>
       {multiline ? (
         <textarea
@@ -92,22 +103,15 @@ export function DetailsPanel() {
       {textField("title", "Title", "Untitled presentation")}
       {textField("description", "Description", "What the presentation covers", true)}
 
-      <Field label="Grade">
-        <select
-          value={presentation.grade}
-          onChange={(e) => setPresentationDetails({ grade: e.target.value as PresentationDetails["grade"] })}
-          className={inputClass}
-        >
-          <option value="">Not set</option>
-          {GRADES.map((grade) => (
-            <option key={grade} value={grade}>
-              {grade}
-            </option>
-          ))}
-        </select>
-      </Field>
-
-      {textField("subject", "Subject", "e.g. Mathematics")}
+      <GradesField grades={presentation.grades} onChange={(grades) => setPresentationDetails({ grades })} />
+      <ListOrOtherField
+        label="Subject"
+        list={SUBJECTS}
+        value={presentation.subject}
+        onChange={(subject) => setPresentationDetails({ subject })}
+        maxLength={DETAIL_MAX_LENGTH.subject}
+        placeholder="Type the subject, e.g. Robotics"
+      />
       {textField("curriculum", "Curriculum", "e.g. MATATAG")}
       {textField("learningCompetency", "Learning competency", "The competency this presentation targets, with its code", true)}
       <TagsField tags={presentation.tags} onChange={(tags) => setPresentationDetails({ tags })} />
@@ -222,6 +226,161 @@ function ReferenceLinks({ links, onChange }: { links: string[]; onChange: (links
  * Tags typed comma-separated, e.g. "fractions, addition". The text is kept as typed (so "fractions, " can be
  * typed), and the tags are read from it on every change. Search on the home page looks in them.
  */
+/**
+ * The grades: a box showing the picked ones ("Grades 1–2"; "None" until one is ticked) that opens a list with a
+ * checkbox per grade, then "Other…", which shows a box for the teacher's own grade (e.g. College).
+ */
+function GradesField({ grades, onChange }: { grades: string[]; onChange: (grades: string[]) => void }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  // The teacher's own grade, as typed (kept here, so typing "Grade 1" on the way to "Grade 10" doesn't tick Grade 1).
+  const [ownGrade, setOwnGrade] = useState(() => grades.find(isOtherGrade) ?? "");
+  const [isOtherPicked, setIsOtherPicked] = useState(ownGrade !== "");
+  const picked = GRADES.filter((grade) => grades.includes(grade));
+
+  // In list order, with the teacher's own last (the order zod keeps too).
+  const save = (listGrades: readonly string[], own: string) =>
+    onChange([...GRADES.filter((grade) => listGrades.includes(grade)), ...(own.trim() ? [own] : [])]);
+  const toggle = (grade: string) =>
+    save(picked.includes(grade as (typeof GRADES)[number]) ? picked.filter((g) => g !== grade) : [...picked, grade], ownGrade);
+
+  // Closes on a click outside, or on Esc.
+  useEffect(() => {
+    if (!isOpen) return;
+    const onPointerDown = (e: PointerEvent) => {
+      if (!ref.current?.contains(e.target as Node)) setIsOpen(false);
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setIsOpen(false);
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [isOpen]);
+
+  const rowClass = "flex cursor-pointer items-center gap-2 px-3 py-1.5 text-sm text-text-primary hover:bg-bg-page";
+  return (
+    <Field label="Grade">
+      <div ref={ref} className="relative">
+        <button
+          type="button"
+          onClick={() => setIsOpen((open) => !open)}
+          aria-expanded={isOpen}
+          className={`${inputClass} flex items-center gap-2 text-left`}
+        >
+          <span className="min-w-0 flex-1 truncate">{gradesLabel(grades) || "None"}</span>
+          <ChevronDownIcon size={16} className="shrink-0" />
+        </button>
+        {isOpen && (
+          <div className="absolute top-full right-0 left-0 z-30 mt-1 max-h-72 overflow-y-auto rounded-dropdown border border-border-default bg-bg-surface py-1">
+            {GRADES.map((grade) => (
+              <label key={grade} className={rowClass}>
+                <input
+                  type="checkbox"
+                  checked={picked.includes(grade)}
+                  onChange={() => toggle(grade)}
+                  className="h-4 w-4 accent-accent"
+                />
+                {grade}
+              </label>
+            ))}
+            <label className={rowClass}>
+              <input
+                type="checkbox"
+                checked={isOtherPicked}
+                onChange={(e) => {
+                  setIsOtherPicked(e.target.checked);
+                  if (e.target.checked) return;
+                  setOwnGrade("");
+                  save(picked, "");
+                }}
+                className="h-4 w-4 accent-accent"
+              />
+              Other…
+            </label>
+          </div>
+        )}
+      </div>
+      {isOtherPicked && (
+        <input
+          value={ownGrade}
+          onChange={(e) => {
+            setOwnGrade(e.target.value);
+            save(picked, e.target.value);
+          }}
+          placeholder="Type the grade, e.g. College"
+          aria-label="Grade (your own)"
+          maxLength={DETAIL_MAX_LENGTH.grade}
+          className={`${inputClass} mt-2`}
+        />
+      )}
+    </Field>
+  );
+}
+
+/**
+ * The subject: one from `list`, or "Other…" with a box to type the teacher's own. A value not on the list
+ * opens as "Other…" with its text in the box. None by default: "None" shows until one is picked, but isn't in the
+ * list to pick back.
+ */
+function ListOrOtherField({
+  label,
+  list,
+  value,
+  onChange,
+  maxLength,
+  placeholder,
+}: {
+  label: string;
+  list: readonly string[];
+  value: string;
+  onChange: (value: string) => void;
+  maxLength: number;
+  placeholder: string;
+}) {
+  // "Other…" picked but nothing typed yet (an empty value alone would show "None").
+  const [isOtherPicked, setIsOtherPicked] = useState(false);
+  const isOther = isOtherPicked || (value !== "" && !list.includes(value));
+
+  return (
+    <Field label={label}>
+      <select
+        value={isOther ? OTHER_CHOICE : value}
+        onChange={(e) => {
+          const picked = e.target.value;
+          setIsOtherPicked(picked === OTHER_CHOICE);
+          onChange(picked === OTHER_CHOICE ? "" : picked);
+        }}
+        className={inputClass}
+      >
+        <option value="" disabled hidden>
+          None
+        </option>
+        {list.map((name) => (
+          <option key={name} value={name}>
+            {name}
+          </option>
+        ))}
+        <option value={OTHER_CHOICE}>Other…</option>
+      </select>
+      {isOther && (
+        <input
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          aria-label={`${label} (your own)`}
+          maxLength={maxLength}
+          autoFocus={isOtherPicked}
+          className={`${inputClass} mt-2`}
+        />
+      )}
+    </Field>
+  );
+}
+
 function TagsField({ tags, onChange }: { tags: string[]; onChange: (tags: string[]) => void }) {
   const [text, setText] = useState(tags.join(", "));
   // Tags changed somewhere else (e.g. undo): show them again.

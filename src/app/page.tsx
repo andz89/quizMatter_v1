@@ -1,11 +1,13 @@
 import { BanIcon } from "lucide-react";
-import { NavBar } from "@/components/NavBar";
+import Link from "next/link";
+import { NavBar, navLinkClass } from "@/components/NavBar";
+import { LinkPending } from "@/components/LinkPending";
 import { getAccount } from "@/lib/account";
 import { createClient } from "@/lib/supabase/server";
 import { listDrafts, type DraftSummary } from "@/lib/drafts";
 import { loadPublisherNames } from "@/lib/publishers";
 import { joinParts, publishedByLine, slideCountLabel, timeAgo } from "@/lib/format";
-import { parseSlide } from "@/lib/schema";
+import { GRADES, OTHER_CHOICE, SUBJECTS, gradesLabel, isOtherGrade, isOtherSubject, parseSlide } from "@/lib/schema";
 import { contains } from "@/lib/search";
 import { NewPresentationButton } from "./PresentationListButtons";
 import { PresentationHome } from "./PresentationHome";
@@ -27,7 +29,7 @@ const SEARCH_LIMIT = 50;
 // reviewers: who is in its "Reviewed by" list, for the check on its card (everyone sees it). Only reviewer_id:
 // teachers may read just some of that table's columns (see 20261023000000_hide_review_approver.sql).
 const CARD_COLUMNS =
-  "id, owner_id, title, grade, subject, author, is_published, from_admin, hidden_at, created_at, updated_at, slides(count), first_slide:slides(data, position), reviewers:presentation_reviewers(reviewer_id)";
+  "id, owner_id, title, grades, subject, author, is_published, from_admin, hidden_at, created_at, updated_at, slides(count), first_slide:slides(data, position), reviewers:presentation_reviewers(reviewer_id)";
 
 export default async function HomePage({ searchParams }: PageProps<"/">) {
   // Banned (Admin → Teachers): the home page only says so, until Supabase's ban ends their login (see proxy.ts).
@@ -84,7 +86,8 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
         query = query.or(`title.ilike.${pattern},subject.ilike.${pattern},author.ilike.${pattern},tags_text.ilike.${pattern}`);
       }
       if (search.title) query = query.ilike("title", contains(search.title));
-      if (search.subject) query = query.ilike("subject", contains(search.subject));
+      if (search.subject === OTHER_CHOICE) query = query.neq("subject", "").not("subject", "in", inList(SUBJECTS));
+      else if (search.subject) query = query.eq("subject", search.subject);
       if (search.author) query = query.ilike("author", contains(search.author));
       // tags_text: the tags as one line of text, so part of a tag is found too (see the presentation_tags migration).
       if (search.tags) query = query.ilike("tags_text", contains(search.tags));
@@ -96,7 +99,9 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
           .not("author", "ilike", pattern)
           .not("tags_text", "ilike", pattern);
       }
-      if (search.grade) query = query.eq("grade", search.grade);
+      // Has a grade not on the list (its grades aren't all list grades); or includes this grade.
+      if (search.grade === OTHER_CHOICE) query = query.not("grades", "cd", `{${GRADES.map((grade) => `"${grade}"`).join(",")}}`);
+      else if (search.grade) query = query.contains("grades", [search.grade]);
       if (since) query = query.gte("updated_at", new Date(since).toISOString());
       limit = SEARCH_LIMIT;
     }
@@ -120,7 +125,7 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
     return load("saved", undefined, newest.data.map((row) => row.presentation_id));
   };
 
-  const [mine, fromAdmins, others, saved, savedRows, drafts, account, myReviews, reviewed] = await Promise.all([
+  const [mine, fromAdmins, others, saved, savedRows, drafts, account, myReviews, reviewed, folders, folderItems] = await Promise.all([
     load("mine"),
     load("quizmatter"),
     load("teachers", OTHERS_LIMIT),
@@ -135,6 +140,9 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
       account.isEditor && !isSearching ? await supabase.rpc("my_reviews") : { data: [] as MyReviewRow[], error: null },
     ),
     getAccount().then(async (account) => (account.isEditor ? await load("reviewed") : { data: [], error: null })),
+    // My folders, and which of my presentations is in which (see the folders migration).
+    supabase.from("folders").select("id, name").order("name"),
+    supabase.from("folder_items").select("presentation_id, folder_id"),
   ]);
   if (mine.error) throw mine.error;
   if (fromAdmins.error) throw fromAdmins.error;
@@ -143,11 +151,14 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
   if (savedRows.error) throw savedRows.error;
   if (myReviews.error) throw myReviews.error;
   if (reviewed.error) throw reviewed.error;
+  if (folders.error) throw folders.error;
+  if (folderItems.error) throw folderItems.error;
 
   const publisherNames = await loadPublisherNames(
     supabase,
     [...others.data, ...saved.data].filter((presentation) => !presentation.from_admin).map((presentation) => presentation.owner_id)
   );
+  const folderOf = new Map(folderItems.data.map((item) => [item.presentation_id, item.folder_id]));
   const { myCards, adminCards, otherCards, savedCards, reviewedCards } = buildCards(
     mine.data,
     fromAdmins.data,
@@ -164,7 +175,12 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
 
   return (
     <>
-      <NavBar />
+      <NavBar>
+        <Link href="/browse" className={navLinkClass}>
+          Browse
+          <LinkPending />
+        </Link>
+      </NavBar>
 
       <main className="mx-auto w-full max-w-6xl px-4 py-8 sm:py-10">
         <header className="mb-6 flex flex-wrap items-center gap-4">
@@ -178,7 +194,11 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
         {/* Keyed by the search: a new search starts its bookmark changes again from this fresh data. */}
         <PresentationHome
           key={homeSearchQuery(search)}
-          myCards={myCards}
+          myCards={myCards.map((card) => ({ ...card, folderId: folderOf.get(card.id) }))}
+          folders={folders.data.map((folder) => ({
+            ...folder,
+            count: mine.data.filter((presentation) => folderOf.get(presentation.id) === folder.id).length,
+          }))}
           adminCards={adminCards}
           otherCards={otherCards}
           savedCards={savedCards}
@@ -223,20 +243,25 @@ function draftMatches(draft: DraftSummary, search: HomeSearch, since: number): b
   return (
     has(details, search.q) &&
     has(draft.title, search.title) &&
-    has(draft.subject, search.subject) &&
+    (search.subject === OTHER_CHOICE ? isOtherSubject(draft.subject) : !search.subject || draft.subject === search.subject) &&
+    (search.grade === OTHER_CHOICE ? draft.grades.some(isOtherGrade) : !search.grade || draft.grades.includes(search.grade)) &&
     has(draft.tags, search.tags) &&
     !search.author &&
     (!search.not || !has(details, search.not)) &&
-    (!search.grade || draft.grade === search.grade) &&
     draft.createdAt >= since
   );
+}
+
+/** A list for the database's "in" filter: ("Grade 1","Grade 2",…). */
+function inList(list: readonly string[]): string {
+  return `(${list.map((value) => `"${value}"`).join(",")})`;
 }
 
 type CardPresentation = {
   id: string;
   owner_id: string;
   title: string;
-  grade: string;
+  grades: string[];
   subject: string;
   author: string;
   is_published: boolean;
@@ -288,7 +313,8 @@ function buildCards(
         id: draft.id,
         href: `/presentation/new?draft=${draft.id}`,
         title: draft.title || "Untitled presentation",
-        meta: joinParts([draft.grade, draft.subject, slideCountLabel(draft.slideCount), timeAgo(draft.createdAt, now)]),
+        subject: draft.subject,
+        meta: joinParts([gradesLabel(draft.grades), draft.subject, slideCountLabel(draft.slideCount), timeAgo(draft.createdAt, now)]),
         firstSlide: null,
         badge: ({ ready: "draft", checking: "checking", unfinished: "unfinished" } as const)[draft.state],
         createdAt: draft.createdAt,
@@ -342,7 +368,8 @@ function toCard(presentation: CardPresentation, href: string, now: number): Pres
     id: presentation.id,
     href,
     title: presentation.title || "Untitled presentation",
-    meta: joinParts([presentation.grade, presentation.subject, slideCountLabel(slideCount), timeAgo(Date.parse(presentation.updated_at), now)]),
+    subject: presentation.subject,
+    meta: joinParts([gradesLabel(presentation.grades), presentation.subject, slideCountLabel(slideCount), timeAgo(Date.parse(presentation.updated_at), now)]),
     firstSlide: parseSlide(presentation.first_slide[0]?.data),
     isReviewed: presentation.reviewers.length > 0,
   };

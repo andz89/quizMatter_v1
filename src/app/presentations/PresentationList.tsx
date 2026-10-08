@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import { Spinner } from "@/components/Spinner";
 import { removePresentations } from "../actions";
-import { GlobeIcon, SearchIcon, Trash2Icon } from "lucide-react";
+import { FolderIcon, GlobeIcon, SearchIcon, Trash2Icon } from "lucide-react";
 
 export type PresentationRow = {
   id: string;
@@ -21,12 +21,18 @@ export type PresentationRow = {
   sortTime: number;
   dateLabel: string;
   note?: string;
+  // Which of my folders it's in, if any (see the folders migration).
+  folderId?: string;
 };
+
+// The folder filter: every folder, no folder, or one folder's id.
+const ALL_FOLDERS = "";
+const NO_FOLDER = "none";
 
 type Filter = "all" | "saved" | "draft";
 
-// Checkbox, title, status, slides, updated, trash. On phones: checkbox, title, then the rest in one cell.
-const COLUMNS = "grid-cols-[16px_minmax(0,1fr)_auto] sm:grid-cols-[16px_minmax(0,1fr)_96px_64px_112px_36px]";
+// Checkbox, title, folder, status, slides, updated, trash. On phones: checkbox, title, then the rest in one cell.
+const COLUMNS = "grid-cols-[16px_minmax(0,1fr)_auto] sm:grid-cols-[16px_minmax(0,1fr)_120px_96px_64px_112px_36px]";
 
 /** Deletes saved presentations and discards drafts in one call. False if anything failed. */
 function removeRows(rows: PresentationRow[]) {
@@ -44,17 +50,21 @@ const FILTERS: { id: Filter; label: string }[] = [
 
 /**
  * The presentation list: saved presentations and Claude's drafts together, with a filter and a search box. Rows can
- * be checked and deleted together.
+ * be checked and deleted together, and filtered by folder.
  */
-export function PresentationList({ rows }: { rows: PresentationRow[] }) {
+export function PresentationList({ rows, folders }: { rows: PresentationRow[]; folders: { id: string; name: string }[] }) {
   const [filter, setFilter] = useState<Filter>("all");
+  const [folderFilter, setFolderFilter] = useState(ALL_FOLDERS);
+  const folderName = new Map(folders.map((folder) => [folder.id, folder.name]));
+  const inFolderFilter = (row: PresentationRow) =>
+    folderFilter === ALL_FOLDERS || (folderFilter === NO_FOLDER ? !row.folderId : row.folderId === folderFilter);
   const [search, setSearch] = useState("");
   const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
   const [isDeleting, startDeleting] = useTransition();
 
   const query = search.trim().toLowerCase();
   const shown = rows.filter(
-    (row) => (filter === "all" || row.status === filter) && `${row.title} ${row.meta} ${row.isPublished ? "published" : ""}`.toLowerCase().includes(query),
+    (row) => (filter === "all" || row.status === filter) && inFolderFilter(row) && `${row.title} ${row.meta} ${row.isPublished ? "published" : ""}`.toLowerCase().includes(query),
   );
   const countOf = (id: Filter) => (id === "all" ? rows.length : rows.filter((row) => row.status === id).length);
 
@@ -98,6 +108,23 @@ export function PresentationList({ rows }: { rows: PresentationRow[] }) {
             </button>
           ))}
         </div>
+
+        {folders.length > 0 && (
+          <select
+            value={folderFilter}
+            onChange={(e) => setFolderFilter(e.target.value)}
+            aria-label="Folder"
+            className="rounded-input border border-border-default bg-bg-surface px-3 py-2 text-sm text-text-primary outline-none focus:border-text-secondary"
+          >
+            <option value={ALL_FOLDERS}>All folders</option>
+            <option value={NO_FOLDER}>No folder</option>
+            {folders.map((folder) => (
+              <option key={folder.id} value={folder.id}>
+                {folder.name}
+              </option>
+            ))}
+          </select>
+        )}
 
         <label className="relative ml-auto w-full sm:w-64">
           <span className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-text-primary">
@@ -154,6 +181,7 @@ export function PresentationList({ rows }: { rows: PresentationRow[] }) {
             className="h-4 w-4 accent-accent"
           />
           <span>Title</span>
+          <span className="hidden sm:block">Folder</span>
           <span className="hidden sm:block">Status</span>
           <span className="hidden sm:block">Slides</span>
           <span className="hidden sm:block">Updated</span>
@@ -167,6 +195,7 @@ export function PresentationList({ rows }: { rows: PresentationRow[] }) {
             <PresentationListRow
               key={row.id}
               row={row}
+              folderName={row.folderId ? folderName.get(row.folderId) : undefined}
               isChecked={checkedIds.has(row.id)}
               onToggle={() => toggle(row.id)}
               isBeingDeleted={isDeleting && checkedIds.has(row.id)}
@@ -180,11 +209,13 @@ export function PresentationList({ rows }: { rows: PresentationRow[] }) {
 
 function PresentationListRow({
   row,
+  folderName,
   isChecked,
   onToggle,
   isBeingDeleted,
 }: {
   row: PresentationRow;
+  folderName?: string;
   isChecked: boolean;
   onToggle: () => void;
   isBeingDeleted: boolean;
@@ -242,12 +273,23 @@ function PresentationListRow({
           </p>
         )}
         {/* On phones the other columns are hidden, so their facts go under the title. */}
-        <p className="mt-0.5 text-[13px] text-text-secondary sm:hidden">
+        <p className="mt-0.5 truncate text-[13px] text-text-secondary sm:hidden">
           {row.slideCount} {row.slideCount === 1 ? "slide" : "slides"} · {row.dateLabel}
+          {folderName && ` · ${folderName}`}
         </p>
       </div>
 
       <div className="flex items-center gap-2 sm:contents">
+        <span className="hidden min-w-0 items-center gap-1.5 text-sm text-text-primary sm:flex">
+          {folderName ? (
+            <>
+              <FolderIcon size={14} className="shrink-0 text-accent" />
+              <span className="truncate">{folderName}</span>
+            </>
+          ) : (
+            <span className="text-text-secondary">–</span>
+          )}
+        </span>
         {row.checking ? <CheckingPill /> : <StatusPill status={row.status} />}
         <span className="hidden text-sm text-text-primary sm:block">{row.slideCount}</span>
         <span className="hidden text-sm text-text-secondary sm:block">{row.dateLabel}</span>

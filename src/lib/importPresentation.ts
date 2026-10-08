@@ -73,6 +73,7 @@ import {
   factorTreeFits,
   FONT_SIZE_RANGE,
   GRADES,
+  gradesSchema,
   MAX_ANSWER_LENGTH,
   MAX_ITEM_COUNT,
   MAX_REFERENCE_LINKS,
@@ -80,6 +81,8 @@ import {
   TOO_MANY_SLIDES_MESSAGE,
   photoSchema,
   referenceSchema,
+  SUBJECTS,
+  subjectSchema,
   tagsSchema,
   type Slide,
   type SvgElement,
@@ -541,8 +544,14 @@ export const presentationRecipeSchema = z.object({
 export const claudeDetailsSchema = z.object({
   title: z.string().trim().max(DETAIL_MAX_LENGTH.title).optional().describe('The presentation title, e.g. "Adding Fractions".'),
   description: z.string().trim().max(DETAIL_MAX_LENGTH.description).optional().describe("What the presentation covers, in 1–3 sentences."),
-  grade: z.enum(GRADES).optional(),
-  subject: z.string().trim().max(DETAIL_MAX_LENGTH.subject).optional().describe('e.g. "Mathematics", "Science", "English".'),
+  grades: gradesSchema
+    .optional()
+    .describe(
+      `The grades it's for, one or more, e.g. ["Grade 1", "Grade 2"]. Each one of: ${GRADES.map((grade) => `"${grade}"`).join(", ")}. Only if none fits, one grade of its own name (e.g. "College").`
+    ),
+  subject: subjectSchema
+    .optional()
+    .describe(`One of: ${SUBJECTS.map((subject) => `"${subject}"`).join(", ")}. Only if none fits, the subject's own name.`),
   curriculum: z.string().trim().max(DETAIL_MAX_LENGTH.curriculum).optional().describe('e.g. "MATATAG", "K to 12".'),
   learningCompetency: z
     .string()
@@ -621,7 +630,7 @@ End every presentation with a "References" slide: a blank slide titled "Referenc
 - any other source you used for facts or content.
 Never make up a reference. If there is nothing to list, leave the slide out.
 
-Also fill in "details" when you send it: the presentation's title, a short description, grade, subject, curriculum, learning competency and a few tags (and author or reference links only when you know them).
+Also fill in "details" when you send it: the presentation's title, a short description, grades, subject, curriculum, learning competency and a few tags (and author or reference links only when you know them).
 
 Leave a setting out and the app decides it. The layout report you get back (see "Checking before the final version") shows where everything landed.
 

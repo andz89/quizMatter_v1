@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { DRAFT_LIFETIME_MS, listDrafts, type DraftSummary } from "@/lib/drafts";
 import { joinParts, timeAgo } from "@/lib/format";
+import { gradesLabel } from "@/lib/schema";
 import { LinkPending } from "@/components/LinkPending";
 import { NavBar, navLinkClass } from "@/components/NavBar";
 import { getAccount } from "@/lib/account";
@@ -12,10 +13,10 @@ import { PresentationList, type PresentationRow } from "./PresentationList";
 export default async function AllPresentationsPage() {
   const supabase = await createClient();
   const { data: claims } = await supabase.auth.getClaims();
-  const [{ data: presentations, error }, drafts, account] = await Promise.all([
+  const [{ data: presentations, error }, drafts, account, folders, folderItems] = await Promise.all([
     supabase
       .from("presentations")
-      .select("id, title, grade, subject, is_published, updated_at, slides(count)")
+      .select("id, title, grades, subject, is_published, updated_at, slides(count)")
       // Other teachers' published presentations are readable too, so only take mine.
       .eq("owner_id", claims?.claims.sub ?? "")
       // QuizMatter presentations an admin made are on Admin → Presentations, not here.
@@ -24,10 +25,16 @@ export default async function AllPresentationsPage() {
     // An admin's drafts from Claude become QuizMatter presentations, so they're on Admin → Presentations.
     getAccount().then((account) => (account.isAdmin ? [] : listDrafts(account.id))),
     getAccount(),
+    // My folders, and which presentation is in which (see the folders migration).
+    supabase.from("folders").select("id, name").order("name"),
+    supabase.from("folder_items").select("presentation_id, folder_id"),
   ]);
   if (error) throw error;
+  if (folders.error) throw folders.error;
+  if (folderItems.error) throw folderItems.error;
 
-  const rows = buildRows(presentations, drafts);
+  const folderOf = new Map(folderItems.data.map((item) => [item.presentation_id, item.folder_id]));
+  const rows = buildRows(presentations, drafts).map((row) => ({ ...row, folderId: folderOf.get(row.id) }));
 
   return (
     <>
@@ -47,7 +54,7 @@ export default async function AllPresentationsPage() {
           <NewPresentationButton author={account.displayName} />
         </header>
 
-        <PresentationList rows={rows} />
+        <PresentationList rows={rows} folders={folders.data} />
       </main>
     </>
   );
@@ -56,7 +63,7 @@ export default async function AllPresentationsPage() {
 type SavedPresentation = {
   id: string;
   title: string;
-  grade: string;
+  grades: string[];
   subject: string;
   is_published: boolean;
   updated_at: string;
@@ -73,7 +80,7 @@ function buildRows(presentations: SavedPresentation[], drafts: DraftSummary[]): 
       return {
         id: presentation.id,
         title: presentation.title || "Untitled presentation",
-        meta: joinParts([presentation.grade, presentation.subject]),
+        meta: joinParts([gradesLabel(presentation.grades), presentation.subject]),
         status: "saved" as const,
         isPublished: presentation.is_published,
         slideCount: presentation.slides[0]?.count ?? 0,
@@ -87,7 +94,7 @@ function buildRows(presentations: SavedPresentation[], drafts: DraftSummary[]): 
       .map((draft) => ({
         id: draft.id,
         title: draft.title || "Untitled presentation",
-        meta: joinParts([draft.grade, draft.subject]),
+        meta: joinParts([gradesLabel(draft.grades), draft.subject]),
         status: "draft" as const,
         slideCount: draft.slideCount,
         sortTime: draft.createdAt,

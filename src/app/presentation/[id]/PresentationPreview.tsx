@@ -13,7 +13,7 @@ import { SaveRefusedError, saveErrorMessage, savePresentationToDb } from "@/lib/
 import { startReview } from "@/lib/reviews";
 import { loadReviewStatus, type Reviewer, type ReviewStatus } from "@/lib/reviewStatus";
 import { createClient } from "@/lib/supabase/client";
-import { DETAIL_MAX_LENGTH, isWebLink, type Presentation } from "@/lib/schema";
+import { DETAIL_MAX_LENGTH, gradesLabel, isWebLink, type Presentation } from "@/lib/schema";
 import { useEditorStore } from "@/lib/store";
 import { pauseFeature, useIsPaused } from "@/lib/clickLimits";
 import { LinkPending } from "@/components/LinkPending";
@@ -148,7 +148,7 @@ export function PresentationPreview({
         <div className="min-w-0">
           <h1 className="text-base font-extrabold text-text-primary">{presentation.title || "Untitled presentation"}</h1>
           <p className="mt-0.5 text-sm text-text-secondary">
-            {joinParts([publishedByLine(presentation.author, publisherName), presentation.grade, presentation.subject, slideCountLabel(presentation.slides.length)])}
+            {joinParts([publishedByLine(presentation.author, publisherName), gradesLabel(presentation.grades), presentation.subject, slideCountLabel(presentation.slides.length)])}
           </p>
         </div>
         <div className="ml-auto flex flex-wrap items-center gap-2">

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { GRADES } from "@/lib/schema";
+import { GRADES, OTHER_CHOICE, SUBJECTS } from "@/lib/schema";
 import { SEARCH_MAX_LENGTH, WITHIN, firstValues, optionIds, searchQuery, withinSince } from "@/lib/search";
 
 // The home page's search lives in the page link (e.g. /?q=fractions&grade=Grade+3), so Back and shared links
@@ -30,12 +30,14 @@ const homeSearchSchema = z.object({
   // "Includes the words": found in the title, subject, author or tags.
   q: text,
   title: text,
-  subject: text,
+  // A list subject, or "Other" for every subject not on the list.
+  subject: z.union([z.enum(SUBJECTS), z.literal(OTHER_CHOICE), z.literal("")]).catch(""),
   author: text,
   tags: text,
   // "Doesn't have": not in the title, subject, author or tags.
   not: text,
-  grade: z.union([z.enum(GRADES), z.literal("")]).catch(""),
+  // A list grade, or "Other" for every grade not on the list.
+  grade: z.union([z.enum(GRADES), z.literal(OTHER_CHOICE), z.literal("")]).catch(""),
   within: z.enum(optionIds(WITHIN)).catch("any"),
   in: z.enum(optionIds(LOOK_IN)).catch("all"),
   sort: z.enum(optionIds(SORTS)).catch("updated"),

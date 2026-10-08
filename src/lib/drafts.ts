@@ -1,6 +1,7 @@
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import type { D1Database } from "@cloudflare/workers-types";
 import type { ClaudeDetails } from "./importPresentation";
+import { withGrades } from "./schema";
 
 // Presentation drafts Claude sends through the MCP server (/api/mcp). They live in Cloudflare D1, not
 // Supabase: a draft isn't anyone's presentation yet — it only becomes one when the user opens the link
@@ -58,7 +59,9 @@ export async function getDraft(id: string, ownerId: string): Promise<Draft | nul
     .env.DRAFTS_DB.prepare("SELECT recipe FROM drafts WHERE id = ? AND owner_id = ? AND created_at >= ?")
     .bind(id, ownerId, Date.now() - DRAFT_LIFETIME_MS)
     .first<{ recipe: string }>();
-  return row ? JSON.parse(row.recipe) : null;
+  if (!row) return null;
+  const draft: Draft = JSON.parse(row.recipe);
+  return { ...draft, details: withGrades(draft.details) };
 }
 
 /**
@@ -68,7 +71,7 @@ export async function getDraft(id: string, ownerId: string): Promise<Draft | nul
 export type DraftSummary = {
   id: string;
   title: string;
-  grade: string;
+  grades: string[];
   subject: string;
   // The tags as one line of text ("fractions addition"), only for search.
   tags: string;
@@ -82,16 +85,18 @@ export async function listDrafts(ownerId: string): Promise<DraftSummary[]> {
   const now = Date.now();
   const { results } = await getCloudflareContext()
     .env.DRAFTS_DB.prepare(
-      `SELECT id, json_extract(recipe, '$.details.title') AS title, json_extract(recipe, '$.details.grade') AS grade,
+      `SELECT id, json_extract(recipe, '$.details.title') AS title, json_extract(recipe, '$.details.grades') AS grades, json_extract(recipe, '$.details.grade') AS grade,
          json_extract(recipe, '$.details.subject') AS subject,
          coalesce((SELECT group_concat(value, ' ') FROM json_each(recipe, '$.details.tags')), '') AS tags, json_array_length(recipe, '$.slides') AS slideCount,
          created_at AS createdAt, json_extract(recipe, '$.checking') AS checking
        FROM drafts WHERE owner_id = ? AND created_at >= ? ORDER BY created_at DESC`,
     )
     .bind(ownerId, now - DRAFT_LIFETIME_MS)
-    .all<Omit<DraftSummary, "state"> & { checking: number | null }>();
-  return results.map(({ checking, ...draft }) => ({
+    .all<Omit<DraftSummary, "state" | "grades"> & { grades: string | null; grade: string | null; checking: number | null }>();
+  return results.map(({ checking, grades, grade, ...draft }) => ({
     ...draft,
+    // A draft from before several grades has one `grade`.
+    grades: grades ? (JSON.parse(grades) as string[]) : grade ? [grade] : [],
     state: !checking ? "ready" : now - draft.createdAt < CHECK_TIMEOUT_MS ? "checking" : "unfinished",
   }));
 }

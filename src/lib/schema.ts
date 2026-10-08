@@ -431,7 +431,8 @@ export const slideSchema = z.object({
   // Older short-answer slides kept their pictures in a shape box; they now sit on the slide itself.
   .transform((slide) => ({ ...slide, elements: moveShortAnswerPicturesToSlide(slide) }));
 
-// The grade a presentation is for ("" = not chosen).
+// The grades a teacher picks from. A presentation can have several (Grade 1 and Grade 2), plus one of its own
+// ("Other", e.g. "College"), or none.
 export const GRADES = [
   "Kindergarten",
   "Grade 1",
@@ -446,7 +447,6 @@ export const GRADES = [
   "Grade 10",
   "Grade 11",
   "Grade 12",
-  "N/A",
 ] as const;
 
 // Longest text each presentation detail may have. The zod schema below checks them before saving; the
@@ -454,11 +454,95 @@ export const GRADES = [
 export const DETAIL_MAX_LENGTH = {
   title: 120,
   description: 1000,
+  grade: 40,
   subject: 80,
   curriculum: 80,
   learningCompetency: 1000,
   author: 120,
 };
+
+// The subjects a teacher picks from (DepEd K–12). A presentation may also have its own subject ("Other").
+export const SUBJECTS = [
+  "Mathematics",
+  "Science",
+  "English",
+  "Filipino",
+  "Araling Panlipunan",
+  "Edukasyon sa Pagpapakatao (ESP/GMRC)",
+  "MAPEH",
+  "EPP/TLE",
+  "Mother Tongue",
+] as const;
+
+// The pick-list, chip and search option for every grade or subject not on its list.
+export const OTHER_CHOICE = "Other";
+
+/** A value the teacher typed themselves (not empty, not on its list). */
+function isOwnChoice(list: readonly string[], value: string): boolean {
+  return value !== "" && !list.includes(value);
+}
+
+export const isOtherGrade = (grade: string) => isOwnChoice(GRADES, grade);
+export const isOtherSubject = (subject: string) => isOwnChoice(SUBJECTS, subject);
+
+// A list value typed in another case ("science", "grade 3") is saved with the list's spelling ("Science",
+// "Grade 3"), so the home page's chips, search and Browse find it.
+function listOrOwnSchema(list: readonly string[], maxLength: number) {
+  return z
+    .string()
+    .trim()
+    .max(maxLength)
+    .transform((value) => list.find((name) => name.toLowerCase() === value.toLowerCase()) ?? value);
+}
+
+const gradeSchema = listOrOwnSchema(GRADES, DETAIL_MAX_LENGTH.grade);
+export const subjectSchema = listOrOwnSchema(SUBJECTS, DETAIL_MAX_LENGTH.subject);
+
+// Every list grade plus one of the teacher's own. Same limit as the multiple_grades migration.
+export const MAX_GRADES = GRADES.length + 1;
+
+/** Where a grade sits in the list (its own grades go last). */
+function gradeOrder(grade: string): number {
+  const index = (GRADES as readonly string[]).indexOf(grade);
+  return index === -1 ? GRADES.length : index;
+}
+
+// A presentation's grades: in list order, no repeats or empty ones, and at most one of the teacher's own.
+export const gradesSchema = z
+  .array(gradeSchema)
+  .max(MAX_GRADES)
+  .transform((grades) => [...new Set(grades.filter((grade) => grade !== ""))].sort((a, b) => gradeOrder(a) - gradeOrder(b)))
+  .refine((grades) => grades.filter(isOtherGrade).length <= 1, "A presentation can have only one grade of its own.");
+
+/** Older data has one `grade` (text) instead of `grades`: read it as a one-item list. */
+export function withGrades<T>(details: T): T {
+  if (typeof details !== "object" || details === null || "grades" in details) return details;
+  const { grade, ...rest } = details as { grade?: unknown };
+  return { ...rest, grades: typeof grade === "string" && grade !== "" ? [grade] : [] } as T;
+}
+
+/**
+ * Grades for people to read, neighbors joined: "Grades 1–3", "Grades 1–2, 5", "Kindergarten–Grade 2, Grade 5",
+ * and the teacher's own last ("Grade 4, College"). "" for none.
+ */
+export function gradesLabel(grades: readonly string[]): string {
+  const listed = grades.map(gradeOrder).filter((index) => index < GRADES.length).sort((a, b) => a - b);
+  // Runs of neighbors, e.g. [1, 2, 3] and [5].
+  const runs: number[][] = [];
+  for (const index of listed) {
+    const run = runs[runs.length - 1];
+    if (run && index === run[run.length - 1] + 1) run.push(index);
+    else runs.push([index]);
+  }
+  const span = (run: number[], name: (index: number) => string) =>
+    run.length === 1 ? name(run[0]) : `${name(run[0])}–${name(run[run.length - 1])}`;
+  // Only numbered grades (no Kindergarten): "Grades 1–2, 5". Otherwise each run in full.
+  const parts =
+    listed.length > 1 && listed[0] !== 0
+      ? [`Grades ${runs.map((run) => span(run, (index) => GRADES[index].replace("Grade ", ""))).join(", ")}`]
+      : runs.map((run) => span(run, (index) => GRADES[index]));
+  return [...parts, ...grades.filter(isOtherGrade)].join(", ");
+}
 
 const webLinkSchema = z.url({ protocol: /^https?$/ });
 
@@ -477,13 +561,15 @@ export const referenceSchema = z
   .refine((reference) => !reference.includes("://") || isWebLink(reference), "A link must start with http:// or https://");
 export const MAX_REFERENCE_LINKS = 20;
 
-export const presentationSchema = z.object({
+// Older saved data (review drafts, an editor tab opened before several grades) has one `grade`: see withGrades.
+export const presentationSchema = z.preprocess(withGrades, z.object({
   id: idSchema,
   title: z.string().max(DETAIL_MAX_LENGTH.title),
   // Presentation details, all optional ("" when not filled in).
   description: z.string().max(DETAIL_MAX_LENGTH.description),
-  grade: z.union([z.enum(GRADES), z.literal("")]),
-  subject: z.string().max(DETAIL_MAX_LENGTH.subject),
+  // The grades it's for, e.g. ["Grade 1", "Grade 2"] (none = []).
+  grades: gradesSchema,
+  subject: subjectSchema,
   curriculum: z.string().max(DETAIL_MAX_LENGTH.curriculum),
   learningCompetency: z.string().max(DETAIL_MAX_LENGTH.learningCompetency),
   // Who wrote the content: the teacher, a book, another teacher… Not who published it — that's the
@@ -505,7 +591,7 @@ export const presentationSchema = z.object({
   slides: z.array(slideSchema).max(MAX_SLIDES, TOO_MANY_SLIDES_MESSAGE),
   createdAt: z.number(),
   updatedAt: z.number(),
-});
+}));
 
 // Why a teacher reports another teacher's published presentation (the presentation_reports table).
 export const REPORT_REASON_LABELS = {
@@ -586,7 +672,7 @@ export type PresentationDetails = Pick<
   Presentation,
   | "title"
   | "description"
-  | "grade"
+  | "grades"
   | "subject"
   | "curriculum"
   | "learningCompetency"

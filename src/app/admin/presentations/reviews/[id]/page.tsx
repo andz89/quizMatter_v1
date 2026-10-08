@@ -8,7 +8,7 @@ import { PresentDraftButton } from "@/components/presentation/PresentDraftButton
 import { ReviewDraftView } from "@/components/presentation/ReviewDraftView";
 import { joinParts, slideCountLabel } from "@/lib/format";
 import { usesPeopleArt } from "@/lib/peopleArt";
-import { presentationSchema, type ReviewerFields } from "@/lib/schema";
+import { gradesLabel, presentationSchema, type ReviewerFields } from "@/lib/schema";
 import { createClient } from "@/lib/supabase/server";
 import { ReviewDecision } from "./ReviewDecision";
 
@@ -44,7 +44,7 @@ export default async function AdminReviewPage({ params }: PageProps<"/admin/pres
         <div className="min-w-0">
           <h2 className="text-base font-extrabold text-text-primary">{presentation.title || "Untitled presentation"}</h2>
           <p className="mt-0.5 text-sm text-text-secondary">
-            {joinParts([presentation.grade, presentation.subject, slideCountLabel(presentation.slides.length)])}
+            {joinParts([gradesLabel(presentation.grades), presentation.subject, slideCountLabel(presentation.slides.length)])}
           </p>
         </div>
         <div className="ml-auto flex flex-wrap items-center gap-2">

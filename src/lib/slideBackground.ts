@@ -24,8 +24,9 @@ export const BACKGROUND_COLORS = [
   "#F5F5F4",
 ];
 
-// Soft two-color gradients the Background panel offers, drawn from the top of the slide to the bottom.
-// Stored like any gradient color ("gradient:#from,#to"). All light, so the dark text stays easy to read.
+// Two-color gradients the Background panel offers (soft ones first, then stronger light ones), drawn from the top
+// of the slide to the bottom. Stored like any gradient color ("gradient:#from,#to"). All light, so the dark text
+// stays easy to read.
 export const BACKGROUND_GRADIENTS = [
   ["#FEF9C3", "#DCFCE7"],
   ["#FEF3C7", "#FFE4E6"],
@@ -35,6 +36,33 @@ export const BACKGROUND_GRADIENTS = [
   ["#CCFBF1", "#E0E7FF"],
   ["#E0F2FE", "#DCFCE7"],
   ["#F5F5F4", "#EDE9FE"],
+  ["#FFE4E6", "#EDE9FE"],
+  ["#FEF3C7", "#E0F2FE"],
+  ["#DCFCE7", "#CCFBF1"],
+  ["#FCE7F3", "#E0F2FE"],
+  ["#FFEDD5", "#FEF9C3"],
+  ["#EDE9FE", "#FCE7F3"],
+  ["#F5F5F4", "#E0F2FE"],
+  ["#FDE68A", "#FCA5A5"],
+  ["#C4B5FD", "#93C5FD"],
+  ["#86EFAC", "#67E8F9"],
+  ["#FDBA74", "#F9A8D4"],
+  ["#F9A8D4", "#C4B5FD"],
+  ["#A5B4FC", "#5EEAD4"],
+  ["#FDE68A", "#86EFAC"],
+  ["#7DD3FC", "#C4B5FD"],
+  ["#FCA5A5", "#FDBA74"],
+  ["#BEF264", "#FDE047"],
+  ["#FEF08A", "#A5F3FC"],
+  ["#FECDD3", "#BFDBFE"],
+  ["#D9F99D", "#A7F3D0"],
+  ["#FED7AA", "#DDD6FE"],
+  ["#99F6E4", "#FEF08A"],
+  ["#FBCFE8", "#FEF3C7"],
+  ["#BAE6FD", "#FBCFE8"],
+  ["#DDD6FE", "#A7F3D0"],
+  ["#FECACA", "#FEF08A"],
+  ["#C7D2FE", "#F5D0FE"],
 ].map(([from, to]) => `${GRADIENT_PREFIX}${from},${to}`);
 
 // How solid a pattern is, in percent: faint by default so the text on top stays easy to read.

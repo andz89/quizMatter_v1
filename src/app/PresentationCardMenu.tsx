@@ -19,8 +19,15 @@ const itemClass = "block w-full px-3 py-1.5 text-left text-sm text-text-primary 
 /**
  * The "⋮" button on my presentation cards, with Edit, Present and Delete (Remove for Claude's drafts). A
  * draft Claude is still checking can only be removed. Admins also get "Move to QuizMatter" (see canMoveToQuizMatter).
+ * `onMoveToFolder` adds "Move to folder…" (saved presentations only: Claude's drafts can't go in folders).
  */
-export function PresentationCardMenu({ card }: { card: PresentationCardData }) {
+export function PresentationCardMenu({
+  card,
+  onMoveToFolder,
+}: {
+  card: PresentationCardData;
+  onMoveToFolder?: (card: PresentationCardData) => void;
+}) {
   const [isOpen, setIsOpen] = useState(false);
   const [isBusy, setIsBusy] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -121,6 +128,18 @@ export function PresentationCardMenu({ card }: { card: PresentationCardData }) {
           {card.badge !== "checking" && (
             <button type="button" onClick={present} className={itemClass}>
               Present
+            </button>
+          )}
+          {onMoveToFolder && !isDraft && (
+            <button
+              type="button"
+              onClick={() => {
+                setIsOpen(false);
+                onMoveToFolder(card);
+              }}
+              className={itemClass}
+            >
+              Move to folder…
             </button>
           )}
           {card.canMoveToQuizMatter && (

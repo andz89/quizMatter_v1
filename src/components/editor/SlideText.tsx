@@ -28,7 +28,9 @@ export function SlideText({ text, html, fontSize: chosenFontSize, className }: S
   return (
     <div
       ref={ref}
-      className={`h-full w-full overflow-hidden whitespace-pre-wrap break-words ${className ?? ""}`}
+      // break-spaces, like the editor's Tiptap text: a space at the end of a line takes room there too, so the
+      // lines break in the same places in the editor, presentation and thumbnails.
+      className={`h-full w-full overflow-hidden whitespace-break-spaces break-words ${className ?? ""}`}
       style={{ fontSize, lineHeight: 1.25 }}
     />
   );

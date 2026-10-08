@@ -11,6 +11,10 @@ export type PresentationCardData = {
   id: string;
   href: string;
   title: string;
+  // For the home page's subject chips ("" = not set).
+  subject?: string;
+  // My presentation's folder (see the folders migration), if it's in one.
+  folderId?: string;
   // Grade, subject, slide count, when it was changed ("" parts left out). Searched too.
   meta: string;
   // Drawn as the card's picture. null = no picture (Claude's drafts, or a slide that didn't pass the schema).
@@ -40,9 +44,16 @@ export function PresentationCard({
   card,
   showMenu = false,
   onSavedChange,
+  onMoveToFolder,
+  selection,
 }: {
   card: PresentationCardData;
   showMenu?: boolean;
+  // My presentations can be picked, to move several to a folder: Shift+click picks a card instead of opening it.
+  // While `isSelecting` (select mode, or some cards picked), a circle shows in the corner and any click picks.
+  selection?: { isChecked: boolean; isSelecting: boolean; onToggle: () => void };
+  // Adds "Move to folder…" to the ⋮ menu (see PresentationCardMenu).
+  onMoveToFolder?: (card: PresentationCardData) => void;
   // After the bookmark saved or removed it (needed for `card.canSave`).
   onSavedChange?: (card: PresentationCardData, isSaved: boolean) => void;
 }) {
@@ -118,11 +129,32 @@ export function PresentationCard({
           target="_blank"
           prefetch={false}
           className="group block"
+          onClick={(e) => {
+            if (!selection || !(e.shiftKey || selection.isSelecting)) return;
+            e.preventDefault();
+            selection.onToggle();
+          }}
         >
           {body}
         </Link>
       )}
-      {showMenu && <PresentationCardMenu card={card} />}
+      {selection?.isSelecting && (
+        <button
+          type="button"
+          role="checkbox"
+          aria-checked={selection.isChecked}
+          aria-label={`Select ${card.title}`}
+          onClick={selection.onToggle}
+          className={`absolute top-5 left-5 z-20 flex h-7 w-7 items-center justify-center rounded-full border transition-colors ${
+            selection.isChecked
+              ? "border-accent bg-accent text-white"
+              : "border-border-default bg-bg-surface text-text-primary hover:bg-bg-page"
+          }`}
+        >
+          {selection.isChecked && <CheckIcon size={16} />}
+        </button>
+      )}
+      {showMenu && <PresentationCardMenu card={card} onMoveToFolder={onMoveToFolder} />}
       {card.canSave && onSavedChange && (
         <SaveCardButton
           presentationId={card.id}

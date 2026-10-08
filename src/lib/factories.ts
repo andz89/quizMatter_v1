@@ -71,7 +71,7 @@ export function createBlankPresentation(details: Partial<PresentationDetails> = 
     id: createId(),
     title: "Untitled presentation",
     description: "",
-    grade: "",
+    grades: [],
     subject: "",
     curriculum: "",
     learningCompetency: "",
