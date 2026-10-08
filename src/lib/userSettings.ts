@@ -112,7 +112,7 @@ export async function saveDisplayName(name: string) {
 
 /**
  * Makes a new account. Supabase emails a link to confirm it; the teacher can log in only after clicking it. The
- * details ride along as user metadata, and the handle_new_user trigger (20261103000000_teacher_sign_up.sql) copies
+ * details ride along as user metadata, and the handle_new_user trigger (20261104000000_teacher_sign_up.sql) copies
  * them into user_settings. If the email already has an account, Supabase answers the same way and sends nothing,
  * so strangers can't find out who has one. Throws if it fails.
  */
