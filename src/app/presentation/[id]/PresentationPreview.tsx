@@ -68,9 +68,18 @@ export function PresentationPreview({
 
   const makeCopy = async () => {
     setIsCopying(true);
-    // It may have gone under review since the page opened.
+    // It may have gone private (or hidden), or under review, since the page opened.
     try {
-      if ((await loadReviewStatus(createClient(), presentation.id)).isLocked) {
+      const supabase = createClient();
+      // The database hides someone else's private presentation, so finding nothing means it's private now.
+      const { data: stillVisible, error } = await supabase.from("presentations").select("id").eq("id", presentation.id).maybeSingle();
+      if (!error && !stillVisible) {
+        toast.error("This presentation is private now, so it can't be copied.");
+        setIsCopying(false);
+        router.refresh();
+        return;
+      }
+      if ((await loadReviewStatus(supabase, presentation.id)).isLocked) {
         toast.error("This presentation is under review, so it can't be copied right now.");
         setIsCopying(false);
         router.refresh();

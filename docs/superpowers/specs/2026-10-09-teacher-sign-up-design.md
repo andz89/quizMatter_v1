@@ -32,8 +32,8 @@ New columns on `public.user_settings` (all `text not null default ''`, with leng
 
 | Column | Check |
 |---|---|
-| `first_name` | `length <= 60` |
-| `last_name` | `length <= 60` |
+| `first_name` | `length <= 35` |
+| `last_name` | `length <= 35` |
 | `contact_number` | `length <= 20` |
 | `education_level` | `in ('', 'bachelor', 'master', 'doctorate', 'other')` |
 | `education_field` | `length <= 100` |
@@ -51,9 +51,9 @@ the app could sign up with empty details, which only means an empty "Personal de
 
 One place for every limit:
 
-- `NAME_MAX_LENGTH = 60`, `EDUCATION_FIELD_MAX_LENGTH = 100`, `CONTACT_NUMBER_MAX_LENGTH = 20`.
+- `NAME_MAX_LENGTH = 35`, `EDUCATION_FIELD_MAX_LENGTH = 100`, `CONTACT_NUMBER_MAX_LENGTH = 20`.
 - `EDUCATION_LEVELS` — `[{ value: "bachelor", label: "Bachelor's degree" }, master, doctorate, other]`.
-- `profileSchema` — `firstName`, `lastName` (trimmed, 1–60), `contactNumber` (trimmed, 7–20, only digits, spaces,
+- `profileSchema` — `firstName`, `lastName` (trimmed, 1–35), `contactNumber` (trimmed, 7–20, only digits, spaces,
   `+ - ( )`, at least 7 digits), `educationLevel` (`z.enum`), `educationField` (trimmed, 1–100).
 - `signUpSchema` — `profileSchema` plus `displayName` (trimmed, 1–80), `email` (`z.email()`), `password`
   (`passwordSchema`), `confirmPassword`, with a check that the two passwords match.

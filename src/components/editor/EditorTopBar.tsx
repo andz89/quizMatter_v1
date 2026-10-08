@@ -8,6 +8,7 @@ import { SelectedElementToolbar } from "./SelectedElementToolbar";
 import { TextFormatToolbar } from "./TextFormatToolbar";
 import { ShapeBoxToolbar } from "./ShapeBoxToolbar";
 import { ReviewControls } from "./ReviewControls";
+import { ShareButton } from "./ShareButton";
 import { Spinner } from "@/components/Spinner";
 import { ChevronLeftIcon, PlayIcon, Redo2Icon, Undo2Icon } from "lucide-react";
 
@@ -62,6 +63,7 @@ export function EditorTopBar() {
 
       <SaveButton />
       <ReviewControls />
+      <ShareButton />
 
       <button
         type="button"

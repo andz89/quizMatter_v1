@@ -23,10 +23,10 @@ import { ChevronDownIcon, ExternalLinkIcon, XIcon } from "lucide-react";
 
 /**
  * Sidebar panel for the presentation as a whole: title, description, grade, subject, curriculum,
- * learning competency, tags, author, references, and private/published. All optional. Edits count as unsaved
- * changes until Save, like any other edit — except private/published, which saves right away.
- * For a QuizMatter presentation (made on Admin → Presentations) it's draft/shared instead: shared means every
- * teacher gets it under "From QuizMatter".
+ * learning competency, tags and references. All optional. Edits count as unsaved changes until Save, like any
+ * other edit. A teacher makes their own presentation private/published with the Share button in the top bar.
+ * A QuizMatter presentation (made on Admin → Presentations) has a draft/shared switch here instead, which saves
+ * right away: shared means every teacher gets it under "From QuizMatter".
  */
 export function DetailsPanel() {
   const closeDetailsPanel = useEditorStore((s) => s.closeDetailsPanel);
@@ -55,9 +55,7 @@ export function DetailsPanel() {
     const saved = await setPublished(isPublished);
     setPendingVisibility(null);
     if (!saved) toast.error("Couldn't change it. Please try again.");
-    else if (isPublished)
-      toast.success(isAdmin ? "Shared — every teacher has it now." : "Presentation published — other teachers can see it now.");
-    else toast.success(isAdmin ? "Back to a draft — only you can see it." : "Presentation is private now.");
+    else toast.success(isPublished ? "Shared — every teacher has it now." : "Back to a draft — only you can see it.");
   };
 
   const textField = (key: Exclude<keyof typeof DETAIL_MAX_LENGTH, "grade">, label: string, placeholder: string, multiline = false) => (
@@ -125,12 +123,13 @@ export function DetailsPanel() {
 
       <ReferenceLinks links={presentation.referenceLinks} onChange={(referenceLinks) => setPresentationDetails({ referenceLinks })} />
 
-      {!isReview && (
+      {/* A teacher's own presentation is shared from the Share button in the top bar. */}
+      {isAdmin && !isReview && (
         <Field label="Visibility">
           <div className="grid grid-cols-2 gap-1 rounded-button bg-bg-page p-1">
             {[
-              { label: isAdmin ? "Draft" : "Private", value: false },
-              { label: isAdmin ? "Shared" : "Published", value: true },
+              { label: "Draft", value: false },
+              { label: "Shared", value: true },
             ].map(({ label, value }) => (
               <button
                 key={label}
