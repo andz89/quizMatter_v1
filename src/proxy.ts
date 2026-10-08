@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 
 /**
  * Runs before every page request: refreshes the login session (it expires after a while) and sends
- * logged-out users to /login, and logged-in users away from it. Banned users (Admin → Teachers) aren't checked
+ * logged-out users to /login (except the sign up pages), and logged-in users away from login and sign up. Banned users (Admin → Teachers) aren't checked
  * here, to save a database call on every request: the database refuses their saves and photos at once, and
  * Supabase's own ban ends their login within the hour.
  */
@@ -25,9 +25,12 @@ export async function proxy(request: NextRequest) {
 
   const { data } = await supabase.auth.getClaims();
   const isLoggedIn = Boolean(data?.claims);
-  const isLoginPage = request.nextUrl.pathname === "/login";
+  const path = request.nextUrl.pathname;
+  const isLoginPage = path === "/login" || path === "/signup";
+  // The link in the "Confirm signup" email: it logs the teacher in, so it must open while logged out.
+  const isOpenToAll = isLoginPage || path === "/auth/confirm";
 
-  if (!isLoggedIn && !isLoginPage) {
+  if (!isLoggedIn && !isOpenToAll) {
     // Remember the page (e.g. a draft link from Claude) so login can come back to it.
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("next", request.nextUrl.pathname + request.nextUrl.search);
