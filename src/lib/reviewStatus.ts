@@ -42,9 +42,9 @@ export async function loadReviewStatus(supabase: SupabaseClient, id: string): Pr
 export async function loadReviewers(supabase: SupabaseClient, id: string): Promise<Reviewer[]> {
   const { data, error } = await supabase
     .from("presentation_reviewers")
-    .select("name, email, background, reviewed_on")
+    .select("name, email, reviewed_on")
     .eq("presentation_id", id)
     .order("reviewed_on", { ascending: false });
   if (error) throw error;
-  return data.map((row) => ({ name: row.name, email: row.email, background: row.background, reviewedOn: row.reviewed_on }));
+  return data.map((row) => ({ name: row.name, email: row.email, reviewedOn: row.reviewed_on }));
 }

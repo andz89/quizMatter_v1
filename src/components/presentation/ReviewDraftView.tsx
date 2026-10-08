@@ -28,7 +28,6 @@ export function ReviewDraftView({ presentation, fields }: { presentation: Presen
               {" "}
               · {fields.email} · {formatDay(fields.reviewedOn)}
             </span>
-            <span className="mt-0.5 block whitespace-pre-line text-text-secondary">{fields.background}</span>
           </dd>
         </div>
         {details.map((detail) => (

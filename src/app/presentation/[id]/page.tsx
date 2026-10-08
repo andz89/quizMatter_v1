@@ -1,4 +1,7 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
+import { LinkPending } from "@/components/LinkPending";
+import { NavBar, navLinkClass } from "@/components/NavBar";
 import { fetchPresentation } from "@/lib/fetchPresentation";
 import { usesPeopleArt } from "@/lib/peopleArt";
 import { PeopleArtGate } from "@/components/PeopleArtGate";
@@ -12,15 +15,23 @@ export default async function PresentationPage({ params }: PageProps<"/presentat
   if (!result) notFound();
 
   return (
-    <PeopleArtGate needed={usesPeopleArt(result.presentation.slides)}>
-      <PresentationPreview
-        presentation={result.presentation}
-        isMine={result.isMine}
-        publisherName={result.publisherName}
-        isSaved={result.isSaved}
-        review={result.review}
-        reviewers={result.reviewers}
-      />
-    </PeopleArtGate>
+    <>
+      <NavBar>
+        <Link href="/" className={navLinkClass}>
+          Home
+          <LinkPending />
+        </Link>
+      </NavBar>
+      <PeopleArtGate needed={usesPeopleArt(result.presentation.slides)}>
+        <PresentationPreview
+          presentation={result.presentation}
+          isMine={result.isMine}
+          publisherName={result.publisherName}
+          isSaved={result.isSaved}
+          review={result.review}
+          reviewers={result.reviewers}
+        />
+      </PeopleArtGate>
+    </>
   );
 }

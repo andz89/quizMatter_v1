@@ -18,6 +18,8 @@ export type AdminPresentationRow = {
   title: string;
   // Grade, subject ("" if none), shown under the title and searched too.
   meta: string;
+  // Full grade names when the meta line shortens Kindergarten to "K" (shown as its tooltip).
+  metaTitle?: string;
   isShared: boolean;
   // Drawn as the row's picture. null = no picture (Claude's drafts, or a slide that didn't pass the schema).
   firstSlide: Slide | null;
@@ -242,7 +244,7 @@ function Row({
           </Link>
         )}
         {(row.meta || isClaudeDraft) && (
-          <p className="mt-0.5 truncate text-[13px] text-text-secondary">
+          <p title={row.metaTitle} className="mt-0.5 truncate text-[13px] text-text-secondary">
             {joinParts([
               row.meta,
               isClaudeDraft &&

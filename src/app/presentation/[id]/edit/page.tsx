@@ -1,4 +1,7 @@
+import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { LinkPending } from "@/components/LinkPending";
+import { NavBar, navLinkClass } from "@/components/NavBar";
 import { PeopleArtGate } from "@/components/PeopleArtGate";
 import { getAccount } from "@/lib/account";
 import { fetchPresentation } from "@/lib/fetchPresentation";
@@ -34,17 +37,27 @@ export default async function PresentationPage({ params }: PageProps<"/presentat
   const presentation = row.draft
     ? presentationSchema.parse({ ...row.draft, author: result.presentation.author, updatedAt: Date.parse(row.draft_updated_at) })
     : result.presentation;
-  // The form starts with what I sent last time, or my entry from an earlier review, or my account's name and email.
-  // A new round's date is left empty here: the form fills in today in the reviewer's own time zone.
-  const myEntry = result.reviewers.find((reviewer) => reviewer.email === account.email);
-  const fields: ReviewerFields = (row.submitted_fields as ReviewerFields | null) ??
-    (myEntry ? { ...myEntry, reviewedOn: "" } : { name: account.displayName, email: account.email, background: "", reviewedOn: "" });
-  // Submitted: waiting for an admin, so it's view only (no editor at all).
+  // What I sent, or my account's name and email, which submit_review saves the same way (no display name = the
+  // part of the email before "@"). The date is set on submit, in my own time zone.
+  const fields: ReviewerFields = (row.submitted_fields as ReviewerFields | null) ?? {
+    name: account.displayName.trim() || account.email.split("@")[0],
+    email: account.email,
+    reviewedOn: "",
+  };
+  // Submitted: waiting for an admin, so it's view only (no editor at all), with the top bar like other pages.
   if (row.status === "submitted") {
     return (
-      <PeopleArtGate needed={usesPeopleArt(presentation.slides)}>
-        <ReviewSubmittedView presentation={presentation} fields={fields} />
-      </PeopleArtGate>
+      <>
+        <NavBar>
+          <Link href="/" className={navLinkClass}>
+            Home
+            <LinkPending />
+          </Link>
+        </NavBar>
+        <PeopleArtGate needed={usesPeopleArt(presentation.slides)}>
+          <ReviewSubmittedView presentation={presentation} fields={fields} />
+        </PeopleArtGate>
+      </>
     );
   }
   const review: EditorReview = { note: row.admin_note ?? "", fields };

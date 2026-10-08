@@ -9,12 +9,12 @@ import { Spinner } from "@/components/Spinner";
 import { TopLoadingBar } from "@/components/TopLoadingBar";
 import { saveErrorMessage } from "@/lib/presentations";
 import { stopReview, submitReview } from "@/lib/reviews";
-import { REVIEWER_MAX_LENGTH, reviewerSchema, todayIso, type ReviewerFields } from "@/lib/schema";
+import type { ReviewerFields } from "@/lib/schema";
 import { useEditorStore } from "@/lib/store";
 
 /**
  * The reviewer's ⋮ button in the editor's top bar (next to Save as draft). It opens a menu with "Submit for
- * publishing" (which asks for the "Reviewed by" details first) and "Stop review".
+ * publishing" (which asks first, showing the "Reviewed by" name and email) and "Stop review".
  */
 export function ReviewControls() {
   const router = useRouter();
@@ -94,27 +94,22 @@ export function ReviewControls() {
         </div>
       )}
       {isStopping && <TopLoadingBar />}
-      {isFormOpen && <SubmitForm initial={review.fields} onClose={() => setIsFormOpen(false)} />}
+      {isFormOpen && <SubmitForm reviewer={review.fields} onClose={() => setIsFormOpen(false)} />}
     </div>
   );
 }
 
-/** The "Reviewed by" details, checked with zod, then the draft and details go to the admins. */
-function SubmitForm({ initial, onClose }: { initial: ReviewerFields; onClose: () => void }) {
+/** Asks before sending: the draft goes to the admins, with my name and email from my account. */
+function SubmitForm({ reviewer, onClose }: { reviewer: ReviewerFields; onClose: () => void }) {
   const router = useRouter();
-  // An empty date means "today", worked out here so it's the reviewer's own day, not the server's.
-  const [fields, setFields] = useState(() => ({ ...initial, reviewedOn: initial.reviewedOn || todayIso() }));
   const [isSending, setIsSending] = useState(false);
-  const set = (patch: Partial<ReviewerFields>) => setFields((current) => ({ ...current, ...patch }));
 
   const send = async (e: React.FormEvent) => {
     e.preventDefault();
-    const parsed = reviewerSchema.safeParse(fields);
-    if (!parsed.success) return void toast.error(parsed.error.issues[0].message);
     const { presentation, savedAt } = useEditorStore.getState();
     setIsSending(true);
     try {
-      await submitReview(presentation, parsed.data, savedAt);
+      await submitReview(presentation, savedAt);
       toast.success("Thanks! QuizMatter will publish this presentation in 1–2 days.");
       // Saved with the submit, so leaving doesn't ask "Leave without saving?".
       useEditorStore.setState({ savedPresentation: presentation });
@@ -126,48 +121,19 @@ function SubmitForm({ initial, onClose }: { initial: ReviewerFields; onClose: ()
   };
 
   return (
-    <Modal title="Reviewed by" onClose={onClose} isBusy={isSending}>
+    <Modal title="Submit for publishing" onClose={onClose} isBusy={isSending}>
       <form onSubmit={send} className="flex flex-col gap-4">
         <p className="text-sm text-text-secondary">
-          These show on the presentation once QuizMatter publishes your changes. Teachers keep seeing the old version
+          This shows on the presentation once QuizMatter publishes your changes. Teachers keep seeing the old version
           until then.
         </p>
-        <Field label="Name">
-          <input
-            value={fields.name}
-            onChange={(e) => set({ name: e.target.value })}
-            maxLength={REVIEWER_MAX_LENGTH.name}
-            className={inputClass}
-          />
-        </Field>
-        <Field label="Email">
-          <input
-            type="email"
-            value={fields.email}
-            onChange={(e) => set({ email: e.target.value })}
-            maxLength={REVIEWER_MAX_LENGTH.email}
-            className={inputClass}
-          />
-        </Field>
-        <Field label="Education or current work">
-          <textarea
-            value={fields.background}
-            onChange={(e) => set({ background: e.target.value })}
-            maxLength={REVIEWER_MAX_LENGTH.background}
-            rows={4}
-            placeholder="e.g. Master Teacher I, Rizal National High School; MA in Mathematics Education"
-            className={`${inputClass} resize-y`}
-          />
-        </Field>
-        <Field label="Date reviewed">
-          <input
-            type="date"
-            value={fields.reviewedOn}
-            max={todayIso()}
-            onChange={(e) => set({ reviewedOn: e.target.value })}
-            className={inputClass}
-          />
-        </Field>
+        <div>
+          <p className="text-[11px] font-bold tracking-[0.05em] text-text-header uppercase">Reviewed by</p>
+          <p className="mt-1 text-sm text-text-primary">
+            <span className="font-semibold">{reviewer.name}</span>
+            <span className="text-text-secondary"> · {reviewer.email}</span>
+          </p>
+        </div>
         <div className="flex justify-end">
           <button
             type="submit"
@@ -195,17 +161,6 @@ export function ReviewBanner() {
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <label className="flex flex-col gap-1">
-      <span className="text-[11px] font-bold tracking-[0.05em] text-text-header uppercase">{label}</span>
-      {children}
-    </label>
-  );
-}
-
-const inputClass =
-  "w-full rounded-input border border-border-default bg-bg-surface px-3 py-2 text-sm text-text-primary outline-none placeholder:text-text-secondary focus:border-text-secondary";
 const menuItemClass =
   "flex w-full items-center gap-3 rounded-dropdown px-3 py-2 text-left text-sm font-semibold text-text-primary transition-colors hover:bg-accent-soft hover:text-accent";
 // Coral: it throws the reviewer's work away.

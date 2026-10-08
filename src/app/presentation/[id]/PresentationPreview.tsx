@@ -1,11 +1,10 @@
 "use client";
 
-import { useState } from "react";
-import dynamic from "next/dynamic";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { BookmarkIcon, ClipboardCheckIcon, EyeIcon } from "lucide-react";
+import { BookmarkIcon, ChevronLeftIcon, ChevronRightIcon, ClipboardCheckIcon, EyeIcon } from "lucide-react";
 import { CANVAS_WIDTH, CANVAS_HEIGHT, getSlideNumbers } from "@/lib/constants";
 import { createId } from "@/lib/id";
 import { formatDay, joinParts, publishedByLine, slideCountLabel } from "@/lib/format";
@@ -13,8 +12,7 @@ import { SaveRefusedError, saveErrorMessage, savePresentationToDb } from "@/lib/
 import { startReview } from "@/lib/reviews";
 import { loadReviewStatus, type Reviewer, type ReviewStatus } from "@/lib/reviewStatus";
 import { createClient } from "@/lib/supabase/client";
-import { DETAIL_MAX_LENGTH, gradesLabel, isWebLink, type Presentation } from "@/lib/schema";
-import { useEditorStore } from "@/lib/store";
+import { DETAIL_MAX_LENGTH, gradesLabel, gradesTitle, isWebLink, type Presentation } from "@/lib/schema";
 import { pauseFeature, useIsPaused } from "@/lib/clickLimits";
 import { LinkPending } from "@/components/LinkPending";
 import { Spinner } from "@/components/Spinner";
@@ -24,17 +22,12 @@ import { ReportButton } from "./ReportButton";
 import { setPresentationSaved } from "./actions";
 import { SAVE_ERRORS } from "../../SaveCardButton";
 
-// Only downloaded when the teacher clicks Present.
-const PresentationView = dynamic(() =>
-  import("@/components/presentation/PresentationView").then((mod) => mod.PresentationView)
-);
-
 /**
- * A presentation's details and all its slides, view only. Present shows it fullscreen (the same view as the
- * editor's Present button); "Make a copy" saves a private copy for me and opens it in the editor. "Save" bookmarks
- * someone else's presentation to my home page's "Saved" row (like YouTube's), and "Report" sends it to the admins.
+ * A presentation's slides (one at a time, with Prev/Next) and its details, view only. "Make a copy" saves a private
+ * copy for me and opens it in the editor. "Save" bookmarks someone else's presentation to my home page's "Saved" row
+ * (like YouTube's), and "Report" sends it to the admins.
  * Editors can review a shared QuizMatter presentation ("Review"); while it's under review nobody can copy it, and
- * its owner can't edit it. Everyone who reviewed it is listed under "Reviewed by".
+ * its owner can't edit it. Everyone who reviewed it is listed under the "Published by" line.
  */
 export function PresentationPreview({
   presentation,
@@ -52,26 +45,26 @@ export function PresentationPreview({
   reviewers: Reviewer[];
 }) {
   const router = useRouter();
-  const isPresenting = useEditorStore((s) => s.isPresenting);
   const [isCopying, setIsCopying] = useState(false);
   const [isSaved, setIsSaved] = useState(savedAtStart);
   const [isSaving, setIsSaving] = useState(false);
   const [isStartingReview, setIsStartingReview] = useState(false);
+  const [slideIndex, setSlideIndex] = useState(0);
+  const slideCount = presentation.slides.length;
   // Saving is paused for clicking too fast (the notice at the bottom says until when).
   const isSavePaused = useIsPaused("saved");
 
-  // The presentation view reads the editor's store, so the presentation goes in there first.
-  const present = async (slideId = presentation.slides[0]?.id) => {
-    try {
-      await document.documentElement.requestFullscreen();
-    } catch {
-      // Fullscreen isn't available (unsupported/blocked) — presentation still opens.
-    }
-    const store = useEditorStore.getState();
-    store.loadPresentation(presentation);
-    useEditorStore.setState({ selectedSlideId: slideId });
-    store.startPresentation();
-  };
+  // ← / → change the slide, unless the teacher is typing.
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement;
+      if (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName)) return;
+      if (event.key === "ArrowLeft") setSlideIndex((index) => Math.max(index - 1, 0));
+      if (event.key === "ArrowRight") setSlideIndex((index) => Math.min(index + 1, slideCount - 1));
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [slideCount]);
 
   const makeCopy = async () => {
     setIsCopying(true);
@@ -137,172 +130,168 @@ export function PresentationPreview({
     { label: "Learning competency", value: presentation.learningCompetency },
   ].filter((detail) => detail.value);
   const slideNumbers = getSlideNumbers(presentation.slides);
+  const slide = presentation.slides[slideIndex];
 
   return (
     <main className="mx-auto w-full max-w-6xl px-4 py-10 sm:py-14">
-      <Link href="/" className="text-sm text-text-secondary transition-colors hover:text-text-primary">
-        ← Home
-      </Link>
-
-      <header className="mt-3 mb-6 flex flex-wrap items-start gap-3">
-        <div className="min-w-0">
-          <h1 className="text-base font-extrabold text-text-primary">{presentation.title || "Untitled presentation"}</h1>
-          <p className="mt-0.5 text-sm text-text-secondary">
-            {joinParts([publishedByLine(presentation.author, publisherName), gradesLabel(presentation.grades), presentation.subject, slideCountLabel(presentation.slides.length)])}
-          </p>
-        </div>
-        <div className="ml-auto flex flex-wrap items-center gap-2">
-          {review.isLocked && (
-            <span className="rounded-dropdown bg-highlight-soft px-2.5 py-1 text-[13px] leading-none font-semibold text-highlight-strong">
-              Under review
-            </span>
-          )}
-          {review.canStart && (
-            <button
-              type="button"
-              onClick={beginReview}
-              disabled={isStartingReview}
-              className={`inline-flex items-center gap-2 ${secondaryButtonClass}`}
-            >
-              {isStartingReview ? <Spinner size={14} /> : <ClipboardCheckIcon size={16} />}
-              Review
-            </button>
-          )}
-          {/* Submitted: the link opens the view-only page, so it says so. */}
-          {review.isMine && (
-            <Link href={`/presentation/${presentation.id}/edit`} className={`inline-flex items-center gap-2 ${secondaryButtonClass}`}>
-              {review.status === "submitted" ? <EyeIcon size={16} /> : <ClipboardCheckIcon size={16} />}
-              {review.status === "submitted" ? "See submitted version" : "Continue review"}
-              <LinkPending />
-            </Link>
-          )}
-          {!isMine && <ReportButton presentationId={presentation.id} className={secondaryButtonClass} />}
-          {!isMine && (
-            <button
-              type="button"
-              onClick={toggleSaved}
-              disabled={isSaving || isSavePaused}
-              aria-pressed={isSaved}
-              title={isSaved ? "Remove from Saved" : "Save to your home page"}
-              className={`inline-flex items-center gap-2 ${secondaryButtonClass}`}
-            >
-              {isSaving ? (
-                <Spinner size={14} />
-              ) : (
-                <BookmarkIcon size={16} className={isSaved ? "fill-accent text-accent" : ""} />
-              )}
-              {isSaved ? "Saved" : "Save"}
-            </button>
-          )}
-          {isMine ? (
-            // Under review, only its reviewer can change it.
-            !review.isLocked && (
-              <Link href={`/presentation/${presentation.id}/edit`} className={secondaryButtonClass}>
-                Edit
+      <section className="mx-auto w-[80%]">
+        {slide && (
+          <div
+            className="overflow-hidden rounded-card border border-border-default bg-bg-surface"
+            style={{ aspectRatio: `${CANVAS_WIDTH} / ${CANVAS_HEIGHT}` }}
+          >
+            <FluidSlidePreview slide={slide} questionNumber={slideNumbers.get(slide.id)} />
+          </div>
+        )}
+        {/* One row: the buttons on the left, Prev/Next on the right. */}
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {review.isLocked && (
+              <span className="rounded-dropdown bg-highlight-soft px-2.5 py-1 text-[13px] leading-none font-semibold text-highlight-strong">
+                Under review
+              </span>
+            )}
+            {review.canStart && (
+              <button
+                type="button"
+                onClick={beginReview}
+                disabled={isStartingReview}
+                className={`inline-flex items-center gap-2 ${secondaryButtonClass}`}
+              >
+                {isStartingReview ? <Spinner size={14} /> : <ClipboardCheckIcon size={16} />}
+                Review
+              </button>
+            )}
+            {/* Submitted: the link opens the view-only page, so it says so. */}
+            {review.isMine && (
+              <Link href={`/presentation/${presentation.id}/edit`} className={`inline-flex items-center gap-2 ${secondaryButtonClass}`}>
+                {review.status === "submitted" ? <EyeIcon size={16} /> : <ClipboardCheckIcon size={16} />}
+                {review.status === "submitted" ? "See submitted version" : "Continue review"}
                 <LinkPending />
               </Link>
-            )
-          ) : (
-            <button
-              type="button"
-              onClick={makeCopy}
-              disabled={isCopying || review.isLocked}
-              title={review.isLocked ? "Under review: it can be copied once QuizMatter publishes the review." : undefined}
-              className={`inline-flex items-center gap-2 ${secondaryButtonClass}`}
-            >
-              {isCopying && <Spinner size={14} />}
-              {isCopying ? "Copying…" : "Make a copy"}
-            </button>
-          )}
-          {presentation.slides.length > 0 && (
-            <button
-              type="button"
-              onClick={() => present()}
-              className="rounded-button bg-accent btn-press px-4 py-2 text-sm font-semibold text-white hover:bg-accent-hover"
-            >
-              Present
-            </button>
+            )}
+            {!isMine && <ReportButton presentationId={presentation.id} className={secondaryButtonClass} />}
+            {!isMine && (
+              <button
+                type="button"
+                onClick={toggleSaved}
+                disabled={isSaving || isSavePaused}
+                aria-pressed={isSaved}
+                title={isSaved ? "Remove from Saved" : "Save to your home page"}
+                className={`inline-flex items-center gap-2 ${secondaryButtonClass}`}
+              >
+                {isSaving ? (
+                  <Spinner size={14} />
+                ) : (
+                  <BookmarkIcon size={16} className={isSaved ? "fill-accent text-accent" : ""} />
+                )}
+                {isSaved ? "Saved" : "Save"}
+              </button>
+            )}
+            {isMine ? (
+              // Under review, only its reviewer can change it.
+              !review.isLocked && (
+                <Link href={`/presentation/${presentation.id}/edit`} className={secondaryButtonClass}>
+                  Edit
+                  <LinkPending />
+                </Link>
+              )
+            ) : (
+              <button
+                type="button"
+                onClick={makeCopy}
+                disabled={isCopying || review.isLocked}
+                title={review.isLocked ? "Under review: it can be copied once QuizMatter publishes the review." : undefined}
+                className={`inline-flex items-center gap-2 ${secondaryButtonClass}`}
+              >
+                {isCopying && <Spinner size={14} />}
+                {isCopying ? "Copying…" : "Make a copy"}
+              </button>
+            )}
+          </div>
+          {slide && (
+            <div className="ml-auto flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setSlideIndex(slideIndex - 1)}
+                disabled={slideIndex === 0}
+                title="Previous slide"
+                className={`inline-flex items-center gap-1 ${secondaryButtonClass}`}
+              >
+                <ChevronLeftIcon size={16} />
+                Prev
+              </button>
+              <span className="min-w-14 text-center text-sm text-text-secondary">
+                {slideIndex + 1} / {slideCount}
+              </span>
+              <button
+                type="button"
+                onClick={() => setSlideIndex(slideIndex + 1)}
+                disabled={slideIndex === slideCount - 1}
+                title="Next slide"
+                className={`inline-flex items-center gap-1 ${secondaryButtonClass}`}
+              >
+                Next
+                <ChevronRightIcon size={16} />
+              </button>
+            </div>
           )}
         </div>
-      </header>
 
-      {(details.length > 0 || presentation.tags.length > 0 || presentation.referenceLinks.length > 0 || reviewers.length > 0) && (
-        <dl className="mb-8 grid gap-4 rounded-card border border-border-default bg-bg-surface px-5 py-4 text-sm">
-          {details.map((detail) => (
-            <div key={detail.label}>
-              <dt className="text-[11px] font-bold tracking-[0.05em] text-text-header uppercase">{detail.label}</dt>
-              <dd className="mt-1 whitespace-pre-line text-text-primary">{detail.value}</dd>
-            </div>
+        <header className="mt-6 mb-6">
+          <h1 className="text-base font-extrabold text-text-primary">{presentation.title || "Untitled presentation"}</h1>
+          <p title={gradesTitle(presentation.grades)} className="mt-0.5 text-sm text-text-secondary">
+            {joinParts([publishedByLine(presentation.author, publisherName), gradesLabel(presentation.grades), presentation.subject, slideCountLabel(slideCount)])}
+          </p>
+          {reviewers.map((reviewer) => (
+            <p key={`${reviewer.email}-${reviewer.reviewedOn}`} className="mt-2 text-sm text-text-secondary">
+              Reviewed by <span className="font-semibold text-text-primary">{reviewer.name}</span> · {reviewer.email} ·{" "}
+              {formatDay(reviewer.reviewedOn)}
+            </p>
           ))}
-          {presentation.tags.length > 0 && (
-            <div>
-              <dt className="text-[11px] font-bold tracking-[0.05em] text-text-header uppercase">Tags</dt>
-              <dd className="mt-1.5 flex flex-wrap gap-1.5">
-                {presentation.tags.map((tag) => (
-                  <span key={tag} className="rounded-dropdown bg-accent-soft px-2 py-0.5 text-[13px] font-semibold text-accent">
-                    {tag}
-                  </span>
-                ))}
-              </dd>
-            </div>
-          )}
-          {presentation.referenceLinks.length > 0 && (
-            <div>
-              <dt className="text-[11px] font-bold tracking-[0.05em] text-text-header uppercase">References</dt>
-              {presentation.referenceLinks.map((reference) => (
-                <dd key={reference} className="mt-1 break-words text-text-primary">
-                  {isWebLink(reference) ? (
-                    <a href={reference} target="_blank" rel="noopener noreferrer" className="underline">
-                      {reference}
-                    </a>
-                  ) : (
-                    reference
-                  )}
-                </dd>
-              ))}
-            </div>
-          )}
-          {reviewers.length > 0 && (
-            <div>
-              <dt className="text-[11px] font-bold tracking-[0.05em] text-text-header uppercase">Reviewed by</dt>
-              {reviewers.map((reviewer) => (
-                <dd key={`${reviewer.email}-${reviewer.reviewedOn}`} className="mt-2 text-text-primary">
-                  <span className="font-semibold">{reviewer.name}</span>
-                  <span className="text-text-secondary">
-                    {" "}
-                    · {reviewer.email} · {formatDay(reviewer.reviewedOn)}
-                  </span>
-                  <span className="mt-0.5 block whitespace-pre-line text-text-secondary">{reviewer.background}</span>
-                </dd>
-              ))}
-            </div>
-          )}
-        </dl>
-      )}
+        </header>
 
-      {/* Clicking a slide presents from that slide. */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-        {presentation.slides.map((slide, index) => (
-          <button
-            key={slide.id}
-            type="button"
-            onClick={() => present(slide.id)}
-            title={`Present from slide ${index + 1}`}
-            className="group text-left"
-          >
-            <div
-              className="overflow-hidden rounded-dropdown border border-border-default bg-bg-surface transition-colors group-hover:border-text-secondary"
-              style={{ aspectRatio: `${CANVAS_WIDTH} / ${CANVAS_HEIGHT}` }}
-            >
-              <FluidSlidePreview slide={slide} questionNumber={slideNumbers.get(slide.id)} />
-            </div>
-            <span className="mt-1.5 block text-[13px] text-text-secondary">{index + 1}</span>
-          </button>
-        ))}
-      </div>
+        {(details.length > 0 || presentation.tags.length > 0 || presentation.referenceLinks.length > 0) && (
+          <dl className="mb-8 grid gap-4 rounded-card border border-border-default bg-bg-surface px-5 py-4 text-sm">
+            {details.map((detail) => (
+              <div key={detail.label}>
+                <dt className="text-[11px] font-bold tracking-[0.05em] text-text-header uppercase">{detail.label}</dt>
+                <dd className="mt-1 whitespace-pre-line text-text-primary">{detail.value}</dd>
+              </div>
+            ))}
+            {presentation.tags.length > 0 && (
+              <div>
+                <dt className="text-[11px] font-bold tracking-[0.05em] text-text-header uppercase">Tags</dt>
+                <dd className="mt-1.5 flex flex-wrap gap-1.5">
+                  {presentation.tags.map((tag) => (
+                    <span key={tag} className="rounded-dropdown bg-accent-soft px-2 py-0.5 text-[13px] font-semibold text-accent">
+                      {tag}
+                    </span>
+                  ))}
+                </dd>
+              </div>
+            )}
+            {presentation.referenceLinks.length > 0 && (
+              <div>
+                <dt className="text-[11px] font-bold tracking-[0.05em] text-text-header uppercase">References</dt>
+                {presentation.referenceLinks.map((reference) => (
+                  <dd key={reference} className="mt-1 break-words text-text-primary">
+                    {isWebLink(reference) ? (
+                      <a href={reference} target="_blank" rel="noopener noreferrer" className="underline">
+                        {reference}
+                      </a>
+                    ) : (
+                      reference
+                    )}
+                  </dd>
+                ))}
+              </div>
+            )}
+          </dl>
+        )}
+      </section>
 
       {(isCopying || isStartingReview) && <TopLoadingBar />}
-      {isPresenting && <PresentationView />}
     </main>
   );
 }

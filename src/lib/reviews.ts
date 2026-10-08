@@ -1,6 +1,6 @@
 import { createClient } from "./supabase/client";
 import { REFUSALS, SaveRefusedError } from "./presentations";
-import { presentationSchema, reviewerSchema, savedPresentationSchema, type Presentation, type ReviewerFields } from "./schema";
+import { presentationSchema, reviewedOnSchema, savedPresentationSchema, todayIso, type Presentation } from "./schema";
 
 // The reviewer's steps (see the presentation_reviews migration). Each is checked with zod right before the
 // database call (see CLAUDE.md, "Saving Data"), and throws a SaveRefusedError with a message for refusals.
@@ -36,14 +36,15 @@ export async function saveReviewDraft(presentation: Presentation, baseUpdatedAt:
 }
 
 /**
- * Saves my draft with my "Reviewed by" details and sends them to the admins. `baseUpdatedAt`: when the copy being
- * submitted was saved, so a submit from an older tab is refused instead of replacing newer work.
+ * Saves my draft and sends it to the admins. The database adds my name and email from my account; the date is my
+ * today, in my own time zone. `baseUpdatedAt`: when the copy being submitted was saved, so a submit from an older
+ * tab is refused instead of replacing newer work.
  */
-export async function submitReview(presentation: Presentation, fields: ReviewerFields, baseUpdatedAt: number | null): Promise<void> {
+export async function submitReview(presentation: Presentation, baseUpdatedAt: number | null): Promise<void> {
   const { error } = await createClient().rpc("submit_review", {
     target_id: presentation.id,
     review_draft: parseDraft(presentation),
-    fields: reviewerSchema.parse(fields),
+    reviewed_on: reviewedOnSchema.parse(todayIso()),
     base_updated_at: baseUpdatedAt,
   });
   throwIfRefused(error);

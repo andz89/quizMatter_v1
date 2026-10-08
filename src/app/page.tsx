@@ -1,13 +1,11 @@
 import { BanIcon } from "lucide-react";
-import Link from "next/link";
-import { NavBar, navLinkClass } from "@/components/NavBar";
-import { LinkPending } from "@/components/LinkPending";
+import { NavBar } from "@/components/NavBar";
 import { getAccount } from "@/lib/account";
 import { createClient } from "@/lib/supabase/server";
 import { listDrafts, type DraftSummary } from "@/lib/drafts";
 import { loadPublisherNames } from "@/lib/publishers";
 import { joinParts, publishedByLine, slideCountLabel, timeAgo } from "@/lib/format";
-import { GRADES, OTHER_CHOICE, SUBJECTS, gradesLabel, isOtherGrade, isOtherSubject, parseSlide } from "@/lib/schema";
+import { GRADES, OTHER_CHOICE, SUBJECTS, gradesLabel, gradesTitle, isOtherGrade, isOtherSubject, parseSlide } from "@/lib/schema";
 import { contains } from "@/lib/search";
 import { NewPresentationButton } from "./PresentationListButtons";
 import { PresentationHome } from "./PresentationHome";
@@ -175,12 +173,7 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
 
   return (
     <>
-      <NavBar>
-        <Link href="/browse" className={navLinkClass}>
-          Browse
-          <LinkPending />
-        </Link>
-      </NavBar>
+      <NavBar />
 
       <main className="mx-auto w-full max-w-6xl px-4 py-8 sm:py-10">
         <header className="mb-6 flex flex-wrap items-center gap-4">
@@ -315,6 +308,7 @@ function buildCards(
         title: draft.title || "Untitled presentation",
         subject: draft.subject,
         meta: joinParts([gradesLabel(draft.grades), draft.subject, slideCountLabel(draft.slideCount), timeAgo(draft.createdAt, now)]),
+        metaTitle: gradesTitle(draft.grades),
         firstSlide: null,
         badge: ({ ready: "draft", checking: "checking", unfinished: "unfinished" } as const)[draft.state],
         createdAt: draft.createdAt,
@@ -370,6 +364,7 @@ function toCard(presentation: CardPresentation, href: string, now: number): Pres
     title: presentation.title || "Untitled presentation",
     subject: presentation.subject,
     meta: joinParts([gradesLabel(presentation.grades), presentation.subject, slideCountLabel(slideCount), timeAgo(Date.parse(presentation.updated_at), now)]),
+    metaTitle: gradesTitle(presentation.grades),
     firstSlide: parseSlide(presentation.first_slide[0]?.data),
     isReviewed: presentation.reviewers.length > 0,
   };

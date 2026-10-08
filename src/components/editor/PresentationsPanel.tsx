@@ -7,7 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { CANVAS_WIDTH, CANVAS_HEIGHT, SLIDE_DRAG_MIME, getSlideNumbers } from "@/lib/constants";
 import { joinParts, publishedByLine, slideCountLabel } from "@/lib/format";
 import { loadPublisherNames } from "@/lib/publishers";
-import { MAX_SLIDES, TOO_MANY_SLIDES_MESSAGE, gradesLabel, parseSlide, type Slide } from "@/lib/schema";
+import { MAX_SLIDES, TOO_MANY_SLIDES_MESSAGE, gradesLabel, gradesTitle, parseSlide, type Slide } from "@/lib/schema";
 import { Spinner } from "@/components/Spinner";
 import { FluidSlidePreview } from "@/components/presentation/FluidSlidePreview";
 import { SaveCardButton } from "@/app/SaveCardButton";
@@ -27,6 +27,8 @@ type PresentationSummary = {
   title: string;
   // By author, published by, grade, subject, slide count ("" parts left out). Searched too.
   meta: string;
+  // Full grade names when the meta line shortens Kindergarten to "K" (shown as its tooltip).
+  metaTitle?: string;
   firstSlide: Slide | null;
 };
 
@@ -338,7 +340,7 @@ export function PresentationsPanel() {
                   <button type="button" onClick={() => showPresentation(presentation)} className="group w-full min-w-0 text-left">
                     <SlidePicture slide={presentation.firstSlide} />
                     <span className="mt-1.5 block truncate text-sm font-semibold text-text-primary">{presentation.title}</span>
-                    <span className="block truncate text-[13px] text-text-secondary">{presentation.meta}</span>
+                    <span title={presentation.metaTitle} className="block truncate text-[13px] text-text-secondary">{presentation.meta}</span>
                   </button>
                   {/* My own presentations can't be saved. */}
                   {presentation.ownerId !== myId && (
@@ -398,6 +400,7 @@ async function toSummaries(supabase: SupabaseClient, rows: SummaryRow[]): Promis
       row.subject,
       slideCountLabel(row.slides[0]?.count ?? 0),
     ]),
+    metaTitle: gradesTitle(row.grades),
     firstSlide: parseSlide(row.first_slide[0]?.data),
   }));
 }

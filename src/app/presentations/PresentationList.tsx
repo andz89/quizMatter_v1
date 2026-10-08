@@ -11,6 +11,8 @@ export type PresentationRow = {
   title: string;
   // Grade, subject… ("" if none), shown under the title and searched too.
   meta: string;
+  // Full grade names when the meta line shortens Kindergarten to "K" (shown as its tooltip).
+  metaTitle?: string;
   // "draft" = sent by Claude, not saved yet (it lives in the drafts database for a day).
   status: "saved" | "draft";
   // A draft Claude is still checking: shown as "Checking…" and not openable until the final version comes.
@@ -260,7 +262,7 @@ function PresentationListRow({
           </Link>
         )}
         {(row.meta || row.note || row.isPublished) && (
-          <p className="mt-0.5 flex items-center gap-1.5 truncate text-[13px] text-text-secondary">
+          <p title={row.metaTitle} className="mt-0.5 flex items-center gap-1.5 truncate text-[13px] text-text-secondary">
             {row.meta}
             {row.meta && row.isPublished && " ·"}
             {row.isPublished && (

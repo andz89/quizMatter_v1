@@ -10,7 +10,7 @@ import {
   MAX_REFERENCE_LINKS,
   OTHER_CHOICE,
   SUBJECTS,
-  gradesLabel,
+  gradesLabel, gradesTitle,
   isOtherGrade,
   isWebLink,
   referenceSchema,
@@ -271,7 +271,7 @@ function GradesField({ grades, onChange }: { grades: string[]; onChange: (grades
           aria-expanded={isOpen}
           className={`${inputClass} flex items-center gap-2 text-left`}
         >
-          <span className="min-w-0 flex-1 truncate">{gradesLabel(grades) || "None"}</span>
+          <span title={gradesTitle(grades)} className="min-w-0 flex-1 truncate">{gradesLabel(grades) || "None"}</span>
           <ChevronDownIcon size={16} className="shrink-0" />
         </button>
         {isOpen && (

@@ -18,7 +18,6 @@ export function ReviewersModal({ title, reviewers, onClose }: { title: string; r
             <p className="mt-0.5 text-text-secondary">
               {reviewer.email} · Reviewed {formatDay(reviewer.reviewedOn)}
             </p>
-            <p className="mt-2 whitespace-pre-line text-text-primary">{reviewer.background}</p>
             <p className="mt-3 border-t border-border-default pt-2.5 text-[13px] text-text-secondary">
               Approved by{" "}
               <span className="font-semibold text-text-primary">{approverLabel(reviewer)}</span>

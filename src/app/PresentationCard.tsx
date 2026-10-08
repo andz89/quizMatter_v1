@@ -17,6 +17,8 @@ export type PresentationCardData = {
   folderId?: string;
   // Grade, subject, slide count, when it was changed ("" parts left out). Searched too.
   meta: string;
+  // Full grade names when the meta line shortens Kindergarten to "K" (shown as its tooltip).
+  metaTitle?: string;
   // Drawn as the card's picture. null = no picture (Claude's drafts, or a slide that didn't pass the schema).
   firstSlide: Slide | null;
   // "checking" = a draft Claude is still checking (not openable yet); "unfinished" = Claude didn't send its final version.
@@ -110,7 +112,7 @@ export function PresentationCard({
             {card.byline}
           </p>
         )}
-        <p className="truncate text-xs text-text-secondary">{card.meta}</p>
+        <p title={card.metaTitle} className="truncate text-xs text-text-secondary">{card.meta}</p>
       </div>
     </div>
   );

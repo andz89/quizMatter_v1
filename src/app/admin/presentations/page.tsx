@@ -5,7 +5,7 @@ import { LinkPending } from "@/components/LinkPending";
 import { getAccount } from "@/lib/account";
 import { listDrafts, type DraftSummary } from "@/lib/drafts";
 import { joinParts, timeAgo } from "@/lib/format";
-import { gradesLabel, parseSlide } from "@/lib/schema";
+import { gradesLabel, gradesTitle, parseSlide } from "@/lib/schema";
 import { createClient } from "@/lib/supabase/server";
 import { NewPresentationButton } from "../../PresentationListButtons";
 import { AdminPresentations, type AdminPresentationRow } from "./AdminPresentations";
@@ -45,7 +45,6 @@ export default async function AdminPresentationsPage() {
     list.push({
       name: row.name,
       email: row.email,
-      background: row.background,
       reviewedOn: row.reviewed_on,
       approvedAt: row.approved_at,
       approverName: row.approver_name,
@@ -87,7 +86,6 @@ type AdminReviewerRow = {
   presentation_id: string;
   name: string;
   email: string;
-  background: string;
   reviewed_on: string;
   approved_at: string | null;
   approver_name: string;
@@ -122,6 +120,7 @@ function buildRows(
       id: draft.id,
       title: draft.title || "Untitled presentation",
       meta: joinParts([gradesLabel(draft.grades), draft.subject]),
+      metaTitle: gradesTitle(draft.grades),
       isShared: false,
       firstSlide: null,
       claudeDraft: draft.state,
@@ -142,6 +141,7 @@ function buildRows(
       id: presentation.id,
       title: presentation.title || "Untitled presentation",
       meta: joinParts([gradesLabel(presentation.grades), presentation.subject]),
+      metaTitle: gradesTitle(presentation.grades),
       isShared: presentation.is_published,
       firstSlide: parseSlide(presentation.first_slide[0]?.data),
       // Under review: reviewing or submitted. Locked until an admin publishes it or the reviewer stops.

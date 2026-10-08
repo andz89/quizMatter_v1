@@ -2,7 +2,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { DRAFT_LIFETIME_MS, listDrafts, type DraftSummary } from "@/lib/drafts";
 import { joinParts, timeAgo } from "@/lib/format";
-import { gradesLabel } from "@/lib/schema";
+import { gradesLabel, gradesTitle } from "@/lib/schema";
 import { LinkPending } from "@/components/LinkPending";
 import { NavBar, navLinkClass } from "@/components/NavBar";
 import { getAccount } from "@/lib/account";
@@ -81,6 +81,7 @@ function buildRows(presentations: SavedPresentation[], drafts: DraftSummary[]): 
         id: presentation.id,
         title: presentation.title || "Untitled presentation",
         meta: joinParts([gradesLabel(presentation.grades), presentation.subject]),
+        metaTitle: gradesTitle(presentation.grades),
         status: "saved" as const,
         isPublished: presentation.is_published,
         slideCount: presentation.slides[0]?.count ?? 0,
@@ -95,6 +96,7 @@ function buildRows(presentations: SavedPresentation[], drafts: DraftSummary[]): 
         id: draft.id,
         title: draft.title || "Untitled presentation",
         meta: joinParts([gradesLabel(draft.grades), draft.subject]),
+        metaTitle: gradesTitle(draft.grades),
         status: "draft" as const,
         slideCount: draft.slideCount,
         sortTime: draft.createdAt,

@@ -52,6 +52,11 @@ reviewed a presentation is listed under "Reviewed by" on it.
 
 ## "Reviewed by" fields
 
+> **Changed 2026-10-08** (`20261102000000_review_auto_reviewer.sql`): the form is gone. `submit_review(id, draft,
+> reviewed_on, base_updated_at)` takes the name (display name, or the email before "@") and email from the reviewer's
+> account; the app sends only the reviewer's today (zod `reviewedOnSchema`). The background field and column are
+> removed. The table below is the original design.
+
 | Field | Input | Rule (zod `reviewerSchema`, and a length check in the database) |
 |---|---|---|
 | Name | text, filled in from the account's display name | required, max 100 |

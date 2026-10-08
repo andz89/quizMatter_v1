@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { LinkPending } from "@/components/LinkPending";
+import { NavBar, navLinkClass } from "@/components/NavBar";
 import { createBlankPresentation } from "@/lib/factories";
 import { getDraft } from "@/lib/drafts";
 import { getAccount } from "@/lib/account";
@@ -27,17 +29,25 @@ export default async function NewPresentationFromClaudePage({ searchParams }: Pa
   const draft = await getDraft(draftId, userId);
   if (!draft) {
     return (
-      <main className="flex flex-1 items-center justify-center px-4">
-        <div className="w-full max-w-sm rounded-card border border-border-default bg-bg-surface px-5 py-6">
-          <h1 className="mb-2 text-base font-extrabold text-text-primary">This link has expired</h1>
-          <p className="mb-5 text-sm text-text-secondary">
-            Presentations from Claude stay for 24 hours. Ask Claude to send the presentation again.
-          </p>
-          <Link href="/" className="text-sm font-semibold text-accent">
-            Back to my presentations
+      <>
+        <NavBar>
+          <Link href="/" className={navLinkClass}>
+            Home
+            <LinkPending />
           </Link>
-        </div>
-      </main>
+        </NavBar>
+        <main className="flex flex-1 items-center justify-center px-4">
+          <div className="w-full max-w-sm rounded-card border border-border-default bg-bg-surface px-5 py-6">
+            <h1 className="mb-2 text-base font-extrabold text-text-primary">This link has expired</h1>
+            <p className="mb-5 text-sm text-text-secondary">
+              Presentations from Claude stay for 24 hours. Ask Claude to send the presentation again.
+            </p>
+            <Link href="/" className="text-sm font-semibold text-accent">
+              Back to my presentations
+            </Link>
+          </div>
+        </main>
+      </>
     );
   }
 

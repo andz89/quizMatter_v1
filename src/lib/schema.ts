@@ -486,7 +486,7 @@ export const isOtherGrade = (grade: string) => isOwnChoice(GRADES, grade);
 export const isOtherSubject = (subject: string) => isOwnChoice(SUBJECTS, subject);
 
 // A list value typed in another case ("science", "grade 3") is saved with the list's spelling ("Science",
-// "Grade 3"), so the home page's chips, search and Browse find it.
+// "Grade 3"), so the home page's chips and search find it.
 function listOrOwnSchema(list: readonly string[], maxLength: number) {
   return z
     .string()
@@ -522,7 +522,7 @@ export function withGrades<T>(details: T): T {
 }
 
 /**
- * Grades for people to read, neighbors joined: "Grades 1–3", "Grades 1–2, 5", "Kindergarten–Grade 2, Grade 5",
+ * Grades for people to read, neighbors joined: "Grades 1–3", "Grades 1–2, 5", "Grades K–2, 5" (K = Kindergarten),
  * and the teacher's own last ("Grade 4, College"). "" for none.
  */
 export function gradesLabel(grades: readonly string[]): string {
@@ -536,12 +536,19 @@ export function gradesLabel(grades: readonly string[]): string {
   }
   const span = (run: number[], name: (index: number) => string) =>
     run.length === 1 ? name(run[0]) : `${name(run[0])}–${name(run[run.length - 1])}`;
-  // Only numbered grades (no Kindergarten): "Grades 1–2, 5". Otherwise each run in full.
+  // Several grades: "Grades K–2, 5", with Kindergarten as "K". One grade stays in full ("Kindergarten").
   const parts =
-    listed.length > 1 && listed[0] !== 0
-      ? [`Grades ${runs.map((run) => span(run, (index) => GRADES[index].replace("Grade ", ""))).join(", ")}`]
-      : runs.map((run) => span(run, (index) => GRADES[index]));
+    listed.length > 1
+      ? [`Grades ${runs.map((run) => span(run, (index) => (index === 0 ? "K" : String(index)))).join(", ")}`]
+      : listed.map((index) => GRADES[index]);
   return [...parts, ...grades.filter(isOtherGrade)].join(", ");
+}
+
+/** Tooltip for a grades label that shortens Kindergarten to "K": every grade in full. Otherwise undefined. */
+export function gradesTitle(grades: readonly string[]): string | undefined {
+  return grades.filter((grade) => !isOtherGrade(grade)).length > 1 && grades.includes(GRADES[0])
+    ? [...grades].sort((a, b) => gradeOrder(a) - gradeOrder(b)).join(", ")
+    : undefined;
 }
 
 const webLinkSchema = z.url({ protocol: /^https?$/ });
@@ -630,23 +637,10 @@ export function todayIso(): string {
   return new Date(now.getTime() - now.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
 }
 
-// A reviewer's "Reviewed by" details (presentation reviews, see the presentation_reviews migration).
-export const REVIEWER_MAX_LENGTH = { name: 100, email: 254, background: 1000 };
-export const reviewerSchema = z.object({
-  name: z
-    .string()
-    .trim()
-    .min(1, "Write the reviewer's name.")
-    .max(REVIEWER_MAX_LENGTH.name, `The name is too long (${REVIEWER_MAX_LENGTH.name} characters at most).`),
-  email: z.email("Write a valid email.").max(REVIEWER_MAX_LENGTH.email, "The email is too long."),
-  background: z
-    .string()
-    .trim()
-    .min(1, "Write the reviewer's education or current work.")
-    .max(REVIEWER_MAX_LENGTH.background, `The background is too long (${REVIEWER_MAX_LENGTH.background} characters at most).`),
-  reviewedOn: z.iso.date("Pick the review date.").refine((date) => date <= todayIso(), "The review date can't be in the future."),
-});
-export type ReviewerFields = z.infer<typeof reviewerSchema>;
+// A reviewer's "Reviewed by" details (presentation reviews, see the presentation_reviews migration). The name and
+// email come from the reviewer's account in submit_review, so the app only sends the date: the reviewer's today.
+export type ReviewerFields = { name: string; email: string; reviewedOn: string };
+export const reviewedOnSchema = z.iso.date("The review date isn't valid.");
 
 // Why an admin sent a review back to its reviewer.
 export const REVIEW_NOTE_MAX_LENGTH = 500;
