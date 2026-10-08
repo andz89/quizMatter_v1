@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { use, useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { isAuthRetryableFetchError, type AuthError } from "@supabase/supabase-js";
+import { LinkPending } from "@/components/LinkPending";
 import { Logo } from "@/components/Logo";
 import { LoginAbout } from "@/components/LoginAbout";
 import { Spinner } from "@/components/Spinner";
@@ -10,12 +12,16 @@ import { TopLoadingBar } from "@/components/TopLoadingBar";
 import { Turnstile, type TurnstileStatus } from "@/components/Turnstile";
 import { createClient } from "@/lib/supabase/client";
 
-// No sign up: users are added by hand in the Supabase dashboard (Authentication → Users).
-export default function LoginPage() {
+// Teachers sign up on /signup; admins can still add them by hand in the Supabase dashboard (Authentication → Users).
+export default function LoginPage({ searchParams }: PageProps<"/login">) {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  // ?error=confirm: /auth/confirm got an old, used or broken email link.
+  const linkError = use(searchParams).error;
+  const [error, setError] = useState<string | null>(
+    linkError === "confirm" ? "This link has expired or was already used. Try logging in, or sign up again." : null,
+  );
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   // The "are you human?" pass, and a number that shows a fresh check when it goes up (a pass works only once).
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
@@ -107,6 +113,14 @@ export default function LoginPage() {
                     ? "Security check failed"
                     : "Checking you're human…"}
           </button>
+
+          <p className="mt-4 text-center text-sm text-text-secondary">
+            New to QuizMatter?{" "}
+            <Link href="/signup" className="font-semibold text-accent hover:underline">
+              Create an account
+              <LinkPending />
+            </Link>
+          </p>
         </form>
         <LoginAbout />
       </div>
@@ -119,6 +133,7 @@ export default function LoginPage() {
 function loginErrorMessage(error: AuthError) {
   if (error.code === "user_banned") return "This account is blocked. Contact QuizMatter if you think this is a mistake."; // Admin → Teachers
   if (error.code === "invalid_credentials") return "Wrong email or password.";
+  if (error.code === "email_not_confirmed") return "Please confirm your email first. Check your inbox for the link.";
   if (error.code === "captcha_failed" || /captcha/i.test(error.message)) return "The security check expired. Please try again.";
   if (isAuthRetryableFetchError(error)) return "Couldn't reach the server. Check your internet and try again.";
   return "Something went wrong. Please try again.";
