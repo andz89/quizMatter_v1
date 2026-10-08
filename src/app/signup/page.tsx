@@ -99,24 +99,11 @@ export default function SignUpPage() {
       ) : (
         <form
           onSubmit={createAccount}
-          className="flex w-full max-w-md flex-col gap-4 rounded-card border border-border-default bg-bg-surface px-5 py-6"
+          className="flex w-full max-w-2xl flex-col gap-4 rounded-card border border-border-default bg-bg-surface px-5 py-6"
         >
           <h1 className="text-base font-extrabold text-text-primary">Create an account</h1>
 
-          <Field id="displayName" label="Display name" hint="Shown in your account menu, and as the Author of your presentations.">
-            <input
-              id="displayName"
-              type="text"
-              required
-              maxLength={DISPLAY_NAME_MAX_LENGTH}
-              autoComplete="nickname"
-              placeholder="e.g. Ms. Cruz"
-              value={fields.displayName}
-              onChange={update("displayName")}
-              className={inputClass}
-            />
-          </Field>
-
+          {/* Phones: one column. Wider screens: two, with Email across both. */}
           <div className="grid gap-4 sm:grid-cols-2">
             <Field id="firstName" label="First name">
               <input
@@ -142,85 +129,92 @@ export default function SignUpPage() {
                 className={inputClass}
               />
             </Field>
-          </div>
-
-          <Field id="contactNumber" label="Contact number">
-            <input
-              id="contactNumber"
-              type="tel"
-              required
-              maxLength={CONTACT_NUMBER_MAX_LENGTH}
-              autoComplete="tel"
-              placeholder="e.g. +63 917 123 4567"
-              value={fields.contactNumber}
-              onChange={update("contactNumber")}
-              className={inputClass}
-            />
-          </Field>
-
-          <Field id="educationLevel" label="Educational background">
-            <select id="educationLevel" required value={fields.educationLevel} onChange={update("educationLevel")} className={inputClass}>
-              <option value="" disabled>
-                Pick one
-              </option>
-              {EDUCATION_LEVELS.map((level) => (
-                <option key={level} value={level}>
-                  {EDUCATION_LEVEL_LABELS[level]}
+            <Field id="displayName" label="Display name" hint="Shown in your account menu, and as the Author of your presentations.">
+              <input
+                id="displayName"
+                type="text"
+                required
+                maxLength={DISPLAY_NAME_MAX_LENGTH}
+                autoComplete="nickname"
+                placeholder="e.g. Ms. Cruz"
+                value={fields.displayName}
+                onChange={update("displayName")}
+                className={inputClass}
+              />
+            </Field>
+            <Field id="contactNumber" label="Contact number">
+              <input
+                id="contactNumber"
+                type="tel"
+                required
+                maxLength={CONTACT_NUMBER_MAX_LENGTH}
+                autoComplete="tel"
+                placeholder="e.g. +63 917 123 4567"
+                value={fields.contactNumber}
+                onChange={update("contactNumber")}
+                className={inputClass}
+              />
+            </Field>
+            <Field id="educationLevel" label="Educational background">
+              <select id="educationLevel" required value={fields.educationLevel} onChange={update("educationLevel")} className={inputClass}>
+                <option value="" disabled>
+                  Pick one
                 </option>
-              ))}
-            </select>
-          </Field>
-
-          <Field id="educationField" label="Field or major">
-            <input
-              id="educationField"
-              type="text"
-              required
-              maxLength={EDUCATION_FIELD_MAX_LENGTH}
-              placeholder="e.g. Secondary Education, major in English"
-              value={fields.educationField}
-              onChange={update("educationField")}
-              className={inputClass}
-            />
-          </Field>
-
-          <Field id="email" label="Email">
-            <input
-              id="email"
-              type="email"
-              required
-              autoComplete="email"
-              value={fields.email}
-              onChange={update("email")}
-              className={inputClass}
-            />
-          </Field>
-
-          <Field id="password" label="Password" hint="At least 8 characters.">
-            <input
-              id="password"
-              type="password"
-              required
-              maxLength={PASSWORD_MAX_LENGTH}
-              autoComplete="new-password"
-              value={fields.password}
-              onChange={update("password")}
-              className={inputClass}
-            />
-          </Field>
-
-          <Field id="confirmPassword" label="Confirm password">
-            <input
-              id="confirmPassword"
-              type="password"
-              required
-              maxLength={PASSWORD_MAX_LENGTH}
-              autoComplete="new-password"
-              value={fields.confirmPassword}
-              onChange={update("confirmPassword")}
-              className={inputClass}
-            />
-          </Field>
+                {EDUCATION_LEVELS.map((level) => (
+                  <option key={level} value={level}>
+                    {EDUCATION_LEVEL_LABELS[level]}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field id="educationField" label="Field or major">
+              <input
+                id="educationField"
+                type="text"
+                required
+                maxLength={EDUCATION_FIELD_MAX_LENGTH}
+                placeholder="e.g. Secondary Education, major in English"
+                value={fields.educationField}
+                onChange={update("educationField")}
+                className={inputClass}
+              />
+            </Field>
+            <Field id="email" label="Email" className="sm:col-span-2">
+              <input
+                id="email"
+                type="email"
+                required
+                autoComplete="email"
+                value={fields.email}
+                onChange={update("email")}
+                className={inputClass}
+              />
+            </Field>
+            <Field id="password" label="Password" hint="At least 8 characters.">
+              <input
+                id="password"
+                type="password"
+                required
+                maxLength={PASSWORD_MAX_LENGTH}
+                autoComplete="new-password"
+                value={fields.password}
+                onChange={update("password")}
+                className={inputClass}
+              />
+            </Field>
+            <Field id="confirmPassword" label="Confirm password">
+              <input
+                id="confirmPassword"
+                type="password"
+                required
+                maxLength={PASSWORD_MAX_LENGTH}
+                autoComplete="new-password"
+                value={fields.confirmPassword}
+                onChange={update("confirmPassword")}
+                className={inputClass}
+              />
+            </Field>
+          </div>
 
           <Turnstile key={captchaRound} onToken={setCaptchaToken} onStatus={setCaptchaStatus} />
 
@@ -257,9 +251,21 @@ export default function SignUpPage() {
   );
 }
 
-function Field({ id, label, hint, children }: { id: string; label: string; hint?: string; children: ReactNode }) {
+function Field({
+  id,
+  label,
+  hint,
+  className,
+  children,
+}: {
+  id: string;
+  label: string;
+  hint?: string;
+  className?: string;
+  children: ReactNode;
+}) {
   return (
-    <div>
+    <div className={className}>
       <label htmlFor={id} className="mb-1 block text-[11px] font-bold tracking-[0.05em] text-text-header uppercase">
         {label}
       </label>
