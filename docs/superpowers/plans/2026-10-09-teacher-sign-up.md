@@ -40,7 +40,7 @@ Tailwind 4 with the QuizMatter design system, lucide-react, sonner. **No new pac
 
 | File | Change | What it does |
 |---|---|---|
-| `supabase/migrations/20261103000000_teacher_sign_up.sql` | Create | New `user_settings` columns + `handle_new_user` trigger |
+| `supabase/migrations/20261104000000_teacher_sign_up.sql` | Create | New `user_settings` columns + `handle_new_user` trigger |
 | `src/lib/userSettings.ts` | Modify | Limits, education levels, `profileSchema`, `signUpSchema`, `signUp`, `saveProfile` |
 | `src/lib/account.ts` | Modify | `getAccount()` also returns `profile` |
 | `src/proxy.ts` | Modify | Logged-out people may open `/signup` and `/auth/confirm` |
@@ -55,7 +55,7 @@ Tailwind 4 with the QuizMatter design system, lucide-react, sonner. **No new pac
 ### Task 1: Database columns and sign up trigger
 
 **Files:**
-- Create: `supabase/migrations/20261103000000_teacher_sign_up.sql`
+- Create: `supabase/migrations/20261104000000_teacher_sign_up.sql`
 
 **Interfaces:**
 - Produces: `user_settings` columns `first_name`, `last_name`, `contact_number`, `education_level`, `education_field` (all `text not null default ''`). Metadata keys read by the trigger: `display_name`, `first_name`, `last_name`, `contact_number`, `education_level`, `education_field`.
@@ -116,7 +116,7 @@ create trigger on_auth_user_created
 - [ ] **Step 3: Commit**
 
 ```bash
-git add supabase/migrations/20261103000000_teacher_sign_up.sql
+git add supabase/migrations/20261104000000_teacher_sign_up.sql
 git commit -m "Add sign up details to user settings"
 ```
 
@@ -222,7 +222,7 @@ At the end of `src/lib/userSettings.ts` add:
 ```ts
 /**
  * Makes a new account. Supabase emails a link to confirm it; the teacher can log in only after clicking it. The
- * details ride along as user metadata, and the handle_new_user trigger (20261103000000_teacher_sign_up.sql) copies
+ * details ride along as user metadata, and the handle_new_user trigger (20261104000000_teacher_sign_up.sql) copies
  * them into user_settings. If the email already has an account, Supabase answers the same way and sends nothing,
  * so strangers can't find out who has one. Throws if it fails.
  */

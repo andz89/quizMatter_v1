@@ -14,6 +14,8 @@ export type ClickLimit = {
   repeat_pause_minutes: number;
   repeat_within_hours: number;
   ban_after_pauses: number | null;
+  // Set (e.g. "Asia/Manila"): counted per day, starting again at midnight there, and paused until that midnight.
+  daily_reset_time_zone: string | null;
 };
 
 /** Each teacher's email by id. Only a few teachers are ever in these lists, so each one is looked up on its own. */

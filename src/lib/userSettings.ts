@@ -9,7 +9,68 @@ export const displayNameSchema = z.string().trim().max(DISPLAY_NAME_MAX_LENGTH);
 
 // Supabase's own limits: at least 6 letters (we ask for 8), and at most 72 bytes.
 export const PASSWORD_MIN_LENGTH = 8;
-export const passwordSchema = z.string().min(PASSWORD_MIN_LENGTH).max(72);
+export const PASSWORD_MAX_LENGTH = 72;
+export const passwordSchema = z
+  .string()
+  .min(PASSWORD_MIN_LENGTH, `Use at least ${PASSWORD_MIN_LENGTH} characters for your password.`)
+  .max(PASSWORD_MAX_LENGTH, `Use at most ${PASSWORD_MAX_LENGTH} characters for your password.`);
+
+// The details a teacher gives when they sign up (and can change on the Account page).
+export const NAME_MAX_LENGTH = 35;
+export const CONTACT_NUMBER_MAX_LENGTH = 20;
+export const EDUCATION_FIELD_MAX_LENGTH = 100;
+
+// The Educational background dropdown. The values are saved in user_settings.education_level.
+export const EDUCATION_LEVELS = ["bachelor", "master", "doctorate", "other"] as const;
+export type EducationLevel = (typeof EDUCATION_LEVELS)[number];
+export const EDUCATION_LEVEL_LABELS: Record<EducationLevel, string> = {
+  bachelor: "Bachelor's degree",
+  master: "Master's degree",
+  doctorate: "Doctorate",
+  other: "Other",
+};
+
+export const profileSchema = z.object({
+  firstName: z
+    .string()
+    .trim()
+    .min(1, "Enter your first name.")
+    .max(NAME_MAX_LENGTH, `Use at most ${NAME_MAX_LENGTH} characters for your first name.`),
+  lastName: z
+    .string()
+    .trim()
+    .min(1, "Enter your last name.")
+    .max(NAME_MAX_LENGTH, `Use at most ${NAME_MAX_LENGTH} characters for your last name.`),
+  // e.g. "+63 917 123 4567" or "(02) 8123-4567".
+  contactNumber: z
+    .string()
+    .trim()
+    .max(CONTACT_NUMBER_MAX_LENGTH, `Use at most ${CONTACT_NUMBER_MAX_LENGTH} characters for your contact number.`)
+    .regex(/^[0-9+\-() ]*$/, "A contact number can only have digits, spaces and + - ( ).")
+    .refine((number) => number.replace(/\D/g, "").length >= 7, "Enter a contact number with at least 7 digits."),
+  educationLevel: z.enum(EDUCATION_LEVELS, { error: "Pick your educational background." }),
+  educationField: z
+    .string()
+    .trim()
+    .min(1, "Enter your field or major.")
+    .max(EDUCATION_FIELD_MAX_LENGTH, `Use at most ${EDUCATION_FIELD_MAX_LENGTH} characters for your field or major.`),
+});
+
+export const signUpSchema = profileSchema
+  .extend({
+    displayName: displayNameSchema.min(1, "Enter a display name."),
+    email: z.email("Enter a real email address."),
+    password: passwordSchema,
+    confirmPassword: z.string(),
+  })
+  .refine((fields) => fields.password === fields.confirmPassword, {
+    error: "The two passwords don't match.",
+    path: ["confirmPassword"],
+  });
+
+// What the forms hold: plain text in every box ("" in the dropdown until a level is picked).
+export type ProfileFields = { [K in keyof z.input<typeof profileSchema>]: string };
+export type SignUpFields = { [K in keyof z.input<typeof signUpSchema>]: string };
 
 /** The Elements panel categories the signed-in user starred. Empty if they have none yet. Throws if it fails. */
 export async function loadFavoriteCategories(): Promise<ElementCategory[]> {
@@ -44,6 +105,52 @@ export async function saveDisplayName(name: string) {
   const { error } = await supabase.from("user_settings").upsert({
     user_id: data.session.user.id,
     display_name: displayName,
+    updated_at: new Date().toISOString(),
+  });
+  if (error) throw error;
+}
+
+/**
+ * Makes a new account. Supabase emails a link to confirm it; the teacher can log in only after clicking it. The
+ * details ride along as user metadata, and the handle_new_user trigger (20261104000000_teacher_sign_up.sql) copies
+ * them into user_settings. If the email already has an account, Supabase answers the same way and sends nothing,
+ * so strangers can't find out who has one. Throws if it fails.
+ */
+export async function signUp(fields: SignUpFields, captchaToken: string) {
+  // Checked with zod first (see CLAUDE.md, "Saving Data"): bad data throws here and is never saved.
+  const { email, password, displayName, firstName, lastName, contactNumber, educationLevel, educationField } =
+    signUpSchema.parse(fields);
+  const { error } = await createClient().auth.signUp({
+    email,
+    password,
+    options: {
+      captchaToken,
+      data: {
+        display_name: displayName,
+        first_name: firstName,
+        last_name: lastName,
+        contact_number: contactNumber,
+        education_level: educationLevel,
+        education_field: educationField,
+      },
+    },
+  });
+  if (error) throw error;
+}
+
+/** Saves the user's personal details (creates the settings row the first time). Throws if it fails. */
+export async function saveProfile(fields: ProfileFields) {
+  const profile = profileSchema.parse(fields);
+  const supabase = createClient();
+  const { data } = await supabase.auth.getSession();
+  if (!data.session) throw new Error("Not signed in");
+  const { error } = await supabase.from("user_settings").upsert({
+    user_id: data.session.user.id,
+    first_name: profile.firstName,
+    last_name: profile.lastName,
+    contact_number: profile.contactNumber,
+    education_level: profile.educationLevel,
+    education_field: profile.educationField,
     updated_at: new Date().toISOString(),
   });
   if (error) throw error;

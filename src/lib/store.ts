@@ -36,6 +36,7 @@ import { clamp, fitInBox, getOuterEdges } from "./geometry";
 import { withBackground, type BackgroundPatch } from "./slideBackground";
 import { REFUSALS, SaveRefusedError, saveErrorMessage, savePresentationToDb } from "./presentations";
 import { saveReviewDraft } from "./reviews";
+import { checkPauses, pausedUntilFromError } from "./clickLimits";
 import { finishDraft } from "@/app/actions";
 import { isEmbedSlide } from "./embed";
 import type { Photo, PresentationDetails, Presentation, ReviewerFields, Slide, SlideType, SvgElement } from "./schema";
@@ -561,6 +562,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       return true;
     } catch (error) {
       console.error("Couldn't save the presentation", error);
+      // Sharing or publishing clicked too often: the database paused one. Both give the same refusal, so ask which;
+      // the notice at the bottom shows it and the Share card greys out.
+      if (pausedUntilFromError(error as { code?: string; details?: string })) await checkPauses();
       // A refused save is shown even when quiet: it says why, and a conflict stays until the user reloads.
       if (error instanceof SaveRefusedError || !quiet) {
         toast.error(saveErrorMessage(error, "save"), {

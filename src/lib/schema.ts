@@ -600,6 +600,27 @@ export const presentationSchema = z.preprocess(withGrades, z.object({
   updatedAt: z.number(),
 }));
 
+export const PUBLISH_NEEDS_CONTENT = "Add a title and some content before publishing.";
+
+/** True when the slide has something on it: question or answer text, an element, or a video / slides link. */
+function hasSlideContent(slide: Slide): boolean {
+  return (
+    slide.question.trim() !== "" ||
+    slide.elements.length > 0 ||
+    Boolean(slide.embedUrl) ||
+    Boolean(slide.correctAnswer?.trim()) ||
+    slide.options.some((option) => option.text.trim() !== "")
+  );
+}
+
+// What a teacher's presentation needs before it can be published: a title and at least one slide with something on
+// it, so empty "test" presentations don't reach other teachers. The database checks the same when it saves
+// (has_publishable_content, error QMPUB).
+export const publishableSchema = z.object({
+  title: z.string().trim().min(1, PUBLISH_NEEDS_CONTENT),
+  slides: z.array(z.custom<Slide>()).refine((slides) => slides.some(hasSlideContent), PUBLISH_NEEDS_CONTENT),
+});
+
 // Why a teacher reports another teacher's published presentation (the presentation_reports table).
 export const REPORT_REASON_LABELS = {
   unsafe: "Rude or unsafe",

@@ -13,7 +13,7 @@ import { startReview } from "@/lib/reviews";
 import { loadReviewStatus, type Reviewer, type ReviewStatus } from "@/lib/reviewStatus";
 import { createClient } from "@/lib/supabase/client";
 import { DETAIL_MAX_LENGTH, gradesLabel, gradesTitle, isWebLink, type Presentation } from "@/lib/schema";
-import { pauseFeature, useIsPaused } from "@/lib/clickLimits";
+import { pauseFeature, pausedUntilFromError, useIsPaused } from "@/lib/clickLimits";
 import { LinkPending } from "@/components/LinkPending";
 import { Spinner } from "@/components/Spinner";
 import { TopLoadingBar } from "@/components/TopLoadingBar";
@@ -53,6 +53,8 @@ export function PresentationPreview({
   const slideCount = presentation.slides.length;
   // Saving is paused for clicking too fast (the notice at the bottom says until when).
   const isSavePaused = useIsPaused("saved");
+  // A copy is a new presentation: too many in a day pauses it until midnight (the "create" click limit).
+  const isCopyPaused = useIsPaused("create");
 
   // ← / → change the slide, unless the teacher is typing.
   useEffect(() => {
@@ -98,7 +100,10 @@ export function PresentationPreview({
       // isCopying stays true, so the spinner and top line keep showing until the editor opens.
       router.push(`/presentation/${copy.id}/edit`);
     } catch (error) {
-      toast.error(saveErrorMessage(error, "make a copy"));
+      // Paused: the button greys out and the notice at the bottom says until when.
+      const pausedUntil = pausedUntilFromError(error as { code?: string; details?: string });
+      if (pausedUntil) pauseFeature("create", pausedUntil);
+      else toast.error(saveErrorMessage(error, "make a copy"));
       setIsCopying(false);
     }
   };
@@ -209,8 +214,14 @@ export function PresentationPreview({
               <button
                 type="button"
                 onClick={makeCopy}
-                disabled={isCopying || review.isLocked}
-                title={review.isLocked ? "Under review: it can be copied once QuizMatter publishes the review." : undefined}
+                disabled={isCopying || review.isLocked || isCopyPaused}
+                title={
+                  review.isLocked
+                    ? "Under review: it can be copied once QuizMatter publishes the review."
+                    : isCopyPaused
+                      ? "You've made the most new presentations for today. It works again at midnight."
+                      : undefined
+                }
                 className={`inline-flex items-center gap-2 ${secondaryButtonClass}`}
               >
                 {isCopying && <Spinner size={14} />}

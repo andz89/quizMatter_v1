@@ -26,7 +26,7 @@ saved, they can change them on the Account page, and admins see them in Admin â†
 
 ## Data
 
-### Migration `20261103000000_teacher_sign_up.sql`
+### Migration `20261104000000_teacher_sign_up.sql`
 
 New columns on `public.user_settings` (all `text not null default ''`, with length checks matching zod):
 

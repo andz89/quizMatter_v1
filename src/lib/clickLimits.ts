@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { createClient } from "./supabase/client";
 
 /**
  * Features the database pauses for a while when a teacher clicks them too fast (see the click_limits migration).
@@ -7,6 +8,9 @@ import { create } from "zustand";
  */
 export const CLICK_FEATURES = {
   saved: { pausedText: "Saving presentations" },
+  share: { pausedText: "Sharing presentations" },
+  publish: { pausedText: "Publishing presentations" },
+  create: { pausedText: "Making new presentations" },
 } as const;
 
 export type ClickFeature = keyof typeof CLICK_FEATURES;
@@ -36,6 +40,26 @@ export function setPausedFeatures(paused: [ClickFeature, number][]) {
     Object.fromEntries((Object.keys(CLICK_FEATURES) as ClickFeature[]).map((feature) => [feature, undefined])),
   );
   for (const [feature, until] of paused) pauseFeature(feature, until);
+}
+
+/** Asks the database which features are paused for me, and shows exactly those. */
+export async function checkPauses() {
+  const supabase = createClient();
+  // getSession reads the login cookie without asking the server: logged-out pages (login) skip the question.
+  const { data } = await supabase.auth.getSession();
+  if (!data.session) return;
+  const { data: rows, error } = await supabase.rpc("my_paused_features");
+  if (error) return;
+  setPausedFeatures(
+    ((rows ?? []) as { feature: string; paused_until: string }[])
+      .filter((row) => row.feature in CLICK_FEATURES)
+      .map((row) => [row.feature as ClickFeature, Date.parse(row.paused_until)]),
+  );
+}
+
+/** Same as useIsPaused, read once (e.g. right after a refused save). */
+export function isPaused(feature: ClickFeature): boolean {
+  return usePausedFeatures.getState()[feature] !== undefined;
 }
 
 /** True while the feature is paused: its buttons are greyed out. */

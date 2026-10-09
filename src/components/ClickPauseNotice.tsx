@@ -3,25 +3,10 @@
 import { useEffect } from "react";
 import { BanIcon } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { CLICK_FEATURES, setPausedFeatures, usePausedList, type ClickFeature } from "@/lib/clickLimits";
+import { CLICK_FEATURES, checkPauses, usePausedList } from "@/lib/clickLimits";
 
 // While something is paused, how often to ask again, so an admin's Release reaches an open page.
 const RECHECK_MS = 60_000;
-
-/** Asks the database which features are paused for me, and shows exactly those. */
-async function checkPauses() {
-  const supabase = createClient();
-  // getSession reads the login cookie without asking the server: logged-out pages (login) skip the question.
-  const { data } = await supabase.auth.getSession();
-  if (!data.session) return;
-  const { data: rows, error } = await supabase.rpc("my_paused_features");
-  if (error) return;
-  setPausedFeatures(
-    ((rows ?? []) as { feature: string; paused_until: string }[])
-      .filter((row) => row.feature in CLICK_FEATURES)
-      .map((row) => [row.feature as ClickFeature, Date.parse(row.paused_until)]),
-  );
-}
 
 /**
  * The sticky notice at the bottom of the screen while a feature is paused for clicking too fast (see

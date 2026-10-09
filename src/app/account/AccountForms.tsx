@@ -1,10 +1,23 @@
 "use client";
 
-import { useState, type FormEvent, type ReactNode } from "react";
+import { useState, type ChangeEvent, type FormEvent, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Spinner } from "@/components/Spinner";
-import { changePassword, DISPLAY_NAME_MAX_LENGTH, PASSWORD_MIN_LENGTH, saveDisplayName } from "@/lib/userSettings";
+import {
+  changePassword,
+  CONTACT_NUMBER_MAX_LENGTH,
+  DISPLAY_NAME_MAX_LENGTH,
+  EDUCATION_FIELD_MAX_LENGTH,
+  EDUCATION_LEVEL_LABELS,
+  EDUCATION_LEVELS,
+  NAME_MAX_LENGTH,
+  PASSWORD_MIN_LENGTH,
+  profileSchema,
+  saveDisplayName,
+  saveProfile,
+  type ProfileFields,
+} from "@/lib/userSettings";
 
 const labelClass = "mb-1 block text-[11px] font-bold tracking-[0.05em] text-text-header uppercase";
 const inputClass =
@@ -53,6 +66,112 @@ export function ProfileForm({ email, displayName }: { email: string; displayName
       <button type="submit" disabled={isSaving || name.trim() === displayName} className={buttonClass}>
         {isSaving && <Spinner size={14} />}
         Save name
+      </button>
+    </Card>
+  );
+}
+
+/** First and last name, contact number and educational background (given at sign up). */
+export function PersonalDetailsForm({ profile }: { profile: ProfileFields }) {
+  const router = useRouter();
+  const [fields, setFields] = useState(profile);
+  const [error, setError] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+  const isChanged = (Object.keys(profile) as (keyof ProfileFields)[]).some((key) => fields[key].trim() !== profile[key]);
+
+  const update = (name: keyof ProfileFields) => (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
+    setFields((old) => ({ ...old, [name]: e.target.value }));
+
+  const save = async (e: FormEvent) => {
+    e.preventDefault();
+    const checked = profileSchema.safeParse(fields);
+    if (!checked.success) return setError(checked.error.issues[0].message);
+    setError("");
+    setIsSaving(true);
+    try {
+      await saveProfile(fields);
+      toast.success("Details saved.");
+      router.refresh();
+    } catch {
+      toast.error("Couldn't save your details. Please try again.");
+    }
+    setIsSaving(false);
+  };
+
+  return (
+    <Card title="Personal details" onSubmit={save}>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div>
+          <label htmlFor="firstName" className={labelClass}>First name</label>
+          <input
+            id="firstName"
+            type="text"
+            required
+            maxLength={NAME_MAX_LENGTH}
+            autoComplete="given-name"
+            value={fields.firstName}
+            onChange={update("firstName")}
+            className={inputClass}
+          />
+        </div>
+        <div>
+          <label htmlFor="lastName" className={labelClass}>Last name</label>
+          <input
+            id="lastName"
+            type="text"
+            required
+            maxLength={NAME_MAX_LENGTH}
+            autoComplete="family-name"
+            value={fields.lastName}
+            onChange={update("lastName")}
+            className={inputClass}
+          />
+        </div>
+      </div>
+      <div>
+        <label htmlFor="contactNumber" className={labelClass}>Contact number</label>
+        <input
+          id="contactNumber"
+          type="tel"
+          required
+          maxLength={CONTACT_NUMBER_MAX_LENGTH}
+          autoComplete="tel"
+          placeholder="e.g. +63 917 123 4567"
+          value={fields.contactNumber}
+          onChange={update("contactNumber")}
+          className={inputClass}
+        />
+      </div>
+      <div>
+        <label htmlFor="educationLevel" className={labelClass}>Educational background</label>
+        <select id="educationLevel" required value={fields.educationLevel} onChange={update("educationLevel")} className={inputClass}>
+          <option value="" disabled>
+            Pick one
+          </option>
+          {EDUCATION_LEVELS.map((level) => (
+            <option key={level} value={level}>
+              {EDUCATION_LEVEL_LABELS[level]}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div>
+        <label htmlFor="educationField" className={labelClass}>Field or major</label>
+        <input
+          id="educationField"
+          type="text"
+          required
+          maxLength={EDUCATION_FIELD_MAX_LENGTH}
+          placeholder="e.g. Secondary Education, major in English"
+          value={fields.educationField}
+          onChange={update("educationField")}
+          className={inputClass}
+        />
+      </div>
+      {error && <p className="text-sm text-danger-strong">{error}</p>}
+      <button type="submit" disabled={isSaving || !isChanged} className={buttonClass}>
+        {isSaving && <Spinner size={14} />}
+        Save details
       </button>
     </Card>
   );

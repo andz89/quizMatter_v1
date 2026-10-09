@@ -12,6 +12,10 @@ export type TeacherRow = {
   email: string;
   // Display name ("" if not set).
   name: string;
+  // "Ana Cruz · +63 917 123 4567 · Master's degree in English" ("" if none given).
+  details: string;
+  // False until they click the link in the sign up email.
+  isConfirmed: boolean;
   // "Joined 3 days ago · Last login 1 hr ago".
   meta: string;
   isAdmin: boolean;
@@ -76,11 +80,13 @@ function Row({ row }: { row: TeacherRow }) {
           <div className="flex flex-wrap items-center gap-2">
             <span className="truncate text-sm font-semibold text-text-primary">{row.email}</span>
             {row.name && <span className="text-sm text-text-secondary">{row.name}</span>}
+            {!row.isConfirmed && <span className={`${pillClass} bg-highlight-soft text-highlight-strong`}>Not confirmed</span>}
             {row.isAdmin && <span className={`${pillClass} bg-accent-soft text-accent`}>Admin</span>}
             {row.isEditor && <span className={`${pillClass} bg-accent-soft text-accent`}>Editor</span>}
             {row.ban && <span className={`${pillClass} bg-danger-soft text-danger-strong`}>Banned</span>}
             {row.ban?.isAutomatic && <span className={`${pillClass} bg-bg-page text-text-secondary`}>Automatic</span>}
           </div>
+          {row.details && <p className="mt-0.5 text-[13px] text-text-primary">{row.details}</p>}
           <p className="mt-0.5 text-[13px] text-text-secondary">{row.meta}</p>
         </div>
 
