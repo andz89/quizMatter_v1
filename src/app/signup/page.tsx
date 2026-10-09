@@ -9,6 +9,7 @@ import { Logo } from "@/components/Logo";
 import { Spinner } from "@/components/Spinner";
 import { TopLoadingBar } from "@/components/TopLoadingBar";
 import { Turnstile, type TurnstileStatus } from "@/components/Turnstile";
+import { lockedUntil, recordTry, SIGN_UP_ADDRESS_MESSAGE, SIGN_UP_LIMIT, tryAgainAfter } from "@/lib/browserLimits";
 import {
   CONTACT_NUMBER_MAX_LENGTH,
   DISPLAY_NAME_MAX_LENGTH,
@@ -64,12 +65,17 @@ export default function SignUpPage() {
   const createAccount = async (e: FormEvent) => {
     e.preventDefault();
     if (!captchaToken) return;
+    // Too many accounts made on this browser lately (src/lib/browserLimits.ts). Checked before sending, so the
+    // "are you human?" pass isn't used up.
+    const until = lockedUntil(SIGN_UP_LIMIT);
+    if (until) return setError(`You've made several accounts on this browser. Please try again after ${tryAgainAfter(until)}.`);
     const checked = signUpSchema.safeParse(fields);
     if (!checked.success) return setError(checked.error.issues[0].message);
     setIsSending(true);
     setError(null);
     try {
       await signUp(fields, captchaToken);
+      recordTry(SIGN_UP_LIMIT);
       setSentTo(checked.data.email);
     } catch (err) {
       setError(signUpErrorMessage(err));
@@ -280,8 +286,11 @@ function signUpErrorMessage(error: unknown) {
   if (!isAuthError(error)) return "Something went wrong. Please try again.";
   if (error.code === "weak_password") return "Please pick a stronger password.";
   if (error.code === "signup_disabled") return "Sign up is closed right now. Please try again later.";
-  if (error.code === "over_email_send_rate_limit" || error.code === "over_request_rate_limit")
-    return "Too many tries. Please wait a few minutes and try again.";
+  // The sign up limit per internet address (hook_before_user_created): its own words say it best.
+  if (error.message.includes(SIGN_UP_ADDRESS_MESSAGE)) return error.message;
+  // Supabase's emails per hour ran out (Authentication → Rate Limits).
+  if (error.code === "over_email_send_rate_limit") return "We can't send more sign up emails right now. Please try again in an hour.";
+  if (error.code === "over_request_rate_limit") return "Too many tries. Please wait a few minutes and try again.";
   if (error.code === "captcha_failed" || /captcha/i.test(error.message)) return "The security check expired. Please try again.";
   if (isAuthRetryableFetchError(error)) return "Couldn't reach the server. Check your internet and try again.";
   return "Something went wrong. Please try again.";
