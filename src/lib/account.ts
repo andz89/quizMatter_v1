@@ -6,6 +6,8 @@ export type Account = {
   id: string;
   email: string;
   displayName: string;
+  // The profile link name made from the display name ("" when there's none, so no profile link).
+  profileSlug: string;
   // First and last name, contact number, educational background and bio ("" for each one not set).
   profile: ProfileFields;
   isAdmin: boolean;
@@ -24,7 +26,7 @@ export const getAccount = cache(async (): Promise<Account> => {
     supabase.auth.getClaims(),
     supabase
       .from("user_settings")
-      .select("display_name, first_name, last_name, contact_number, education_level, education_field, bio")
+      .select("display_name, profile_slug, first_name, last_name, contact_number, education_level, education_field, bio")
       .maybeSingle(),
     supabase.rpc("is_admin"),
     supabase.rpc("is_editor"),
@@ -34,6 +36,7 @@ export const getAccount = cache(async (): Promise<Account> => {
     id: claims?.claims.sub ?? "",
     email: typeof claims?.claims.email === "string" ? claims.claims.email : "",
     displayName: settings?.display_name ?? "",
+    profileSlug: settings?.profile_slug ?? "",
     profile: {
       firstName: settings?.first_name ?? "",
       lastName: settings?.last_name ?? "",

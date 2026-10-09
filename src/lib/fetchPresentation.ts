@@ -17,8 +17,9 @@ export async function fetchPresentation(id: string): Promise<{
   isMine: boolean;
   // The owner's account, for the link to their profile.
   ownerId: string;
-  // The owner and reviewers whose profile pages this user may open (not a hidden admin's): only these names are links.
-  visibleProfileIds: string[];
+  // Profile link names by account id, for the owner and reviewers whose profile this user may open (not a hidden
+  // admin's, not someone without a display name): only these names are links.
+  profileSlugs: Record<string, string>;
   publisherName: string;
   isSaved: boolean;
   review: ReviewStatus;
@@ -38,7 +39,7 @@ export async function fetchPresentation(id: string): Promise<{
 
   const { presentation, ownerId } = result;
   const isMine = ownerId === claims?.claims.sub;
-  const [publisherNames, visibleProfiles] = await Promise.all([
+  const [publisherNames, profileSlugs] = await Promise.all([
     isMine ? new Map<string, string>() : loadPublisherNames(supabase, [ownerId]),
     loadVisibleProfiles(supabase, [ownerId, ...reviewers.map((reviewer) => reviewer.reviewerId)]),
   ]);
@@ -47,7 +48,7 @@ export async function fetchPresentation(id: string): Promise<{
     presentation,
     isMine,
     ownerId,
-    visibleProfileIds: [...visibleProfiles],
+    profileSlugs: Object.fromEntries(profileSlugs),
     publisherName,
     isSaved: saved !== null,
     review,

@@ -22,8 +22,13 @@ export default async function AccountPage() {
         <header className="mb-6">
           <h1 className="text-2xl font-extrabold text-text-primary">Account settings</h1>
           <p className="mt-1 text-sm text-text-secondary">Your name, details and password.</p>
-          {/* Teachers can't open an admin's profile, so admins get no link to share. */}
-          {!account.isAdmin && <ProfileLinks href={profileHref(account.id)} />}
+          {/* Teachers can't open an admin's profile, so admins get no link to share. The link comes from the display name. */}
+          {!account.isAdmin &&
+            (account.profileSlug ? (
+              <ProfileLinks href={profileHref(account.profileSlug)} />
+            ) : (
+              <p className="mt-3 text-sm text-text-secondary">Add a display name to get a profile link.</p>
+            ))}
         </header>
 
         <div className="flex flex-col gap-5">

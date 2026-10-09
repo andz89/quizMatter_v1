@@ -6,13 +6,13 @@ import { educationLine, loadTeacherProfile } from "@/lib/profiles";
 import { createClient } from "@/lib/supabase/server";
 
 /**
- * A teacher's profile: display name, full name, educational background and bio. Any logged-in user can open it with
- * the link (the proxy sends logged-out people to log in first). Never the contact number or email: see
- * loadTeacherProfile.
+ * A teacher's profile, at /teachers/<link name> (made from their display name): display name, full name, educational
+ * background and bio. Any logged-in user can open it with the link (the proxy sends logged-out people to log in
+ * first). Never the contact number or email: see loadTeacherProfile.
  */
-export default async function TeacherProfilePage({ params }: PageProps<"/teachers/[id]">) {
-  const { id } = await params;
-  const profile = await loadTeacherProfile(await createClient(), id);
+export default async function TeacherProfilePage({ params }: PageProps<"/teachers/[slug]">) {
+  const { slug } = await params;
+  const profile = await loadTeacherProfile(await createClient(), slug);
   if (!profile) notFound();
 
   const fullName = `${profile.firstName} ${profile.lastName}`.trim();

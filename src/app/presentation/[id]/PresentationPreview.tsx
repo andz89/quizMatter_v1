@@ -34,7 +34,7 @@ export function PresentationPreview({
   presentation,
   isMine,
   ownerId,
-  visibleProfileIds,
+  profileSlugs,
   publisherName,
   isSaved: savedAtStart,
   review,
@@ -43,7 +43,7 @@ export function PresentationPreview({
   presentation: Presentation;
   isMine: boolean;
   ownerId: string;
-  visibleProfileIds: string[];
+  profileSlugs: Record<string, string>;
   publisherName: string;
   isSaved: boolean;
   review: ReviewStatus;
@@ -277,11 +277,11 @@ export function PresentationPreview({
               ),
             )}
             {!presentation.fromAdmin && publisherName && (
-              <p>Publisher: <ProfileName id={ownerId} name={publisherName} visibleIds={visibleProfileIds} /></p>
+              <p>Publisher: <ProfileName id={ownerId} name={publisherName} slugs={profileSlugs} /></p>
             )}
             {reviewers.map((reviewer) => (
               <p key={`${reviewer.email}-${reviewer.reviewedOn}`}>
-                Reviewer: <ProfileName id={reviewer.reviewerId} name={reviewer.name} visibleIds={visibleProfileIds} /> ·{" "}
+                Reviewer: <ProfileName id={reviewer.reviewerId} name={reviewer.name} slugs={profileSlugs} /> ·{" "}
                 {reviewer.email} · {formatDay(reviewer.reviewedOn)}
               </p>
             ))}
@@ -336,11 +336,12 @@ export function PresentationPreview({
 const secondaryButtonClass =
   "rounded-button border border-border-default bg-bg-surface px-4 py-2 text-sm font-semibold text-text-primary transition-colors hover:border-text-secondary disabled:opacity-60";
 
-/** A publisher's or reviewer's name: a link to their profile, or plain text when it's hidden (an admin's). */
-function ProfileName({ id, name, visibleIds }: { id: string; name: string; visibleIds: string[] }) {
-  if (!visibleIds.includes(id)) return <span className="font-semibold text-text-primary">{name}</span>;
+/** A publisher's or reviewer's name: a link to their profile, or plain text when it has none (a hidden admin's). */
+function ProfileName({ id, name, slugs }: { id: string; name: string; slugs: Record<string, string> }) {
+  const slug = slugs[id];
+  if (!slug) return <span className="font-semibold text-text-primary">{name}</span>;
   return (
-    <Link href={profileHref(id)} className="font-semibold text-accent hover:underline">
+    <Link href={profileHref(slug)} className="font-semibold text-accent hover:underline">
       {name}
       <LinkPending />
     </Link>
