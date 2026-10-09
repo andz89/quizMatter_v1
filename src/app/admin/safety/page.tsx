@@ -1,10 +1,20 @@
-import type { ReactNode } from "react";
+import { Children, type ReactNode } from "react";
 import { notFound } from "next/navigation";
 import { ChevronDownIcon, ShieldIcon } from "lucide-react";
 import { getAccount } from "@/lib/account";
 import { BLOCKED_EMAIL_DOMAINS } from "@/lib/blockedEmailDomains";
 import { LOGIN_LIMIT, SIGN_UP_LIMIT, SIGN_UPS_PER_ADDRESS, type BrowserLimit } from "@/lib/browserLimits";
 import { KEEP_UNCONFIRMED_DAYS } from "@/lib/cleanupAccounts";
+import {
+  CONTACT_NUMBER_MAX_LENGTH,
+  DISPLAY_NAME_MAX_LENGTH,
+  EDUCATION_FIELD_MAX_LENGTH,
+  EDUCATION_LEVEL_LABELS,
+  EDUCATION_LEVELS,
+  NAME_MAX_LENGTH,
+  PASSWORD_MAX_LENGTH,
+  PASSWORD_MIN_LENGTH,
+} from "@/lib/userSettings";
 import { MAX_PHOTO_FILE_BYTES, MAX_STORED_PHOTO_BYTES } from "@/lib/constants";
 import { PHOTO_TICKET_LIFETIME_MS } from "@/lib/photoTickets";
 import { REFUSALS } from "@/lib/presentations";
@@ -407,6 +417,63 @@ export default async function AdminSafetyPage() {
             scenario: "A script hammers the login page from one address. After 30 tries in 5 minutes, Supabase refuses it until the 5 minutes are over.",
           }}
         />
+        <Item
+          name="Password rules"
+          where="App + Supabase"
+          rule={`A password needs ${PASSWORD_MIN_LENGTH} to ${PASSWORD_MAX_LENGTH} characters and must be typed twice the same way, on sign up and on the Account page. Supabase checks its own minimum too (Authentication → Sign In / Providers → Email)`}
+          sees={`“Use at least ${PASSWORD_MIN_LENGTH} characters for your password.” or “The two passwords don't match.”`}
+          more={{
+            what: [
+              `Short passwords are easy to guess, so the app asks for at least ${PASSWORD_MIN_LENGTH} characters. Typing it twice catches typos, so a teacher doesn't lock themselves out with a password they never meant.`,
+              "Supabase, which keeps the passwords, refuses short ones too, so someone who skips the app still can't set a weak one (as long as its minimum in the dashboard is set to the same number).",
+            ],
+            example: `Ben types “cat123” and sees “Use at least ${PASSWORD_MIN_LENGTH} characters for your password.” He picks a longer one, types it twice, and signs up.`,
+            scenario: "Someone tries to guess a teacher's password from a list of common short ones. None of them is long enough to be anyone's password here.",
+          }}
+        />
+        <Item
+          name="Sign up details checked"
+          where="App + database"
+          rule={`First and last name up to ${NAME_MAX_LENGTH} characters each, display name up to ${DISPLAY_NAME_MAX_LENGTH}, contact number 7–${CONTACT_NUMBER_MAX_LENGTH} characters (digits, spaces and + - ( ) only, at least 7 digits), educational background from the list (${EDUCATION_LEVELS.map((level) => EDUCATION_LEVEL_LABELS[level]).join(", ")}) and field or major up to ${EDUCATION_FIELD_MAX_LENGTH}. All required`}
+          sees="A plain message under the form, e.g. “Enter a contact number with at least 7 digits.”"
+          more={{
+            what: [
+              "The sign up form and the Account page check every detail with zod before anything is sent (src/lib/userSettings.ts).",
+              "The database checks the same limits again (the user_settings columns), so details sent straight to Supabase, skipping the app, can't be too long or have a made-up education level: that sign up simply fails.",
+            ],
+            example: "Ana types her contact number as “0917-123-4567”. It has 11 digits and only dashes, so it's accepted.",
+            scenario: "A script sends a sign up with a 10,000-letter “name” to fill the database with junk. The database refuses it, and no account is made.",
+          }}
+        />
+        <Item
+          name="Emails really from QuizMatter"
+          where="Cloudflare DNS + Resend"
+          rule="Sign up emails are sent by Resend as no-reply@quizmatter.com. The SPF, DKIM and DMARC records for quizmatter.com in Cloudflare (DNS → Records) prove they really come from QuizMatter. Set up outside the code"
+          sees="Emails from “QuizMatter <no-reply@quizmatter.com>” that land in the inbox, not in spam."
+          more={{
+            what: [
+              "Anyone can write “QuizMatter” as the sender of an email. Three DNS records (small lines in quizmatter.com's settings) let inboxes check it: SPF says which servers may send for quizmatter.com, DKIM signs every email, and DMARC tells inboxes what to do with emails that fail those checks.",
+              "Resend (the email service) and Supabase's SMTP Settings send the emails; the records live in Cloudflare. If they're removed, emails start landing in spam.",
+            ],
+            example: "Ana signs up with her Gmail. Gmail checks the signature, sees the email really came from quizmatter.com, and puts it in her inbox.",
+            scenario: "Someone sends teachers a fake “Confirm your QuizMatter account” email from their own server, with a link to a fake login page. It fails the checks, so inboxes mark it as suspicious or put it in spam.",
+          }}
+        />
+        <Item
+          name="Supabase login settings"
+          where="Supabase dashboard"
+          rule="Anonymous sign-ins and manual linking are off; links in emails only go back to quizmatter.com (Authentication → URL Configuration: Site URL and Redirect URLs); changing an account's email needs a confirmation from both the old and the new address (Secure email change). Set in the dashboard, not in the code"
+          sees="Nothing; it just keeps every account tied to a real, confirmed email."
+          more={{
+            what: [
+              "Anonymous sign-ins would let anyone in without an email at all, so they're off.",
+              "The links in Supabase's emails can only lead back to quizmatter.com (and localhost while testing), never to another site.",
+              "To change the email of an account, both the old and the new address must confirm it, so someone who gets into an account for a moment can't quietly take it over.",
+            ],
+            example: "Ben clicks “Confirm my email” in his sign up email. It opens quizmatter.com/auth/confirm, which logs him in.",
+            scenario: "Someone edits a QuizMatter email link to send teachers to their own fake site after confirming. Supabase only follows links to the allowed addresses, so it refuses.",
+          }}
+        />
       </Group>
 
       <Group title="Outside the app">
@@ -727,14 +794,19 @@ function Stat({ label, value, note }: { label: string; value: number; note: stri
   );
 }
 
+/** A group of protections that opens and closes on a click (closed at first, so the page is easy to scan). */
 function Group({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <section className="flex flex-col gap-2">
-      <h2 className="text-[11px] font-bold tracking-[0.05em] text-text-header uppercase">{title}</h2>
-      <div className="flex flex-col divide-y divide-border-default rounded-card border border-border-default bg-bg-surface">
+    <details className="group/section flex flex-col gap-2">
+      <summary className="flex w-fit cursor-pointer list-none items-center gap-2 text-[11px] font-bold tracking-[0.05em] text-text-header uppercase hover:text-text-secondary [&::-webkit-details-marker]:hidden">
+        <ChevronDownIcon size={14} className="-rotate-90 transition-transform group-open/section:rotate-0" />
+        <h2>{title}</h2>
+        <span className="rounded-dropdown bg-bg-page px-2 py-0.5 tracking-normal normal-case">{Children.toArray(children).length}</span>
+      </summary>
+      <div className="mt-2 flex flex-col divide-y divide-border-default rounded-card border border-border-default bg-bg-surface">
         {children}
       </div>
-    </section>
+    </details>
   );
 }
 
