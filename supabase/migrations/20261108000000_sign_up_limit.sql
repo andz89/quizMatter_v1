@@ -13,11 +13,16 @@ create table public.sign_up_attempts (
 );
 create index sign_up_attempts_ip_created_at on public.sign_up_attempts (ip, created_at);
 
--- Only Supabase Auth (and the secret key) may read or write it.
+-- Only Supabase Auth (and the secret key) may read or write it. Row level security applies to supabase_auth_admin
+-- too, so it needs its own policies (the secret key skips row level security).
 alter table public.sign_up_attempts enable row level security;
 revoke all on public.sign_up_attempts from anon, authenticated, public;
 grant usage on schema public to supabase_auth_admin;
 grant select, insert on public.sign_up_attempts to supabase_auth_admin;
+create policy "Auth reads sign up attempts" on public.sign_up_attempts
+  for select to supabase_auth_admin using (true);
+create policy "Auth adds sign up attempts" on public.sign_up_attempts
+  for insert to supabase_auth_admin with check (true);
 
 -- No security definer: Supabase advises running hooks as supabase_auth_admin with only the rights granted above.
 create function public.hook_before_user_created(event jsonb)
@@ -26,9 +31,14 @@ language plpgsql
 set search_path = ''
 as $$
 declare
-  client_ip inet := nullif(event -> 'metadata' ->> 'ip_address', '')::inet;
+  client_ip inet;
 begin
-  -- No address (shouldn't happen): allow, rather than block everyone.
+  -- No address, or one Postgres can't read (shouldn't happen): allow, rather than block everyone.
+  begin
+    client_ip := nullif(event -> 'metadata' ->> 'ip_address', '')::inet;
+  exception when others then
+    client_ip := null;
+  end;
   if client_ip is null then
     return '{}'::jsonb;
   end if;

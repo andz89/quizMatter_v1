@@ -341,7 +341,7 @@ export default async function AdminSafetyPage() {
           sees="“Too many accounts were made from this internet connection. Please try again in an hour.”"
           more={{
             what: [
-              "Just before Supabase makes a new account, it asks the database (the hook_before_user_created function), which writes down the internet address and counts how many accounts it made in the last hour.",
+              "Just before Supabase makes a new account, it asks the database (the hook_before_user_created function), which writes down the internet address and counts how many sign ups came from it in the last hour.",
               "Supabase runs it itself, so clearing the browser, another browser or a script can't skip it. Logins aren't counted.",
               `Teachers on the same Wi-Fi share one internet address, so a school shares ${SIGN_UPS_PER_ADDRESS} an hour. A bigger group signing up together has to spread it over more than an hour.`,
             ],
@@ -382,7 +382,7 @@ export default async function AdminSafetyPage() {
         <Item
           name="Unconfirmed accounts deleted"
           where="Cloudflare timer"
-          rule={`Every day at 4:00 AM (UTC), accounts whose email wasn't confirmed within ${KEEP_UNCONFIRMED_DAYS} days are deleted (src/lib/cleanupAccounts.ts)`}
+          rule={`Every day at 4:00 AM (UTC), accounts whose email wasn't confirmed within ${KEEP_UNCONFIRMED_DAYS} days are deleted (src/lib/cleanupAccounts.ts). Accounts an admin invited from the Supabase dashboard are kept; one added there by hand must have “Auto Confirm User” ticked`}
           sees="Nothing. A teacher whose link expired can simply sign up again."
           more={{
             what: [
@@ -702,7 +702,6 @@ function timeSpan(seconds: number): string {
   return seconds % 60 === 0 ? duration(seconds / 60) : `${seconds} seconds`;
 }
 
-/** 10 → "10 minutes", 60 → "1 hour", 120 → "2 hours". */
 /** "3 sign ups within 1 hour lock the page on that browser for 1 hour; if it happens again within 24 hours, for 24 hours." */
 function browserLimitRule(limit: BrowserLimit, what: string): string {
   const minutes = (ms: number) => duration(ms / 60_000);
@@ -711,6 +710,8 @@ function browserLimitRule(limit: BrowserLimit, what: string): string {
     `if it happens again within ${minutes(limit.repeatWithinMs)}, for ${minutes(limit.repeatLockMs)}.`
   );
 }
+
+/** 10 → "10 minutes", 60 → "1 hour", 120 → "2 hours". */
 function duration(minutes: number): string {
   if (minutes % 60 === 0) return minutes === 60 ? "1 hour" : `${minutes / 60} hours`;
   return minutes === 1 ? "1 minute" : `${minutes} minutes`;

@@ -145,6 +145,8 @@ function lockMessage(until: number) {
 function loginErrorMessage(error: AuthError) {
   if (error.code === "user_banned") return "This account is blocked. Contact QuizMatter if you think this is a mistake."; // Admin → Teachers
   if (error.code === "invalid_credentials") return "Wrong email or password.";
+  // Supabase's limit per internet address (Authentication → Rate Limits).
+  if (error.code === "over_request_rate_limit") return "Too many tries. Please wait a few minutes and try again.";
   if (error.code === "email_not_confirmed") return "Please confirm your email first. Check your inbox for the link.";
   if (error.code === "captcha_failed" || /captcha/i.test(error.message)) return "The security check expired. Please try again.";
   if (isAuthRetryableFetchError(error)) return "Couldn't reach the server. Check your internet and try again.";

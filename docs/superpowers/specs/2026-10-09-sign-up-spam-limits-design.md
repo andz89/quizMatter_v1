@@ -30,17 +30,19 @@ The sign up limits never count logins, and the login lock never counts sign ups.
 ### Migration `20261108000000_sign_up_limit.sql`
 
 - Table `public.sign_up_attempts (ip inet not null, created_at timestamptz not null default now())`, index on
-  `(ip, created_at)`. Row level security on, no policies. `grant select, insert, delete` to `supabase_auth_admin`;
-  `revoke all` from `anon, authenticated, public`.
+  `(ip, created_at)`. Row level security on, with a select and an insert policy for `supabase_auth_admin` (row
+  level security applies to it). `grant select, insert` to `supabase_auth_admin`; `revoke all` from
+  `anon, authenticated, public`. The cleanup deletes with the secret key.
 - Function `public.hook_before_user_created(event jsonb) returns jsonb` (plpgsql, `set search_path = ''`):
-  - `ip := nullif(event->'metadata'->>'ip_address', '')::inet`. No address → allow (`'{}'`).
+  - `client_ip := nullif(event->'metadata'->>'ip_address', '')::inet`. No address, or one that isn't a valid
+    address → allow (`'{}'`).
   - Count rows for that `ip` with `created_at > now() - interval '1 hour'`.
   - `>= 10` → return `{"error": {"http_code": 429, "message": "Too many accounts were made from this internet
     connection. Please try again in an hour."}}`. Nothing is inserted, the account isn't made, no email is sent.
   - Otherwise insert a row for `ip` and return `'{}'`.
   - `grant execute` to `supabase_auth_admin`; `revoke execute` from `anon, authenticated, public`.
 - The limit (10) and window (1 hour) are written in the function, with a comment pointing at
-  `SIGN_UPS_PER_ADDRESS` in `src/lib/signUpLimit.ts` (the Safety page shows that constant; keep both the same).
+  `SIGN_UPS_PER_ADDRESS` in `src/lib/browserLimits.ts` (the Safety page shows that constant; keep both the same).
 
 ### Cleanup
 

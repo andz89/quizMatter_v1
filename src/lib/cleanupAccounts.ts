@@ -3,7 +3,8 @@ import { createClient } from "@supabase/supabase-js";
 // The daily account cleanup, run by Cloudflare on a timer (see worker.ts and "triggers" in wrangler.jsonc).
 // It deletes accounts whose email was never confirmed (fake or mistyped sign ups), so they don't pile up.
 // A confirmed account is never touched. An unconfirmed one never logged in, so it has no presentations or photos;
-// its user_settings row goes with it. A teacher whose link expired can simply sign up again.
+// its user_settings row goes with it. A teacher whose link expired can simply sign up again. Accounts an admin
+// invited from the Supabase dashboard are kept, even when not accepted yet.
 // It also empties old rows of sign_up_attempts (the sign up limit per internet address, 20261108000000_sign_up_limit.sql).
 
 type CleanupEnv = {
@@ -29,16 +30,21 @@ export async function cleanupUnconfirmedAccounts(env: CleanupEnv) {
     const { data, error } = await supabase.auth.admin.listUsers({ page, perPage: PAGE_SIZE });
     if (error) throw error;
     for (const user of data.users) {
-      if (!user.email_confirmed_at && Date.parse(user.created_at) < cutoff) ids.push(user.id);
+      if (!user.email_confirmed_at && !user.invited_at && Date.parse(user.created_at) < cutoff) ids.push(user.id);
     }
     if (data.users.length < PAGE_SIZE) break;
   }
 
+  // One account that can't be deleted mustn't stop the others (or the rest of the cleanup), every day.
+  const failed: string[] = [];
   for (const id of ids) {
     const { error } = await supabase.auth.admin.deleteUser(id);
-    if (error) throw error;
+    if (error) {
+      console.error(`Account cleanup: couldn't delete ${id}.`, error);
+      failed.push(id);
+    }
   }
-  console.log(`Account cleanup: deleted ${ids.length} unconfirmed accounts.`, ids);
+  console.log(`Account cleanup: deleted ${ids.length - failed.length} unconfirmed accounts.`, ids);
 
   const { error } = await supabase
     .from("sign_up_attempts")
