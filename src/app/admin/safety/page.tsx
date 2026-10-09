@@ -5,6 +5,9 @@ import { getAccount } from "@/lib/account";
 import { BLOCKED_EMAIL_DOMAINS } from "@/lib/blockedEmailDomains";
 import { LOGIN_LIMIT, SIGN_UP_LIMIT, SIGN_UPS_PER_ADDRESS, type BrowserLimit } from "@/lib/browserLimits";
 import { KEEP_UNCONFIRMED_DAYS } from "@/lib/cleanupAccounts";
+import { KEEP_NEW_FILES_MS } from "@/lib/cleanupPhotos";
+import { DRAFT_LIFETIME_MS } from "@/lib/drafts";
+import { FOLDER_NAME_MAX, MAX_FOLDERS } from "@/lib/folders";
 import {
   CONTACT_NUMBER_MAX_LENGTH,
   DISPLAY_NAME_MAX_LENGTH,
@@ -18,7 +21,7 @@ import {
 import { MAX_PHOTO_FILE_BYTES, MAX_STORED_PHOTO_BYTES } from "@/lib/constants";
 import { PHOTO_TICKET_LIFETIME_MS } from "@/lib/photoTickets";
 import { REFUSALS } from "@/lib/presentations";
-import { MAX_PRESENTATIONS, MAX_SAVED, MAX_SLIDES, PUBLISH_NEEDS_CONTENT, WRITES_PER_MINUTE } from "@/lib/schema";
+import { MAX_PRESENTATIONS, MAX_SAVED, MAX_SLIDES, MAX_TAGS, PUBLISH_NEEDS_CONTENT, WRITES_PER_MINUTE } from "@/lib/schema";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { timeAgo } from "@/lib/format";
 import { ClickTabs } from "./ClickTabs";
@@ -254,6 +257,28 @@ export default async function AdminSafetyPage() {
             scenario: "Someone skips the app and sends a title that is a million letters long by hand. The database refuses it.",
           }}
         />
+        <Item
+          name="Folders per teacher"
+          where="Database + app"
+          rule={`${MAX_FOLDERS} folders at most, each name up to ${FOLDER_NAME_MAX} characters`}
+          sees={`“You have ${MAX_FOLDERS} folders, the most allowed. Delete one to make another.”`}
+          more={{
+            what: [`Each teacher can make up to ${MAX_FOLDERS} folders to sort their presentations. The database counts them, so the limit holds even for requests sent by hand.`],
+            example: `Ana has a folder for each subject and grade, ${MAX_FOLDERS} in all. To add one for a new class, she deletes an old one first.`,
+            scenario: "A script tries to make 100,000 empty folders to fill the database. It stops at the limit.",
+          }}
+        />
+        <Item
+          name="Tags per presentation"
+          where="App + database"
+          rule={`${MAX_TAGS} tags at most on each presentation`}
+          sees={`“Use ${MAX_TAGS} tags at most.”`}
+          more={{
+            what: [`Tags help teachers find presentations on the Home page. A presentation can have up to ${MAX_TAGS}; the app checks it with zod, and the database checks it again.`],
+            example: "Ben tags his quiz “fractions”, “math”, “grade 4”. That's 3, well under the limit.",
+            scenario: "Someone adds hundreds of popular tags to their presentation so it shows up in every search. Only the first few can be saved.",
+          }}
+        />
       </Group>
 
       <Group title="Access">
@@ -297,6 +322,149 @@ export default async function AdminSafetyPage() {
             ],
             example: "An admin asks Claude to add a photo of a volcano. Claude gets a link, uploads the photo with it, and the link stops working right after.",
             scenario: "Someone finds an old upload link in a chat log and tries to upload their own pictures with it. The link was already used, or is too old, so the upload is refused.",
+          }}
+        />
+        <Item
+          name="Admin pages only for admins"
+          where="Server"
+          rule="Every Admin page, and every admin action behind it, first checks that the person is an admin (the admins table). The database functions for admin work check it again"
+          sees="A teacher who types an Admin address sees “not found”, as if the page didn't exist."
+          more={{
+            what: [
+              "The Admin area and each page in it ask the server “is this person an admin?” before showing anything. A teacher gets the “not found” page, so they can't even tell the page exists.",
+              "The buttons on those pages (ban, hide, publish a review, …) call actions that check again, and the database functions behind them check a third time.",
+            ],
+            example: "Ben sees a link to /admin/teachers in a screenshot and types it in. He gets “not found”.",
+            scenario: "Someone sends the “ban teacher” request by hand, without the Admin page. The server and the database both see they're not an admin and refuse.",
+          }}
+        />
+        <Item
+          name="Claude only for admins"
+          where="Server"
+          rule={`Only admins who aren't banned can connect Claude to QuizMatter. A presentation Claude makes is a draft that only that admin can open, and it's deleted after ${duration(DRAFT_LIFETIME_MS / 60_000)} if it isn't saved`}
+          sees="Nothing; teachers don't see Claude. An admin opening an old draft link is told it has expired."
+          more={{
+            what: [
+              "Claude (the AI helper) logs in to QuizMatter with the admin's own account. The server checks on every request that the account is an admin and isn't banned.",
+              `What Claude makes waits as a draft. Only the admin who asked for it can open the draft link, and it's deleted after ${duration(DRAFT_LIFETIME_MS / 60_000)} unless they save it.`,
+            ],
+            example: "An admin asks Claude for a quiz about volcanoes, opens the draft link, checks it and saves it as a presentation.",
+            scenario: "A teacher connects Claude with their own account to make hundreds of presentations. The server sees they're not an admin and refuses every request.",
+          }}
+        />
+        <Item
+          name="Login only returns to QuizMatter pages"
+          where="App"
+          rule="After logging in, the app goes back only to a page on quizmatter.com, never to another site. The sign up email link only opens quizmatter.com/auth/confirm"
+          sees="Nothing; they land back on the page they wanted."
+          more={{
+            what: [
+              "When a logged-out teacher opens a page, the app remembers it and goes back there after login. It only goes back to a page on this site; anything that points elsewhere is replaced with the home page.",
+              "The link in the sign up email works the same way: it always opens QuizMatter's own page, which logs the teacher in.",
+            ],
+            example: "Ana opens a shared presentation link while logged out, logs in, and lands on that presentation.",
+            scenario: "Someone sends teachers a QuizMatter login link that's changed to send them to a fake site afterwards (to steal their password there). The app ignores the other site and opens QuizMatter's home page.",
+          }}
+        />
+      </Group>
+
+      <Group title="Presentation reviews">
+        <Item
+          name="Locked while under review"
+          where="Database"
+          rule="While an editor reviews a presentation (until an admin publishes it or sends it back), nobody can change it or its slides, except hiding it. Only publishing the review changes it"
+          sees={`“${REFUSALS.QMREV}”`}
+          more={{
+            what: [
+              "An editor's changes are kept as a draft, not in the presentation itself. While the review is open, the database refuses every change to the presentation and its slides, from anyone, so the editor and the admin see exactly what they're checking.",
+              "When an admin publishes the review, the draft replaces the presentation. A review whose editor no longer has an account doesn't lock anything, and an admin can cancel any review.",
+            ],
+            example: "An editor is fixing typos in a QuizMatter presentation. Someone with the presentation open tries to save. The save is refused, and they're told it's under review.",
+            scenario: "Someone tries to slip new content into a presentation after it was checked but before it's published. The database refuses the change, so only what was reviewed goes live.",
+          }}
+        />
+        <Item
+          name="Review rules"
+          where="Database"
+          rule="Only editors (teachers an admin trusts) can review, one review at a time per presentation. The reviewer can't change the author, sharing, owner or “from QuizMatter”, and a banned reviewer's work can't be published"
+          sees={`“${REFUSALS.QMRVW}”`}
+          more={{
+            what: [
+              "An admin makes a teacher an editor in Admin → Teachers. Only editors can start a review, and only one review can be open on a presentation at a time.",
+              "All of these rules live in the database functions, which check who is calling, so they hold even if the app is skipped. Taking away the editor role cancels that editor's open review.",
+            ],
+            example: "Two editors open the same presentation. The first starts reviewing; the second is told someone else is reviewing it.",
+            scenario: "An editor tries to use a review to make themselves the author of a popular presentation. The review can't change the author, so the change is never saved.",
+          }}
+        />
+      </Group>
+
+      <Group title="Safe content">
+        <Item
+          name="Text can't carry code"
+          where="App"
+          rule="Text typed on slides is stored as plain words with simple styles only (bold, italic, underline, alignment). Anything else in saved text, like a script or a picture tag, is removed before it's shown"
+          sees="Nothing; their text looks the way they typed it."
+          more={{
+            what: [
+              "Web pages are built from code (HTML), and text that holds code can run in the viewer's browser. So the text editor only keeps the few styles it offers, and saved text is rebuilt through those same rules before it's shown: any other tag simply disappears.",
+            ],
+            example: "Ana types “<b>” into a question as an example for her class. It shows as the letters “<b>”, not as bold text.",
+            scenario: "Someone saves a slide whose text secretly holds a script that would steal the login of every teacher who opens it (called XSS). The script is removed before the slide is shown, so it never runs.",
+          }}
+        />
+        <Item
+          name="Only known sites inside slides"
+          where="App"
+          rule="Videos only from YouTube or Vimeo, slides only from Google Slides or Canva, pictures only from https links or Google Drive. Other links are refused"
+          sees="“Paste a picture link that starts with https://”, or a similar message for videos and slides."
+          more={{
+            what: [
+              "A slide can show a video or another slide deck inside it. The app only accepts links from a few well-known sites, and turns them into that site's own player address, so no other website can be put inside a slide.",
+            ],
+            example: "Ben pastes a YouTube link. The video plays on his slide.",
+            scenario: "Someone pastes a link to a fake login page so it shows inside a slide, hoping other teachers type their password there. The link isn't from a known site, so it's refused.",
+          }}
+        />
+        <Item
+          name="Photo links checked"
+          where="Server + Cloudflare"
+          rule={`Adding a photo from a link: https only, public internet addresses only, JPG, PNG or WebP only, ${megabytes(MAX_PHOTO_FILE_BYTES)} at most, and 10 seconds at most. Only for logged-in teachers`}
+          sees="“This link isn't a JPG, PNG or WebP photo.” or “Couldn't get a photo from this link.”"
+          more={{
+            what: [
+              "When a teacher pastes a photo link, QuizMatter's server downloads it for them. It only goes to public internet addresses (a Cloudflare setting), so it can't be pointed at private networks.",
+              `It stops as soon as the file passes ${megabytes(MAX_PHOTO_FILE_BYTES)} or takes longer than 10 seconds, and only accepts real photo types.`,
+            ],
+            example: "Ana pastes a link to a picture of the solar system. The server fetches it, and it's added like any uploaded photo.",
+            scenario: "Someone pastes the address of a computer inside a company network, hoping QuizMatter's server will fetch private data for them. The server only reaches the public internet, so it fails.",
+          }}
+        />
+        <Item
+          name="Photo uploads checked"
+          where="Server"
+          rule={`Only logged-in teachers can upload, and the server reads the start of each file to make sure it really is a JPG, PNG or WebP photo (not just named like one). ${megabytes(MAX_STORED_PHOTO_BYTES)} at most. Only admins can add photos to the shared library`}
+          sees="“Only photos can be uploaded.”"
+          more={{
+            what: [
+              "Every file type starts with its own few bytes (a kind of signature). The server checks those, so a program renamed to “photo.jpg” is refused.",
+              "Uploads also count toward the save speed limit, and a banned account can't upload.",
+            ],
+            example: "Ben uploads a PNG drawing his class made. The server sees it's a real PNG and saves it.",
+            scenario: "Someone renames a harmful program to “cat.jpg” and uploads it, hoping others download it. The server sees it isn't a photo and refuses it.",
+          }}
+        />
+        <Item
+          name="Newer work is never overwritten"
+          where="Database"
+          rule="A save from an older copy of a presentation (another tab or device that wasn't reloaded) is refused, so it can't wipe out newer changes"
+          sees={`“${REFUSALS.QM409}”`}
+          more={{
+            what: [
+              "Each saved presentation remembers when it was last saved. A save that starts from an older copy is refused, and the teacher is asked to reload to get the newest one.",
+            ],
+            example: "Ana edits a quiz on her laptop, then on her phone. Back on the laptop, its old tab tries to save. She's asked to reload, and her phone's changes are kept.",
+            scenario: "Two tabs keep saving over each other and a teacher loses an hour of work. The older save is refused instead.",
           }}
         />
       </Group>
@@ -489,6 +657,20 @@ export default async function AdminSafetyPage() {
             ],
             example: "A whole school uses QuizMatter on the same Wi-Fi, so they all share one IP address. If the limit is set too low, a busy class could see “Error 1015” for a short time, so the limit has to leave room for that.",
             scenario: "Someone floods the app with millions of requests to make it crash (a “DDoS” attack). Cloudflare blocks the flood at the door, and teachers can keep working.",
+          }}
+        />
+        <Item
+          name="Weekly photo cleanup"
+          where="Cloudflare timer"
+          rule={`Every Sunday at 3:00 AM (UTC), photo files that nothing uses anymore (no “My photos” list, shared photo, slide or review draft) are deleted. Files newer than ${duration(KEEP_NEW_FILES_MS / 60_000)} are kept. Admin → Photo cleanup shows what will go`}
+          sees="Nothing; photos still in use are never touched."
+          more={{
+            what: [
+              "Photos live in Cloudflare's storage. Once a week the app lists every photo file and deletes the ones nothing points to anymore, so unused files don't pile up.",
+              `New files are always kept for ${duration(KEEP_NEW_FILES_MS / 60_000)}, because a teacher may have put one on a slide they haven't saved yet. Photos in review drafts count as used.`,
+            ],
+            example: "Ben uploads 10 photos, uses 3, and deletes the other 7 from “My photos”. A week later, the 7 unused files are gone from storage.",
+            scenario: "Someone uploads photos and deletes them again, over and over, to fill QuizMatter's storage. The files are deleted in the next cleanup.",
           }}
         />
       </Group>
