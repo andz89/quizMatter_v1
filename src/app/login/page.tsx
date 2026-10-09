@@ -10,6 +10,7 @@ import { LoginAbout } from "@/components/LoginAbout";
 import { Spinner } from "@/components/Spinner";
 import { TopLoadingBar } from "@/components/TopLoadingBar";
 import { Turnstile, type TurnstileStatus } from "@/components/Turnstile";
+import { clearTries, lockedUntil, LOGIN_LIMIT, recordTry, tryAgainAfter } from "@/lib/browserLimits";
 import { createClient } from "@/lib/supabase/client";
 
 // Teachers sign up on /signup; admins can still add them by hand in the Supabase dashboard (Authentication → Users).
@@ -44,16 +45,23 @@ export default function LoginPage({ searchParams }: PageProps<"/login">) {
   const logIn = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!captchaToken) return;
+    // Too many wrong tries on this browser lately (src/lib/browserLimits.ts). Checked before sending, so the
+    // "are you human?" pass isn't used up.
+    const until = lockedUntil(LOGIN_LIMIT);
+    if (until) return setError(lockMessage(until));
     setIsLoggingIn(true);
     setError(null);
     const { error } = await createClient().auth.signInWithPassword({ email, password, options: { captchaToken } });
     if (error) {
-      setError(loginErrorMessage(error));
+      // Only a wrong email or password counts; the try that starts a lock says so at once.
+      const lockedTill = error.code === "invalid_credentials" ? recordTry(LOGIN_LIMIT) : null;
+      setError(lockedTill ? lockMessage(lockedTill) : loginErrorMessage(error));
       setIsLoggingIn(false);
       setCaptchaToken(null);
       setCaptchaRound((round) => round + 1);
       return;
     }
+    clearTries(LOGIN_LIMIT);
     router.push(nextPath());
     router.refresh();
   };
@@ -127,6 +135,10 @@ export default function LoginPage({ searchParams }: PageProps<"/login">) {
       {isLoggingIn && <TopLoadingBar />}
     </main>
   );
+}
+
+function lockMessage(until: number) {
+  return `Too many wrong tries on this browser. Please try again after ${tryAgainAfter(until)}.`;
 }
 
 // Plain-English words for what went wrong.
