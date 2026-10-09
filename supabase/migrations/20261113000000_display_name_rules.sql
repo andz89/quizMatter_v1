@@ -227,12 +227,13 @@ as $$
 begin
   if (select auth.uid()) = coalesce(new.user_id, old.user_id)
     and coalesce(current_setting('qm.set_display_name', true), '') <> 'on'
-    and case tg_op
+    -- In brackets: a bare "then" inside the case would end the if's condition early.
+    and (case tg_op
       when 'DELETE' then true
       when 'INSERT' then new.display_name <> '' or new.display_name_changed_at is not null
       else new.display_name is distinct from old.display_name
         or new.display_name_changed_at is distinct from old.display_name_changed_at
-    end
+    end)
   then
     raise exception 'Change your display name on the Account page.' using errcode = '42501';
   end if;
