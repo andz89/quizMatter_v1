@@ -24,8 +24,8 @@ export type PresentationCardData = {
   // "checking" = a draft Claude is still checking (not openable yet); "unfinished" = Claude didn't send its final version.
   // "hidden" = an admin hid it (Admin → Reports), so other teachers can't see it.
   badge?: "draft" | "published" | "hidden" | "checking" | "unfinished";
-  // "By <author> · Published by <name>" on other teachers' presentations (parts not filled in are left out).
-  byline?: string;
+  // "Author: …", "Publisher: …", "Reviewer: …" rows on other people's and QuizMatter's presentations (see creditLines).
+  credits?: string[];
   // Adds "Move to QuizMatter" to the card's menu (an admin's own saved presentations only).
   canMoveToQuizMatter?: boolean;
   // Adds the bookmark button (someone else's presentation): `isSaved` = it's in my "Saved" row.
@@ -107,11 +107,11 @@ export function PresentationCard({
         >
           {card.title}
         </p>
-        {card.byline && (
-          <p className="truncate text-xs font-semibold text-text-secondary">
-            {card.byline}
+        {card.credits?.map((line) => (
+          <p key={line} className="truncate text-xs font-semibold text-text-secondary">
+            {line}
           </p>
-        )}
+        ))}
         <p title={card.metaTitle} className="truncate text-xs text-text-secondary">{card.meta}</p>
       </div>
     </div>

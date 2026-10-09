@@ -4,7 +4,7 @@ import { getAccount } from "@/lib/account";
 import { createClient } from "@/lib/supabase/server";
 import { listDrafts, type DraftSummary } from "@/lib/drafts";
 import { loadPublisherNames } from "@/lib/publishers";
-import { joinParts, publishedByLine, slideCountLabel, timeAgo } from "@/lib/format";
+import { creditLines, joinParts, slideCountLabel, timeAgo } from "@/lib/format";
 import { GRADES, OTHER_CHOICE, SUBJECTS, gradesLabel, gradesTitle, isOtherGrade, isOtherSubject, parseSlide } from "@/lib/schema";
 import { contains } from "@/lib/search";
 import { NewPresentationButton } from "./PresentationListButtons";
@@ -24,10 +24,10 @@ const SAVED_LIMIT = 20;
 const SEARCH_LIMIT = 50;
 
 // Each presentation's first slide only (for the card's picture), not all of them, to keep the page light.
-// reviewers: who is in its "Reviewed by" list, for the check on its card (everyone sees it). Only reviewer_id:
-// teachers may read just some of that table's columns (see 20261023000000_hide_review_approver.sql).
+// reviewers: who is in its "Reviewed by" list, for the check and the Reviewer row on its card (everyone sees them).
+// Only reviewer_id and name: teachers may read just some of that table's columns (see 20261023000000_hide_review_approver.sql).
 const CARD_COLUMNS =
-  "id, owner_id, title, grades, subject, author, is_published, from_admin, hidden_at, created_at, updated_at, slides(count), first_slide:slides(data, position), reviewers:presentation_reviewers(reviewer_id)";
+  "id, owner_id, title, grades, subject, author, is_published, from_admin, hidden_at, created_at, updated_at, slides(count), first_slide:slides(data, position), reviewers:presentation_reviewers(reviewer_id, name)";
 
 export default async function HomePage({ searchParams }: PageProps<"/">) {
   // Banned (Admin → Teachers): the home page only says so, until Supabase's ban ends their login (see proxy.ts).
@@ -264,7 +264,7 @@ type CardPresentation = {
   updated_at: string;
   slides: { count: number }[];
   first_slide: { data: unknown }[];
-  reviewers: { reviewer_id: string }[];
+  reviewers: { reviewer_id: string; name: string }[];
 };
 
 // "saved": my saved row for it (only mine come back), for sorting by when I saved it.
@@ -327,6 +327,12 @@ function buildCards(
   // in "From QuizMatter" too, but the database doesn't let anyone save their own.
   const toSavableCard = (presentation: CardPresentation) => ({
     ...toCard(presentation, `/presentation/${presentation.id}`, now),
+    credits: creditLines({
+      author: presentation.author,
+      fromAdmin: presentation.from_admin,
+      publisherName: publisherNames.get(presentation.owner_id),
+      reviewerNames: presentation.reviewers.map((reviewer) => reviewer.name),
+    }),
     canSave: presentation.owner_id !== myId,
     isSaved: mySavedIds.has(presentation.id),
     isReviewedByMe: presentation.reviewers.some((reviewer) => reviewer.reviewer_id === myId),
@@ -338,18 +344,12 @@ function buildCards(
     updatedAt: Date.parse(presentation.updated_at),
   }));
 
-  const otherCards = others.map((presentation) => ({
-    ...toSavableCard(presentation),
-    byline: publishedByLine(presentation.author, publisherNames.get(presentation.owner_id)),
-  }));
+  const otherCards = others.map(toSavableCard);
 
   const savedTime = (presentation: SavedPresentation) => Date.parse(presentation.saved?.[0]?.saved_at ?? "");
   // While searching, the search's own Sort decides the order.
   const savedInOrder = homeSearchQuery(search) === "" ? [...saved].sort((a, b) => savedTime(b) - savedTime(a)) : saved;
-  const savedCards = savedInOrder.map((presentation) => ({
-    ...toSavableCard(presentation),
-    byline: presentation.from_admin ? "From QuizMatter" : publishedByLine(presentation.author, publisherNames.get(presentation.owner_id)),
-  }));
+  const savedCards = savedInOrder.map(toSavableCard);
 
   const reviewedCards = reviewed.map(toSavableCard);
 

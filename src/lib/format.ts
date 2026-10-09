@@ -1,3 +1,5 @@
+import { QUIZMATTER_NAME } from "./schema";
+
 /** "Grade 4 · Mathematics", skipping the parts that aren't filled in. */
 export function joinParts(parts: (string | false | null | undefined)[]): string {
   return parts.filter(Boolean).join(" · ");
@@ -25,9 +27,28 @@ export function formatDay(isoDate: string): string {
   return new Date(`${isoDate}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
-/** "By Ms. Cruz · Published by andz": who wrote it (the Author detail) and whose account shared it. */
-export function publishedByLine(author: string, publisherName: string | undefined): string {
-  return joinParts([author && `By ${author}`, publisherName && `Published by ${publisherName}`]);
+/**
+ * The rows under a presentation's title: "Author: Ms. Cruz", "Publisher: andz", "Reviewer: Ana, Ben" (rows not
+ * filled in are left out). Author = who wrote it (the Author detail), Publisher = whose account shared it, or
+ * QuizMatter for a QuizMatter presentation, Reviewer = its "Reviewed by" list.
+ */
+export function creditLines({
+  author,
+  fromAdmin,
+  publisherName,
+  reviewerNames = [],
+}: {
+  author: string;
+  fromAdmin: boolean;
+  publisherName: string | undefined;
+  reviewerNames?: string[];
+}): string[] {
+  const publisher = fromAdmin ? QUIZMATTER_NAME : publisherName;
+  return [
+    author && `Author: ${author}`,
+    publisher && `Publisher: ${publisher}`,
+    reviewerNames.length > 0 && `Reviewer: ${reviewerNames.join(", ")}`,
+  ].filter((line): line is string => Boolean(line));
 }
 
 /** A day in UTC, like the photo cleanup's timer, e.g. "Sun, Oct 4". */

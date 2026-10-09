@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { BookmarkIcon, ChevronLeftIcon, ChevronRightIcon, ClipboardCheckIcon, EyeIcon } from "lucide-react";
 import { CANVAS_WIDTH, CANVAS_HEIGHT, getSlideNumbers } from "@/lib/constants";
 import { createId } from "@/lib/id";
-import { formatDay, joinParts, publishedByLine, slideCountLabel } from "@/lib/format";
+import { creditLines, formatDay, joinParts, slideCountLabel } from "@/lib/format";
 import { SaveRefusedError, saveErrorMessage, savePresentationToDb } from "@/lib/presentations";
 import { startReview } from "@/lib/reviews";
 import { loadReviewStatus, type Reviewer, type ReviewStatus } from "@/lib/reviewStatus";
@@ -261,14 +261,20 @@ export function PresentationPreview({
         <header className="mt-6 mb-6">
           <h1 className="text-base font-extrabold text-text-primary">{presentation.title || "Untitled presentation"}</h1>
           <p title={gradesTitle(presentation.grades)} className="mt-0.5 text-sm text-text-secondary">
-            {joinParts([publishedByLine(presentation.author, publisherName), gradesLabel(presentation.grades), presentation.subject, slideCountLabel(slideCount)])}
+            {joinParts([gradesLabel(presentation.grades), presentation.subject, slideCountLabel(slideCount)])}
           </p>
-          {reviewers.map((reviewer) => (
-            <p key={`${reviewer.email}-${reviewer.reviewedOn}`} className="mt-2 text-sm text-text-secondary">
-              Reviewed by <span className="font-semibold text-text-primary">{reviewer.name}</span> · {reviewer.email} ·{" "}
-              {formatDay(reviewer.reviewedOn)}
-            </p>
-          ))}
+          {/* Author and Publisher rows; each reviewer gets their own row below, with their email and date. */}
+          <div className="mt-2 flex flex-col gap-0.5 text-sm text-text-secondary">
+            {creditLines({ author: presentation.author, fromAdmin: presentation.fromAdmin, publisherName }).map((line) => (
+              <p key={line}>{line}</p>
+            ))}
+            {reviewers.map((reviewer) => (
+              <p key={`${reviewer.email}-${reviewer.reviewedOn}`}>
+                Reviewer: <span className="font-semibold text-text-primary">{reviewer.name}</span> · {reviewer.email} ·{" "}
+                {formatDay(reviewer.reviewedOn)}
+              </p>
+            ))}
+          </div>
         </header>
 
         {(details.length > 0 || presentation.tags.length > 0 || presentation.referenceLinks.length > 0) && (

@@ -104,10 +104,10 @@ export function PresentationHome({
       else next.delete(card.id);
       return next;
     });
-    // Newest saved first, like page.tsx. Only "From QuizMatter" cards have no byline; the Saved row says where from.
+    // Newest saved first, like page.tsx.
     setSaved((cards) =>
       isSaved
-        ? [{ ...card, byline: card.byline ?? "From QuizMatter" }, ...cards.filter((saved) => saved.id !== card.id)]
+        ? [card, ...cards.filter((saved) => saved.id !== card.id)]
         : cards.filter((saved) => saved.id !== card.id)
     );
   };

@@ -5,7 +5,7 @@ import { LinkPending } from "@/components/LinkPending";
 import { getAccount } from "@/lib/account";
 import { listDrafts, type DraftSummary } from "@/lib/drafts";
 import { joinParts, timeAgo } from "@/lib/format";
-import { gradesLabel, gradesTitle, parseSlide } from "@/lib/schema";
+import { QUIZMATTER_NAME, gradesLabel, gradesTitle, parseSlide } from "@/lib/schema";
 import { createClient } from "@/lib/supabase/server";
 import { NewPresentationButton } from "../../PresentationListButtons";
 import { AdminPresentations, type AdminPresentationRow } from "./AdminPresentations";
@@ -68,7 +68,7 @@ export default async function AdminPresentationsPage() {
           Under review{openReviews > 0 && ` (${openReviews})`}
           <LinkPending />
         </Link>
-        <NewPresentationButton author={account.displayName} fromAdmin />
+        <NewPresentationButton author={QUIZMATTER_NAME} fromAdmin />
       </div>
 
       <AdminPresentations rows={buildRows(data, drafts, reviewById, reviewersById)} />

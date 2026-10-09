@@ -5,6 +5,7 @@ import { NavBar, navLinkClass } from "@/components/NavBar";
 import { createBlankPresentation } from "@/lib/factories";
 import { getDraft } from "@/lib/drafts";
 import { getAccount } from "@/lib/account";
+import { QUIZMATTER_NAME } from "@/lib/schema";
 import { createClient } from "@/lib/supabase/server";
 import { PresentationEditor } from "../[id]/edit/PresentationEditor";
 
@@ -51,6 +52,12 @@ export default async function NewPresentationFromClaudePage({ searchParams }: Pa
     );
   }
 
-  const presentation = { ...createBlankPresentation(draft.details), id: draftId, fromAdmin: isAdmin };
+  // An admin's becomes a QuizMatter presentation, whose Author is always "QuizMatter".
+  const presentation = {
+    ...createBlankPresentation(draft.details),
+    id: draftId,
+    fromAdmin: isAdmin,
+    ...(isAdmin && { author: QUIZMATTER_NAME }),
+  };
   return <PresentationEditor presentation={presentation} draft={{ slides: draft.slides }} />;
 }

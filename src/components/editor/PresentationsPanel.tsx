@@ -5,7 +5,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { useEditorStore, isPanelEscape } from "@/lib/store";
 import { createClient } from "@/lib/supabase/client";
 import { CANVAS_WIDTH, CANVAS_HEIGHT, SLIDE_DRAG_MIME, getSlideNumbers } from "@/lib/constants";
-import { joinParts, publishedByLine, slideCountLabel } from "@/lib/format";
+import { creditLines, joinParts, slideCountLabel } from "@/lib/format";
 import { loadPublisherNames } from "@/lib/publishers";
 import { MAX_SLIDES, TOO_MANY_SLIDES_MESSAGE, gradesLabel, gradesTitle, parseSlide, type Slide } from "@/lib/schema";
 import { Spinner } from "@/components/Spinner";
@@ -18,14 +18,18 @@ const PRESENTATION_LIMIT = 50;
 // Width of the slide picture that follows the pointer while dragging.
 const DRAG_IMAGE_WIDTH = 180;
 
-// Each presentation's first slide only (for its picture), not all of them, to keep the panel light.
-const SUMMARY_COLUMNS = "id, owner_id, title, grades, subject, author, slides(count), first_slide:slides(data, position)";
+// Each presentation's first slide only (for its picture), not all of them, to keep the panel light. reviewers: its
+// "Reviewed by" names (teachers may read only some of that table's columns, see the hide_review_approver migration).
+const SUMMARY_COLUMNS =
+  "id, owner_id, title, grades, subject, author, from_admin, slides(count), first_slide:slides(data, position), reviewers:presentation_reviewers(name)";
 
 type PresentationSummary = {
   id: string;
   ownerId: string;
   title: string;
-  // By author, published by, grade, subject, slide count ("" parts left out). Searched too.
+  // "Author: …", "Publisher: …", "Reviewer: …" rows (see creditLines). Searched too.
+  credits: string[];
+  // Grade, subject, slide count ("" parts left out). Searched too.
   meta: string;
   // Full grade names when the meta line shortens Kindergarten to "K" (shown as its tooltip).
   metaTitle?: string;
@@ -227,7 +231,7 @@ export function PresentationsPanel() {
 
   const query = search.trim().toLowerCase();
   const shownPresentations = (tab === "saved" ? savedPresentations : presentations)?.filter((presentation) =>
-    `${presentation.title} ${presentation.meta}`.toLowerCase().includes(query)
+    `${presentation.title} ${presentation.credits.join(" ")} ${presentation.meta}`.toLowerCase().includes(query)
   );
 
   return (
@@ -340,6 +344,9 @@ export function PresentationsPanel() {
                   <button type="button" onClick={() => showPresentation(presentation)} className="group w-full min-w-0 text-left">
                     <SlidePicture slide={presentation.firstSlide} />
                     <span className="mt-1.5 block truncate text-sm font-semibold text-text-primary">{presentation.title}</span>
+                    {presentation.credits.map((line) => (
+                      <span key={line} className="block truncate text-[13px] text-text-secondary">{line}</span>
+                    ))}
                     <span title={presentation.metaTitle} className="block truncate text-[13px] text-text-secondary">{presentation.meta}</span>
                   </button>
                   {/* My own presentations can't be saved. */}
@@ -384,8 +391,10 @@ type SummaryRow = {
   grades: string[];
   subject: string;
   author: string;
+  from_admin: boolean;
   slides: { count: number }[];
   first_slide: { data: unknown }[];
+  reviewers: { name: string }[];
 };
 
 async function toSummaries(supabase: SupabaseClient, rows: SummaryRow[]): Promise<PresentationSummary[]> {
@@ -394,8 +403,13 @@ async function toSummaries(supabase: SupabaseClient, rows: SummaryRow[]): Promis
     id: row.id,
     ownerId: row.owner_id,
     title: row.title || "Untitled presentation",
+    credits: creditLines({
+      author: row.author,
+      fromAdmin: row.from_admin,
+      publisherName: publisherNames.get(row.owner_id),
+      reviewerNames: row.reviewers.map((reviewer) => reviewer.name),
+    }),
     meta: joinParts([
-      publishedByLine(row.author, publisherNames.get(row.owner_id)),
       gradesLabel(row.grades),
       row.subject,
       slideCountLabel(row.slides[0]?.count ?? 0),
