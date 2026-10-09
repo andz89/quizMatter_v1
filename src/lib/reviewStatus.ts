@@ -15,8 +15,8 @@ export type ReviewStatus = {
 
 export const NO_REVIEW: ReviewStatus = { status: null, reviewerName: "", isLocked: false, isMine: false, canStart: false };
 
-/** One entry of a presentation's "Reviewed by" list. */
-export type Reviewer = ReviewerFields;
+/** One entry of a presentation's "Reviewed by" list. `reviewerId` links to their profile page. */
+export type Reviewer = ReviewerFields & { reviewerId: string };
 
 /** The review status, with the server or browser client. Throws if the lookup fails. */
 export async function loadReviewStatus(supabase: SupabaseClient, id: string): Promise<ReviewStatus> {
@@ -42,9 +42,9 @@ export async function loadReviewStatus(supabase: SupabaseClient, id: string): Pr
 export async function loadReviewers(supabase: SupabaseClient, id: string): Promise<Reviewer[]> {
   const { data, error } = await supabase
     .from("presentation_reviewers")
-    .select("name, email, reviewed_on")
+    .select("reviewer_id, name, email, reviewed_on")
     .eq("presentation_id", id)
     .order("reviewed_on", { ascending: false });
   if (error) throw error;
-  return data.map((row) => ({ name: row.name, email: row.email, reviewedOn: row.reviewed_on }));
+  return data.map((row) => ({ reviewerId: row.reviewer_id, name: row.name, email: row.email, reviewedOn: row.reviewed_on }));
 }

@@ -14,6 +14,8 @@ import { presentationSchema, type Presentation } from "./schema";
 export async function fetchPresentation(id: string): Promise<{
   presentation: Presentation;
   isMine: boolean;
+  // The owner's account, for the link to their profile.
+  ownerId: string;
   publisherName: string;
   isSaved: boolean;
   review: ReviewStatus;
@@ -34,7 +36,7 @@ export async function fetchPresentation(id: string): Promise<{
   const { presentation, ownerId } = result;
   const isMine = ownerId === claims?.claims.sub;
   const publisherName = isMine ? "" : ((await loadPublisherNames(supabase, [ownerId])).get(ownerId) ?? "");
-  return { presentation, isMine, publisherName, isSaved: saved !== null, review, reviewers };
+  return { presentation, isMine, ownerId, publisherName, isSaved: saved !== null, review, reviewers };
 }
 
 /**

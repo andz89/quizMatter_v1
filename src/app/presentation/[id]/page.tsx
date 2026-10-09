@@ -26,6 +26,7 @@ export default async function PresentationPage({ params }: PageProps<"/presentat
         <PresentationPreview
           presentation={result.presentation}
           isMine={result.isMine}
+          ownerId={result.ownerId}
           publisherName={result.publisherName}
           isSaved={result.isSaved}
           review={result.review}

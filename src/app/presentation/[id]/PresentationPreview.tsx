@@ -12,6 +12,7 @@ import { SaveRefusedError, saveErrorMessage, savePresentationToDb } from "@/lib/
 import { startReview } from "@/lib/reviews";
 import { loadReviewStatus, type Reviewer, type ReviewStatus } from "@/lib/reviewStatus";
 import { createClient } from "@/lib/supabase/client";
+import { profileHref } from "@/lib/profiles";
 import { DETAIL_MAX_LENGTH, gradesLabel, gradesTitle, isWebLink, type Presentation } from "@/lib/schema";
 import { pauseFeature, pausedUntilFromError, useIsPaused } from "@/lib/clickLimits";
 import { LinkPending } from "@/components/LinkPending";
@@ -32,6 +33,7 @@ import { SAVE_ERRORS } from "../../SaveCardButton";
 export function PresentationPreview({
   presentation,
   isMine,
+  ownerId,
   publisherName,
   isSaved: savedAtStart,
   review,
@@ -39,6 +41,7 @@ export function PresentationPreview({
 }: {
   presentation: Presentation;
   isMine: boolean;
+  ownerId: string;
   publisherName: string;
   isSaved: boolean;
   review: ReviewStatus;
@@ -263,15 +266,31 @@ export function PresentationPreview({
           <p title={gradesTitle(presentation.grades)} className="mt-0.5 text-sm text-text-secondary">
             {joinParts([gradesLabel(presentation.grades), presentation.subject, slideCountLabel(slideCount)])}
           </p>
-          {/* Author and Publisher rows; each reviewer gets their own row below, with their email and date. */}
+          {/* Author and Publisher rows; each reviewer gets their own row below, with their email and date. The
+              publisher's and reviewers' names open their profile pages ("QuizMatter" and the typed Author don't). */}
           <div className="mt-2 flex flex-col gap-0.5 text-sm text-text-secondary">
-            {creditLines({ author: presentation.author, fromAdmin: presentation.fromAdmin, publisherName }).map((line) => (
-              <p key={line}>{line}</p>
-            ))}
+            {creditLines({ author: presentation.author, fromAdmin: presentation.fromAdmin, publisherName: undefined }).map(
+              (line) => (
+                <p key={line}>{line}</p>
+              ),
+            )}
+            {!presentation.fromAdmin && publisherName && (
+              <p>
+                Publisher:{" "}
+                <Link href={profileHref(ownerId)} className={profileLinkClass}>
+                  {publisherName}
+                  <LinkPending />
+                </Link>
+              </p>
+            )}
             {reviewers.map((reviewer) => (
               <p key={`${reviewer.email}-${reviewer.reviewedOn}`}>
-                Reviewer: <span className="font-semibold text-text-primary">{reviewer.name}</span> · {reviewer.email} ·{" "}
-                {formatDay(reviewer.reviewedOn)}
+                Reviewer:{" "}
+                <Link href={profileHref(reviewer.reviewerId)} className={profileLinkClass}>
+                  {reviewer.name}
+                  <LinkPending />
+                </Link>{" "}
+                · {reviewer.email} · {formatDay(reviewer.reviewedOn)}
               </p>
             ))}
           </div>
@@ -324,3 +343,6 @@ export function PresentationPreview({
 
 const secondaryButtonClass =
   "rounded-button border border-border-default bg-bg-surface px-4 py-2 text-sm font-semibold text-text-primary transition-colors hover:border-text-secondary disabled:opacity-60";
+
+// The publisher and reviewer names, which open their profile pages.
+const profileLinkClass = "font-semibold text-accent hover:underline";
