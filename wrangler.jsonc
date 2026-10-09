@@ -29,7 +29,9 @@
   // Every Sunday at 3:00 AM (UTC), delete photo files nothing uses anymore (see docs/photo-cleanup.md).
   // It also needs the secret SUPABASE_SECRET_KEY, added in the Cloudflare dashboard.
   // If you change the time, change nextCleanupRun() in src/lib/cleanupPhotos.ts too (the admin page shows it).
-  "triggers": { "crons": ["0 3 * * SUN"] },
+  // Every day at 4:00 AM (UTC), delete accounts whose email wasn't confirmed within 3 days (src/lib/cleanupAccounts.ts).
+  // Both times are also in worker.ts, which picks the job by its time.
+  "triggers": { "crons": ["0 3 * * SUN", "0 4 * * *"] },
   // For the photo cleanup. Not secret: the browser already knows it.
   "vars": { "SUPABASE_URL": "https://zmmkqncfbjkmwfyngaha.supabase.co" },
   "observability": { "enabled": true }
