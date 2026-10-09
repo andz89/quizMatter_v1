@@ -1,10 +1,14 @@
 "use client";
 
 import { useState, type ChangeEvent, type FormEvent, type ReactNode } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { CopyIcon, UserIcon } from "lucide-react";
+import { LinkPending } from "@/components/LinkPending";
 import { Spinner } from "@/components/Spinner";
 import {
+  BIO_MAX_LENGTH,
   changePassword,
   CONTACT_NUMBER_MAX_LENGTH,
   DISPLAY_NAME_MAX_LENGTH,
@@ -71,7 +75,7 @@ export function ProfileForm({ email, displayName }: { email: string; displayName
   );
 }
 
-/** First and last name, contact number and educational background (given at sign up). */
+/** First and last name, contact number and educational background (given at sign up), and the bio for the profile page. */
 export function PersonalDetailsForm({ profile }: { profile: ProfileFields }) {
   const router = useRouter();
   const [fields, setFields] = useState(profile);
@@ -79,7 +83,7 @@ export function PersonalDetailsForm({ profile }: { profile: ProfileFields }) {
   const [isSaving, setIsSaving] = useState(false);
   const isChanged = (Object.keys(profile) as (keyof ProfileFields)[]).some((key) => fields[key].trim() !== profile[key]);
 
-  const update = (name: keyof ProfileFields) => (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
+  const update = (name: keyof ProfileFields) => (e: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setFields((old) => ({ ...old, [name]: e.target.value }));
 
   const save = async (e: FormEvent) => {
@@ -168,6 +172,21 @@ export function PersonalDetailsForm({ profile }: { profile: ProfileFields }) {
           className={inputClass}
         />
       </div>
+      <div>
+        <label htmlFor="bio" className={labelClass}>Bio</label>
+        <textarea
+          id="bio"
+          rows={3}
+          maxLength={BIO_MAX_LENGTH}
+          placeholder="e.g. Grade 5 science teacher who loves hands-on experiments."
+          value={fields.bio}
+          onChange={update("bio")}
+          className={`${inputClass} resize-y`}
+        />
+        <p className="mt-1 text-xs text-text-secondary">
+          Optional. Shown on your profile page, up to {BIO_MAX_LENGTH} characters. Your contact number and email are never shown there.
+        </p>
+      </div>
       {error && <p className="text-sm text-danger-strong">{error}</p>}
       <button type="submit" disabled={isSaving || !isChanged} className={buttonClass}>
         {isSaving && <Spinner size={14} />}
@@ -176,6 +195,35 @@ export function PersonalDetailsForm({ profile }: { profile: ProfileFields }) {
     </Card>
   );
 }
+
+/** "View my profile" and "Copy profile link", so teachers can share their profile with other logged-in users. */
+export function ProfileLinks({ href }: { href: string }) {
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(new URL(href, window.location.origin).href);
+      toast.success("Profile link copied.");
+    } catch {
+      toast.error("Couldn't copy the link.");
+    }
+  };
+
+  return (
+    <div className="mt-3 flex flex-wrap gap-2">
+      <Link href={href} className={smallButtonClass}>
+        <UserIcon size={14} />
+        View my profile
+        <LinkPending />
+      </Link>
+      <button type="button" onClick={copy} className={smallButtonClass}>
+        <CopyIcon size={14} />
+        Copy profile link
+      </button>
+    </div>
+  );
+}
+
+const smallButtonClass =
+  "inline-flex items-center gap-2 rounded-dropdown border border-border-default bg-bg-surface px-2.5 py-1.5 text-[13px] font-semibold text-text-primary transition-colors hover:bg-bg-page";
 
 /** A new password, typed twice. */
 export function PasswordForm() {
