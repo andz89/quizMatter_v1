@@ -2,6 +2,9 @@ import type { ReactNode } from "react";
 import { notFound } from "next/navigation";
 import { ChevronDownIcon, ShieldIcon } from "lucide-react";
 import { getAccount } from "@/lib/account";
+import { BLOCKED_EMAIL_DOMAINS } from "@/lib/blockedEmailDomains";
+import { LOGIN_LIMIT, SIGN_UP_LIMIT, SIGN_UPS_PER_ADDRESS, type BrowserLimit } from "@/lib/browserLimits";
+import { KEEP_UNCONFIRMED_DAYS } from "@/lib/cleanupAccounts";
 import { MAX_PHOTO_FILE_BYTES, MAX_STORED_PHOTO_BYTES } from "@/lib/constants";
 import { PHOTO_TICKET_LIFETIME_MS } from "@/lib/photoTickets";
 import { REFUSALS } from "@/lib/presentations";
@@ -245,20 +248,6 @@ export default async function AdminSafetyPage() {
 
       <Group title="Access">
         <Item
-          name="Login check"
-          where="Login page + Supabase"
-          rule="Cloudflare Turnstile checks it's a person, not a script. Supabase Auth checks its answer (Attack Protection in the Supabase dashboard)"
-          sees="A quick “are you a person” check before logging in, usually automatic."
-          more={{
-            what: [
-              "Before logging in or signing up, Cloudflare Turnstile (a free “are you a person?” check) quietly looks at the browser. Most people never have to click anything.",
-              "Supabase, which runs the logins, checks Turnstile's answer too, so a script can't skip the login page and log in directly.",
-            ],
-            example: "Ana opens the login page, types her email and password, and logs in. The check ran in the background, and she didn't notice it.",
-            scenario: "A script tries thousands of passwords on a teacher's email, or makes thousands of fake accounts. It can't pass the person check, so it's stopped before Supabase even tries the password.",
-          }}
-        />
-        <Item
           name="Own data only"
           where="Database"
           rule="Teachers can only change their own presentations, photos and bookmarks"
@@ -298,6 +287,124 @@ export default async function AdminSafetyPage() {
             ],
             example: "An admin asks Claude to add a photo of a volcano. Claude gets a link, uploads the photo with it, and the link stops working right after.",
             scenario: "Someone finds an old upload link in a chat log and tries to upload their own pictures with it. The link was already used, or is too old, so the upload is refused.",
+          }}
+        />
+      </Group>
+
+      <Group title="Sign up and login">
+        <Item
+          name="Login check"
+          where="Login page + Supabase"
+          rule="Cloudflare Turnstile checks it's a person, not a script. Supabase Auth checks its answer (Attack Protection in the Supabase dashboard)"
+          sees="A quick “are you a person” check before logging in, usually automatic."
+          more={{
+            what: [
+              "Before logging in or signing up, Cloudflare Turnstile (a free “are you a person?” check) quietly looks at the browser. Most people never have to click anything.",
+              "Supabase, which runs the logins, checks Turnstile's answer too, so a script can't skip the login page and log in directly.",
+            ],
+            example: "Ana opens the login page, types her email and password, and logs in. The check ran in the background, and she didn't notice it.",
+            scenario: "A script tries thousands of passwords on a teacher's email, or makes thousands of fake accounts. It can't pass the person check, so it's stopped before Supabase even tries the password.",
+          }}
+        />
+        <Item
+          name="Email must be confirmed"
+          where="Supabase"
+          rule="A new account can't log in until the teacher clicks the link Supabase emails them (Authentication → Sign In / Providers → Confirm email)"
+          sees="“Check your email” after signing up. Logging in before clicking the link: “Please confirm your email first.”"
+          more={{
+            what: [
+              "After signing up, Supabase emails a link to the address the teacher typed. The account works only after that link is clicked, so the email must be real and theirs.",
+              "Admin → Teachers marks accounts that haven't clicked it yet as “Not confirmed”.",
+            ],
+            example: "Ana signs up with ana.cruz@gmail.com, opens her Gmail, clicks “Confirm my email”, and lands on the home page, logged in.",
+            scenario: "Someone signs up with a made-up address or another teacher's email. Nobody can click the link, so the account can never be used.",
+          }}
+        />
+        <Item
+          name="Throwaway emails refused"
+          where="Sign up page"
+          rule={`${BLOCKED_EMAIL_DOMAINS.size} common throwaway email services (like mailinator.com and yopmail.com) are refused. The list is in src/lib/blockedEmailDomains.ts`}
+          sees="“Please use your real email address (school or personal), not a throwaway one.”"
+          more={{
+            what: [
+              "Throwaway email sites give anyone an inbox for a few minutes, with no sign up. They make fake accounts easy, so the sign up form refuses the best-known ones.",
+              "It's a short list on purpose: the full lists have over 100,000 sites and would make the page slow. Add a site to the list if fake sign ups keep coming from it.",
+            ],
+            example: "Ben tries to sign up with test123@mailinator.com and sees the message. He uses his school email instead, and it works.",
+            scenario: "Someone makes 20 throwaway inboxes to confirm 20 fake accounts. The form refuses those addresses before anything is sent.",
+          }}
+        />
+        <Item
+          name="Sign ups per internet address"
+          where="Database (Supabase hook)"
+          rule={`${SIGN_UPS_PER_ADDRESS} new accounts per hour from one internet address. After that, Supabase refuses until the hour is over: no account is made and no email is sent. Turned on in the Supabase dashboard (Authentication → Hooks → Before User Created)`}
+          sees="“Too many accounts were made from this internet connection. Please try again in an hour.”"
+          more={{
+            what: [
+              "Just before Supabase makes a new account, it asks the database (the hook_before_user_created function), which writes down the internet address and counts how many sign ups came from it in the last hour.",
+              "Supabase runs it itself, so clearing the browser, another browser or a script can't skip it. Logins aren't counted.",
+              `Teachers on the same Wi-Fi share one internet address, so a school shares ${SIGN_UPS_PER_ADDRESS} an hour. A bigger group signing up together has to spread it over more than an hour.`,
+            ],
+            example: `A school runs a QuizMatter training. 8 teachers sign up on the school Wi-Fi in the morning: all fine, it's under ${SIGN_UPS_PER_ADDRESS}.`,
+            scenario: `Someone at home keeps signing up with made-up emails. After ${SIGN_UPS_PER_ADDRESS} in one hour, every new try is refused, and no more emails are wasted.`,
+          }}
+        />
+        <Item
+          name="Sign ups per browser"
+          where="Browser"
+          rule={browserLimitRule(SIGN_UP_LIMIT, "sign ups")}
+          sees="“You've made several accounts on this browser. Please try again after 3:45 PM.”"
+          more={{
+            what: [
+              "The sign up page counts, in the browser's own storage, how many accounts were made on it. Too many in a short time locks the page on that browser for a while.",
+              "It's a speed bump for someone clicking by hand: clearing the browser, a private window or a script gets around it. The limit per internet address above is the one that can't be skipped.",
+              "If the browser blocks storage, nothing is counted, so a real teacher is never locked out by mistake.",
+            ],
+            example: `Three teachers share the faculty-room laptop and all sign up in the same hour. A fourth would wait ${duration(SIGN_UP_LIMIT.firstLockMs / 60_000)}.`,
+            scenario: "Someone keeps clicking “Create account” with made-up emails. After a few, the page on their browser stops sending anything for an hour, then for a day if they come back and do it again.",
+          }}
+        />
+        <Item
+          name="Wrong logins per browser"
+          where="Browser"
+          rule={`${browserLimitRule(LOGIN_LIMIT, "wrong logins")} Only a wrong email or password counts, and a correct login starts the count again`}
+          sees="“Too many wrong tries on this browser. Please try again after 3:45 PM.”"
+          more={{
+            what: [
+              "The login page counts wrong email-or-password tries in the browser's own storage. Too many in a short time locks the login page on that browser for a while.",
+              "Shorter than the sign up lock on purpose: a teacher who forgot their password must not wait a day.",
+              "It locks the browser, not the account, so nobody can lock a real teacher out by typing wrong passwords for their email. Like the sign up lock, clearing the browser gets around it; the person check and Supabase's limit below are the real walls.",
+            ],
+            example: `Ana mixes up her passwords and gets it wrong ${LOGIN_LIMIT.max} times. She waits ${duration(LOGIN_LIMIT.firstLockMs / 60_000)}, remembers the right one, and logs in.`,
+            scenario: "Someone tries to guess a teacher's password by hand. After a few wrong guesses they're locked out of the login page for a while, and each try still needs the person check.",
+          }}
+        />
+        <Item
+          name="Unconfirmed accounts deleted"
+          where="Cloudflare timer"
+          rule={`Every day at 4:00 AM (UTC), accounts whose email wasn't confirmed within ${KEEP_UNCONFIRMED_DAYS} days are deleted (src/lib/cleanupAccounts.ts). Accounts an admin invited from the Supabase dashboard are kept; one added there by hand must have “Auto Confirm User” ticked`}
+          sees="Nothing. A teacher whose link expired can simply sign up again."
+          more={{
+            what: [
+              `Fake or mistyped sign ups are never confirmed. Once a day, the app deletes accounts still unconfirmed after ${KEEP_UNCONFIRMED_DAYS} days, so they don't pile up in Admin → Teachers.`,
+              "Confirmed accounts are never touched. An unconfirmed account never logged in, so it has no presentations or photos to lose.",
+            ],
+            example: `Ben signs up but types his email wrong, so the link never reaches him. ${KEEP_UNCONFIRMED_DAYS} days later the broken account is gone, and he signs up again with the right email.`,
+            scenario: "Someone makes dozens of fake accounts. They show as “Not confirmed” for a few days, then disappear on their own.",
+          }}
+        />
+        <Item
+          name="Supabase sign up and email limits"
+          where="Supabase dashboard"
+          rule="Sign ups and logins together: 30 per 5 minutes per internet address. Emails: a set number per hour for the whole app. Set in the Supabase dashboard (Authentication → Rate Limits), not in the code"
+          sees="“Too many tries. Please wait a few minutes and try again.” When the emails run out: “We can't send more sign up emails right now. Please try again in an hour.”"
+          more={{
+            what: [
+              "Supabase counts sign ups and logins from each internet address, and refuses more than 30 in 5 minutes.",
+              "It also counts every email it sends for the whole app. When the hour's emails run out, sign ups wait until the next hour, for everyone. That's why the limits above stop spam before it uses them up.",
+            ],
+            example: "A busy school logs in at the start of class. 25 teachers on the same Wi-Fi in 5 minutes is still under 30, so nobody notices.",
+            scenario: "A script hammers the login page from one address. After 30 tries in 5 minutes, Supabase refuses it until the 5 minutes are over.",
           }}
         />
       </Group>
@@ -593,6 +700,15 @@ function zoneName(timeZone: string): string {
 /** 25 → "25 seconds", 3600 → "1 hour", 86400 → "24 hours". */
 function timeSpan(seconds: number): string {
   return seconds % 60 === 0 ? duration(seconds / 60) : `${seconds} seconds`;
+}
+
+/** "3 sign ups within 1 hour lock the page on that browser for 1 hour; if it happens again within 24 hours, for 24 hours." */
+function browserLimitRule(limit: BrowserLimit, what: string): string {
+  const minutes = (ms: number) => duration(ms / 60_000);
+  return (
+    `${limit.max} ${what} within ${minutes(limit.withinMs)} lock the page on that browser for ${minutes(limit.firstLockMs)}; ` +
+    `if it happens again within ${minutes(limit.repeatWithinMs)}, for ${minutes(limit.repeatLockMs)}.`
+  );
 }
 
 /** 10 → "10 minutes", 60 → "1 hour", 120 → "2 hours". */

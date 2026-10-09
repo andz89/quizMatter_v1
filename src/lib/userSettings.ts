@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isBlockedEmail } from "./blockedEmailDomains";
 import { createClient } from "./supabase/client";
 import { ELEMENT_PANEL_CATEGORIES, type ElementCategory } from "./svgLibrary";
 
@@ -59,7 +60,9 @@ export const profileSchema = z.object({
 export const signUpSchema = profileSchema
   .extend({
     displayName: displayNameSchema.min(1, "Enter a display name."),
-    email: z.email("Enter a real email address."),
+    email: z
+      .email("Enter a real email address.")
+      .refine((email) => !isBlockedEmail(email), "Please use your real email address (school or personal), not a throwaway one."),
     password: passwordSchema,
     confirmPassword: z.string(),
   })
