@@ -6,14 +6,15 @@ Builds on `2026-10-09-teacher-profiles-design.md`.
 
 ## Goal
 
-A teacher's profile link uses their display name instead of their account id:
-`/teachers/maria-santos` instead of `/teachers/3f9a2c1e-…`.
+A teacher's profile link uses their display name instead of their account id: a teacher whose display name is
+"Teacher Ria" gets `/teachers/teacher-ria` instead of `/teachers/3f9a2c1e-…`.
 
 ## What the user decided
 
-- **The link comes from the display name only.** No separate username to pick.
-- **Display names must be unique.** Two names that give the same link count as the same name: "Maria Santos",
-  "maria santos" and "María Santos!" all become `maria-santos`, so only one teacher can have any of them.
+- **The link comes from the display name only** (`user_settings.display_name`). The first and last name are never
+  used, and there's no separate username to pick.
+- **Display names must be unique.** Two display names that give the same link count as the same name: "Teacher Ria",
+  "teacher ria" and "Teacher Ría!" all become `teacher-ria`, so only one teacher can have any of them.
 - **Renaming breaks the old link.** The old link shows "not found", and the old name is free right away for someone
   else. No redirects, no name history.
 - **No repair step for old data.** The app is still in development. If the dev database already has two clashing
@@ -39,7 +40,8 @@ A teacher's profile link uses their display name instead of their account id:
      punctuation, other alphabets) becomes `-`; runs of them become one `-`.
   4. `trim(both '-' from ...)`.
 
-  Examples: "María Santos!" → `maria-santos`, "  Ms. Dela Cruz  " → `ms-dela-cruz`, "★★★" → `''`.
+  Examples: "Teacher Ría!" → `teacher-ria`, "  Ms. Joy  " → `ms-joy`, "SirMark_23" → `sirmark-23`,
+  "★★★" → `''`.
 - **`user_settings.profile_slug`**: `text generated always as (public.profile_slug(display_name)) stored`. The
   database keeps it up to date by itself whenever `display_name` changes.
 - **Unique index** `user_settings_profile_slug` on `(profile_slug) where profile_slug <> ''`. This is the real
