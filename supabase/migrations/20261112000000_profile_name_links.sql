@@ -79,15 +79,29 @@ revoke execute on function public.visible_profiles(uuid[]) from anon, public;
 grant execute on function public.visible_profiles(uuid[]) to authenticated;
 
 -- Whether an account already uses a name with this link name. Only the sign-up hook below calls it.
+-- An account whose email was never confirmed doesn't hold the name: its name is cleared first, so someone who signs
+-- up again (e.g. after a typo in their email) can use the same name, and throwaway sign ups can't hold names for the
+-- 3 days until the daily cleanup deletes them. If that account is confirmed later, it just has no display name yet.
 create function public.display_name_taken(name text)
 returns boolean
-language sql
-stable
+language plpgsql
 security definer
 set search_path = ''
 as $$
-  select public.profile_slug(name) <> ''
-    and exists (select 1 from public.user_settings s where s.profile_slug = public.profile_slug(name));
+declare
+  slug text := public.profile_slug(name);
+begin
+  if slug = '' then
+    return false;
+  end if;
+
+  update public.user_settings s
+  set display_name = '', updated_at = now()
+  from auth.users u
+  where u.id = s.user_id and s.profile_slug = slug and u.email_confirmed_at is null;
+
+  return exists (select 1 from public.user_settings s where s.profile_slug = slug);
+end;
 $$;
 
 revoke execute on function public.display_name_taken(text) from anon, authenticated, public;

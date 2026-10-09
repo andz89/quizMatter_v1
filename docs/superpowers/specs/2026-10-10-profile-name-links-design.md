@@ -57,7 +57,9 @@ A teacher's profile link uses their display name instead of their account id: a 
   a non-empty `profile_slug`. Drop and re-create (the return type changes); same grants.
 - **`profile_is_visible(uuid)`** is unchanged.
 - **`public.display_name_taken(name text) returns boolean`**, `security definer`, `set search_path = ''`: true when
-  another account's `profile_slug` equals `profile_slug(name)` (and it isn't `''`). Granted **only** to
+  another account's `profile_slug` equals `profile_slug(name)` (and it isn't `''`). An account whose email was never
+  confirmed doesn't hold the name: its display name is cleared first, so a retry after a mistyped email works and
+  throwaway sign ups can't hold names (added after the final review). Granted **only** to
   `supabase_auth_admin` (for the hook below), revoked from `anon`, `authenticated`, `public`.
 - **`hook_before_user_created`** (already on in the dashboard): before the internet-address check, read
   `event -> 'user' -> 'user_metadata' ->> 'display_name'`. If `display_name_taken` says yes, refuse with
