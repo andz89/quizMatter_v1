@@ -54,7 +54,8 @@ Make display names harder to abuse now that they are unique and make the profile
   1. `trim(first_name || ' ' || last_name)`; if `profile_slug` of it is `''`, the base is `Teacher` and it always
      gets letters.
   2. If `claim_display_name` says the slug is free, use it.
-  3. Otherwise try `base || ' ' || <8 random characters from 'abcdefghijkmnpqrstuvwxyz23456789'>`, up to 20 times,
+  3. Otherwise try `base || ' ' || <8 random characters from 'abcdefghijkmnpqrstuvwxyz23456789'>`, always a mix with
+     at least one letter and at least one digit (an ending without both is drawn again), up to 20 times,
      until one is free. (With 32⁸ ≈ 1 trillion endings, 20 misses in a row won't happen in practice; if it ever does,
      the insert fails on the unique index and the sign up fails, like any other bad value.) The longest first + last
      name (35 + 1 + 35) plus " " and 8 characters is exactly 80, the display name limit.
