@@ -4,6 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 // It deletes accounts whose email was never confirmed (fake or mistyped sign ups), so they don't pile up.
 // A confirmed account is never touched. An unconfirmed one never logged in, so it has no presentations or photos;
 // its user_settings row goes with it. A teacher whose link expired can simply sign up again.
+// It also empties old rows of sign_up_attempts (the sign up limit per internet address, 20261108000000_sign_up_limit.sql).
 
 type CleanupEnv = {
   SUPABASE_URL: string;
@@ -11,8 +12,11 @@ type CleanupEnv = {
   SUPABASE_SECRET_KEY: string;
 };
 
-// How long a new account may wait for its email to be confirmed.
-const KEEP_UNCONFIRMED_MS = 3 * 24 * 60 * 60 * 1000;
+// How long a new account may wait for its email to be confirmed (Admin → Safety shows it).
+export const KEEP_UNCONFIRMED_DAYS = 3;
+const KEEP_UNCONFIRMED_MS = KEEP_UNCONFIRMED_DAYS * 24 * 60 * 60 * 1000;
+// The sign up limit only looks at the last hour, so a day is plenty.
+const KEEP_SIGN_UP_ATTEMPTS_MS = 24 * 60 * 60 * 1000;
 const PAGE_SIZE = 1000;
 
 export async function cleanupUnconfirmedAccounts(env: CleanupEnv) {
@@ -35,4 +39,10 @@ export async function cleanupUnconfirmedAccounts(env: CleanupEnv) {
     if (error) throw error;
   }
   console.log(`Account cleanup: deleted ${ids.length} unconfirmed accounts.`, ids);
+
+  const { error } = await supabase
+    .from("sign_up_attempts")
+    .delete()
+    .lt("created_at", new Date(Date.now() - KEEP_SIGN_UP_ATTEMPTS_MS).toISOString());
+  if (error) throw error;
 }
