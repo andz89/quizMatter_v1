@@ -369,15 +369,16 @@ export default async function AdminSafetyPage() {
         <Item
           name="Profiles show only public details"
           where="Database"
-          rule="Every teacher has a profile page that any logged-in user can open with its link: display name, first and last name, educational background and bio. The contact number and email are never shown. Admin accounts stay hidden from teachers"
+          rule="Every teacher has a profile page that any logged-in user can open with its link: display name, first and last name, educational background and bio. The profile page never shows the contact number or email. Admin profiles stay hidden from teachers: their names on presentations aren't links"
           sees="Their profile, from “View my profile” on the Account page, or the Publisher and Reviewer names on a presentation."
           more={{
             what: [
               "A teacher's details live in one row that only they can read, because it also holds their contact number. The profile page doesn't open that row: it asks a database function (teacher_profile) that hands out only the public fields.",
-              "Teachers know admins only as “QuizMatter”, so an admin's profile is shown only to admins. Someone who isn't logged in is sent to log in first.",
+              "Teachers know admins only as “QuizMatter”, so an admin's profile is shown only to admins, and the presentation page links only names whose profile the viewer may open. Someone who isn't logged in is sent to log in first.",
+              "Note: presentation pages still show the publisher's and reviewers' email next to their name, as before. Only the profile page itself leaves it out.",
             ],
             example: "Ana copies her profile link from the Account page and shares it in her school's group chat. Colleagues with a QuizMatter account open it and see her name, degree and bio.",
-            scenario: "Someone opens many profile pages to collect teachers' phone numbers and emails. The pages never contain them, and sending requests by hand doesn't help, because the function never returns them.",
+            scenario: "Someone opens many profile pages to collect teachers' phone numbers. The pages never contain them, and sending requests by hand doesn't help, because the function never returns them.",
           }}
         />
       </Group>

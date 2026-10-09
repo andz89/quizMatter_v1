@@ -38,6 +38,17 @@ export async function loadTeacherProfile(supabase: SupabaseClient, id: string): 
   };
 }
 
+/**
+ * Which of these accounts have a profile the user may open (everyone's except a hidden admin's), so a page links only
+ * those names. Empty if the lookup fails: names then just aren't links.
+ */
+export async function loadVisibleProfiles(supabase: SupabaseClient, ids: string[]): Promise<Set<string>> {
+  if (ids.length === 0) return new Set();
+  const { data, error } = await supabase.rpc("visible_profiles", { profile_ids: ids });
+  if (error) return new Set();
+  return new Set(data as string[]);
+}
+
 export function profileHref(id: string) {
   return `/teachers/${id}`;
 }

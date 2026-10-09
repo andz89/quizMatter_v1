@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "./supabase/server";
+import { loadVisibleProfiles } from "./profiles";
 import { loadPublisherNames } from "./publishers";
 import { NO_REVIEW, loadReviewers, loadReviewStatus, type Reviewer, type ReviewStatus } from "./reviewStatus";
 import { presentationSchema, type Presentation } from "./schema";
@@ -16,6 +17,8 @@ export async function fetchPresentation(id: string): Promise<{
   isMine: boolean;
   // The owner's account, for the link to their profile.
   ownerId: string;
+  // The owner and reviewers whose profile pages this user may open (not a hidden admin's): only these names are links.
+  visibleProfileIds: string[];
   publisherName: string;
   isSaved: boolean;
   review: ReviewStatus;
@@ -35,8 +38,21 @@ export async function fetchPresentation(id: string): Promise<{
 
   const { presentation, ownerId } = result;
   const isMine = ownerId === claims?.claims.sub;
-  const publisherName = isMine ? "" : ((await loadPublisherNames(supabase, [ownerId])).get(ownerId) ?? "");
-  return { presentation, isMine, ownerId, publisherName, isSaved: saved !== null, review, reviewers };
+  const [publisherNames, visibleProfiles] = await Promise.all([
+    isMine ? new Map<string, string>() : loadPublisherNames(supabase, [ownerId]),
+    loadVisibleProfiles(supabase, [ownerId, ...reviewers.map((reviewer) => reviewer.reviewerId)]),
+  ]);
+  const publisherName = publisherNames.get(ownerId) ?? "";
+  return {
+    presentation,
+    isMine,
+    ownerId,
+    visibleProfileIds: [...visibleProfiles],
+    publisherName,
+    isSaved: saved !== null,
+    review,
+    reviewers,
+  };
 }
 
 /**

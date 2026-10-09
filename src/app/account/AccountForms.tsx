@@ -184,7 +184,8 @@ export function PersonalDetailsForm({ profile }: { profile: ProfileFields }) {
           className={`${inputClass} resize-y`}
         />
         <p className="mt-1 text-xs text-text-secondary">
-          Optional. Shown on your profile page, up to {BIO_MAX_LENGTH} characters. Your contact number and email are never shown there.
+          Optional, up to {BIO_MAX_LENGTH} characters. Your profile page shows your names, educational background and bio,
+          never your contact number or email.
         </p>
       </div>
       {error && <p className="text-sm text-danger-strong">{error}</p>}

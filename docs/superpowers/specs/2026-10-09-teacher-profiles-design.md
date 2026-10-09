@@ -36,6 +36,11 @@ display name, first and last name, educational background and bio.
   an admin's account, which only that admin and other admins can see (teachers know admins only as "QuizMatter").
   No account, or a hidden admin → no row. Never returns the contact number, email or anything else.
 - `grant execute ... to authenticated`; `revoke execute ... from anon, public`.
+- The visibility rule lives in one function, `public.profile_is_visible(uuid)` (not callable by users), used by
+  `teacher_profile` and by `public.visible_profiles(uuid[]) returns setof uuid`, which the presentation page uses to
+  link only names whose profile the viewer may open (a hidden admin's name stays plain text).
+- Presentation pages still show the publisher's and reviewers' email next to their name, as before; only the profile
+  page leaves out the contact number and email.
 
 ### Zod (`src/lib/userSettings.ts`)
 
