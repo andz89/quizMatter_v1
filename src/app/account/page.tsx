@@ -32,7 +32,7 @@ export default async function AccountPage() {
         </header>
 
         <div className="flex flex-col gap-5">
-          <ProfileForm email={account.email} displayName={account.displayName} />
+          <ProfileForm email={account.email} displayName={account.displayName} nextNameChangeAt={account.nextNameChangeAt} />
           <PersonalDetailsForm profile={account.profile} />
           <PasswordForm />
         </div>

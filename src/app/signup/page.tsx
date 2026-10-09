@@ -12,8 +12,6 @@ import { Turnstile, type TurnstileStatus } from "@/components/Turnstile";
 import { lockedUntil, recordTry, SIGN_UP_ADDRESS_MESSAGE, SIGN_UP_LIMIT, tryAgainAfter } from "@/lib/browserLimits";
 import {
   CONTACT_NUMBER_MAX_LENGTH,
-  DISPLAY_NAME_MAX_LENGTH,
-  DISPLAY_NAME_TAKEN_MESSAGE,
   EDUCATION_FIELD_MAX_LENGTH,
   EDUCATION_LEVEL_LABELS,
   EDUCATION_LEVELS,
@@ -25,7 +23,6 @@ import {
 } from "@/lib/userSettings";
 
 const emptyFields: SignUpFields = {
-  displayName: "",
   firstName: "",
   lastName: "",
   contactNumber: "",
@@ -136,19 +133,9 @@ export default function SignUpPage() {
                 className={inputClass}
               />
             </Field>
-            <Field id="displayName" label="Display name" hint="Shown in your account menu, and as the Author of your presentations.">
-              <input
-                id="displayName"
-                type="text"
-                required
-                maxLength={DISPLAY_NAME_MAX_LENGTH}
-                autoComplete="nickname"
-                placeholder="e.g. Ms. Cruz"
-                value={fields.displayName}
-                onChange={update("displayName")}
-                className={inputClass}
-              />
-            </Field>
+            <p className="-mt-2 text-xs text-text-secondary sm:col-span-2">
+              This is your display name. You can change it once later on the Account page.
+            </p>
             <Field id="contactNumber" label="Contact number">
               <input
                 id="contactNumber"
@@ -289,8 +276,6 @@ function signUpErrorMessage(error: unknown) {
   if (error.code === "signup_disabled") return "Sign up is closed right now. Please try again later.";
   // The sign up limit per internet address (hook_before_user_created): its own words say it best.
   if (error.message.includes(SIGN_UP_ADDRESS_MESSAGE)) return error.message;
-  // Another account already uses this display name (hook_before_user_created).
-  if (error.message.includes(DISPLAY_NAME_TAKEN_MESSAGE)) return DISPLAY_NAME_TAKEN_MESSAGE;
   // Supabase's emails per hour ran out (Authentication → Rate Limits).
   if (error.code === "over_email_send_rate_limit") return "We can't send more sign up emails right now. Please try again in an hour.";
   if (error.code === "over_request_rate_limit") return "Too many tries. Please wait a few minutes and try again.";

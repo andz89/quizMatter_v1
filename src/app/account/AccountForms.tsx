@@ -5,12 +5,16 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { CopyIcon, UserIcon } from "lucide-react";
+import { ConfirmModal } from "@/components/editor/ConfirmModal";
 import { LinkPending } from "@/components/LinkPending";
 import { Spinner } from "@/components/Spinner";
+import { pauseFeature, pausedUntilFromError, useIsPaused } from "@/lib/clickLimits";
+import { formatDate } from "@/lib/format";
 import {
   BIO_MAX_LENGTH,
   changePassword,
   CONTACT_NUMBER_MAX_LENGTH,
+  DISPLAY_NAME_CHANGE_DAYS,
   DISPLAY_NAME_MAX_LENGTH,
   DISPLAY_NAME_TAKEN_MESSAGE,
   displayNameSchema,
@@ -31,34 +35,55 @@ const inputClass =
 const buttonClass =
   "flex items-center justify-center gap-2 self-start rounded-button bg-accent btn-press px-4 py-2 text-sm font-semibold text-white hover:bg-accent-hover disabled:opacity-60";
 
-/** Email (read only) and display name. */
-export function ProfileForm({ email, displayName }: { email: string; displayName: string }) {
+/** Email (read only) and display name. Saving the name asks first: it's then kept for 30 days. */
+export function ProfileForm({
+  email,
+  displayName,
+  nextNameChangeAt,
+}: {
+  email: string;
+  displayName: string;
+  nextNameChangeAt: number | null;
+}) {
   const router = useRouter();
   const [name, setName] = useState(displayName);
+  const [isConfirming, setIsConfirming] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const isPaused = useIsPaused("display_name");
+  const isWaiting = nextNameChangeAt !== null;
 
-  const save = async (e: FormEvent) => {
+  const askToSave = (e: FormEvent) => {
     e.preventDefault();
     const checked = displayNameSchema.safeParse(name);
     if (!checked.success) return toast.error(checked.error.issues[0].message);
+    setIsConfirming(true);
+  };
+
+  const save = async () => {
+    setIsConfirming(false);
     setIsSaving(true);
     try {
-      await saveDisplayName(name);
-      toast.success("Name saved.");
-      // Reloads the server parts, so the account menu and the profile link show the new name.
-      router.refresh();
-    } catch (err) {
-      toast.error(
-        err instanceof Error && err.message === DISPLAY_NAME_TAKEN_MESSAGE
-          ? DISPLAY_NAME_TAKEN_MESSAGE
-          : "Couldn't save your name. Please try again.",
-      );
+      const result = await saveDisplayName(name);
+      if (result.status === "saved") {
+        toast.success("Name saved.");
+        // Reloads the server parts: the account menu, the profile link and the 30-day wait.
+        router.refresh();
+      } else if (result.status === "taken") {
+        toast.error(DISPLAY_NAME_TAKEN_MESSAGE);
+      } else {
+        toast.error(`You can change your display name again on ${formatDate(result.until)}.`);
+      }
+    } catch (error) {
+      // Paused: the button greys out and the notice at the bottom says until when.
+      const pausedUntil = pausedUntilFromError(error as { code?: string; details?: string });
+      if (pausedUntil) pauseFeature("display_name", pausedUntil);
+      else toast.error("Couldn't save your name. Please try again.");
     }
     setIsSaving(false);
   };
 
   return (
-    <Card title="Profile" onSubmit={save}>
+    <Card title="Profile" onSubmit={askToSave}>
       <div>
         <label className={labelClass}>Email</label>
         <input type="email" value={email} disabled className={inputClass} />
@@ -69,16 +94,34 @@ export function ProfileForm({ email, displayName }: { email: string; displayName
           type="text"
           value={name}
           maxLength={DISPLAY_NAME_MAX_LENGTH}
+          disabled={isWaiting}
           onChange={(e) => setName(e.target.value)}
           placeholder="e.g. Ms. Cruz"
           className={inputClass}
         />
-        <p className="mt-1 text-xs text-text-secondary">Shown in your account menu, and filled in as the Author of new presentations.</p>
+        <p className="mt-1 text-xs text-text-secondary">
+          {isWaiting
+            ? `You can change your display name again on ${formatDate(nextNameChangeAt)}.`
+            : `Your profile link is made from it. You can change it once every ${DISPLAY_NAME_CHANGE_DAYS} days.`}
+        </p>
       </div>
-      <button type="submit" disabled={isSaving || name.trim() === displayName} className={buttonClass}>
+      <button
+        type="submit"
+        disabled={isSaving || isPaused || isWaiting || name.trim() === displayName}
+        className={buttonClass}
+      >
         {isSaving && <Spinner size={14} />}
         Save name
       </button>
+      {isConfirming && (
+        <ConfirmModal
+          title="Is this display name final?"
+          message={`If "${name.trim()}" is available, it will be your display name, and you'll have to wait ${DISPLAY_NAME_CHANGE_DAYS} days to change it.`}
+          confirmLabel="Continue"
+          onConfirm={save}
+          onCancel={() => setIsConfirming(false)}
+        />
+      )}
     </Card>
   );
 }

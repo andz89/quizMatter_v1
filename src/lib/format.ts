@@ -27,6 +27,11 @@ export function formatDay(isoDate: string): string {
   return new Date(`${isoDate}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
+/** "Nov 10, 2026" for a time (Unix ms), in the Philippines' time zone, so the server and the browser show the same day. */
+export function formatDate(time: number): string {
+  return new Date(time).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "Asia/Manila" });
+}
+
 /**
  * The rows under a presentation's title: "Author: Ms. Cruz", "Publisher: andz", "Reviewer: Ana, Ben" (rows not
  * filled in are left out). Author = who wrote it (the Author detail), Publisher = whose account shared it, or

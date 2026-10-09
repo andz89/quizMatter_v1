@@ -11,6 +11,7 @@ export const CLICK_FEATURES = {
   share: { pausedText: "Sharing presentations" },
   publish: { pausedText: "Publishing presentations" },
   create: { pausedText: "Making new presentations" },
+  display_name: { pausedText: "Changing your display name" },
 } as const;
 
 export type ClickFeature = keyof typeof CLICK_FEATURES;

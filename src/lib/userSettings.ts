@@ -16,8 +16,11 @@ export const displayNameSchema = z
     (name) => name === "" || /[a-z0-9]/.test(name.normalize("NFD").toLowerCase()),
     "Use at least one letter or number (a–z, 0–9) in your display name.",
   );
-// Display names are unique (by link name). Same words as the sign-up hook (20261112000000_profile_name_links.sql).
+// Display names are unique (by link name): set_display_name answers "taken".
 export const DISPLAY_NAME_TAKEN_MESSAGE = "That display name is taken. Please pick another one.";
+// Days between display name changes on the Account page (the first change after sign up is free). Same as
+// set_display_name in 20261113000000_display_name_rules.sql.
+export const DISPLAY_NAME_CHANGE_DAYS = 30;
 
 // Supabase's own limits: at least 6 letters (we ask for 8), and at most 72 bytes.
 export const PASSWORD_MIN_LENGTH = 8;
@@ -71,11 +74,11 @@ export const profileSchema = z.object({
   bio: z.string().trim().max(BIO_MAX_LENGTH, `Use at most ${BIO_MAX_LENGTH} characters for your bio.`),
 });
 
-// Sign up doesn't ask for a bio: teachers add one later on the Account page.
+// Sign up doesn't ask for a bio (added later on the Account page) or a display name (made from the first + last
+// name by handle_new_user, 20261113000000_display_name_rules.sql).
 export const signUpSchema = profileSchema
   .omit({ bio: true })
   .extend({
-    displayName: displayNameSchema.min(1, "Enter a display name."),
     email: z
       .email("Enter a real email address.")
       .refine((email) => !isBlockedEmail(email), "Please use your real email address (school or personal), not a throwaway one."),
@@ -115,31 +118,29 @@ export async function saveFavoriteCategories(categories: ElementCategory[]) {
   if (error) throw error;
 }
 
-/** Saves the user's display name (creates the settings row the first time). Throws if it fails. */
-export async function saveDisplayName(name: string) {
+export type DisplayNameResult = { status: "saved" } | { status: "taken" } | { status: "wait"; until: number };
+
+/**
+ * Changes the user's display name through set_display_name, which counts it against the click limit and keeps the
+ * 30 days between changes. Throws if it fails (e.g. QMBLK while paused: read it with pausedUntilFromError).
+ */
+export async function saveDisplayName(name: string): Promise<DisplayNameResult> {
   const displayName = displayNameSchema.parse(name);
-  const supabase = createClient();
-  const { data } = await supabase.auth.getSession();
-  if (!data.session) throw new Error("Not signed in");
-  const { error } = await supabase.from("user_settings").upsert({
-    user_id: data.session.user.id,
-    display_name: displayName,
-    updated_at: new Date().toISOString(),
-  });
-  // 23505: another account's name makes the same link (the user_settings_profile_slug index).
-  if (error?.code === "23505") throw new Error(DISPLAY_NAME_TAKEN_MESSAGE);
+  const { data, error } = await createClient().rpc("set_display_name", { name: displayName });
   if (error) throw error;
+  return data as DisplayNameResult;
 }
 
 /**
  * Makes a new account. Supabase emails a link to confirm it; the teacher can log in only after clicking it. The
- * details ride along as user metadata, and the handle_new_user trigger (20261104000000_teacher_sign_up.sql) copies
- * them into user_settings. If the email already has an account, Supabase answers the same way and sends nothing,
- * so strangers can't find out who has one. Throws if it fails.
+ * details ride along as user metadata, and the handle_new_user trigger (20261113000000_display_name_rules.sql) copies
+ * them into user_settings and makes the display name from the first + last name. If the email already has an
+ * account, Supabase answers the same way and sends nothing, so strangers can't find out who has one. Throws if it
+ * fails.
  */
 export async function signUp(fields: SignUpFields, captchaToken: string) {
   // Checked with zod first (see CLAUDE.md, "Saving Data"): bad data throws here and is never saved.
-  const { email, password, displayName, firstName, lastName, contactNumber, educationLevel, educationField } =
+  const { email, password, firstName, lastName, contactNumber, educationLevel, educationField } =
     signUpSchema.parse(fields);
   const { error } = await createClient().auth.signUp({
     email,
@@ -147,7 +148,6 @@ export async function signUp(fields: SignUpFields, captchaToken: string) {
     options: {
       captchaToken,
       data: {
-        display_name: displayName,
         first_name: firstName,
         last_name: lastName,
         contact_number: contactNumber,
