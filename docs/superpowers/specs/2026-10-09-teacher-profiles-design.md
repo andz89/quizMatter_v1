@@ -9,10 +9,11 @@ display name, first and last name, educational background and bio.
 
 ## What the user decided
 
-- **Who has a visible profile:** a teacher who has published at least one presentation, or who is in the "Reviewed by"
-  list of a published presentation. Everyone else stays private ("not found").
-- **How to get there:** on the presentation page, the **Publisher** name and each **Reviewer** name link to that
-  teacher's profile. Cards keep plain names (a card is already one big link; a link can't sit inside a link).
+- **Who has a visible profile:** every teacher. Anyone **logged in** to QuizMatter who has the link can open it, so
+  teachers can share their profile link. Someone logged out is sent to log in first (the proxy), then lands on it.
+- **How to get there:** the shared link (`/teachers/<id>`); "View my profile" and "Copy profile link" on the Account
+  page; and on the presentation page, the **Publisher** name and each **Reviewer** name link to that teacher's
+  profile. Cards keep plain names (a card is already one big link; a link can't sit inside a link).
 - **Privacy:** a database function returns only the public fields; it never returns the contact number or email.
   Teachers' own `user_settings` rows stay readable only by themselves.
 
@@ -21,8 +22,8 @@ display name, first and last name, educational background and bio.
 - The bio is plain text, optional, up to 300 characters, written on the Account page.
 - The "Author" row stays plain text: it's typed by the teacher and isn't tied to an account.
 - Admin accounts stay hidden from teachers (they show as "QuizMatter" today); admins can see every profile.
-- A teacher can always see their own profile ("View my profile" on the Account page), even with nothing published.
-- Only logged-in users see profiles, like the rest of the app (the proxy already sends logged-out people to /login).
+- Someone who signs up from a shared link lands on the home page after confirming their email (that's how the
+  confirm link works); they can open the profile link again.
 
 ## Data
 
@@ -31,12 +32,9 @@ display name, first and last name, educational background and bio.
 - `alter table public.user_settings add column bio text not null default '' check (char_length(bio) <= 300);`
 - `public.teacher_profile(profile_id uuid)` — `returns table (display_name text, first_name text, last_name text,
   education_level text, education_field text, bio text)`, `language sql stable security definer set search_path = ''`.
-  Returns the one row from `user_settings` only when one of these is true:
-  - the caller is that teacher (`profile_id = auth.uid()`), or
-  - the caller is an admin (`public.is_admin()`), or
-  - the teacher is **not** an admin, and either owns a presentation with `is_published` and no `hidden_at`, or is in
-    `presentation_reviewers` for such a presentation.
-  Otherwise returns no row. Never returns the contact number, email or anything else.
+  Returns one row for any account in `auth.users` (fields from `user_settings`, `''` when it has no row yet), except
+  an admin's account, which only that admin and other admins can see (teachers know admins only as "QuizMatter").
+  No account, or a hidden admin → no row. Never returns the contact number, email or anything else.
 - `grant execute ... to authenticated`; `revoke execute ... from anon, public`.
 
 ### Zod (`src/lib/userSettings.ts`)
@@ -60,7 +58,8 @@ display name, first and last name, educational background and bio.
 
 ### Profile page `src/app/teachers/[id]/page.tsx` (+ `loading.tsx`)
 
-- Server page. `loadTeacherProfile`; none → `notFound()`.
+- Server page. `loadTeacherProfile`; none → `notFound()`. Heading: display name, else the full name, else
+  "QuizMatter teacher".
 - NavBar with a "Home" link (like the Account page). One `rounded-card` card: display name as the `h1` (or the full
   name when there's no display name), the full name under it, an "Educational background" label with the education
   line, and a "Bio" label with the bio (`whitespace-pre-line`; "No bio yet." in `text-text-secondary` when empty).
@@ -79,7 +78,8 @@ display name, first and last name, educational background and bio.
 
 - "Personal details" card: a **Bio** `textarea` (3 rows, `maxLength` 300, optional, hint "Shown on your profile. Up to
   300 characters."), saved with the rest by `saveProfile` (toast as now).
-- A "View my profile" link (to `profileHref(account.id)`) in the page header, with `LinkPending`.
+- In the page header: a "View my profile" link (to `profileHref(account.id)`, with `LinkPending`) and a "Copy profile
+  link" button (copies the full address, sonner toast "Profile link copied." / "Couldn't copy the link.").
 
 ### Admin → Teachers
 
@@ -87,14 +87,16 @@ display name, first and last name, educational background and bio.
 
 ### Admin → Safety
 
-- New item in "Access": **"Profiles show only public details"** — who has a visible profile, what's shown, and that
-  the contact number and email never are (the `teacher_profile` function, not a table rule).
+- New item in "Access": **"Profiles show only public details"** — every teacher's profile can be opened by logged-in
+  users with the link, what's shown, and that the contact number and email never are (the `teacher_profile` function,
+  not a table rule); admin accounts stay hidden.
 
 ## Not included
 
-Profile photos, profile links on cards, a list of the teacher's presentations on the profile, hiding your own profile.
+Profile photos, profile links on cards, a list of the teacher's presentations on the profile, hiding your own profile,
+profiles for people who aren't logged in.
 
 ## Checking
 
 `npx tsc --noEmit`, `npm run lint` on changed files, re-read the diff, and run the migration's function inside a
-rolled-back transaction to check the visibility rule. Live testing is left to the user.
+rolled-back transaction to check what it returns. Live testing is left to the user.
