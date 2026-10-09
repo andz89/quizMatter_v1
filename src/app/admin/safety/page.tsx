@@ -366,6 +366,20 @@ export default async function AdminSafetyPage() {
             scenario: "Someone sends teachers a QuizMatter login link that's changed to send them to a fake site afterwards (to steal their password there). The app ignores the other site and opens QuizMatter's home page.",
           }}
         />
+        <Item
+          name="Profiles show only public details"
+          where="Database"
+          rule="Every teacher has a profile page that any logged-in user can open with its link: display name, first and last name, educational background and bio. The contact number and email are never shown. Admin accounts stay hidden from teachers"
+          sees="Their profile, from “View my profile” on the Account page, or the Publisher and Reviewer names on a presentation."
+          more={{
+            what: [
+              "A teacher's details live in one row that only they can read, because it also holds their contact number. The profile page doesn't open that row: it asks a database function (teacher_profile) that hands out only the public fields.",
+              "Teachers know admins only as “QuizMatter”, so an admin's profile is shown only to admins. Someone who isn't logged in is sent to log in first.",
+            ],
+            example: "Ana copies her profile link from the Account page and shares it in her school's group chat. Colleagues with a QuizMatter account open it and see her name, degree and bio.",
+            scenario: "Someone opens many profile pages to collect teachers' phone numbers and emails. The pages never contain them, and sending requests by hand doesn't help, because the function never returns them.",
+          }}
+        />
       </Group>
 
       <Group title="Presentation reviews">

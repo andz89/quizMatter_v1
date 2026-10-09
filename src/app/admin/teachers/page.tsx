@@ -4,7 +4,7 @@ import type { User } from "@supabase/supabase-js";
 import { joinParts, timeAgo } from "@/lib/format";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
-import { EDUCATION_LEVEL_LABELS, EDUCATION_LEVELS, type EducationLevel } from "@/lib/userSettings";
+import { educationLine } from "@/lib/profiles";
 import { AdminTeachers, type TeacherRow } from "./AdminTeachers";
 
 /**
@@ -69,15 +69,11 @@ type Settings = {
 
 /** "Ana Cruz · +63 917 123 4567 · Master's degree in English" ("" when the teacher gave no details). */
 function detailsLine(row: Settings) {
-  const level = EDUCATION_LEVELS.includes(row.education_level as EducationLevel)
-    ? EDUCATION_LEVEL_LABELS[row.education_level as EducationLevel]
-    : "";
-  // "Other" alone says nothing, so show just the field.
-  const education =
-    level && row.education_field && row.education_level !== "other"
-      ? `${level} in ${row.education_field}`
-      : row.education_field || level;
-  return joinParts([`${row.first_name} ${row.last_name}`.trim(), row.contact_number, education]);
+  return joinParts([
+    `${row.first_name} ${row.last_name}`.trim(),
+    row.contact_number,
+    educationLine(row.education_level, row.education_field),
+  ]);
 }
 
 /** One row per account: banned teachers first, then by email. */
