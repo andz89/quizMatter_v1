@@ -1,8 +1,10 @@
 import { z, ZodError } from "zod";
 import { createClient } from "./supabase/client";
+import { pausedUntilFromError } from "./clickLimits";
 import {
   MAX_PRESENTATIONS,
   MAX_SLIDES,
+  PUBLISH_NEEDS_CONTENT,
   TOO_MANY_SLIDES_MESSAGE,
   presentationSchema,
   type Presentation,
@@ -27,6 +29,8 @@ export const REFUSALS: Record<string, string> = {
   // Presentation reviews (see the presentation_reviews migration).
   QMREV: "This presentation is under review, so it can't be changed right now. Copy anything you need before leaving.",
   QMRVW: "Someone else is reviewing this presentation, or you can't review it right now.",
+  // Publishing an empty presentation (see the share_limits migration).
+  QMPUB: PUBLISH_NEEDS_CONTENT,
 };
 
 /** What to tell the user when a save failed, e.g. saveErrorMessage(error, "make a copy"). */
@@ -34,6 +38,8 @@ export function saveErrorMessage(error: unknown, action: string): string {
   if (error instanceof SaveRefusedError) return error.message;
   // A zod error says what's wrong (e.g. a link that isn't valid); anything else is most likely the connection.
   if (error instanceof ZodError) return `Couldn't ${action}: ${error.issues[0].message}`;
+  // A click limit paused it (e.g. too many new presentations today); the notice at the bottom says until when.
+  if (pausedUntilFromError(error as { code?: string; details?: string })) return `Couldn't ${action}: it's paused for now. The notice at the bottom says until when.`;
   return `Couldn't ${action}. Please check your internet and try again.`;
 }
 
