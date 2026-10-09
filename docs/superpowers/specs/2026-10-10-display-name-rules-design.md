@@ -17,7 +17,7 @@ Make display names harder to abuse now that they are unique and make the profile
 - **Sign up has no display name box.** The display name is the first + last name ("Maria" + "Santos" →
   "Maria Santos"). Under the name boxes: "This is your display name. You can change it once later on the Account
   page."
-- **Taken at sign up → add 3 random letters/digits:** "Maria Santos k3f" (`/teachers/maria-santos-k3f`). The email
+- **Taken at sign up → add 8 random letters/digits:** "Maria Santos k3f9p2xa" (`/teachers/maria-santos-k3f9p2xa`). The email
   is never used.
 - **Once every 30 days:** the name from sign up can be changed once right away. After any change on the Account page,
   the next change waits 30 days.
@@ -31,13 +31,13 @@ Make display names harder to abuse now that they are unique and make the profile
 
 ## Assumptions
 
-- A name with no a–z/0–9 at all (e.g. first + last "王 老师") becomes "Teacher" + 3 random letters/digits
-  ("Teacher x7p"), since it would make no link.
+- A name with no a–z/0–9 at all (e.g. first + last "王 老师") becomes "Teacher" + 8 random letters/digits
+  ("Teacher x7pq4m2n"), since it would make no link.
 - Clearing the name also counts as a change (starts the 30 days).
 - Admins skip the 30 days and the click limit (the click-limit system already skips admins).
 - Accounts whose email was never confirmed don't hold a name (as in the profile-links spec): their name is cleared
   when someone else needs it.
-- A teacher added by hand (no first/last name) gets "Teacher" + 3 random letters/digits.
+- A teacher added by hand (no first/last name) gets "Teacher" + 8 random letters/digits.
 
 ## Data
 
@@ -54,9 +54,10 @@ Make display names harder to abuse now that they are unique and make the profile
   1. `trim(first_name || ' ' || last_name)`; if `profile_slug` of it is `''`, the base is `Teacher` and it always
      gets letters.
   2. If `claim_display_name` says the slug is free, use it.
-  3. Otherwise try `base || ' ' || <3 random characters from 'abcdefghijkmnpqrstuvwxyz23456789'>`, up to 20 times,
-     until one is free. (With 32³ = 32,768 endings, 20 misses in a row won't happen in practice; if it ever does,
-     the insert fails on the unique index and the sign up fails, like any other bad value.)
+  3. Otherwise try `base || ' ' || <8 random characters from 'abcdefghijkmnpqrstuvwxyz23456789'>`, up to 20 times,
+     until one is free. (With 32⁸ ≈ 1 trillion endings, 20 misses in a row won't happen in practice; if it ever does,
+     the insert fails on the unique index and the sign up fails, like any other bad value.) The longest first + last
+     name (35 + 1 + 35) plus " " and 8 characters is exactly 80, the display name limit.
   4. `display_name_changed_at` stays null (the first change is free).
 - **Click limit row:** `insert into click_limits (feature, label, max_clicks, per_seconds, first_pause_minutes,
   repeat_pause_minutes, repeat_within_hours, ban_after_pauses) values ('display_name', 'Display name', 5, 300, 5, 5,
