@@ -20,6 +20,8 @@ export const passwordSchema = z
 export const NAME_MAX_LENGTH = 35;
 export const CONTACT_NUMBER_MAX_LENGTH = 20;
 export const EDUCATION_FIELD_MAX_LENGTH = 100;
+// The bio on a teacher's profile page (optional).
+export const BIO_MAX_LENGTH = 300;
 
 // The Educational background dropdown. The values are saved in user_settings.education_level.
 export const EDUCATION_LEVELS = ["bachelor", "master", "doctorate", "other"] as const;
@@ -55,9 +57,12 @@ export const profileSchema = z.object({
     .trim()
     .min(1, "Enter your field or major.")
     .max(EDUCATION_FIELD_MAX_LENGTH, `Use at most ${EDUCATION_FIELD_MAX_LENGTH} characters for your field or major.`),
+  bio: z.string().trim().max(BIO_MAX_LENGTH, `Use at most ${BIO_MAX_LENGTH} characters for your bio.`),
 });
 
+// Sign up doesn't ask for a bio: teachers add one later on the Account page.
 export const signUpSchema = profileSchema
+  .omit({ bio: true })
   .extend({
     displayName: displayNameSchema.min(1, "Enter a display name."),
     email: z
@@ -154,6 +159,7 @@ export async function saveProfile(fields: ProfileFields) {
     contact_number: profile.contactNumber,
     education_level: profile.educationLevel,
     education_field: profile.educationField,
+    bio: profile.bio,
     updated_at: new Date().toISOString(),
   });
   if (error) throw error;

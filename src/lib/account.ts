@@ -6,7 +6,7 @@ export type Account = {
   id: string;
   email: string;
   displayName: string;
-  // First and last name, contact number and educational background ("" for each one not set).
+  // First and last name, contact number, educational background and bio ("" for each one not set).
   profile: ProfileFields;
   isAdmin: boolean;
   isEditor: boolean;
@@ -24,7 +24,7 @@ export const getAccount = cache(async (): Promise<Account> => {
     supabase.auth.getClaims(),
     supabase
       .from("user_settings")
-      .select("display_name, first_name, last_name, contact_number, education_level, education_field")
+      .select("display_name, first_name, last_name, contact_number, education_level, education_field, bio")
       .maybeSingle(),
     supabase.rpc("is_admin"),
     supabase.rpc("is_editor"),
@@ -40,6 +40,7 @@ export const getAccount = cache(async (): Promise<Account> => {
       contactNumber: settings?.contact_number ?? "",
       educationLevel: settings?.education_level ?? "",
       educationField: settings?.education_field ?? "",
+      bio: settings?.bio ?? "",
     },
     isAdmin: isAdmin === true,
     isEditor: isEditor === true,
