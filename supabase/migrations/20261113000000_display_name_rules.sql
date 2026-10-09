@@ -215,25 +215,31 @@ revoke execute on function public.set_display_name(text) from public, anon;
 grant execute on function public.set_display_name(text) to authenticated;
 
 -- ─── 6. Guard: a teacher can't change their own display name any other way ─────────────────────────────────────
--- So the 30 days and the click limit can't be skipped by writing user_settings directly. The sign-up trigger and the
--- clearing of unconfirmed accounts' names don't run as the row's owner, so they pass. Saves of other settings
--- (details, favorites) don't send display_name, so they pass too.
+-- So the 30 days and the click limit can't be skipped by writing user_settings directly: the owner can't change
+-- display_name or display_name_changed_at, and can't delete their row (which would clear the 30 days). The sign-up
+-- trigger, the clearing of unconfirmed accounts' names and the account cleanup don't run as the row's owner, so they
+-- pass. Saves of other settings (details, favorites) don't send these columns, so they pass too.
 create function public.guard_display_name()
 returns trigger
 language plpgsql
 set search_path = ''
 as $$
 begin
-  if (select auth.uid()) = new.user_id
-    and (case when tg_op = 'INSERT' then new.display_name <> '' else new.display_name is distinct from old.display_name end)
+  if (select auth.uid()) = coalesce(new.user_id, old.user_id)
     and coalesce(current_setting('qm.set_display_name', true), '') <> 'on'
+    and case tg_op
+      when 'DELETE' then true
+      when 'INSERT' then new.display_name <> '' or new.display_name_changed_at is not null
+      else new.display_name is distinct from old.display_name
+        or new.display_name_changed_at is distinct from old.display_name_changed_at
+    end
   then
     raise exception 'Change your display name on the Account page.' using errcode = '42501';
   end if;
-  return new;
+  return coalesce(new, old);
 end;
 $$;
 
 create trigger user_settings_display_name_guard
-  before insert or update of display_name on public.user_settings
+  before insert or update of display_name, display_name_changed_at or delete on public.user_settings
   for each row execute function public.guard_display_name();

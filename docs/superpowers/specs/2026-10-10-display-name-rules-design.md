@@ -79,7 +79,8 @@ Make display names harder to abuse now that they are unique and make the profile
 - **Guard trigger** `user_settings_display_name_guard`, `before insert or update of display_name`: when the caller is
   the row's owner (`auth.uid() = new.user_id`) and the display name changes (on insert: is not `''`), refuse unless
   `set_display_name` set the transaction flag `qm.set_display_name = 'on'` (`set_config(..., true)`). So the 30 days
-  and the click limit can't be skipped by writing the table directly. The sign-up trigger and the unconfirmed-name
+  and the click limit can't be skipped by writing the table directly. It also watches `display_name_changed_at` and refuses the owner deleting their own row (either would clear
+  the 30 days; added after the final review). The sign-up trigger and the unconfirmed-name
   clearing run without a logged-in owner, so they pass.
 
 ## App
