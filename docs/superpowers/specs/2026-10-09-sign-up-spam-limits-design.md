@@ -27,7 +27,7 @@ The sign up limits never count logins, and the login lock never counts sign ups.
 
 ## 1. Per internet address: the Before User Created hook
 
-### Migration `20261105000000_sign_up_limit.sql`
+### Migration `20261108000000_sign_up_limit.sql`
 
 - Table `public.sign_up_attempts (ip inet not null, created_at timestamptz not null default now())`, index on
   `(ip, created_at)`. Row level security on, no policies. `grant select, insert, delete` to `supabase_auth_admin`;
