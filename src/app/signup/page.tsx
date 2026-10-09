@@ -13,6 +13,7 @@ import { lockedUntil, recordTry, SIGN_UP_ADDRESS_MESSAGE, SIGN_UP_LIMIT, tryAgai
 import {
   CONTACT_NUMBER_MAX_LENGTH,
   DISPLAY_NAME_MAX_LENGTH,
+  DISPLAY_NAME_TAKEN_MESSAGE,
   EDUCATION_FIELD_MAX_LENGTH,
   EDUCATION_LEVEL_LABELS,
   EDUCATION_LEVELS,
@@ -288,6 +289,8 @@ function signUpErrorMessage(error: unknown) {
   if (error.code === "signup_disabled") return "Sign up is closed right now. Please try again later.";
   // The sign up limit per internet address (hook_before_user_created): its own words say it best.
   if (error.message.includes(SIGN_UP_ADDRESS_MESSAGE)) return error.message;
+  // Another account already uses this display name (hook_before_user_created).
+  if (error.message.includes(DISPLAY_NAME_TAKEN_MESSAGE)) return DISPLAY_NAME_TAKEN_MESSAGE;
   // Supabase's emails per hour ran out (Authentication → Rate Limits).
   if (error.code === "over_email_send_rate_limit") return "We can't send more sign up emails right now. Please try again in an hour.";
   if (error.code === "over_request_rate_limit") return "Too many tries. Please wait a few minutes and try again.";

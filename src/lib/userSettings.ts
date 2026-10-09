@@ -6,7 +6,18 @@ import { ELEMENT_PANEL_CATEGORIES, type ElementCategory } from "./svgLibrary";
 const favoriteCategoriesSchema = z.array(z.enum(ELEMENT_PANEL_CATEGORIES)).max(ELEMENT_PANEL_CATEGORIES.length);
 
 export const DISPLAY_NAME_MAX_LENGTH = 80;
-export const displayNameSchema = z.string().trim().max(DISPLAY_NAME_MAX_LENGTH);
+// The display name also makes the profile link (/teachers/teacher-ria), so it needs a letter or number a–z / 0–9
+// once accents are taken off (the database's profile_slug rule: "Ría" → "ria", "★★★" → no link). Empty = no link.
+export const displayNameSchema = z
+  .string()
+  .trim()
+  .max(DISPLAY_NAME_MAX_LENGTH)
+  .refine(
+    (name) => name === "" || /[a-z0-9]/.test(name.normalize("NFD").toLowerCase()),
+    "Use at least one letter or number (a–z, 0–9) in your display name.",
+  );
+// Display names are unique (by link name). Same words as the sign-up hook (20261112000000_profile_name_links.sql).
+export const DISPLAY_NAME_TAKEN_MESSAGE = "That display name is taken. Please pick another one.";
 
 // Supabase's own limits: at least 6 letters (we ask for 8), and at most 72 bytes.
 export const PASSWORD_MIN_LENGTH = 8;
@@ -115,6 +126,8 @@ export async function saveDisplayName(name: string) {
     display_name: displayName,
     updated_at: new Date().toISOString(),
   });
+  // 23505: another account's name makes the same link (the user_settings_profile_slug index).
+  if (error?.code === "23505") throw new Error(DISPLAY_NAME_TAKEN_MESSAGE);
   if (error) throw error;
 }
 

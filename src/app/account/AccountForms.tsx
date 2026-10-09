@@ -12,6 +12,8 @@ import {
   changePassword,
   CONTACT_NUMBER_MAX_LENGTH,
   DISPLAY_NAME_MAX_LENGTH,
+  DISPLAY_NAME_TAKEN_MESSAGE,
+  displayNameSchema,
   EDUCATION_FIELD_MAX_LENGTH,
   EDUCATION_LEVEL_LABELS,
   EDUCATION_LEVELS,
@@ -37,14 +39,20 @@ export function ProfileForm({ email, displayName }: { email: string; displayName
 
   const save = async (e: FormEvent) => {
     e.preventDefault();
+    const checked = displayNameSchema.safeParse(name);
+    if (!checked.success) return toast.error(checked.error.issues[0].message);
     setIsSaving(true);
     try {
       await saveDisplayName(name);
       toast.success("Name saved.");
-      // Reloads the server parts, so the account menu shows the new name.
+      // Reloads the server parts, so the account menu and the profile link show the new name.
       router.refresh();
-    } catch {
-      toast.error("Couldn't save your name. Please try again.");
+    } catch (err) {
+      toast.error(
+        err instanceof Error && err.message === DISPLAY_NAME_TAKEN_MESSAGE
+          ? DISPLAY_NAME_TAKEN_MESSAGE
+          : "Couldn't save your name. Please try again.",
+      );
     }
     setIsSaving(false);
   };
