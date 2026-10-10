@@ -19,6 +19,7 @@ import { LinkPending } from "@/components/LinkPending";
 import { Spinner } from "@/components/Spinner";
 import { TopLoadingBar } from "@/components/TopLoadingBar";
 import { FluidSlidePreview } from "@/components/presentation/FluidSlidePreview";
+import { PresentDraftButton } from "@/components/presentation/PresentDraftButton";
 import { ReportButton } from "./ReportButton";
 import { setPresentationSaved } from "./actions";
 import { SAVE_ERRORS } from "../../SaveCardButton";
@@ -165,6 +166,12 @@ export function PresentationPreview({
         {/* One row: the buttons on the left, Prev/Next on the right. */}
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <div className="flex flex-wrap items-center gap-2">
+            {slide && (
+              <PresentDraftButton
+                presentation={presentation}
+                className="rounded-button bg-accent btn-press px-4 py-2 text-sm font-semibold text-white hover:bg-accent-hover"
+              />
+            )}
             {review.isLocked && (
               <span className="rounded-dropdown bg-highlight-soft px-2.5 py-1 text-[13px] leading-none font-semibold text-highlight-strong">
                 Under review
