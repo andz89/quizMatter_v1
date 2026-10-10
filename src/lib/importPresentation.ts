@@ -40,8 +40,9 @@ import {
   MIND_MAP_IDEAS,
   TREE_BRANCHES,
   TREE_LEAVES_MAX,
+  GRADIENT_PREFIX,
 } from "./constants";
-import { markupToHtml, stripMarkup } from "./richText";
+import { DEFAULT_TEXT_COLOR, markupToHtml, stripMarkup } from "./richText";
 import { BACKGROUND_COLORS, BACKGROUND_GRADIENTS, BACKGROUND_PATTERN_IDS, PATTERN_OPACITY_RANGE, withBackground } from "./slideBackground";
 import { fitInBox, MIN_ELEMENT_SIZE, TRIM_PADDING, type Rect, type Size } from "./geometry";
 import ASSET_SHAPES from "./assetShapes.json";
@@ -113,6 +114,18 @@ const svgMarkup = z
 
 // Decorations' opacity (percent) when Claude leaves it out: they're a little see-through.
 const DECORATION_OPACITY = 60;
+// The ready-made places for a decoration (see decorationRects).
+const DECORATION_SPOTS = [
+  "top-left",
+  "top-right",
+  "bottom-left",
+  "bottom-right",
+  "top-strip",
+  "bottom-strip",
+  "left-strip",
+  "right-strip",
+  "scatter",
+] as const;
 
 // A spot on the 1280×720 slide, in px. Anything reaching past the edge is pulled back in.
 const rect = z.object({
@@ -322,8 +335,13 @@ const decorationRecipe = z
     asset: assetId.optional().describe('A picture from the app. Give "asset" or "svg", not both.'),
     svg: svgMarkup.optional().describe("Your own drawing instead of an asset (square viewBox, e.g. 0 0 100 100)."),
     spot: z
-      .enum(["top-left", "top-right", "bottom-left", "bottom-right", "bottom-strip"])
-      .describe("Where it goes: a corner, or bottom-strip (a row of small copies along the bottom)."),
+      .enum(DECORATION_SPOTS)
+      .optional()
+      .describe(
+        'A ready-made place: a corner (big), a row or column of small copies along an edge (top-strip, bottom-strip, left-strip, right-strip), or scatter (small copies spread around the edges, each turned a little). Give "spot" or "position", not both.',
+      ),
+    position: rect.optional().describe("Place it yourself instead of a spot, in px on the 1280×720 slide, at any size."),
+    rotation: whole(0, 359).optional().describe("Turn it, in degrees clockwise."),
     color: hexColor.optional().describe("Leave out to use the picture's own color. Not used by svg."),
     opacity: whole(OPACITY_MIN, 100).optional().describe(`How solid it is, in percent. Leave out for ${DECORATION_OPACITY}.`),
     flipX: z.boolean().optional().describe("Mirror it left to right."),
@@ -779,7 +797,7 @@ Arrows that point at part of a picture ("callouts", blank, title and custom slid
 
 === Checking before the final version (the layout report) ===
 
-- send_presentation replies with a layout report: every box's size, and where each text and picture landed, in the same px as "position". Lines starting with "!" point out things to check: pictures that wrapped to more rows or shrank a lot, pictures on top of text, text that will probably shrink.
+- send_presentation replies with a layout report: every box's size, and where each text and picture landed, in the same px as "position". Lines starting with "!" point out things to check: pictures that wrapped to more rows or shrank a lot, pictures on top of text, text that will probably shrink, text that's hard to read on what's behind it.
 - Send the presentation first with "final": false. The user sees it as "Checking…" and can't open it yet. Check the report against what you meant, and fix anything that's off (e.g. give "position" with the numbers you want). You can check again the same way.
 - Then send it with "final": true and the "draftId" you got. That turns the checking version into the finished presentation and gives you the link for the user.
 
@@ -806,8 +824,21 @@ Question slides ("choice", "true-false", "short-answer" and "custom") — keep t
 - "pictureBox" (choice and true-false slides): leave it out, so the picture box stays plain with no background color. Only add a soft fill and/or border when it's really needed, e.g. white or very light pictures that would get lost on the white slide. Then use one soft color family for the whole presentation.
 
 Blank and title slides — white or a soft background (see Background below), made friendly with design:
-- "design": decorations drawn behind everything, placed at a "spot": the 4 corners (big, about 180px) or "bottom-strip" (a row of small copies along the bottom). Up to 6 per slide; 2–4 is usually enough. "opacity" sets how solid each one is (${DECORATION_OPACITY}% if left out).
-- Use any picture from the app that fits your design: every "asset" name in the JSON Schema below can be a decoration, not only shapes. Look through the whole list and pick the ones that match the topic (leaves and trees for nature, sparkle and confetti for celebrations, planets for space, clouds for weather, fruits for food, school things for school, circle, star or wave for anything), in 2–3 colors that go well together. Vary them from slide to slide instead of using the same few every time.
+- "design": decorations drawn behind everything. Up to 6 per slide; 2–4 is usually enough. "opacity" sets how solid each one is (${DECORATION_OPACITY}% if left out), "rotation" turns it. Each one goes at a "spot" or a "position":
+  - "spot": a corner ("top-left", "top-right", "bottom-left", "bottom-right"; big, about 180px), a line of small copies along an edge ("top-strip", "bottom-strip", "left-strip", "right-strip"), or "scatter" (8 small copies spread around the corners and sides, each turned a little — stars, confetti, leaves, dots).
+  - "position": { x, y, width, height } anywhere on the slide, at any size, like a picture's. Use it to make a decoration part of the layout: a huge soft blob or cloud behind the text, a big sun peeking in at the top, a wide "rectangle" as green ground along the bottom, a "wave" across the top.
+- Use any picture from the app that fits your design: every "asset" name in the JSON Schema below can be a decoration, not only shapes. Look through the whole list and pick the ones that match the topic (leaves and trees for nature, sparkle and confetti for celebrations, planets for space, clouds for weather, fruits for food, school things for school, circle, star or wave for anything), in 2–3 colors that go well together.
+
+Make every slide look different — never the same layout or the same decorations on two slides in a row, and in a story or lesson use at least 3 different layouts. Slide ideas (blank and title slides, built with "position", "textBoxes" and "design"):
+- Spotlight: the picture big in the middle, the title above it, one short line under it.
+- Talking: two characters facing each other (flip one with "flipX"), each with a speech tag holding a few words.
+- Big shape: the text on a big soft blob or cloud (a "position" decoration), with the picture overlapping its edge.
+- Side by side: the picture on one side, a text card (a "rectangle" with "cornerRadius") on the other.
+- Banner: the title on a banner across the top, then 2–3 pictures in a row, each with a label under it.
+- Scene: a small world — ground along the bottom, a tree or a building, the sun or clouds, then the character in it.
+Mix the decorations too: corners on one slide, scatter on the next, a big "position" shape on another, a strip on another.
+
+Text colors: you can't see the slide, so the layout report checks every text's contrast with what's behind it (the background, or a solid shape under the text) and warns when it's hard to read. Fix every contrast warning before the final version.
 
 Background (blank and title slides only) — the same choices the teacher has in the Background panel, so they can change them later:
 - "background": a soft color (${BACKGROUND_COLORS.join(", ")}) or a soft gradient from top to bottom (${BACKGROUND_GRADIENTS.map((g) => `"${g}"`).join(", ")}). Write it exactly as listed. Leave it out for plain white.
@@ -977,13 +1008,13 @@ function buildSlide(
     const fontSize = recipe.titleFontSize ?? (centered ? TITLE_SLIDE_TITLE.fontSize : undefined);
     const html = markupToHtml(recipe.title!, { align: centered ? "center" : "left", ...recipe.titleStyle, bold: true });
     textBoxes.push(textBox(areas.title, html, fontSize));
-    texts.push({ label: "title", box: textBoxes.at(-1)!, words: stripMarkup(recipe.title!), bold: true });
+    texts.push({ label: "title", box: textBoxes.at(-1)!, words: stripMarkup(recipe.title!), bold: true, color: recipe.titleStyle?.color });
   }
   if (isCanvas && areas?.text) {
     const fontSize = recipe.textFontSize ?? (isTitle ? TITLE_SLIDE_DESCRIPTION.fontSize : undefined);
     const style = isTitle ? { align: "center" as const, ...recipe.textStyle } : recipe.textStyle;
     textBoxes.push(textBox(areas.text, markupToHtml(recipe.text!, style), fontSize));
-    texts.push({ label: "text", box: textBoxes.at(-1)!, words: stripMarkup(recipe.text!), bold: recipe.textStyle?.bold });
+    texts.push({ label: "text", box: textBoxes.at(-1)!, words: stripMarkup(recipe.text!), bold: recipe.textStyle?.bold, color: recipe.textStyle?.color });
   }
   // Things Claude may want to fix, for the report.
   const notes: string[] = [];
@@ -1002,7 +1033,7 @@ function buildSlide(
           const rect = { ...asked, y: asked.y + Math.round((asked.height - height) / 2), height };
           // Centered unless Claude says otherwise: they're mostly labels on a shape, ribbon or diagram box.
           const element = textBox(rect, markupToHtml(box.text, { align: "center", ...box.style }), box.fontSize);
-          texts.push({ label: `text box ${i + 1}`, box: element, words: stripMarkup(box.text), bold: box.style?.bold });
+          texts.push({ label: `text box ${i + 1}`, box: element, words: stripMarkup(box.text), bold: box.style?.bold, color: box.style?.color });
           return element;
         })
       : [];
@@ -1132,7 +1163,16 @@ function buildSlide(
       reportError(`decoration ${i + 1}${item.asset ? ` (${item.asset})` : ""}: give "asset" or "svg" (one of them).`);
       return [];
     }
-    return decorationElements(item);
+    if (!item.spot === !item.position) {
+      reportError(`decoration ${i + 1}${item.asset ? ` (${item.asset})` : ""}: give "spot" or "position" (one of them).`);
+      return [];
+    }
+    const elements = decorationElements(item);
+    // Like a picture: say where it really landed, so Claude can put text on it.
+    if (item.position && formatRect(elements[0]) !== formatRect(item.position)) {
+      notes.push(`decoration ${i + 1}${item.asset ? ` (${item.asset})` : ""} was fitted to the slide and its drawing's shape: ${formatRect(elements[0])} instead of ${formatRect(item.position)}.`);
+    }
+    return elements;
   });
 
   // Later ones are drawn on top: the title and text sit above every picture, so a panel or bar behind them
@@ -1168,6 +1208,8 @@ interface BlankText {
   words: string;
   // Bold text has wider letters, so the guess of its length uses those.
   bold?: boolean;
+  // The whole text's color; missing = the default dark text.
+  color?: string;
 }
 
 // Room an option's text keeps from its box's edges (px, both sides together), about.
@@ -1205,9 +1247,24 @@ function describeSlide(slide: Slide, texts: BlankText[], pictures: SvgElement[],
 
   if (isFreeCanvas(slide)) {
     if (texts.length) lines.push(`Text: ${texts.map(({ label, box }) => `${label} ${formatRect(box)}`).join(" · ")}`);
-    for (const { label, box, words, bold } of texts) {
+    for (const { label, box, words, bold, color = DEFAULT_TEXT_COLOR } of texts) {
       const fontSize = box.text?.fontSize ?? TEXT_BOX_FONT_SIZE;
       if (tooLong(words, box, fontSize, bold)) warnings.push(`the ${label} is probably too long for its box at ${fontSize}px, so it will shrink.`);
+      // Checked at a few points across the text, as a shape may sit behind only part of it. The worst one counts.
+      const ratios = CONTRAST_POINTS.flatMap((share) => {
+        const behind = colorBehind(box.x + box.width * share, box.y + box.height / 2, slide);
+        return behind ? [{ behind, ratio: contrast(color, behind) }] : [];
+      });
+      const worst = ratios.sort((a, b) => a.ratio - b.ratio)[0];
+      if (worst) {
+        const { behind, ratio } = worst;
+        const needed = fontSize >= 24 || (bold && fontSize >= 19) ? 3 : 4.5;
+        if (ratio < needed) {
+          warnings.push(
+            `the ${label} (${color}) is hard to read on what's behind it (${behind}): contrast ${ratio.toFixed(1)}, needs ${needed}. Use a darker or lighter text color, or put it on a shape that stands out from it.`,
+          );
+        }
+      }
       for (const picture of pictures) {
         if (overlaps(picture, box)) warnings.push(`${picture.assetId} (${formatRect(picture)}) overlaps the ${label}.`);
       }
@@ -1484,10 +1541,15 @@ function decorationElements(item: Decoration): SvgElement[] {
   const look = item.svg
     ? { assetId: CUSTOM_SVG_ID, color: DEFAULT_ELEMENT_COLOR, svg: withSvgNamespace(item.svg) }
     : { assetId: item.asset!, color: item.color ?? getElementAsset(item.asset!)?.defaultColor ?? DEFAULT_ELEMENT_COLOR };
-  return decorationRects(item.spot).map((rect) => {
+  // Claude's own place is fitted to the drawing's shape, like a picture's; the spots keep their square.
+  const rects = item.position
+    ? [{ ...fitToDrawing(fitInBox(item.position, CANVAS), item.asset ? drawnShape(item.asset, {}) : null), turn: 0 }]
+    : decorationRects(item.spot!);
+  return rects.map(({ turn, ...rect }) => {
     const opacity = item.opacity ?? DECORATION_OPACITY;
     const flip = { ...(item.flipX && { flipX: true }), ...(item.flipY && { flipY: true }) };
-    return { id: createId(), ...look, ...rect, containerId: null, ...flip, ...(opacity < 100 && { opacity }) };
+    const rotation = (turn + (item.rotation ?? 0) + 360) % 360;
+    return { id: createId(), ...look, ...rect, containerId: null, ...flip, ...(rotation && { rotation }), ...(opacity < 100 && { opacity }) };
   });
 }
 
@@ -1497,27 +1559,101 @@ function withSvgNamespace(markup: string): string {
   return /<svg[^>]*\sxmlns=/i.test(trimmed) ? trimmed : trimmed.replace(/<svg/i, '<svg xmlns="http://www.w3.org/2000/svg"');
 }
 
-function decorationRects(spot: Decoration["spot"]): Rect[] {
-  if (spot === "bottom-strip") {
-    // Small copies in a centered row along the bottom edge.
-    const count = Math.floor((CANVAS_WIDTH + GAP) / (STRIP_ITEM_SIZE + GAP));
-    const startX = (CANVAS_WIDTH - (count * (STRIP_ITEM_SIZE + GAP) - GAP)) / 2;
-    const y = CANVAS_HEIGHT - STRIP_ITEM_SIZE - 8;
-    return Array.from({ length: count }, (_, i) => ({
-      x: startX + i * (STRIP_ITEM_SIZE + GAP),
-      y,
-      width: STRIP_ITEM_SIZE,
-      height: STRIP_ITEM_SIZE,
-    }));
+// Where "scatter" puts its small copies: around the corners and the sides, clear of the middle,
+// each turned a little (x, y, size, degrees).
+const SCATTER = [
+  [24, 28, 64, -12],
+  [180, 16, 44, 14],
+  [1100, 24, 56, 10],
+  [1208, 150, 48, -18],
+  [20, 330, 52, 8],
+  [1212, 420, 60, -6],
+  [60, 620, 48, 16],
+  [1150, 610, 64, -10],
+];
+// How far strips sit from the slide's edge (px).
+const STRIP_INSET = 8;
+
+/** The places a spot puts its copies, with how much each is turned (degrees). */
+function decorationRects(spot: NonNullable<Decoration["spot"]>): (Rect & { turn: number })[] {
+  const square = (x: number, y: number, size = STRIP_ITEM_SIZE, turn = 0) => ({ x, y, width: size, height: size, turn });
+  // Copies in a centered line along an edge `length` long.
+  const line = (length: number) => {
+    const count = Math.floor((length + GAP) / (STRIP_ITEM_SIZE + GAP));
+    const start = (length - (count * (STRIP_ITEM_SIZE + GAP) - GAP)) / 2;
+    return Array.from({ length: count }, (_, i) => start + i * (STRIP_ITEM_SIZE + GAP));
+  };
+  switch (spot) {
+    case "top-strip":
+      return line(CANVAS_WIDTH).map((x) => square(x, STRIP_INSET));
+    case "bottom-strip":
+      return line(CANVAS_WIDTH).map((x) => square(x, CANVAS_HEIGHT - STRIP_ITEM_SIZE - STRIP_INSET));
+    case "left-strip":
+      return line(CANVAS_HEIGHT).map((y) => square(STRIP_INSET, y));
+    case "right-strip":
+      return line(CANVAS_HEIGHT).map((y) => square(CANVAS_WIDTH - STRIP_ITEM_SIZE - STRIP_INSET, y));
+    case "scatter":
+      return SCATTER.map(([x, y, size, turn]) => square(x, y, size, turn));
+    default:
+      return [
+        square(spot.endsWith("left") ? 0 : CANVAS_WIDTH - CORNER_SIZE, spot.startsWith("top") ? 0 : CANVAS_HEIGHT - CORNER_SIZE, CORNER_SIZE),
+      ];
   }
-  return [
-    {
-      x: spot.endsWith("left") ? 0 : CANVAS_WIDTH - CORNER_SIZE,
-      y: spot.startsWith("top") ? 0 : CANVAS_HEIGHT - CORNER_SIZE,
-      width: CORNER_SIZE,
-      height: CORNER_SIZE,
-    },
-  ];
+}
+
+// Library drawings filled with one color (the element's), so the color behind a text on them is known.
+const SOLID_CATEGORIES = new Set(["shape", "blob", "ribbon"]);
+const SOLID_IDS = new Set(["cloud", "cloud-double"]);
+
+// Where across a text box (share of its width) its contrast is checked.
+const CONTRAST_POINTS = [0.1, 0.3, 0.5, 0.7, 0.9];
+
+/**
+ * The color at a point behind the text on a free canvas slide: the top drawing there, mixed with the
+ * background when it's see-through, or else the background itself (on a gradient, its color at that height).
+ * Null when a photo or a many-colored drawing is there, as its colors can't be known here.
+ */
+function colorBehind(x: number, y: number, slide: Slide): string | null {
+  const background = backgroundAt(slide.background, y);
+  // Later elements are drawn on top, so the first one found from the end is the one you see.
+  for (const el of [...slide.elements].reverse()) {
+    const asset = getElementAsset(el.assetId);
+    if (asset?.isTextBox || el.containerId !== null) continue;
+    if (x < el.x || x > el.x + el.width || y < el.y || y > el.y + el.height) continue;
+    const solid = asset && !el.svg && !el.image && (SOLID_CATEGORIES.has(asset.category) || SOLID_IDS.has(asset.id));
+    if (!solid || !/^#[0-9a-f]{6}$/i.test(el.color)) return null;
+    return mixColors(el.color, background, (el.opacity ?? 100) / 100);
+  }
+  return background;
+}
+
+/** The slide's background color at height `y`: white, its color, or the mix of its gradient there. */
+function backgroundAt(background: string | undefined, y: number): string {
+  if (!background) return "#FFFFFF";
+  if (!background.startsWith(GRADIENT_PREFIX)) return background;
+  const [from, to] = background.slice(GRADIENT_PREFIX.length).split(",");
+  return mixColors(to, from, y / CANVAS_HEIGHT);
+}
+
+const rgbOf = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+
+/** `a` over `b`, `share` of the way (0 = all b, 1 = all a). */
+function mixColors(a: string, b: string, share: number): string {
+  const [ra, rb] = [rgbOf(a), rgbOf(b)];
+  return `#${ra.map((value, i) => Math.round(value * share + rb[i] * (1 - share)).toString(16).padStart(2, "0")).join("").toUpperCase()}`;
+}
+
+/** How different two colors are in brightness, from 1 (the same) to 21 (black on white): the web's reading rule (WCAG). */
+function contrast(a: string, b: string): number {
+  const light = (hex: string) => {
+    const [r, g, bl] = rgbOf(hex).map((value) => {
+      const c = value / 255;
+      return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+    });
+    return 0.2126 * r + 0.7152 * g + 0.0722 * bl;
+  };
+  const [high, low] = [light(a), light(b)].sort((p, q) => q - p);
+  return (high + 0.05) / (low + 0.05);
 }
 
 function overlaps(a: Rect, b: Rect): boolean {
