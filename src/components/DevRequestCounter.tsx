@@ -26,19 +26,20 @@ const WHERE_NOTES: Partial<Record<Where, string>> = {
 };
 
 /**
- * A small box in the bottom-left corner, on localhost only: how many requests the browser sent since the page loaded
+ * A small box in the top-right corner, on localhost only: how many requests the browser sent since the page loaded
  * and since the last click, split by where they went ("This site" is what Cloudflare's rate limit counts), and the
  * newest ones. Full screen shows every request in a table. It reads the browser's own list of requests (PerformanceObserver), so nothing in the app changes.
  */
 export function DevRequestCounter() {
   const [isLocal, setIsLocal] = useState(false);
-  const [isOpen, setIsOpen] = useState(true);
+  // Starts minimized; open it when needed.
+  const [isOpen, setIsOpen] = useState(false);
   // Fills the screen, with every request in a table.
   const [isFull, setIsFull] = useState(false);
   const [requests, setRequests] = useState<Request[]>([]);
   // Where "since last click" starts: the number of requests seen before the click.
   const [clickStart, setClickStart] = useState(0);
-  // Where it was dragged to (px from the top-left); null = the bottom-left corner.
+  // Where it was dragged to (px from the top-left); null = the top-right corner.
   const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
   const boxRef = useRef<HTMLElement>(null);
   const countRef = useRef(0);
@@ -102,7 +103,7 @@ export function DevRequestCounter() {
     });
   };
   const dragHandlers = { onPointerDown: startDrag, onPointerMove: drag, onPointerUp: () => (dragRef.current = null) };
-  const place = position ? "fixed" : "fixed bottom-4 left-4";
+  const place = position ? "fixed" : "fixed top-[65px] right-4";
   const placeStyle = position ? { left: position.x, top: position.y } : undefined;
 
   const sinceClick = requests.filter((request) => request.id >= clickStart).length;
