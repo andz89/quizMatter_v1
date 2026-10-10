@@ -970,7 +970,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     if (saveStatus === "saving") return false;
     setPresentationDetails({ isPublished });
     const switched = get().presentation;
-    // Quiet: the Details panel shows its own message (published / private / couldn't change it).
+    // Quiet: the Share button shows its own message (published / private / couldn't change it).
     if (await savePresentation({ quiet: true })) return true;
     // Switch back. With no other edits since, put the old presentation object back, so it doesn't count as unsaved.
     if (get().presentation === switched) withoutHistory(() => set({ presentation }));

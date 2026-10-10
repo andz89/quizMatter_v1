@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { toast } from "sonner";
 import { useEditorStore, isPanelEscape } from "@/lib/store";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -18,26 +17,18 @@ import {
 } from "@/lib/schema";
 import { parseTags } from "@/lib/photos";
 import { PanelLabel } from "./PanelControls";
-import { Spinner } from "@/components/Spinner";
 import { ChevronDownIcon, ExternalLinkIcon, XIcon } from "lucide-react";
 
 /**
  * Sidebar panel for the presentation as a whole: title, description, grade, subject, curriculum,
  * learning competency, tags and references. All optional. Edits count as unsaved changes until Save, like any
- * other edit. A teacher makes their own presentation private/published with the Share button in the top bar.
- * A QuizMatter presentation (made on Admin → Presentations) has a draft/shared switch here instead, which saves
- * right away: shared means every teacher gets it under "From QuizMatter".
+ * other edit. Private/published (Draft/Shared on a QuizMatter presentation) is the Share button in the top bar.
  */
 export function DetailsPanel() {
   const closeDetailsPanel = useEditorStore((s) => s.closeDetailsPanel);
   const setPresentationDetails = useEditorStore((s) => s.setPresentationDetails);
-  const setPublished = useEditorStore((s) => s.setPublished);
-  const isSaving = useEditorStore((s) => s.saveStatus === "saving");
-  // Which button was clicked, so only that one shows the spinner.
-  const [pendingVisibility, setPendingVisibility] = useState<boolean | null>(null);
   const presentation = useEditorStore((s) => s.presentation);
   const publishedBy = useLoggedInEmail();
-  const isAdmin = presentation.fromAdmin;
   // A reviewer can't change the author, sharing or publisher: those stay QuizMatter's.
   const isReview = useEditorStore((s) => s.review !== null);
 
@@ -48,15 +39,6 @@ export function DetailsPanel() {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [closeDetailsPanel]);
-
-  const changeVisibility = async (isPublished: boolean) => {
-    if (isPublished === presentation.isPublished) return;
-    setPendingVisibility(isPublished);
-    const saved = await setPublished(isPublished);
-    setPendingVisibility(null);
-    if (!saved) toast.error("Couldn't change it. Please try again.");
-    else toast.success(isPublished ? "Shared — every teacher has it now." : "Back to a draft — only you can see it.");
-  };
 
   const textField = (key: Exclude<keyof typeof DETAIL_MAX_LENGTH, "grade">, label: string, placeholder: string, multiline = false) => (
     <Field label={label}>
@@ -122,37 +104,6 @@ export function DetailsPanel() {
       )}
 
       <ReferenceLinks links={presentation.referenceLinks} onChange={(referenceLinks) => setPresentationDetails({ referenceLinks })} />
-
-      {/* A teacher's own presentation is shared from the Share button in the top bar. */}
-      {isAdmin && !isReview && (
-        <Field label="Visibility">
-          <div className="grid grid-cols-2 gap-1 rounded-button bg-bg-page p-1">
-            {[
-              { label: "Draft", value: false },
-              { label: "Shared", value: true },
-            ].map(({ label, value }) => (
-              <button
-                key={label}
-                type="button"
-                onClick={() => changeVisibility(value)}
-                disabled={isSaving}
-                className={`flex items-center justify-center gap-2 rounded-dropdown py-1.5 text-sm transition-colors disabled:cursor-default ${
-                  presentation.isPublished === value
-                    ? "bg-bg-surface font-semibold text-text-primary shadow-[0_0_0_1px_var(--border-default)]"
-                    : "text-text-secondary hover:text-text-primary"
-                }`}
-              >
-                {pendingVisibility === value && <Spinner size={14} />}
-                {label}
-              </button>
-            ))}
-          </div>
-        </Field>
-      )}
-
-      {isAdmin && !isReview && (
-        <p className="-mt-3 text-[13px] text-text-secondary">Shared presentations go to every teacher, under “From QuizMatter”.</p>
-      )}
 
       <Field label="Published by">
         <p className="truncate text-sm text-text-primary">{isReview ? "QuizMatter" : (publishedBy ?? "—")}</p>

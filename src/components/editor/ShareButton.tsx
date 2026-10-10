@@ -10,7 +10,7 @@ import { publishableSchema } from "@/lib/schema";
 import { useEditorStore } from "@/lib/store";
 
 // What happens when it's switched, told in the "Continue?" box first.
-const CONFIRM = {
+const TEACHER_CONFIRM = {
   published: {
     title: "Publish this presentation?",
     points: [
@@ -31,27 +31,53 @@ const CONFIRM = {
   },
 };
 
-const CHOICES = [
+const TEACHER_CHOICES = [
   { value: false, label: "Private", hint: "Only you can see it", Icon: LockIcon },
   { value: true, label: "Published", hint: "Other teachers can find it on the Home page", Icon: GlobeIcon },
 ];
 
+// A QuizMatter presentation (made on Admin → Presentations) is a draft or shared with every teacher.
+const ADMIN_CONFIRM = {
+  published: {
+    title: "Share this presentation?",
+    points: [
+      "Every teacher gets it on their Home page, under “From QuizMatter”.",
+      "You can make it a draft again at any time. Copies teachers already made stay with them.",
+      "Your unsaved edits are saved too.",
+    ],
+  },
+  private: {
+    title: "Make this presentation a draft?",
+    points: [
+      "Only you can see it now. It leaves every teacher’s Home page.",
+      "Copies teachers already made stay with them.",
+      "Your unsaved edits are saved too.",
+    ],
+  },
+};
+
+const ADMIN_CHOICES = [
+  { value: false, label: "Draft", hint: "Only you can see it", Icon: LockIcon },
+  { value: true, label: "Shared", hint: "Every teacher gets it, under “From QuizMatter”", Icon: GlobeIcon },
+];
+
 /**
- * The teacher's Share button in the editor's top bar (like Canva's). It opens a card to make their presentation
- * private or published (after a "Continue?" box that says what will happen; then saved right away), and to copy
- * its link once it's published. Not shown in a review or on a QuizMatter presentation: those keep their own rules.
- * Switching too often pauses it for a while (the "share" and "publish" click limits, see the share_limits
- * migration), and an empty presentation can't be published.
+ * The Share button in the editor's top bar (like Canva's). It opens a card to make the presentation private or
+ * published (after a "Continue?" box that says what will happen; then saved right away), and to copy its link once
+ * it's published. On a QuizMatter presentation the same choices are called Draft and Shared. Not shown in a review.
+ * For teachers, switching too often pauses it for a while (the "share" and "publish" click limits, see the
+ * share_limits migration), and an empty presentation can't be published. The database skips both for admins.
  */
 export function ShareButton() {
   const isPublished = useEditorStore((s) => s.presentation.isPublished);
   const id = useEditorStore((s) => s.presentation.id);
-  const isHidden = useEditorStore((s) => s.review !== null || s.presentation.fromAdmin);
+  const isHidden = useEditorStore((s) => s.review !== null);
+  const fromAdmin = useEditorStore((s) => s.presentation.fromAdmin);
   const isSaving = useEditorStore((s) => s.saveStatus === "saving");
   const setPublished = useEditorStore((s) => s.setPublished);
   // "share" pauses both ways; "publish" only going published.
-  const isSharePaused = useIsPaused("share");
-  const isPublishPaused = useIsPaused("publish");
+  const isSharePaused = useIsPaused("share") && !fromAdmin;
+  const isPublishPaused = useIsPaused("publish") && !fromAdmin;
   const [isOpen, setIsOpen] = useState(false);
   // The choice waiting in the "Continue?" box (null = no box).
   const [confirming, setConfirming] = useState<boolean | null>(null);
@@ -76,11 +102,13 @@ export function ShareButton() {
   }, [isOpen]);
 
   if (isHidden) return null;
+  const CONFIRM = fromAdmin ? ADMIN_CONFIRM : TEACHER_CONFIRM;
+  const CHOICES = fromAdmin ? ADMIN_CHOICES : TEACHER_CHOICES;
 
   const pick = (value: boolean) => {
     if (value === isPublished) return;
     // Checked here first, so the teacher is told before the "Continue?" box (the database checks it too).
-    const problem = value && publishableSchema.safeParse(useEditorStore.getState().presentation).error;
+    const problem = value && !fromAdmin && publishableSchema.safeParse(useEditorStore.getState().presentation).error;
     if (problem) return toast.error(problem.issues[0].message);
     setIsOpen(false);
     setConfirming(value);
@@ -91,11 +119,12 @@ export function ShareButton() {
     const saved = await setPublished(value);
     setIsSwitching(false);
     // Paused for switching too often: the box closes, and the notice at the bottom says until when.
-    if (!saved && (isPaused("share") || (value && isPaused("publish")))) return setConfirming(null);
+    if (!saved && !fromAdmin && (isPaused("share") || (value && isPaused("publish")))) return setConfirming(null);
     // Any other failure keeps the box open, so the teacher can try again or cancel.
     if (!saved) return toast.error("Couldn't change it. Please try again.");
     setConfirming(null);
-    toast.success(value ? "Presentation published — other teachers can see it now." : "Presentation is private now.");
+    if (fromAdmin) toast.success(value ? "Shared — every teacher has it now." : "Back to a draft — only you can see it.");
+    else toast.success(value ? "Presentation published — other teachers can see it now." : "Presentation is private now.");
   };
 
   const copyLink = async () => {
@@ -114,7 +143,7 @@ export function ShareButton() {
         type="button"
         onClick={() => setIsOpen((open) => !open)}
         aria-expanded={isOpen}
-        title={isPublished ? "Share (published)" : "Share (private)"}
+        title={`Share (${(isPublished ? CHOICES[1] : CHOICES[0]).label.toLowerCase()})`}
         className="flex items-center gap-2 rounded-button border border-border-default px-3 py-2 text-sm font-semibold text-text-primary transition-colors hover:bg-bg-page sm:px-4"
       >
         <StateIcon size={14} />
