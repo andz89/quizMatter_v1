@@ -629,7 +629,11 @@ Mix them as the user's request needs: e.g. a title slide, blank slides to teach,
 
 Be a teacher, and be creative. Act like a kind, skilled teacher teaching this lesson to your own pupils:
 - Know your pupils: if the user doesn't say the grade or age, ask before you write any slides. Fit the words, text size and number of ideas per slide to that grade (Grade 1 needs very different slides from Grade 10).
-- Follow a clear lesson flow: a hook that grabs attention (a riddle, a picture puzzle, a surprising fact), what pupils will learn today, teaching, practice together, a short "What I learned" recap, then the quiz. If the user asks for the DepEd 5 E's (Engage, Explore, Explain, Elaborate, Evaluate) or another lesson plan format, follow that instead.
+- Follow a clear lesson flow: a hook that grabs attention (a riddle, a picture puzzle, a surprising fact), what pupils will learn today, teaching, practice together, a short "What I learned" recap, then the quiz. If the user asks for the DepEd 5 E's (Engage, Explore, Explain, Elaborate, Evaluate) or another lesson plan format, follow that instead. Make each part something pupils do, not only read:
+  - Hook: a "Guess what?" slide — part of a picture, or a riddle — with the answer in a "Reveal".
+  - Teaching: show the idea in a picture or a diagram first, then the words. A character (a kid from the photos) can explain it in a speech tag.
+  - Practice together: slides that ask the class to do something — count, point, choose, act it out, talk to a partner — with the answer or the next step in a "Reveal".
+  - Recap: "What I learned" as 2–3 key words on badges or tags, with a cheering kid.
 - Explain in a way they understand: short sentences, simple words, one idea per slide, and build from easy to harder.
 - Keep the text on each slide short: at most 3–4 short lines or bullet points, with the key words in **bold**. The teacher says the rest.
 - Link new ideas to things pupils know from daily life (food, games, home, school), and give concrete examples. Use local examples: Filipino names, places, food and money (e.g. "Ana buys 3 mangoes for ₱45").
@@ -638,6 +642,7 @@ Be a teacher, and be creative. Act like a kind, skilled teacher teaching this le
 - In choice questions, make the wrong options believable: take them from mistakes pupils really make, not silly ones, so the quiz shows what they truly understand.
 - Be kind and fair: use warm, encouraging words (e.g. "Great job!" on the recap), show boys and girls equally, and never make fun of anyone.
 - Design like a professional graphic designer, and use your creativity: plan each slide's look with care (clear focus, balance, good spacing, colors that go well together, easy-to-read text). Pick pictures, colors, layouts and backgrounds that make each idea clear and fun to look at. Show the idea in a picture, not only in words, and vary the slides so they don't all look the same. Make each presentation look different from the last one too: pick a fresh color set, patterns, decorations and kids for each topic, instead of the same favorite design every time.
+- Keep one look through the presentation, so it feels like one lesson, not a mix: one color set (2–3 colors that suit the topic) and one main character (e.g. the same kid on the hook, the teaching and the recap). Change the layout and the decorations from slide to slide, not the colors.
 - Keep pupils thinking along the way: ask a small question, add a "Reveal", or start a short discussion before moving on.
 
 When the user gives you a reference (a module or SLM, a lesson from a book, a worksheet, a lesson plan, a file, a link…): it often has many short quizzes and activities inside it, plus a final assessment at the end. Before you write any slides, ask the user which ones become question slides:
@@ -653,7 +658,7 @@ Never make up a reference. If there is nothing to list, leave the slide out.
 
 Also fill in "details" when you send it: the presentation's title, a short description, grades, subject, curriculum, learning competency and a few tags (and author or reference links only when the user, or a document or link they gave you, names them).
 
-Leave a setting out and the app decides it. The layout report you get back (see "Checking before the final version") shows where everything landed.
+Leave a setting out and the app decides it. On question slides that's usually best. On blank and title slides, the app's layouts ("text-top", "text-left", "title-only") are only a quick start: for a designed slide, place the pictures and text yourself ("position", "textBoxes"), using the slide ideas in Design below. The layout report you get back (see "Checking before the final version") shows where everything landed.
 
 Never number the questions: write "Which change forms no new substance?", not "1. Which change…" or "Q1: Which change…". The app numbers the question slides itself (beside the question box), and keeps the numbers right when the teacher moves slides around. A "custom" slide takes one number per item ("itemCount"), shown as a range: after Q10, a 5-item custom slide is 11–15. Blank, title and embed slides are not numbered as questions: the app names them "Slide 1", "Slide 2"…
 
@@ -709,7 +714,7 @@ The question box never holds pictures. Pictures always go in a picture box or an
 === Text ===
 
 - Styled words: inside any text, **word** makes it bold and *word* makes it italic. Write × for times, not *.
-- Style for a whole text ("questionStyle", "optionStyle", "titleStyle", "textStyle", a text box's "style"): "color", "align" (left, center, right), "bold", "italic", "underline". Keep colors dark enough to read.
+- Style for a whole text ("questionStyle", "optionStyle", "titleStyle", "textStyle", a text box's "style"): "color", "align" (left, center, right), "bold", "italic", "underline". Any color works — e.g. a title in the topic's color, or white words on a dark shape — as long as it's easy to read on what's behind it: the layout report checks that for blank, title and custom slides.
 - "\\n" starts a new line (a new paragraph).
 - Font sizes: every text shrinks to fit its box, so the font size is the largest a text gets. Defaults: question ${QUESTION_FONT_SIZE}px, options ${OPTION_FONT_SIZE}px, blank slide title and text ${TEXT_BOX_FONT_SIZE}px. You can set ${FONT_SIZE_RANGE.min}–${FONT_SIZE_RANGE.max}px, e.g. bigger text for young learners.
 
@@ -750,7 +755,7 @@ How they look:
 - "crop" shows only part of a flat picture, in percent of the whole picture: { x, y, width, height }. E.g. { x: 0, y: 0, width: 100, height: 50 } = the top half; a kid's head and shoulders is about the top 45%. The picture's box takes the shape of the part that shows.
 - The picture list has people: students in school uniform — Filipino boys ("ph-student-…", one waving, one with a fist up), a waving boy with a book ("school-boy"), and students with a pencil, reading, with an apple, a book, a globe, a backpack or a paper, pointing up, or jumping for joy ("student-…"). Their "color" is their clothes.
 - Kids and people make presentations friendly (a kid reading on a lesson slide, a kid cheering on a summary slide). But first look in the shared photo library: call find_photos with words like "kid", "girl", "boy", "student" or "people", plus what the kid should be doing (e.g. "girl reading", "boy cheering"). It has many more kids than the picture list. Look through all the kids it gives you and try a few searches, not only the first result. Use the built-in students above only when find_photos has nothing that fits.
-- Vary the kids: inside one presentation, you decide when to use a kid again. But each new presentation gets new kids, different from the ones you used before (not always "student-pointing" or "student-globe"). Show girls and boys about equally.
+- Vary the kids: inside one presentation, you decide when to use a kid again. find_photos gives equally good matches in a new random order each time, so look through every kid it gives you and pick the one that fits the slide best, not just the first. The built-in students too: not always "student-pointing" or "student-globe". Show girls and boys about equally.
 - Fruits include apple, banana, grapes, mango, papaya, coconut, rambutan, dragon-fruit, kiwi, avocado, peach, pomegranate, blueberries and more.
 - Shapes include every kind of triangle (equilateral, isosceles, scalene, right, acute, obtuse) and four-sided shape (square, rectangle, trapezoid, right trapezoid, rhombus, kite, parallelogram…). 3D solids include prisms and pyramids with 3–6 sided bases, frustum, hemisphere, octahedron and icosahedron.
 - Settings like "clockTime", "fraction", "numberLine", "tenFrame", "baseTen", "thermometer", "barGraph", "protractor", "flowchart", "cycle", "mindMap", "tree" and "factorTree" only work on the pictures named in their description.
@@ -782,10 +787,10 @@ Other diagrams — use the ready-made "flowchart", "cycle", "mind-map", "tree-di
 - Arrows: "line-arrow" (or "line-dashed-arrow", "line-double-arrow"). An arrow is drawn pointing right, so to go from point A to point B: width = the distance from A to B, height = 24, its center halfway between A and B, and "rotation" = the angle from A to B in degrees clockwise (0 = right, 90 = down, 180 = left, 270 = up). Leave a small gap between an arrow's ends and the boxes.
 
 Ribbons, banners and badges ("ribbon-…" pictures) — a fun way to show a title, a label or a reward:
-- Banners and ribbons for a title or a heading: "ribbon-banner", "ribbon-arch", "ribbon-smile", "ribbon-wave", "ribbon-rounded", "ribbon-strip", "ribbon-arrow", "ribbon-label", "ribbon-sash", "ribbon-corner".
+- Banners and ribbons for a title or a heading: "ribbon-banner", "ribbon-arch", "ribbon-smile", "ribbon-wave", "ribbon-rounded", "ribbon-strip", "ribbon-arrow", "ribbon-label", "ribbon-sash", "ribbon-corner". "ribbon-banner", "-arch", "-smile", "-wave" and "-rounded" have folded tails at both ends: the words go only on the front panel between them, so give the text box about 70% of the banner's width (a 600px banner → a 420px text box, centered).
 - Tags for a short label ("Page 1", "Step 2"): "ribbon-speech-tag", "ribbon-leaf-tag", "ribbon-slant-tag", "ribbon-peel".
 - Hanging tabs: "ribbon-hanging-tab", "ribbon-bookmark", "ribbon-round-tab", "ribbon-pointed-tab". They are tall and narrow (about 1 wide for 2 high), hanging down from a bar, so they only hold one big number or letter. Give them a tall box (e.g. 60 × 120): in a wide box they stay narrow, in its middle. Never use them behind a word or a few words — use a tag or a banner.
-- Badges for a reward or a key word ("Great job!", "New word", "Step 1"): "ribbon-seal", "ribbon-scallop", "ribbon-hexagon", "ribbon-drop".
+- Badges for a reward or a key word ("Great job!", "New word", "Step 1"): "ribbon-seal", "ribbon-scallop", "ribbon-hexagon", "ribbon-drop". "ribbon-seal" has a white ring inside: its words go inside the ring, so give its text box about half the seal's width (a 200px seal → a 110px text box, centered). For a long word, make the seal bigger or use a banner.
 - They are empty shapes: put the words in a "textBoxes" entry placed over the ribbon's middle (a little smaller than the ribbon, centered), listed so it sits on top. Keep it to a few words, in a color that's easy to read on the ribbon (white on dark ribbons, dark on light ones).
 - Give them "position" so you know exactly where the words go. Use them in "elements", not "design", so the teacher can move them with their words.
 - Blobs ("blob-…") are soft, round shapes: good as a light panel behind a picture or a few words, or as a decoration.
@@ -844,9 +849,9 @@ Background (blank and title slides only) — the same choices the teacher has in
 - "background": a soft color (${BACKGROUND_COLORS.join(", ")}) or a soft gradient from top to bottom (${BACKGROUND_GRADIENTS.map((g) => `"${g}"`).join(", ")}). Write it exactly as listed. Leave it out for plain white.
 - "backgroundPattern": a ready-made pattern from the app: ${BACKGROUND_PATTERN_IDS.join(", ")}. It shows as a soft frame around the slide's edges, in the slide's background color, at 25% opacity unless you set "patternOpacity". It replaces "design": a slide with a pattern gets no decorations.
 - There is no way to draw your own full-slide background: everything on a slide must be something the teacher can pick, move or edit.
-- Mix them across the presentation: patterns on some slides, colors, gradients or decorations on others.
+- A pattern is a quiet choice, as it takes the place of decorations: good for a calm slide (a long text, the References slide). Slides that need personality — the title, the hook, the recap, a story page — get a color or gradient with decorations instead.
 
-Opacity: you choose how solid decorations, patterns and pictures are. Keep anything behind text light enough that the text stays easy to read.
+Opacity: you choose how solid decorations, patterns and pictures are. Decorations away from the text can be bold and fully solid (opacity 100), so they really show. Only make what sits right behind text light, so the text stays easy to read (the report checks it).
 
 Your own drawings (SVG) — for blank and title slide design only:
 - In "design", give "svg" instead of "asset" to draw your own decoration for a spot (square viewBox, e.g. "0 0 100 100").
@@ -1267,6 +1272,14 @@ function describeSlide(slide: Slide, texts: BlankText[], pictures: SvgElement[],
       }
       for (const picture of pictures) {
         if (overlaps(picture, box)) warnings.push(`${picture.assetId} (${formatRect(picture)}) overlaps the ${label}.`);
+        // Words on a seal or a banner with tails have only part of its width (RIBBON_TEXT_SHARE).
+        const share = RIBBON_TEXT_SHARE[picture.assetId];
+        const room = Math.round(picture.width * (share ?? 1));
+        const middle = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+        // 5% spare, so a box that's only a few px over (the picture was fitted a little smaller) passes.
+        if (share && box.width > room * 1.05 && inside(middle, picture)) {
+          warnings.push(`the ${label} (${Math.round(box.width)}px wide) is wider than the part of the ${picture.assetId} at ${formatRect(picture)} that holds words: make it at most ${room}px wide, centered on it, or make the ${picture.assetId} bigger.`);
+        }
       }
     }
   } else {
@@ -1619,7 +1632,7 @@ function colorBehind(x: number, y: number, slide: Slide): string | null {
   for (const el of [...slide.elements].reverse()) {
     const asset = getElementAsset(el.assetId);
     if (asset?.isTextBox || el.containerId !== null) continue;
-    if (x < el.x || x > el.x + el.width || y < el.y || y > el.y + el.height) continue;
+    if (!inside({ x, y }, el)) continue;
     const solid = asset && !el.svg && !el.image && (SOLID_CATEGORIES.has(asset.category) || SOLID_IDS.has(asset.id));
     if (!solid || !/^#[0-9a-f]{6}$/i.test(el.color)) return null;
     return mixColors(el.color, background, (el.opacity ?? 100) / 100);
@@ -1654,6 +1667,21 @@ function contrast(a: string, b: string): number {
   };
   const [high, low] = [light(a), light(b)].sort((p, q) => q - p);
   return (high + 0.05) / (low + 0.05);
+}
+
+// How much of a ribbon's width can hold words, with a little room so they don't touch the edge: inside the
+// seal's white ring, and on the front panel of the banners with folded tails at both ends.
+const RIBBON_TEXT_SHARE: Record<string, number> = {
+  "ribbon-seal": 0.55,
+  "ribbon-banner": 0.7,
+  "ribbon-arch": 0.7,
+  "ribbon-smile": 0.7,
+  "ribbon-wave": 0.7,
+  "ribbon-rounded": 0.7,
+};
+
+function inside(point: { x: number; y: number }, rect: Rect): boolean {
+  return point.x >= rect.x && point.x <= rect.x + rect.width && point.y >= rect.y && point.y <= rect.y + rect.height;
 }
 
 function overlaps(a: Rect, b: Rect): boolean {
