@@ -564,7 +564,9 @@ export const claudeDetailsSchema = z.object({
     .trim()
     .max(DETAIL_MAX_LENGTH.author)
     .optional()
-    .describe("Who wrote the content (a teacher, a book…). Only if the user says so."),
+    .describe(
+      "Who wrote the content (a teacher, a book…). Only if the user, or a document or link they gave you, names one.",
+    ),
   tags: tagsSchema
     .optional()
     .describe('Short keywords teachers would search for, lowercase, e.g. ["fractions", "addition", "dissimilar fractions"].'),
@@ -630,7 +632,7 @@ End every presentation with a "References" slide: a blank slide titled "Referenc
 - any other source you used for facts or content.
 Never make up a reference. If there is nothing to list, leave the slide out.
 
-Also fill in "details" when you send it: the presentation's title, a short description, grades, subject, curriculum, learning competency and a few tags (and author or reference links only when you know them).
+Also fill in "details" when you send it: the presentation's title, a short description, grades, subject, curriculum, learning competency and a few tags (and author or reference links only when the user, or a document or link they gave you, names them).
 
 Leave a setting out and the app decides it. The layout report you get back (see "Checking before the final version") shows where everything landed.
 

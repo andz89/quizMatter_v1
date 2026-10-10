@@ -40,8 +40,6 @@ export function DetailsPanel() {
   const isAdmin = presentation.fromAdmin;
   // A reviewer can't change the author, sharing or publisher: those stay QuizMatter's.
   const isReview = useEditorStore((s) => s.review !== null);
-  // A QuizMatter presentation's Author is always "QuizMatter" (the database sets it on save).
-  const isAuthorLocked = isReview || isAdmin;
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -115,7 +113,7 @@ export function DetailsPanel() {
       {textField("curriculum", "Curriculum", "e.g. MATATAG")}
       {textField("learningCompetency", "Learning competency", "The competency this presentation targets, with its code", true)}
       <TagsField tags={presentation.tags} onChange={(tags) => setPresentationDetails({ tags })} />
-      {isAuthorLocked ? (
+      {isReview ? (
         <Field label="Author">
           <p className="text-sm text-text-primary">{presentation.author || "—"}</p>
         </Field>

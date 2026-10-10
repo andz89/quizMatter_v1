@@ -461,8 +461,7 @@ export const DETAIL_MAX_LENGTH = {
   author: 120,
 };
 
-// The Author and Publisher of every QuizMatter presentation (fromAdmin). The database sets the Author on save (see
-// the quizmatter_author migration), so it can't be changed.
+// The Publisher of every QuizMatter presentation (fromAdmin), and the Author it starts with (the admin can change it).
 export const QUIZMATTER_NAME = "QuizMatter";
 
 // The subjects a teacher picks from (DepEd K–12). A presentation may also have its own subject ("Other").

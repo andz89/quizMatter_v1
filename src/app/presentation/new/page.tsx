@@ -52,12 +52,12 @@ export default async function NewPresentationFromClaudePage({ searchParams }: Pa
     );
   }
 
-  // An admin's becomes a QuizMatter presentation, whose Author is always "QuizMatter".
+  // An admin's becomes a QuizMatter presentation: its Author is the one Claude sent, or "QuizMatter" if none.
   const presentation = {
     ...createBlankPresentation(draft.details),
     id: draftId,
     fromAdmin: isAdmin,
-    ...(isAdmin && { author: QUIZMATTER_NAME }),
+    ...(isAdmin && !draft.details.author && { author: QUIZMATTER_NAME }),
   };
   return <PresentationEditor presentation={presentation} draft={{ slides: draft.slides }} />;
 }
