@@ -6412,6 +6412,22 @@ export function getElementAsset(assetId: string): ElementAsset | undefined {
   return ASSETS_BY_ID.get(assetId);
 }
 
+/**
+ * Drawings are made with empty space around them in their drawing area, which is trimmed off. Not on
+ * elements whose shape changes with their settings (3D angle, clock hands, math tools) — those would
+ * jump in size while being adjusted — and not on the text box, which isn't a drawing.
+ */
+export function canTrimDrawing(asset: ElementAsset): boolean {
+  return (
+    !asset.isTextBox &&
+    !asset.is3d &&
+    !asset.isClock &&
+    !asset.numberLine &&
+    !asset.mathTool &&
+    typeof asset.viewBox !== "function"
+  );
+}
+
 // The categories shown in the Elements panel, in order (background and text live elsewhere).
 export const ELEMENT_PANEL_CATEGORIES = ["shape", "line", "arrow", "solid", "icon", "time", "math", "diagram", "decorative", "blob", "ribbon", "cloud", "number", "letter", "symbol", "emoji", "music", "fruit", "kitchen", "book", "vehicle", "person", "animal", "space", "sport", "tree", "leaf", "flag"] as const satisfies readonly ElementCategory[];
 

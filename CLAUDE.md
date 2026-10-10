@@ -89,6 +89,13 @@ The "Diagrams" group of the Elements panel. Full design: `docs/superpowers/specs
 - **Picked / typing box** is UI state in the store (`pickedDiagramBox`, `editingDiagramBox`), never saved.
 - **Claude** adds diagrams with `{ "text": … }` boxes only (automatic layout).
 
+# Picture Shapes (for Claude's import)
+
+The import runs on the server, where drawings can't be measured, so `src/lib/assetShapes.json` keeps each library drawing's real shape (without the empty space around it). The import fits every picture's box to it, like the editor does. Spec: `docs/superpowers/specs/2026-10-10-picture-drawn-shapes-design.md`.
+
+- After adding or changing library art, update the file: `npm run dev`, open `/dev/asset-shapes`, download, replace `src/lib/assetShapes.json`, commit.
+- A drawing missing from the file still works, it just keeps the box it's given.
+
 # Loading Spinner
 
 Whenever the user waits for something (opening a quiz, loading a page, saving, any slow action), show a spinner — always.

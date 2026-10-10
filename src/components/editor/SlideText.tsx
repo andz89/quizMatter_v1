@@ -21,7 +21,8 @@ export function SlideText({ text, html, fontSize: chosenFontSize, className }: S
   // Filled in here instead of in JSX: toSafeHtml needs the browser's DOM, which the server doesn't have.
   useLayoutEffect(() => {
     if (!ref.current) return;
-    ref.current.innerHTML = html ? toSafeHtml(html) : textToHtml(text);
+    // An empty paragraph (a blank line) gets a <br>, as the editor gives it, so it keeps one line of height.
+    ref.current.innerHTML = (html ? toSafeHtml(html) : textToHtml(text)).replace(/<p([^>]*)><\/p>/g, "<p$1><br></p>");
     remeasure();
   }, [ref, text, html, remeasure]);
 
@@ -29,8 +30,9 @@ export function SlideText({ text, html, fontSize: chosenFontSize, className }: S
     <div
       ref={ref}
       // break-spaces, like the editor's Tiptap text: a space at the end of a line takes room there too, so the
-      // lines break in the same places in the editor, presentation and thumbnails.
-      className={`h-full w-full overflow-hidden whitespace-break-spaces break-words ${className ?? ""}`}
+      // lines break in the same places in the editor, presentation and thumbnails. Words never break in the
+      // middle: a word too long for the box makes the text shrink instead.
+      className={`h-full w-full overflow-hidden whitespace-break-spaces ${className ?? ""}`}
       style={{ fontSize, lineHeight: 1.25 }}
     />
   );

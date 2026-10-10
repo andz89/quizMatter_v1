@@ -123,6 +123,13 @@ body {
   }
 }
 
+/* Slide text in the editor: words never break in the middle (Tiptap's own style breaks them), so a word
+   too long for its box makes the text shrink to fit instead. */
+.no-word-break .ProseMirror {
+  overflow-wrap: normal;
+  word-wrap: normal;
+}
+
 .zoom-slider {
   -webkit-appearance: none;
   appearance: none;

@@ -140,8 +140,9 @@ export function SlideStaticView({ slide, questionNumber, revealAnswer = false, f
   const questionBox = getQuestionBox(slide);
   return (
     <div
-      // Full-screen trims the top and bottom padding so the content uses more of the screen.
-      className={`relative flex select-none flex-col gap-6 overflow-hidden rounded-card border bg-bg-surface ${fullscreen ? "px-10 py-4" : "p-10"}`}
+      // The editor's padding in full screen too, so every box is the same size as in the editor and the
+      // pictures in it sit where the teacher (or Claude) put them.
+      className="relative flex select-none flex-col gap-6 overflow-hidden rounded-card border bg-bg-surface p-10"
       style={{ width: CANVAS_WIDTH, height: CANVAS_HEIGHT, borderColor: lineColor, ...getSlideBackgroundStyle(slide) }}
     >
       {(isMovableQuestion || slide.type === "custom") && questionNumber !== undefined && (
@@ -191,6 +192,7 @@ export function SlideStaticView({ slide, questionNumber, revealAnswer = false, f
             <div className={`grid min-h-0 flex-1 ${getOptionsGridClasses(slide)}`}>
               {getShownOptions(slide).map((option, index) => {
                 const isCorrect = revealAnswer && option.id === slide.correctOptionId;
+                const optionElements = slide.elements.filter((el) => el.containerId === option.id);
                 const textColor = isCorrect ? "var(--success-strong)" : fullscreen ? "var(--accent)" : "#000000";
                 return (
                 <div
@@ -210,7 +212,8 @@ export function SlideStaticView({ slide, questionNumber, revealAnswer = false, f
                   >
                     {isCorrect ? "✓" : OPTION_LABELS[index]}
                   </span>
-                  <div className="h-full w-full">
+                  {/* With pictures, the text keeps to the left half, like the editor (OptionCard). */}
+                  <div className={`h-full ${optionElements.length ? "w-1/2" : "w-full"}`}>
                     <SlideText
                       text={option.text}
                       html={option.html}
@@ -218,7 +221,7 @@ export function SlideStaticView({ slide, questionNumber, revealAnswer = false, f
                       className="text-text-primary"
                     />
                   </div>
-                  <StaticElementView elements={slide.elements.filter((el) => el.containerId === option.id)} />
+                  <StaticElementView elements={optionElements} />
                 </div>
                 );
               })}

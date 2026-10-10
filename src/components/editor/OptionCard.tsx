@@ -100,7 +100,8 @@ export function OptionCard({ slideId, option, index, isCorrect, elements, box }:
         {isCorrect ? "✓" : OPTION_LABELS[index]}
       </button>
 
-      <div className="h-full w-full">
+      {/* With pictures, the text keeps to the left half: Claude's import puts them on the right half. */}
+      <div className={`h-full ${boundElements.length ? "w-1/2" : "w-full"}`}>
         <EditableText
           text={option.text}
           html={option.html}

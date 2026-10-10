@@ -12,6 +12,8 @@ export interface Rect extends Size {
 
 // Elements can't be resized smaller than this (in canvas pixels), so they stay easy to grab.
 export const MIN_ELEMENT_SIZE = 24;
+// Empty space (px) left between a drawing's edges and its element box.
+export const TRIM_PADDING = 2;
 
 export function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));

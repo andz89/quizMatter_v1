@@ -35,8 +35,10 @@ export function TextBoxContent({ html, fontSize: chosenFontSize = TEXT_BOX_FONT_
   return (
     <div
       ref={ref}
-      // Not typing: no text highlighting, so dragging moves the box instead.
-      className={`h-full w-full overflow-hidden break-words ${editStart ? "" : "select-none"}`}
+      // Not typing: no text highlighting, so dragging moves the box instead. The text sits in the middle
+      // (top to bottom); "safe" puts it back at the top when it's too long, so shrink-to-fit still sees it overflow.
+      // no-word-break: a word too long for the box makes the text shrink instead of breaking in the middle.
+      className={`no-word-break flex h-full w-full flex-col justify-center-safe overflow-hidden ${editStart ? "" : "select-none"}`}
       style={{ fontSize, lineHeight: 1.25, color }}
     >
       <EditorContent editor={editor} />

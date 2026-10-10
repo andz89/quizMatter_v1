@@ -3,7 +3,7 @@
 import { memo, useEffect, useRef, useState } from "react";
 import { useEditorStore, withoutHistory } from "@/lib/store";
 import { canCrop, getDiagramBoxes, getElementAsset } from "@/lib/svgLibrary";
-import { ElementSvg, TRIM_PADDING } from "./ElementSvg";
+import { ElementSvg } from "./ElementSvg";
 import { TextBoxContent } from "./TextBoxContent";
 import { DiagramBoxEditor, findDiagramBoxAt } from "./DiagramBoxEditor";
 import { DiagramBoxButtons } from "./DiagramBoxButtons";
@@ -19,6 +19,7 @@ import {
   overhangFor,
   positionRange,
   pullIntoBox,
+  TRIM_PADDING,
   type Snap,
 } from "@/lib/geometry";
 import { boxForShownPart, getCropFrame, toCrop, type CropFrame } from "@/lib/crop";

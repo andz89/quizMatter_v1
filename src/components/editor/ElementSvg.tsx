@@ -1,5 +1,6 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
-import { getAssetViewBox, getElementAsset, svgDataUrl, type RenderSettings } from "@/lib/svgLibrary";
+import { canTrimDrawing, getAssetViewBox, getElementAsset, svgDataUrl, type RenderSettings } from "@/lib/svgLibrary";
+import { TRIM_PADDING } from "@/lib/geometry";
 import { isPeopleArt, isPeopleArtLoaded, loadPeopleArt } from "@/lib/peopleArt";
 import { Spinner } from "@/components/Spinner";
 import { GRADIENT_PREFIX, TEXT_BOX_FONT_SIZE, thumbnailUrl } from "@/lib/constants";
@@ -14,9 +15,6 @@ interface ElementSvgProps {
   // only for drawings that get trimmed. Lets a placed element fit its box to the drawing's shape.
   onMeasure?: (width: number, height: number) => void;
 }
-
-// Empty space (px) left between a drawing's edges and its element box.
-export const TRIM_PADDING = 2;
 
 // Turns a stored color string into a CSS background, for swatches shown outside the SVG.
 export function toCssBackground(color: string) {
@@ -125,18 +123,8 @@ function ElementDrawing({ assetId, color, settings = {}, onMeasure }: ElementSvg
   useLayoutEffect(() => {
     onMeasureRef.current = onMeasure;
   });
-  // Drawings are made with empty space around them in their 100×100 area. Trim it, except on
-  // elements whose shape changes with their settings (3D angle, clock hands, math tools) — those
-  // would jump in size while being adjusted — and on the text box, which isn't a drawing.
-  const canTrim =
-    !!asset &&
-    !waitsForArt &&
-    !asset.isTextBox &&
-    !asset.is3d &&
-    !asset.isClock &&
-    !asset.numberLine &&
-    !asset.mathTool &&
-    typeof asset.viewBox !== "function";
+  // The empty space around the drawing is trimmed off (see canTrimDrawing).
+  const canTrim = !!asset && !waitsForArt && canTrimDrawing(asset);
 
   useLayoutEffect(() => {
     const svg = svgRef.current;
@@ -192,7 +180,13 @@ function ElementDrawing({ assetId, color, settings = {}, onMeasure }: ElementSvg
   if (asset.isTextBox && settings.text) {
     return (
       <div className="h-full w-full" style={{ color }}>
-        <SlideText text="" html={settings.text.html} fontSize={settings.text.fontSize ?? TEXT_BOX_FONT_SIZE} />
+        {/* In the middle top to bottom, like the editor's text box (TextBoxContent). */}
+        <SlideText
+          text=""
+          html={settings.text.html}
+          fontSize={settings.text.fontSize ?? TEXT_BOX_FONT_SIZE}
+          className="flex flex-col justify-center-safe"
+        />
       </div>
     );
   }

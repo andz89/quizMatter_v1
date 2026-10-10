@@ -62,7 +62,8 @@ export function EditableText({
       <div
         ref={ref}
         // Not typing: no text highlighting, so a drag draws the selection rectangle instead.
-        className={`h-full w-full overflow-hidden break-words ${editStart ? "" : "select-none"} ${className ?? ""}`}
+        // no-word-break: a word too long for the box makes the text shrink instead of breaking in the middle.
+        className={`no-word-break h-full w-full overflow-hidden ${editStart ? "" : "select-none"} ${className ?? ""}`}
         style={{ fontSize, lineHeight: 1.25 }}
       >
         <EditorContent editor={editor} className="h-full" />

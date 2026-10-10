@@ -43,7 +43,8 @@ import {
 } from "./constants";
 import { markupToHtml, stripMarkup } from "./richText";
 import { BACKGROUND_COLORS, BACKGROUND_GRADIENTS, BACKGROUND_PATTERN_IDS, PATTERN_OPACITY_RANGE, withBackground } from "./slideBackground";
-import { fitInBox, MIN_ELEMENT_SIZE, type Rect, type Size } from "./geometry";
+import { fitInBox, MIN_ELEMENT_SIZE, TRIM_PADDING, type Rect, type Size } from "./geometry";
+import ASSET_SHAPES from "./assetShapes.json";
 import { createId } from "./id";
 import { DEFAULT_ROTATION_3D } from "./solids";
 import {
@@ -665,7 +666,7 @@ The slide is 1280 × 720 px.
    - give instructions for a new kind of question,
    - start a class discussion: ask an open question with no right answer ("Which fruit do you like best? Why?", "Where do you see fractions at home?").
    - It has no boxes. "title" and "text" become text boxes ("titleStyle", "textStyle", "titleFontSize", "textFontSize"), and the pictures fill the room they leave, as "layout" says.
-   - "textBoxes": extra text boxes you place yourself anywhere (labels, a speech bubble's words, a second paragraph).
+   - "textBoxes": extra text boxes you place yourself anywhere (labels, a speech bubble's words, a second paragraph). Their text is centered (set "align" in "style" for left or right), and the box shrinks to the height of its text, staying in the middle of where you put it.
    - Pictures can be placed by the app (default) or by you ("position").
    - Design (see Design below): "background", "backgroundPattern" and "design".
    - "answer" / "answerCanvas": optional "Reveal" — hidden content the teacher shows during the discussion, like an activity (see Answers and Reveal below).
@@ -711,7 +712,7 @@ Choice slides: "list" (4 rows), "grid" (2×2) or "list-side" (4 rows with a tall
 Blank and custom slides:
 - "text-top" (default): title and text across the full width, pictures below.
 - "text-left": title and text on the left half, pictures in the right half.
-- "title-only": a big centered title, pictures below, no text.
+- "title-only": a big centered title (72px if "titleFontSize" is left out), pictures below, no text.
 
 === Pictures ("elements") ===
 
@@ -751,6 +752,7 @@ Placing them yourself:
   - Blank, title and custom slides: on the 1280 × 720 slide.
   - Question slides: inside the picture's box ("side" or an option), from the box's top-left corner. The box sizes are in the layout report.
 - Anything past its box's edge is pulled back in.
+- Each picture's box is then fitted to its drawing's real shape (most drawings have empty space around them), in the middle of the box you gave. The layout report shows the fitted box: place words and callout labels by its numbers.
 - "square" and "rectangle" take exactly the width and height you give, so they can be a box of any shape: e.g. a soft colored panel behind a group of pictures, or a bar. Add "cornerRadius" for rounded corners.
 - Pictures you place yourself are drawn in list order (a later one sits on top of an earlier one), and behind the pictures the app places. So list a background panel before what goes on it.
 - "textBoxes" (blank, title and custom slides) are placed the same way, and sit on top of pictures — good for labels on a picture.
@@ -970,23 +972,36 @@ function buildSlide(
   if (isCanvas && areas?.title) {
     // Title slides get the editor's big centered title.
     const centered = recipe.type === "title" || recipe.layout === "title-only";
-    const fontSize = recipe.titleFontSize ?? (isTitle ? TITLE_SLIDE_TITLE.fontSize : undefined);
+    // Title slides and title-only slides get the big title size; other titles the text box's.
+    const fontSize = recipe.titleFontSize ?? (centered ? TITLE_SLIDE_TITLE.fontSize : undefined);
     const html = markupToHtml(recipe.title!, { align: centered ? "center" : "left", ...recipe.titleStyle, bold: true });
     textBoxes.push(textBox(areas.title, html, fontSize));
-    texts.push({ label: "title", box: textBoxes.at(-1)!, words: stripMarkup(recipe.title!) });
+    texts.push({ label: "title", box: textBoxes.at(-1)!, words: stripMarkup(recipe.title!), bold: true });
   }
   if (isCanvas && areas?.text) {
     const fontSize = recipe.textFontSize ?? (isTitle ? TITLE_SLIDE_DESCRIPTION.fontSize : undefined);
     const style = isTitle ? { align: "center" as const, ...recipe.textStyle } : recipe.textStyle;
     textBoxes.push(textBox(areas.text, markupToHtml(recipe.text!, style), fontSize));
-    texts.push({ label: "text", box: textBoxes.at(-1)!, words: stripMarkup(recipe.text!) });
+    texts.push({ label: "text", box: textBoxes.at(-1)!, words: stripMarkup(recipe.text!), bold: recipe.textStyle?.bold });
   }
+  // Things Claude may want to fix, for the report.
+  const notes: string[] = [];
   // Text boxes Claude placed itself. They sit on top of the pictures, so a label can go on one.
   const placedText =
     isCanvas
       ? recipe.textBoxes.map((box, i) => {
-          const element = textBox(fitInBox(box.position, CANVAS), markupToHtml(box.text, box.style), box.fontSize);
-          texts.push({ label: `text box ${i + 1}`, box: element, words: stripMarkup(box.text) });
+          // Only as tall as its text, in the middle of where Claude put it — so a box over a ribbon or
+          // shape doesn't leave a big empty part.
+          const asked = fitInBox(box.position, CANVAS);
+          if (formatRect(asked) !== formatRect(box.position)) {
+            notes.push(`text box ${i + 1} didn't fit on the slide where you put it, so it was moved or shrunk to ${formatRect(asked)}.`);
+          }
+          const textHeight = textBoxHeightFor(stripMarkup(box.text), asked.width, box.fontSize ?? TEXT_BOX_FONT_SIZE, box.style?.bold);
+          const height = Math.min(asked.height, Math.max(MIN_ELEMENT_SIZE, textHeight));
+          const rect = { ...asked, y: asked.y + Math.round((asked.height - height) / 2), height };
+          // Centered unless Claude says otherwise: they're mostly labels on a shape, ribbon or diagram box.
+          const element = textBox(rect, markupToHtml(box.text, { align: "center", ...box.style }), box.fontSize);
+          texts.push({ label: `text box ${i + 1}`, box: element, words: stripMarkup(box.text), bold: box.style?.bold });
           return element;
         })
       : [];
@@ -1007,8 +1022,6 @@ function buildSlide(
 
   const pictures: SvgElement[] = [];
   const calloutParts: SvgElement[] = [];
-  // Things Claude may want to fix, for the report.
-  const notes: string[] = [];
 
   // Build every element's settings first, grouped by the box it goes in (keeping the recipe's order).
   const byBox = new Map<string | null, { base: Omit<SvgElement, keyof Rect>; size: Size; callouts: Callout[]; pad: Pad }[]>();
@@ -1036,9 +1049,14 @@ function buildSlide(
     // blank slide, the whole slide).
     if (el.position) {
       if (el.count > 1) return reportError(`${where}: "position" places one picture, so leave "count" out.`);
-      const picture = fitInBox(el.position, boundsOf(containerId, slide));
-      if (formatRect(picture) !== formatRect(el.position)) {
-        notes.push(`${where} didn't fit in "${boxLabel(containerId, slide)}" where you put it, so it was moved or shrunk to ${formatRect(picture)}.`);
+      const inBox = fitInBox(el.position, boundsOf(containerId, slide));
+      if (formatRect(inBox) !== formatRect(el.position)) {
+        notes.push(`${where} didn't fit in "${boxLabel(containerId, slide)}" where you put it, so it was moved or shrunk to ${formatRect(inBox)}.`);
+      }
+      // The drawing keeps its own shape, so its box shrinks to it (as the editor does when the slide opens).
+      const picture = fitToDrawing(inBox, drawnShape(el.asset, settings));
+      if (Math.abs(picture.width - inBox.width) > 2 || Math.abs(picture.height - inBox.height) > 2) {
+        notes.push(`${where} was fitted to its drawing's shape: ${formatRect(picture)} instead of ${formatRect(inBox)}. Place its words and labels by that.`);
       }
       pictures.push({ id: createId(), assetId: el.asset, color, containerId, ...settings, ...picture });
       calloutParts.push(...calloutElements(picture, el.callouts ?? []));
@@ -1092,12 +1110,14 @@ function buildSlide(
     items.forEach(({ base, size, pad, callouts }, i) => {
       // Shrinking to fit scales the slot evenly, so the picture and its padding shrink by the same amount.
       const scale = slots[i].width / (size.width + pad.left + pad.right);
-      const picture = {
+      const slot = {
         x: area.x + slots[i].x + pad.left * scale,
         y: area.y + slots[i].y + pad.top * scale,
         width: size.width * scale,
         height: size.height * scale,
       };
+      // Already in the drawing's shape (startSize); this only adds the editor's 2px gap around it.
+      const picture = fitToDrawing(slot, drawnShape(base.assetId, base));
       pictures.push({ ...base, ...picture });
       calloutParts.push(...calloutElements(picture, callouts));
     });
@@ -1114,7 +1134,9 @@ function buildSlide(
     return decorationElements(item);
   });
 
-  slide = { ...slide, elements: [...decorations, ...textBoxes, ...pictures, ...placedText, ...calloutParts] };
+  // Later ones are drawn on top: the title and text sit above every picture, so a panel or bar behind them
+  // doesn't cover them.
+  slide = { ...slide, elements: [...decorations, ...pictures, ...textBoxes, ...placedText, ...calloutParts] };
   const report = describeSlide(slide, texts, pictures, notes);
   // Short-answer pictures were placed in the room under the question ("side"); they sit on the slide itself.
   slide.elements = moveShortAnswerPicturesToSlide(slide);
@@ -1143,6 +1165,8 @@ interface BlankText {
   label: string;
   box: SvgElement;
   words: string;
+  // Bold text has wider letters, so the guess of its length uses those.
+  bold?: boolean;
 }
 
 // Room an option's text keeps from its box's edges (px, both sides together), about.
@@ -1162,11 +1186,14 @@ const formatSize = ({ width, height }: Size) => `${Math.round(width)}×${Math.ro
 const formatRect = (rect: Rect) => `${Math.round(rect.x)},${Math.round(rect.y)} ${formatSize(rect)}`;
 
 /** Whether text probably needs more room than the box has at this font size (then it shrinks). A guess: the browser does the real fitting. */
-function tooLong(words: string, box: Size, fontSize: number): boolean {
+function tooLong(words: string, box: Size, fontSize: number, bold = false): boolean {
   if (words.trim() === "") return false;
+  // Words never break in the middle, so a word longer than a line makes the text shrink.
+  const longestWord = Math.max(...words.split(/\s+/).map((word) => word.length));
+  if (longestWord > charsPerLineFor(Math.max(1, box.width), fontSize, bold)) return true;
   // One line always counts as fitting: a short option in a short list row is fine.
   const lineHeight = fontSize * LINE_HEIGHT_PER_PX;
-  const lines = textHeightFor(words, Math.max(1, box.width), fontSize) / lineHeight;
+  const lines = textHeightFor(words, Math.max(1, box.width), fontSize, bold) / lineHeight;
   return lines > Math.max(1, Math.floor(box.height / lineHeight));
 }
 
@@ -1177,9 +1204,9 @@ function describeSlide(slide: Slide, texts: BlankText[], pictures: SvgElement[],
 
   if (isFreeCanvas(slide)) {
     if (texts.length) lines.push(`Text: ${texts.map(({ label, box }) => `${label} ${formatRect(box)}`).join(" · ")}`);
-    for (const { label, box, words } of texts) {
+    for (const { label, box, words, bold } of texts) {
       const fontSize = box.text?.fontSize ?? TEXT_BOX_FONT_SIZE;
-      if (tooLong(words, box, fontSize)) warnings.push(`the ${label} is probably too long for its box at ${fontSize}px, so it will shrink.`);
+      if (tooLong(words, box, fontSize, bold)) warnings.push(`the ${label} is probably too long for its box at ${fontSize}px, so it will shrink.`);
       for (const picture of pictures) {
         if (overlaps(picture, box)) warnings.push(`${picture.assetId} (${formatRect(picture)}) overlaps the ${label}.`);
       }
@@ -1286,9 +1313,14 @@ function blankAreas(recipe: BlankRecipe): { title: Rect | null; text: Rect | nul
     const column = (width - BLANK_GAP) / 2;
     const title = recipe.title ? { x: left, y: BLANK_MARGIN, width: column, height: BLANK_TITLE_HEIGHT } : null;
     const textTop = title ? BLANK_MARGIN + BLANK_TITLE_HEIGHT + BLANK_GAP : BLANK_MARGIN;
+    // Only as tall as the text: text boxes center their text top to bottom, so a full-column box would
+    // float short text away from the title.
+    const textHeight = hasText
+      ? textBoxHeightFor(stripMarkup(recipe.text!), column, recipe.textFontSize ?? TEXT_BOX_FONT_SIZE, recipe.textStyle?.bold)
+      : 0;
     return {
       title,
-      text: hasText ? { x: left, y: textTop, width: column, height: bottom - textTop } : null,
+      text: hasText ? { x: left, y: textTop, width: column, height: Math.min(bottom - textTop, textHeight) } : null,
       pictures: { x: left + column + BLANK_GAP, y: BLANK_MARGIN, width: column, height: bottom - BLANK_MARGIN },
     };
   }
@@ -1303,7 +1335,8 @@ function blankAreas(recipe: BlankRecipe): { title: Rect | null; text: Rect | nul
     y += height + BLANK_GAP;
   }
   if (hasText) {
-    const height = textHeightFor(stripMarkup(recipe.text!), width, recipe.textFontSize ?? TEXT_BOX_FONT_SIZE);
+    // Half a line spare (textBoxHeightFor), as the guess is rough.
+    const height = textBoxHeightFor(stripMarkup(recipe.text!), width, recipe.textFontSize ?? TEXT_BOX_FONT_SIZE, recipe.textStyle?.bold);
     text = { x: left, y, width, height: Math.min(BLANK_MAX_TEXT_HEIGHT, height) };
     y += text.height + BLANK_GAP;
   }
@@ -1496,16 +1529,28 @@ const MAX_IMPORT_STRIP_HEIGHT = 240;
 // For each px of font size, a character is about this wide and a line this tall (px).
 const CHAR_WIDTH_PER_PX = 0.525;
 const LINE_HEIGHT_PER_PX = 1.25;
+// Bold letters are about this much wider than regular ones.
+const BOLD_WIDTH = 1.08;
 // The room the question box's edges take (px), top + bottom (and left + right): p-4 plus its 1px border.
 const QUESTION_PADDING = 34;
 // Room the question text has across: slides from Claude are numbered, so their question box is narrower.
 const QUESTION_TEXT_WIDTH = QUESTION_CONTAINER_WIDTH - QUESTION_PADDING - QUESTION_NUMBER_INDENT;
 
+/** How many characters fit on one line of a box `width` wide at `fontSize`, about. */
+function charsPerLineFor(width: number, fontSize: number, bold = false): number {
+  return Math.max(1, Math.floor(width / (fontSize * CHAR_WIDTH_PER_PX * (bold ? BOLD_WIDTH : 1))));
+}
+
 /** Roughly how tall `text` is at `fontSize` in a box `width` wide. Each \n starts a new line. */
-function textHeightFor(text: string, width: number, fontSize: number): number {
-  const charsPerLine = Math.max(1, Math.floor(width / (fontSize * CHAR_WIDTH_PER_PX)));
+function textHeightFor(text: string, width: number, fontSize: number, bold = false): number {
+  const charsPerLine = charsPerLineFor(width, fontSize, bold);
   const lines = text.split("\n").reduce((sum, line) => sum + Math.max(1, Math.ceil(line.length / charsPerLine)), 0);
   return lines * fontSize * LINE_HEIGHT_PER_PX;
+}
+
+/** A text box's height for `text`: its guessed height plus half a line, as the guess is rough. */
+function textBoxHeightFor(text: string, width: number, fontSize: number, bold = false): number {
+  return Math.ceil(textHeightFor(text, width, fontSize, bold) + (fontSize * LINE_HEIGHT_PER_PX) / 2);
 }
 
 /** A question box just tall enough for its text — short questions get a shorter box. Never taller than the default. */
@@ -1634,16 +1679,44 @@ function buildSettings(el: ElementRecipe, asset: Asset): Partial<SvgElement> | s
 // How tall each size is, as a share of the box's height.
 const SIZE_SHARE = { small: 0.3, medium: 0.55, large: 0.85 };
 // Sizes are worked out from at least this box height (px), so pictures in short boxes (the 120px
-// strip, list options ~70–100px) aren't tiny — many drawings (e.g. the car) only fill part of their
-// square. placeInBox still shrinks them to fit the real box.
+// strip, list options ~70–100px) aren't tiny. placeInBox still shrinks them to fit the real box.
 const MIN_SIZE_BASE = 180;
 // Space between elements, and from the box's right edge when placed on the right (px).
 const GAP = 16;
 
+/**
+ * A drawing's real shape (width, height), without the empty space around it in its drawing area —
+ * measured ahead of time on the /dev/asset-shapes page into assetShapes.json. Null when it isn't
+ * there, or for a cropped picture, a photo or a custom drawing: those keep the box they're given.
+ */
+function drawnShape(assetId: string, settings: Partial<SvgElement>): Size | null {
+  if (settings.crop || settings.image || settings.svg) return null;
+  const shape = (ASSET_SHAPES as Record<string, [number, number]>)[assetId];
+  return shape ? { width: shape[0], height: shape[1] } : null;
+}
+
+/** The box shrunk to the drawing's shape, in its middle, with the editor's 2px gap — like fitBoxToDrawing in the editor. */
+function fitToDrawing(rect: Rect, shape: Size | null): Rect {
+  if (!shape) return rect;
+  const pad = TRIM_PADDING * 2;
+  const scale = Math.min((rect.width - pad) / shape.width, (rect.height - pad) / shape.height);
+  const width = shape.width * scale + pad;
+  const height = shape.height * scale + pad;
+  // Too thin to still be grabbed: keep the box as it was (the editor does the same).
+  if (width < MIN_ELEMENT_SIZE || height < MIN_ELEMENT_SIZE) return rect;
+  return { x: rect.x + (rect.width - width) / 2, y: rect.y + (rect.height - height) / 2, width, height };
+}
+
 /** The size an element starts at before placing: a share of the box height, in the asset's own shape. */
 function startSize(asset: Asset, settings: Partial<SvgElement>, size: SizeName, box: Size): Size {
-  // Assets whose shape depends on their settings (counting frame, base-ten blocks) take it from the
-  // drawing area; the rest from their default size (e.g. wide number lines), or a square.
+  // The drawing's own shape when it's been measured (see drawnShape). Otherwise: assets whose shape
+  // depends on their settings (counting frame, base-ten blocks) take it from the drawing area; the rest
+  // from their default size (e.g. wide number lines), or a square.
+  const drawn = drawnShape(asset.id, settings);
+  if (drawn) {
+    const height = Math.max(box.height, MIN_SIZE_BASE) * SIZE_SHARE[size];
+    return { width: (height * drawn.width) / drawn.height, height };
+  }
   const [, , viewWidth, viewHeight] = getAssetViewBox(asset, settings).split(" ").map(Number);
   const full =
     typeof asset.viewBox === "function" ? { width: viewWidth, height: viewHeight } : (asset.defaultSize ?? { width: 1, height: 1 });
