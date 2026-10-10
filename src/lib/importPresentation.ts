@@ -765,7 +765,8 @@ Other diagrams — use the ready-made "flowchart", "cycle", "mind-map", "tree-di
 
 Ribbons, banners and badges ("ribbon-…" pictures) — a fun way to show a title, a label or a reward:
 - Banners and ribbons for a title or a heading: "ribbon-banner", "ribbon-arch", "ribbon-smile", "ribbon-wave", "ribbon-rounded", "ribbon-strip", "ribbon-arrow", "ribbon-label", "ribbon-sash", "ribbon-corner".
-- Tabs and tags for a short label or a step number: "ribbon-hanging-tab", "ribbon-bookmark", "ribbon-round-tab", "ribbon-pointed-tab", "ribbon-speech-tag", "ribbon-leaf-tag", "ribbon-slant-tag", "ribbon-peel".
+- Tags for a short label ("Page 1", "Step 2"): "ribbon-speech-tag", "ribbon-leaf-tag", "ribbon-slant-tag", "ribbon-peel".
+- Hanging tabs: "ribbon-hanging-tab", "ribbon-bookmark", "ribbon-round-tab", "ribbon-pointed-tab". They are tall and narrow (about 1 wide for 2 high), hanging down from a bar, so they only hold one big number or letter. Give them a tall box (e.g. 60 × 120): in a wide box they stay narrow, in its middle. Never use them behind a word or a few words — use a tag or a banner.
 - Badges for a reward or a key word ("Great job!", "New word", "Step 1"): "ribbon-seal", "ribbon-scallop", "ribbon-hexagon", "ribbon-drop".
 - They are empty shapes: put the words in a "textBoxes" entry placed over the ribbon's middle (a little smaller than the ribbon, centered), listed so it sits on top. Keep it to a few words, in a color that's easy to read on the ribbon (white on dark ribbons, dark on light ones).
 - Give them "position" so you know exactly where the words go. Use them in "elements", not "design", so the teacher can move them with their words.
@@ -1691,7 +1692,7 @@ const GAP = 16;
  */
 function drawnShape(assetId: string, settings: Partial<SvgElement>): Size | null {
   if (settings.crop || settings.image || settings.svg) return null;
-  const shape = (ASSET_SHAPES as Record<string, [number, number]>)[assetId];
+  const shape = (ASSET_SHAPES as Record<string, number[]>)[assetId];
   return shape ? { width: shape[0], height: shape[1] } : null;
 }
 

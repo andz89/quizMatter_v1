@@ -1,1 +1,1822 @@
-{}
+{
+  "animal-bear": [
+    82,
+    82
+  ],
+  "animal-cat": [
+    73.8,
+    85.8
+  ],
+  "animal-chick": [
+    77,
+    85
+  ],
+  "animal-cow": [
+    93.5,
+    83.5
+  ],
+  "animal-dog": [
+    95.8,
+    70
+  ],
+  "animal-fish": [
+    86,
+    58
+  ],
+  "animal-fox": [
+    80,
+    86
+  ],
+  "animal-frog": [
+    83,
+    75
+  ],
+  "animal-lion": [
+    89.8,
+    89.8
+  ],
+  "animal-monkey": [
+    98,
+    74
+  ],
+  "animal-mouse": [
+    89.5,
+    75.5
+  ],
+  "animal-owl": [
+    72,
+    90
+  ],
+  "animal-panda": [
+    82,
+    82
+  ],
+  "animal-penguin": [
+    64,
+    88
+  ],
+  "animal-pig": [
+    72,
+    80
+  ],
+  "animal-rabbit": [
+    61.8,
+    91.8
+  ],
+  "apple": [
+    77.1,
+    84.5
+  ],
+  "arcs": [
+    79,
+    43
+  ],
+  "arrow-block-down": [
+    72,
+    88
+  ],
+  "arrow-block-down-left": [
+    113.1,
+    113.1
+  ],
+  "arrow-block-down-right": [
+    113.1,
+    113.1
+  ],
+  "arrow-block-left": [
+    88,
+    72
+  ],
+  "arrow-block-right": [
+    88,
+    72
+  ],
+  "arrow-block-up": [
+    72,
+    88
+  ],
+  "arrow-block-up-left": [
+    113.1,
+    113.1
+  ],
+  "arrow-block-up-right": [
+    113.1,
+    113.1
+  ],
+  "arrow-callout": [
+    90,
+    56
+  ],
+  "arrow-chevron": [
+    66,
+    80
+  ],
+  "arrow-circular": [
+    85,
+    72
+  ],
+  "arrow-curved": [
+    89,
+    56.1
+  ],
+  "arrow-cycle": [
+    86,
+    72.1
+  ],
+  "arrow-diagonal": [
+    90,
+    90
+  ],
+  "arrow-double-chevron": [
+    84,
+    72
+  ],
+  "arrow-four-way": [
+    92,
+    92
+  ],
+  "arrow-in-circle": [
+    84,
+    84
+  ],
+  "arrow-left-right": [
+    92,
+    60
+  ],
+  "arrow-notched": [
+    88,
+    72
+  ],
+  "arrow-outline": [
+    94,
+    78
+  ],
+  "arrow-redo": [
+    80,
+    66
+  ],
+  "arrow-right": [
+    83,
+    55
+  ],
+  "arrow-striped": [
+    88,
+    72
+  ],
+  "arrow-thin-down": [
+    40,
+    92
+  ],
+  "arrow-thin-left": [
+    92,
+    40
+  ],
+  "arrow-thin-right": [
+    92,
+    40
+  ],
+  "arrow-thin-up": [
+    40,
+    92
+  ],
+  "arrow-turn": [
+    83,
+    89
+  ],
+  "arrow-u-turn": [
+    71,
+    80
+  ],
+  "arrow-undo": [
+    80,
+    66
+  ],
+  "arrow-up-down": [
+    60,
+    92
+  ],
+  "arrow-zigzag": [
+    90,
+    61
+  ],
+  "avocado": [
+    68,
+    86
+  ],
+  "background-bubbles": [
+    161.8,
+    101.8
+  ],
+  "background-checkers": [
+    160,
+    100
+  ],
+  "background-confetti": [
+    160,
+    100
+  ],
+  "background-diamonds": [
+    160,
+    100
+  ],
+  "background-dots": [
+    160,
+    100
+  ],
+  "background-flowers": [
+    160,
+    100
+  ],
+  "background-hearts": [
+    160,
+    100
+  ],
+  "background-math": [
+    162.2,
+    102.2
+  ],
+  "background-moons": [
+    160,
+    100
+  ],
+  "background-rainbows": [
+    161.7,
+    101.7
+  ],
+  "background-sprinkles": [
+    160,
+    100
+  ],
+  "background-stars": [
+    160,
+    100
+  ],
+  "background-stripes": [
+    160,
+    100
+  ],
+  "background-triangles": [
+    160,
+    100
+  ],
+  "background-waves": [
+    164,
+    104
+  ],
+  "background-zigzag": [
+    164,
+    104
+  ],
+  "balloons": [
+    73.5,
+    85.5
+  ],
+  "banana": [
+    74.5,
+    66.1
+  ],
+  "banner": [
+    92,
+    42
+  ],
+  "blob": [
+    80.1,
+    85.2
+  ],
+  "blob-bean": [
+    59.8,
+    85.1
+  ],
+  "blob-flat": [
+    80.5,
+    44.5
+  ],
+  "blob-leaf": [
+    72.7,
+    78.2
+  ],
+  "blob-loaf": [
+    81.5,
+    65.1
+  ],
+  "blob-peanut": [
+    82.6,
+    44.3
+  ],
+  "blob-pear": [
+    66.4,
+    77.9
+  ],
+  "blob-plump": [
+    76.3,
+    74.2
+  ],
+  "blob-round": [
+    80,
+    79.1
+  ],
+  "blob-slant": [
+    81.9,
+    80.2
+  ],
+  "blob-square": [
+    72.2,
+    73.5
+  ],
+  "blob-stick": [
+    31.8,
+    85.3
+  ],
+  "blob-wobbly": [
+    78.3,
+    84.2
+  ],
+  "blueberries": [
+    79.5,
+    59.5
+  ],
+  "bolt": [
+    52,
+    88
+  ],
+  "book-bookmark": [
+    59.5,
+    91.5
+  ],
+  "book-bookmark-only": [
+    32,
+    86
+  ],
+  "book-closed": [
+    59.5,
+    81.5
+  ],
+  "book-composition": [
+    57.5,
+    81.5
+  ],
+  "book-dictionary": [
+    77.5,
+    81.5
+  ],
+  "book-glasses": [
+    83,
+    49
+  ],
+  "book-math": [
+    59.5,
+    81.5
+  ],
+  "book-notebook": [
+    62,
+    84
+  ],
+  "book-open": [
+    90.5,
+    61.1
+  ],
+  "book-open-picture": [
+    90.5,
+    61.1
+  ],
+  "book-reading": [
+    59.5,
+    81.5
+  ],
+  "book-school-bag": [
+    62,
+    84
+  ],
+  "book-shelf": [
+    88,
+    69
+  ],
+  "book-stack": [
+    72,
+    56.9
+  ],
+  "book-stand": [
+    85,
+    72.4
+  ],
+  "book-story": [
+    59.5,
+    81.5
+  ],
+  "bow": [
+    86.2,
+    67.1
+  ],
+  "brush-stroke": [
+    87.4,
+    24.6
+  ],
+  "bunting": [
+    95,
+    48.7
+  ],
+  "burst-lines": [
+    88,
+    88
+  ],
+  "check-circle": [
+    92,
+    92
+  ],
+  "cherry": [
+    71.5,
+    84.8
+  ],
+  "circle": [
+    84,
+    84
+  ],
+  "cloud": [
+    90,
+    60
+  ],
+  "cloud-double": [
+    109.6,
+    62.4
+  ],
+  "cloud-moon": [
+    81.2,
+    87
+  ],
+  "cloud-outline": [
+    91.6,
+    61.6
+  ],
+  "cloud-rain": [
+    81.8,
+    78.2
+  ],
+  "cloud-snow": [
+    76.8,
+    73.7
+  ],
+  "cloud-storm": [
+    76.8,
+    87.2
+  ],
+  "cloud-sun": [
+    99.8,
+    102
+  ],
+  "coconut": [
+    82.5,
+    54.5
+  ],
+  "coin-1-peso": [
+    90,
+    90
+  ],
+  "coin-10-peso": [
+    90,
+    90
+  ],
+  "coin-20-peso": [
+    90,
+    90
+  ],
+  "coin-25-sentimo": [
+    90,
+    90
+  ],
+  "coin-5-peso": [
+    90,
+    90
+  ],
+  "confetti": [
+    70.3,
+    59.3
+  ],
+  "corner-frame": [
+    89,
+    89
+  ],
+  "cross": [
+    92,
+    92
+  ],
+  "crown": [
+    90,
+    74
+  ],
+  "dart": [
+    84,
+    86
+  ],
+  "decagon": [
+    87.4,
+    92
+  ],
+  "diamond": [
+    92,
+    92
+  ],
+  "dice-1": [
+    89,
+    89
+  ],
+  "dice-2": [
+    89,
+    89
+  ],
+  "dice-3": [
+    89,
+    89
+  ],
+  "dice-4": [
+    89,
+    89
+  ],
+  "dice-5": [
+    89,
+    89
+  ],
+  "dice-6": [
+    89,
+    89
+  ],
+  "divider": [
+    94,
+    23
+  ],
+  "dodecagon": [
+    92,
+    92
+  ],
+  "doodle-circle": [
+    82.5,
+    76.7
+  ],
+  "dots": [
+    70,
+    56
+  ],
+  "dotted-ring": [
+    80,
+    80
+  ],
+  "dragon-fruit": [
+    84,
+    88
+  ],
+  "emoji-big-grin": [
+    109.9,
+    100.2
+  ],
+  "emoji-blushing-smile": [
+    109.9,
+    100.2
+  ],
+  "emoji-check-mark": [
+    109.9,
+    100.2
+  ],
+  "emoji-clapping-hands": [
+    109.9,
+    100.2
+  ],
+  "emoji-cross-mark": [
+    109.9,
+    100.2
+  ],
+  "emoji-crying-face": [
+    109.9,
+    100.2
+  ],
+  "emoji-fire": [
+    109.9,
+    100.2
+  ],
+  "emoji-grinning-face": [
+    109.9,
+    100.2
+  ],
+  "emoji-heart-emoji": [
+    109.9,
+    100.2
+  ],
+  "emoji-heart-eyes": [
+    109.9,
+    100.2
+  ],
+  "emoji-hundred-points": [
+    109.9,
+    100.2
+  ],
+  "emoji-laughing-face": [
+    109.9,
+    100.2
+  ],
+  "emoji-light-bulb": [
+    109.9,
+    100.2
+  ],
+  "emoji-party-popper": [
+    109.9,
+    100.2
+  ],
+  "emoji-raised-hands": [
+    109.9,
+    100.2
+  ],
+  "emoji-rocket": [
+    109.9,
+    100.2
+  ],
+  "emoji-smiling-face": [
+    109.9,
+    100.2
+  ],
+  "emoji-star-emoji": [
+    109.9,
+    100.2
+  ],
+  "emoji-sunglasses-face": [
+    109.9,
+    100.2
+  ],
+  "emoji-surprised-face": [
+    109.9,
+    100.2
+  ],
+  "emoji-thinking-face": [
+    109.9,
+    100.2
+  ],
+  "emoji-thumbs-down": [
+    109.9,
+    100.2
+  ],
+  "emoji-thumbs-up": [
+    109.9,
+    100.2
+  ],
+  "flag-australia": [
+    210,
+    110
+  ],
+  "flag-austria": [
+    150,
+    100
+  ],
+  "flag-belgium": [
+    15,
+    13
+  ],
+  "flag-brazil": [
+    103,
+    73
+  ],
+  "flag-brunei": [
+    200,
+    100
+  ],
+  "flag-cambodia": [
+    150,
+    100
+  ],
+  "flag-canada": [
+    200,
+    100
+  ],
+  "flag-china": [
+    150,
+    100
+  ],
+  "flag-denmark": [
+    37,
+    28
+  ],
+  "flag-finland": [
+    18,
+    11
+  ],
+  "flag-france": [
+    150,
+    100
+  ],
+  "flag-germany": [
+    5,
+    3
+  ],
+  "flag-greece": [
+    150,
+    100
+  ],
+  "flag-iceland": [
+    25,
+    18
+  ],
+  "flag-india": [
+    152,
+    102
+  ],
+  "flag-indonesia": [
+    150,
+    100
+  ],
+  "flag-ireland": [
+    200,
+    100
+  ],
+  "flag-italy": [
+    150,
+    100
+  ],
+  "flag-japan": [
+    150,
+    100
+  ],
+  "flag-laos": [
+    150,
+    100
+  ],
+  "flag-malaysia": [
+    200,
+    100
+  ],
+  "flag-mexico": [
+    178,
+    103
+  ],
+  "flag-myanmar": [
+    150,
+    100
+  ],
+  "flag-netherlands": [
+    150,
+    100
+  ],
+  "flag-new-zealand": [
+    210,
+    110
+  ],
+  "flag-norway": [
+    22,
+    16
+  ],
+  "flag-philippines": [
+    200,
+    100
+  ],
+  "flag-poland": [
+    8,
+    5
+  ],
+  "flag-portugal": [
+    153.5,
+    103.5
+  ],
+  "flag-singapore": [
+    150,
+    100
+  ],
+  "flag-south-korea": [
+    150,
+    100
+  ],
+  "flag-spain": [
+    150,
+    100
+  ],
+  "flag-sweden": [
+    16,
+    10
+  ],
+  "flag-switzerland": [
+    100,
+    100
+  ],
+  "flag-thailand": [
+    150,
+    100
+  ],
+  "flag-timor-leste": [
+    200,
+    100
+  ],
+  "flag-uk": [
+    70,
+    40
+  ],
+  "flag-usa": [
+    190,
+    100
+  ],
+  "flag-vietnam": [
+    150,
+    100
+  ],
+  "flower": [
+    97.3,
+    92.8
+  ],
+  "grapes": [
+    60,
+    74.1
+  ],
+  "heart": [
+    76,
+    80
+  ],
+  "hearts": [
+    77.1,
+    68.5
+  ],
+  "heptagon": [
+    89.6,
+    87.4
+  ],
+  "hexagon": [
+    80,
+    92
+  ],
+  "kitchen-bowl": [
+    80,
+    53
+  ],
+  "kitchen-fork": [
+    28,
+    86
+  ],
+  "kitchen-frying-pan": [
+    90,
+    64
+  ],
+  "kitchen-glass-water": [
+    51,
+    83
+  ],
+  "kitchen-knife": [
+    16.5,
+    88
+  ],
+  "kitchen-mug": [
+    74,
+    71
+  ],
+  "kitchen-pitcher-water": [
+    78.8,
+    86
+  ],
+  "kitchen-plate": [
+    89.5,
+    89.5
+  ],
+  "kitchen-pot": [
+    89.5,
+    65.5
+  ],
+  "kitchen-spoon": [
+    28,
+    89
+  ],
+  "kitchen-teapot": [
+    89.8,
+    72
+  ],
+  "kite": [
+    60,
+    92
+  ],
+  "kiwi": [
+    80,
+    80
+  ],
+  "laurel": [
+    95,
+    87.5
+  ],
+  "leaf-branch": [
+    102.3,
+    102.8
+  ],
+  "leaf-clover": [
+    75.5,
+    84.5
+  ],
+  "leaf-fern": [
+    72.5,
+    96
+  ],
+  "leaf-four-leaf-clover": [
+    73.5,
+    88.8
+  ],
+  "leaf-ginkgo": [
+    83,
+    87.2
+  ],
+  "leaf-heart": [
+    75,
+    91
+  ],
+  "leaf-holly": [
+    95.6,
+    47.1
+  ],
+  "leaf-maple": [
+    87,
+    93
+  ],
+  "leaf-oak": [
+    56.1,
+    93
+  ],
+  "leaf-round": [
+    67,
+    94
+  ],
+  "leaf-simple": [
+    80.9,
+    99.9
+  ],
+  "leaf-sprout": [
+    74,
+    73
+  ],
+  "leaf-willow": [
+    74.4,
+    84.5
+  ],
+  "lemon": [
+    84,
+    68.5
+  ],
+  "letter-A": [
+    57,
+    100
+  ],
+  "letter-B": [
+    56.1,
+    100
+  ],
+  "letter-C": [
+    55.5,
+    100
+  ],
+  "letter-D": [
+    61.8,
+    100
+  ],
+  "letter-E": [
+    51.6,
+    100
+  ],
+  "letter-F": [
+    49.5,
+    100
+  ],
+  "letter-G": [
+    62.6,
+    100
+  ],
+  "letter-H": [
+    62.3,
+    100
+  ],
+  "letter-I": [
+    44.4,
+    100
+  ],
+  "letter-J": [
+    53.2,
+    100
+  ],
+  "letter-K": [
+    59.6,
+    100
+  ],
+  "letter-L": [
+    48.7,
+    100
+  ],
+  "letter-M": [
+    70.2,
+    100
+  ],
+  "letter-N": [
+    64.6,
+    100
+  ],
+  "letter-O": [
+    65,
+    100
+  ],
+  "letter-P": [
+    53,
+    100
+  ],
+  "letter-Q": [
+    65,
+    100
+  ],
+  "letter-R": [
+    56.2,
+    100
+  ],
+  "letter-S": [
+    50.7,
+    100
+  ],
+  "letter-T": [
+    52.4,
+    100
+  ],
+  "letter-U": [
+    61.2,
+    100
+  ],
+  "letter-V": [
+    57,
+    100
+  ],
+  "letter-W": [
+    79.8,
+    100
+  ],
+  "letter-X": [
+    57.9,
+    100
+  ],
+  "letter-Y": [
+    57,
+    100
+  ],
+  "letter-Z": [
+    54.6,
+    100
+  ],
+  "lightbulb": [
+    57.3,
+    88
+  ],
+  "loops": [
+    93,
+    35
+  ],
+  "mango": [
+    70.6,
+    85.9
+  ],
+  "music-bass-clef": [
+    73,
+    82
+  ],
+  "music-beamed-notes": [
+    74.6,
+    80.9
+  ],
+  "music-eighth-note": [
+    52.6,
+    81
+  ],
+  "music-flat": [
+    42.7,
+    90
+  ],
+  "music-half-note": [
+    35.2,
+    83.4
+  ],
+  "music-headphones": [
+    87,
+    75
+  ],
+  "music-microphone": [
+    58,
+    90
+  ],
+  "music-natural": [
+    33,
+    89
+  ],
+  "music-piano-keys": [
+    92,
+    68
+  ],
+  "music-quarter-note": [
+    35.4,
+    81
+  ],
+  "music-sharp": [
+    57,
+    85
+  ],
+  "music-staff": [
+    94.5,
+    74.5
+  ],
+  "music-treble-clef": [
+    40.4,
+    93.9
+  ],
+  "music-whole-note": [
+    76,
+    52
+  ],
+  "nonagon": [
+    90.6,
+    89.2
+  ],
+  "number-0": [
+    54,
+    100
+  ],
+  "number-1": [
+    44.9,
+    100
+  ],
+  "number-2": [
+    43.9,
+    100
+  ],
+  "number-3": [
+    47.3,
+    100
+  ],
+  "number-4": [
+    53,
+    100
+  ],
+  "number-5": [
+    47.7,
+    100
+  ],
+  "number-6": [
+    46.3,
+    100
+  ],
+  "number-7": [
+    44.2,
+    100
+  ],
+  "number-8": [
+    47.9,
+    100
+  ],
+  "number-9": [
+    46.2,
+    100
+  ],
+  "octagon": [
+    92,
+    92
+  ],
+  "orange": [
+    72,
+    82.7
+  ],
+  "oval": [
+    92,
+    64
+  ],
+  "papaya": [
+    64,
+    88
+  ],
+  "parallelogram": [
+    92,
+    64
+  ],
+  "peach": [
+    72.3,
+    84.4
+  ],
+  "pear": [
+    56,
+    88.8
+  ],
+  "pentagon": [
+    88,
+    83
+  ],
+  "ph-student-boy-3": [
+    92.5,
+    209.4
+  ],
+  "ph-student-boy-4": [
+    94.4,
+    208.9
+  ],
+  "pineapple": [
+    50,
+    90
+  ],
+  "pluses": [
+    78.5,
+    78.5
+  ],
+  "polka-dots": [
+    83,
+    83
+  ],
+  "pomegranate": [
+    72,
+    86
+  ],
+  "quadrilateral": [
+    80,
+    82
+  ],
+  "rainbow": [
+    89,
+    49
+  ],
+  "rambutan": [
+    79,
+    79
+  ],
+  "rhombus": [
+    60,
+    92
+  ],
+  "ribbon-arch": [
+    192,
+    59
+  ],
+  "ribbon-arrow": [
+    188,
+    36
+  ],
+  "ribbon-banner": [
+    192,
+    44
+  ],
+  "ribbon-bookmark": [
+    50,
+    86
+  ],
+  "ribbon-corner": [
+    74,
+    74
+  ],
+  "ribbon-drop": [
+    64,
+    84
+  ],
+  "ribbon-hanging-tab": [
+    50,
+    86
+  ],
+  "ribbon-hexagon": [
+    80,
+    92
+  ],
+  "ribbon-label": [
+    174,
+    38
+  ],
+  "ribbon-leaf-tag": [
+    76,
+    40
+  ],
+  "ribbon-peel": [
+    84,
+    84
+  ],
+  "ribbon-pointed-tab": [
+    50,
+    88
+  ],
+  "ribbon-round-tab": [
+    50,
+    86
+  ],
+  "ribbon-rounded": [
+    192,
+    64
+  ],
+  "ribbon-sash": [
+    93.3,
+    93.3
+  ],
+  "ribbon-scallop": [
+    92,
+    92
+  ],
+  "ribbon-seal": [
+    94.5,
+    94.5
+  ],
+  "ribbon-slant-tag": [
+    84,
+    40
+  ],
+  "ribbon-smile": [
+    192,
+    53
+  ],
+  "ribbon-speech-tag": [
+    80,
+    64
+  ],
+  "ribbon-strip": [
+    188,
+    36
+  ],
+  "ribbon-wave": [
+    192,
+    45.7
+  ],
+  "ring": [
+    81,
+    81
+  ],
+  "rosette": [
+    68.7,
+    91.6
+  ],
+  "ruler-cm": [
+    319,
+    43
+  ],
+  "ruler-dual": [
+    319,
+    63
+  ],
+  "ruler-inch": [
+    307,
+    43
+  ],
+  "scallop": [
+    96,
+    24
+  ],
+  "school-boy": [
+    940.9,
+    2076.5
+  ],
+  "set-square-30-60": [
+    201,
+    116.5
+  ],
+  "set-square-45": [
+    205,
+    205
+  ],
+  "slashes": [
+    91,
+    67
+  ],
+  "space-asteroid": [
+    80,
+    80
+  ],
+  "space-comet": [
+    79,
+    75
+  ],
+  "space-crescent-moon": [
+    42,
+    84
+  ],
+  "space-earth": [
+    80,
+    80
+  ],
+  "space-jupiter": [
+    80,
+    80
+  ],
+  "space-mars": [
+    80,
+    80
+  ],
+  "space-mercury": [
+    80,
+    80
+  ],
+  "space-moon": [
+    80,
+    80
+  ],
+  "space-neptune": [
+    80,
+    80
+  ],
+  "space-pluto": [
+    68,
+    68
+  ],
+  "space-saturn": [
+    109.4,
+    83.9
+  ],
+  "space-solar-system": [
+    189.8,
+    29.8
+  ],
+  "space-sun": [
+    96,
+    96
+  ],
+  "space-uranus": [
+    78.5,
+    96.5
+  ],
+  "space-venus": [
+    86,
+    86
+  ],
+  "sparkle": [
+    92,
+    92
+  ],
+  "spiral": [
+    88.1,
+    81.1
+  ],
+  "sport-baseball": [
+    86,
+    86
+  ],
+  "sport-baseball-bat": [
+    76.4,
+    76.4
+  ],
+  "sport-basketball": [
+    87,
+    87
+  ],
+  "sport-beach-ball": [
+    86,
+    86
+  ],
+  "sport-bowling-ball": [
+    84,
+    84
+  ],
+  "sport-bowling-pin": [
+    36,
+    91
+  ],
+  "sport-dumbbell": [
+    88,
+    44
+  ],
+  "sport-football": [
+    104.9,
+    96.1
+  ],
+  "sport-golf-ball": [
+    82,
+    82
+  ],
+  "sport-medal": [
+    55,
+    89
+  ],
+  "sport-ping-pong-paddle": [
+    89,
+    84
+  ],
+  "sport-shuttlecock": [
+    46,
+    76
+  ],
+  "sport-soccer-ball": [
+    86.5,
+    86.5
+  ],
+  "sport-tennis-ball": [
+    88,
+    88
+  ],
+  "sport-tennis-racket": [
+    58,
+    98
+  ],
+  "sport-trophy": [
+    73,
+    87
+  ],
+  "sport-volleyball": [
+    86.5,
+    86.5
+  ],
+  "sport-whistle": [
+    85,
+    59
+  ],
+  "squiggle": [
+    95,
+    31
+  ],
+  "star": [
+    92,
+    85
+  ],
+  "starburst": [
+    92,
+    92
+  ],
+  "strawberry": [
+    65.2,
+    80
+  ],
+  "student-apple": [
+    581.8,
+    1150.8
+  ],
+  "student-backpack": [
+    465.2,
+    1108.8
+  ],
+  "student-book": [
+    681.8,
+    1187.7
+  ],
+  "student-globe": [
+    682.1,
+    1106.1
+  ],
+  "student-hooray": [
+    1166.7,
+    1960.1
+  ],
+  "student-paper": [
+    793.3,
+    1125.3
+  ],
+  "student-pencil": [
+    565.3,
+    1208.2
+  ],
+  "student-pointing": [
+    582.4,
+    1116.9
+  ],
+  "student-reading": [
+    528.5,
+    1186.2
+  ],
+  "swoosh": [
+    86,
+    43.6
+  ],
+  "symbol-ampersand": [
+    63.2,
+    100
+  ],
+  "symbol-asterisk": [
+    35.2,
+    100
+  ],
+  "symbol-at": [
+    77.2,
+    100
+  ],
+  "symbol-divide": [
+    47.8,
+    100
+  ],
+  "symbol-equals": [
+    49.8,
+    100
+  ],
+  "symbol-exclamation": [
+    24.7,
+    100
+  ],
+  "symbol-hash": [
+    58.7,
+    100
+  ],
+  "symbol-minus": [
+    46.4,
+    100
+  ],
+  "symbol-multiply": [
+    42.6,
+    100
+  ],
+  "symbol-percent": [
+    77.5,
+    100
+  ],
+  "symbol-plus": [
+    47.8,
+    100
+  ],
+  "symbol-question": [
+    42.9,
+    100
+  ],
+  "trapezoid": [
+    84,
+    64
+  ],
+  "trapezoid-right": [
+    84,
+    64
+  ],
+  "tree-apple": [
+    86,
+    92
+  ],
+  "tree-autumn": [
+    86,
+    92
+  ],
+  "tree-bamboo": [
+    95.3,
+    90
+  ],
+  "tree-bare": [
+    63,
+    83
+  ],
+  "tree-birch": [
+    54.5,
+    94.5
+  ],
+  "tree-bush": [
+    80,
+    56
+  ],
+  "tree-cactus": [
+    68,
+    96
+  ],
+  "tree-cherry-blossom": [
+    86,
+    92
+  ],
+  "tree-christmas": [
+    76,
+    93
+  ],
+  "tree-cypress": [
+    29.4,
+    93
+  ],
+  "tree-flower": [
+    65,
+    94
+  ],
+  "tree-mango": [
+    86,
+    92
+  ],
+  "tree-mushroom": [
+    85.5,
+    79.5
+  ],
+  "tree-oak": [
+    86,
+    92
+  ],
+  "tree-palm": [
+    96,
+    98
+  ],
+  "tree-pine": [
+    76,
+    90
+  ],
+  "tree-round": [
+    86,
+    92
+  ],
+  "tree-stump": [
+    61.5,
+    51.5
+  ],
+  "tree-willow": [
+    77,
+    87
+  ],
+  "triangle": [
+    80,
+    78
+  ],
+  "triangle-acute": [
+    80,
+    78
+  ],
+  "triangle-equilateral": [
+    92,
+    79.6
+  ],
+  "triangle-isosceles": [
+    52,
+    92
+  ],
+  "triangle-obtuse": [
+    92,
+    56
+  ],
+  "triangle-right": [
+    82,
+    84
+  ],
+  "triangle-scalene": [
+    88,
+    80
+  ],
+  "twinkles": [
+    80,
+    76
+  ],
+  "vehicle-airplane": [
+    88,
+    89
+  ],
+  "vehicle-airplane-side": [
+    89.5,
+    61.5
+  ],
+  "vehicle-ambulance": [
+    89.5,
+    64.5
+  ],
+  "vehicle-bicycle": [
+    88,
+    58
+  ],
+  "vehicle-bus": [
+    88,
+    67
+  ],
+  "vehicle-car": [
+    88,
+    55
+  ],
+  "vehicle-excavator": [
+    95,
+    73
+  ],
+  "vehicle-fire-truck": [
+    90.5,
+    61.5
+  ],
+  "vehicle-helicopter": [
+    86,
+    60
+  ],
+  "vehicle-hot-air-balloon": [
+    74,
+    93
+  ],
+  "vehicle-motorcycle": [
+    92,
+    58
+  ],
+  "vehicle-police-car": [
+    88,
+    63
+  ],
+  "vehicle-rocket": [
+    62.5,
+    92.5
+  ],
+  "vehicle-sailboat": [
+    87,
+    83
+  ],
+  "vehicle-school-bus": [
+    92,
+    63
+  ],
+  "vehicle-ship": [
+    94,
+    68
+  ],
+  "vehicle-submarine": [
+    92,
+    68
+  ],
+  "vehicle-taxi": [
+    88,
+    64
+  ],
+  "vehicle-tractor": [
+    74,
+    72
+  ],
+  "vehicle-train": [
+    84,
+    70
+  ],
+  "vehicle-truck": [
+    88,
+    59
+  ],
+  "watermelon": [
+    84,
+    42
+  ],
+  "wave": [
+    97,
+    37
+  ],
+  "zigzag": [
+    91,
+    31
+  ]
+}
