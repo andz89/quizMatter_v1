@@ -155,7 +155,8 @@ export function PresentationPreview({
 
   return (
     <main className="mx-auto w-full max-w-6xl px-4 py-10 sm:py-14">
-      <section className="mx-auto w-[80%]">
+      {/* Full width on phones; 80% from tablets up. */}
+      <section className="mx-auto w-full sm:w-[80%]">
         {slide && (
           <div
             className="overflow-hidden rounded-card border border-border-default bg-bg-surface"
@@ -164,13 +165,14 @@ export function PresentationPreview({
             <FluidSlidePreview slide={slide} questionNumber={slideNumbers.get(slide.id)} />
           </div>
         )}
-        {/* One row: the buttons on the left, Prev/Next on the right. */}
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <div className="flex flex-wrap items-center gap-2">
+        {/* One row: the buttons on the left, Prev/Next on the right. On phones: Prev/Next first, then the buttons
+            one under the other, full width. */}
+        <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
             {slide && (
               <PresentDraftButton
                 presentation={presentation}
-                className="rounded-button bg-accent btn-press px-4 py-2 text-sm font-semibold text-white hover:bg-accent-hover"
+                className="justify-center rounded-button bg-accent btn-press px-4 py-2 text-sm font-semibold text-white hover:bg-accent-hover"
               />
             )}
             {review.isLocked && (
@@ -243,13 +245,13 @@ export function PresentationPreview({
             )}
           </div>
           {slide && (
-            <div className="ml-auto flex items-center gap-3">
+            <div className="order-first flex items-center gap-3 sm:order-none sm:ml-auto">
               <button
                 type="button"
                 onClick={() => setSlideIndex(slideIndex - 1)}
                 disabled={slideIndex === 0}
                 title="Previous slide"
-                className={`inline-flex items-center gap-1 ${secondaryButtonClass}`}
+                className={`inline-flex flex-1 items-center gap-1 sm:flex-none ${secondaryButtonClass}`}
               >
                 <ChevronLeftIcon size={16} />
                 Prev
@@ -262,7 +264,7 @@ export function PresentationPreview({
                 onClick={() => setSlideIndex(slideIndex + 1)}
                 disabled={slideIndex === slideCount - 1}
                 title="Next slide"
-                className={`inline-flex items-center gap-1 ${secondaryButtonClass}`}
+                className={`inline-flex flex-1 items-center gap-1 sm:flex-none ${secondaryButtonClass}`}
               >
                 Next
                 <ChevronRightIcon size={16} />
@@ -343,8 +345,9 @@ export function PresentationPreview({
   );
 }
 
+// Centered, for phones, where the buttons are full width.
 const secondaryButtonClass =
-  "rounded-button border border-border-default bg-bg-surface px-4 py-2 text-sm font-semibold text-text-primary transition-colors hover:border-text-secondary disabled:opacity-60";
+  "justify-center text-center rounded-button border border-border-default bg-bg-surface px-4 py-2 text-sm font-semibold text-text-primary transition-colors hover:border-text-secondary disabled:opacity-60";
 
 /** A publisher's or reviewer's name: a link to their profile, or plain text when it has none (a hidden admin's). */
 function ProfileName({ id, name, slugs }: { id: string; name: string; slugs: Record<string, string> }) {
