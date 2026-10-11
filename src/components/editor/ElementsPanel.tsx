@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useEditorStore, isPanelEscape } from "@/lib/store";
 import { ELEMENT_LIBRARY, ELEMENT_CATEGORY_LABELS, ELEMENT_PANEL_CATEGORIES, getElementAsset, type ElementCategory } from "@/lib/svgLibrary";
 import { loadFavoriteCategories, saveFavoriteCategories } from "@/lib/userSettings";
 import { ELEMENT_DRAG_MIME } from "@/lib/constants";
 import { ElementSvg } from "./ElementSvg";
 import { Spinner } from "@/components/Spinner";
+import { ScrollRow } from "./ScrollRow";
 import { ChevronLeftIcon, StarIcon, XIcon } from "lucide-react";
 
 export function ElementsPanel() {
@@ -79,7 +80,7 @@ export function ElementsPanel() {
   return (
     <div
       data-keep-container-selection="true"
-      className="flex w-72 shrink-0 flex-col overflow-y-auto border-r border-border-default bg-bg-surface p-5"
+      className="flex shrink-0 flex-col overflow-y-auto border-r border-border-default bg-bg-surface side-panel"
     >
       <div className="mb-1 flex items-center justify-between">
         <div className="flex items-center gap-1">
@@ -159,46 +160,40 @@ export function ElementsPanel() {
             </button>
           </div>
 
+          {/* Waits for the favorites, so the rows don't jump when the starred ones move to the top. */}
           {favoriteCategories === null ? (
-            <div className="mb-5 flex justify-center">
+            <div className="flex justify-center">
               <Spinner size={18} />
             </div>
           ) : (
-            favoriteCategories.length > 0 && (
-              <div className="mb-5">
-                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-header">Favorites</p>
-                <div className="grid grid-cols-3 gap-4">
-                  {favoriteCategories.map((category) => (
-                    <CategoryTile key={category} category={category} onOpen={setOpenCategory} />
-                  ))}
-                </div>
-              </div>
-            )
-          )}
-
-          {recentElementAssetIds.length > 0 && (
-            <div className="mb-5">
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-header">Recently used</p>
-              <div className="grid grid-cols-4 justify-items-center gap-3">
-                {recentElementAssetIds.map((assetId) => {
-                  const asset = getElementAsset(assetId);
-                  return asset ? (
-                    <ElementButton key={asset.id} assetId={asset.id} label={asset.label} onDragStart={handleDragStart} onClick={insertElement} />
-                  ) : null;
-                })}
-              </div>
+            <div className="flex flex-col gap-5">
+              {recentElementAssetIds.length > 0 && (
+                <ScrollRow name="Recently used">
+                  {recentElementAssetIds.map((assetId) => {
+                    const asset = getElementAsset(assetId);
+                    return asset ? (
+                      <ElementButton key={asset.id} assetId={asset.id} label={asset.label} onDragStart={handleDragStart} onClick={insertElement} inRow />
+                    ) : null;
+                  })}
+                </ScrollRow>
+              )}
+              {/* Starred categories first, then the rest in the usual order. */}
+              {[...favoriteCategories, ...ELEMENT_PANEL_CATEGORIES.filter((c) => !favoriteCategories.includes(c))].map((category) => (
+                <CategoryRow
+                  key={category}
+                  category={category}
+                  isFavorite={favoriteCategories.includes(category)}
+                  onSeeAll={() => setOpenCategory(category)}
+                  onDragStart={handleDragStart}
+                  onClick={insertElement}
+                />
+              ))}
             </div>
           )}
-
-          <div className="grid grid-cols-3 gap-4">
-            {ELEMENT_PANEL_CATEGORIES.map((category) => (
-              <CategoryTile key={category} category={category} onOpen={setOpenCategory} />
-            ))}
-          </div>
         </>
       ) : (
-        // People are tall, so they get 3 wider columns with bigger tiles.
-        <div className={`grid justify-items-center gap-3 ${openCategory === "person" ? "grid-cols-3" : "grid-cols-4"}`}>
+        // Two columns of big tiles (they fill the columns).
+        <div className="grid grid-cols-2 gap-2">
           {ELEMENT_LIBRARY.filter((asset) => asset.category === openCategory).map((asset) => (
             <ElementButton key={asset.id} assetId={asset.id} label={asset.label} onDragStart={handleDragStart} onClick={insertElement} />
           ))}
@@ -208,15 +203,60 @@ export function ElementsPanel() {
   );
 }
 
-function CategoryTile({ category, onOpen }: { category: ElementCategory; onOpen: (category: ElementCategory) => void }) {
-  const previewAsset = ELEMENT_LIBRARY.find((asset) => asset.category === category);
+// How many elements a category's row shows. "See all" shows the rest.
+const ROW_ELEMENTS = 10;
+
+/**
+ * One category's row: its first elements, and "See all". There are many categories and some drawings are big,
+ * so a row only draws its elements once it's about to scroll into view (until then, an empty space as tall as
+ * the tiles, so the panel doesn't jump). Once drawn, it stays drawn.
+ */
+function CategoryRow({
+  category,
+  isFavorite,
+  onSeeAll,
+  onDragStart,
+  onClick,
+}: {
+  category: ElementCategory;
+  isFavorite: boolean;
+  onSeeAll: () => void;
+  onDragStart: (e: React.DragEvent, assetId: string) => void;
+  onClick: (assetId: string) => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [isNear, setIsNear] = useState(false);
+
+  useEffect(() => {
+    const node = ref.current;
+    if (!node || isNear) return;
+    // Watched inside the panel's own scroll area, starting a little before the row shows.
+    const observer = new IntersectionObserver(([entry]) => entry.isIntersecting && setIsNear(true), {
+      root: node.closest(".side-panel"),
+      rootMargin: "300px 0px",
+    });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [isNear]);
+
   return (
-    <button type="button" onClick={() => onOpen(category)} className="flex flex-col items-center gap-2">
-      <span className="flex h-14 w-14 items-center justify-center rounded-card border border-border-default bg-bg-page p-3 text-text-primary transition-colors hover:border-accent">
-        {previewAsset && <ElementSvg assetId={previewAsset.id} color={previewAsset.defaultColor ?? "currentColor"} />}
-      </span>
-      <span className="text-xs font-medium text-text-primary">{ELEMENT_CATEGORY_LABELS[category]}</span>
-    </button>
+    <div ref={ref}>
+      <ScrollRow
+        name={ELEMENT_CATEGORY_LABELS[category]}
+        icon={isFavorite ? <StarIcon size={12} fill="currentColor" className="shrink-0" /> : undefined}
+        onSeeAll={onSeeAll}
+      >
+        {isNear ? (
+          ELEMENT_LIBRARY.filter((asset) => asset.category === category)
+            .slice(0, ROW_ELEMENTS)
+            .map((asset) => (
+              <ElementButton key={asset.id} assetId={asset.id} label={asset.label} onDragStart={onDragStart} onClick={onClick} inRow />
+            ))
+        ) : (
+          <div className={category === "person" ? "h-20" : "h-16"} />
+        )}
+      </ScrollRow>
+    </div>
   );
 }
 
@@ -225,13 +265,17 @@ function ElementButton({
   label,
   onDragStart,
   onClick,
+  inRow = false,
 }: {
   assetId: string;
   label: string;
   onDragStart: (e: React.DragEvent, assetId: string) => void;
   onClick: (assetId: string) => void;
+  // In a row: a fixed size. In the "See all" grid: as wide as its column.
+  inRow?: boolean;
 }) {
   const asset = getElementAsset(assetId);
+  const isPerson = asset?.category === "person";
   return (
     <button
       type="button"
@@ -240,13 +284,11 @@ function ElementButton({
       onClick={() => onClick(assetId)}
       title={label}
       className={`flex cursor-grab items-center justify-center rounded-dropdown border border-border-default bg-bg-page text-text-primary transition-colors hover:border-accent ${
+        !inRow ? "aspect-square w-full" : isPerson ? "h-20 w-20 shrink-0" : "h-16 w-16 shrink-0"
+      } ${
         // People are tall and thin: bigger tiles with little padding so they're easy to see.
         // Shapes also get less padding so they fill more of the tile.
-        asset?.category === "person"
-          ? "h-18 w-18 p-1"
-          : asset?.category === "shape" || asset?.category === "solid"
-            ? "h-12 w-12 p-1"
-            : "h-12 w-12 p-2.5"
+        isPerson || asset?.category === "shape" || asset?.category === "solid" ? "p-1" : "p-3"
       }`}
     >
       {/* Used as the drag image so the ghost shows only the SVG, not the tile's border/padding. */}

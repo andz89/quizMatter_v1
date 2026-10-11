@@ -185,7 +185,7 @@ export function ColorPanel() {
       data-keep-container-selection="true"
       // In text mode, mousedown's default would move focus out of the text and lose the selected words.
       onMouseDown={(e) => textEditor && e.preventDefault()}
-      className="flex w-72 shrink-0 flex-col overflow-y-auto border-r border-border-default bg-bg-surface p-5"
+      className="flex shrink-0 flex-col overflow-y-auto border-r border-border-default bg-bg-surface side-panel"
     >
       <div className="mb-4 flex items-center justify-between">
         <h2 className="text-[15px] font-extrabold text-text-primary">

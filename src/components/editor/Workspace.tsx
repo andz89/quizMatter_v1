@@ -9,7 +9,6 @@ import { useEditorStore, MIN_ZOOM, type SlideInsertTarget } from "@/lib/store";
 import { CANVAS_WIDTH, CANVAS_HEIGHT, SLIDE_DRAG_MIME, getSlideNumbers, canHaveAnswer } from "@/lib/constants";
 import { MAX_SLIDES, TOO_MANY_SLIDES_MESSAGE, slideSchema } from "@/lib/schema";
 import { SlideWorkspaceItem } from "./SlideWorkspaceItem";
-import { ZoomControls } from "./ZoomControls";
 import { AnswerArea } from "./AnswerArea";
 import { ToolPanelButton } from "./PanelControls";
 import { AddSlideMenu } from "./AddSlideMenu";
@@ -334,7 +333,6 @@ export function Workspace() {
           style={{ ...marqueeBox, background: "color-mix(in srgb, var(--accent) 8%, transparent)" }}
         />
       )}
-      <ZoomControls />
       {answerSlide && <AnswerArea slide={answerSlide} onClose={closeAnswer} />}
     </div>
   );

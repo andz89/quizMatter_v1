@@ -1,38 +1,49 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useEditorStore } from "@/lib/store";
 import {
   SHARED_PHOTOS_PER_PAGE,
   checkIsAdmin,
+  loadCategoryRow,
   loadPhotoCategoriesInUse,
   loadSharedPhotoPage,
   type PhotoCategory,
   type SharedPhotoWithInfo,
 } from "@/lib/photos";
 import { PHOTO_ID } from "@/lib/svgLibrary";
+import type { Photo } from "@/lib/schema";
 import { Spinner } from "@/components/Spinner";
 import { PhotoTile } from "./PhotoTile";
+import { ScrollRow } from "./ScrollRow";
+import { ChevronLeftIcon } from "lucide-react";
 
 // How long to wait after the last key press before searching, so typing "rabbit" asks the database once, not 6 times.
 const SEARCH_DELAY_MS = 300;
 
+/** Shows on hover: the photo's file name (or description) and where it's from. */
+const photoTitle = (shared: SharedPhotoWithInfo) =>
+  [shared.file_name || shared.description, shared.source].filter(Boolean).join(" · ") || undefined;
+
 /**
- * The photos admins shared with every teacher: category chips to filter, and the photos to click or drag onto
- * the slide. `search` (the panel's search bar) finds them by file name, description, tags and category.
+ * The photos admins shared with every teacher, to click or drag onto the slide. Like Canva: the photos used last on
+ * top, then one row per category with its newest photos, and "See all" for the whole category. `search` (the panel's search bar) finds them by
+ * file name, description, tags and category (inside the open category, if one is open).
  * Admins manage them on the admin page (/admin); here they only get a link to it.
  */
 export function SharedPhotos({ search }: { search: string }) {
-  // Categories that have photos. Empty while loading (or if they couldn't load: the photos still show).
-  const [categories, setCategories] = useState<PhotoCategory[]>([]);
+  // Categories that have photos. null while loading.
+  const [categories, setCategories] = useState<PhotoCategory[] | null | "failed">(null);
   const [isAdmin, setIsAdmin] = useState(false);
-  // The chosen category chip. null = all.
-  const [filterId, setFilterId] = useState<string | null>(null);
+  // The category opened with "See all". null = the rows.
+  const [openCategory, setOpenCategory] = useState<PhotoCategory | null>(null);
   // `search`, once the typing stops.
   const [query, setQuery] = useState(search.trim());
+  const recentPhotos = useEditorStore((s) => s.recentPhotos);
+  const recentItems = useMemo(() => recentPhotos.map((photo) => ({ photo })), [recentPhotos]);
 
   useEffect(() => {
-    loadPhotoCategoriesInUse().then(setCategories, () => {});
+    loadPhotoCategoriesInUse().then(setCategories, () => setCategories("failed"));
     checkIsAdmin().then(setIsAdmin);
   }, []);
 
@@ -42,7 +53,7 @@ export function SharedPhotos({ search }: { search: string }) {
   }, [search]);
 
   return (
-    <div className="mt-2 flex flex-col gap-3">
+    <div className="mt-2 flex flex-col gap-4">
       {isAdmin && (
         // A new tab, so the presentation being edited stays open.
         <a href="/admin" target="_blank" className="self-start text-[13px] font-semibold text-accent hover:underline">
@@ -50,27 +61,83 @@ export function SharedPhotos({ search }: { search: string }) {
         </a>
       )}
 
-      {categories.length > 0 && (
-        <div className="flex flex-wrap gap-1.5">
-          {[{ id: null, name: "All" }, ...categories].map((c) => (
-            <button
-              key={c.id ?? "all"}
-              type="button"
-              aria-pressed={filterId === c.id}
-              onClick={() => setFilterId(c.id)}
-              className={`rounded-dropdown px-2.5 py-1 text-[13px] font-semibold transition-colors ${
-                filterId === c.id ? "bg-accent text-white" : "bg-bg-page text-text-primary hover:bg-border-default"
-              }`}
-            >
-              {c.name}
-            </button>
-          ))}
-        </div>
+      {openCategory && (
+        <button
+          type="button"
+          onClick={() => setOpenCategory(null)}
+          title="Back to all categories"
+          className="flex items-center gap-1 self-start rounded-dropdown py-1 pr-2 text-[13px] font-semibold text-text-primary hover:bg-bg-page"
+        >
+          <ChevronLeftIcon size={16} />
+          {openCategory.name}
+        </button>
       )}
 
-      {/* A new search or chip starts a fresh list (the key makes React replace it). */}
-      <SharedPhotoList key={`${filterId}|${query}`} search={query} categoryId={filterId} />
+      {query || openCategory ? (
+        // A new search or category starts a fresh list (the key makes React replace it).
+        <SharedPhotoList key={`${openCategory?.id}|${query}`} search={query} categoryId={openCategory?.id ?? null} />
+      ) : categories === null ? (
+        <div className="flex justify-center py-4">
+          <Spinner size={18} />
+        </div>
+      ) : categories === "failed" ? (
+        <p className="text-xs text-text-secondary">Couldn&apos;t load the photos. Close and open this panel to try again.</p>
+      ) : categories.length === 0 ? (
+        <p className="text-xs text-text-secondary">No shared photos yet.</p>
+      ) : (
+        <>
+          {recentItems.length > 0 && <PhotoRow name="Recently used" items={recentItems} />}
+          {categories.map((category) => (
+            <CategoryRow key={category.id} category={category} onSeeAll={() => setOpenCategory(category)} />
+          ))}
+        </>
+      )}
     </div>
+  );
+}
+
+/** One category's row: its newest photos, loaded the first time it shows. */
+function CategoryRow({ category, onSeeAll }: { category: PhotoCategory; onSeeAll: () => void }) {
+  const [items, setItems] = useState<RowItem[] | null | "failed">(null);
+
+  useEffect(() => {
+    // Ignores the answer if React already threw this load away (e.g. it runs effects twice while developing).
+    let ignore = false;
+    loadCategoryRow(category.id).then(
+      (list) => {
+        if (!ignore) setItems(list.map((shared) => ({ photo: shared.photo, title: photoTitle(shared) })));
+      },
+      () => {
+        if (!ignore) setItems("failed");
+      }
+    );
+    return () => {
+      ignore = true;
+    };
+  }, [category.id]);
+
+  return <PhotoRow name={category.name} items={items} onSeeAll={onSeeAll} />;
+}
+
+type RowItem = { photo: Photo; title?: string };
+
+/** A row of photos (see ScrollRow). `items` is null while loading. */
+function PhotoRow({ name, items, onSeeAll }: { name: string; items: RowItem[] | null | "failed"; onSeeAll?: () => void }) {
+  const insertElement = useEditorStore((s) => s.insertElement);
+  return (
+    <ScrollRow name={name} onSeeAll={onSeeAll}>
+      {items === null ? (
+        <div className="flex h-24 flex-1 items-center justify-center">
+          <Spinner size={18} />
+        </div>
+      ) : items === "failed" ? (
+        <p className="text-xs text-text-secondary">Couldn&apos;t load these photos.</p>
+      ) : (
+        items.map(({ photo, title }) => (
+          <PhotoTile key={photo.src} photo={photo} title={title} onAdd={() => insertElement(PHOTO_ID, photo)} inRow />
+        ))
+      )}
+    </ScrollRow>
   );
 }
 
@@ -135,7 +202,7 @@ function SharedPhotoList({ search, categoryId }: { search: string; categoryId: s
             <PhotoTile
               key={shared.photo.src}
               photo={shared.photo}
-              title={[shared.file_name || shared.description, shared.source].filter(Boolean).join(" · ") || undefined}
+              title={photoTitle(shared)}
               onAdd={() => insertElement(PHOTO_ID, shared.photo)}
             />
           ))}

@@ -33,6 +33,8 @@ export const MAX_SHARED_UPLOADS = 10;
 const MY_PHOTOS_LIMIT = 60;
 // How many shared photos the Photos panel loads at a time. More load when the teacher scrolls to the bottom.
 export const SHARED_PHOTOS_PER_PAGE = 60;
+// How many photos each category's row in the Photos panel shows (its newest ones). "See all" shows the rest.
+const CATEGORY_ROW_PHOTOS = 10;
 
 // A problem the teacher should read as-is (other errors get a general message).
 class PhotoError extends Error {}
@@ -231,15 +233,23 @@ export function loadPhotoCategoriesInUse(): Promise<PhotoCategory[]> {
 /**
  * One page of shared photos (SHARED_PHOTOS_PER_PAGE of them, newest first), starting at photo number `from`.
  * Every word of `search` must be in the photo's name, description, tags or category name, in any case.
- * `categoryId` (if given) keeps only that category. The first page with no search or category is remembered
- * (it's what the panel opens with). Throws if they can't be loaded.
+ * `categoryId` (if given) keeps only that category. Throws if they can't be loaded.
  */
 export function loadSharedPhotoPage(search: string, categoryId: string | null, from: number): Promise<SharedPhotoWithInfo[]> {
-  const load = () => fetchSharedPhotoPage(search, categoryId, from);
-  return !search && !categoryId && from === 0 ? remember("firstPage", load) : load();
+  return fetchSharedPhotoPage(search, categoryId, from, SHARED_PHOTOS_PER_PAGE);
 }
 
-async function fetchSharedPhotoPage(search: string, categoryId: string | null, from: number): Promise<SharedPhotoWithInfo[]> {
+/** One category's newest photos, for its row in the Photos panel (what the panel opens with, so it's remembered). */
+export function loadCategoryRow(categoryId: string): Promise<SharedPhotoWithInfo[]> {
+  return remember(`row:${categoryId}`, () => fetchSharedPhotoPage("", categoryId, 0, CATEGORY_ROW_PHOTOS));
+}
+
+async function fetchSharedPhotoPage(
+  search: string,
+  categoryId: string | null,
+  from: number,
+  count: number
+): Promise<SharedPhotoWithInfo[]> {
   let query = createClient().from("shared_photos_search").select(SHARED_PHOTO_COLUMNS);
   for (const word of search.split(/\s+/).filter(Boolean)) {
     const pattern = contains(word);
@@ -250,7 +260,7 @@ async function fetchSharedPhotoPage(search: string, categoryId: string | null, f
   const { data, error } = await query
     .order("created_at", { ascending: false })
     .order("src")
-    .range(from, from + SHARED_PHOTOS_PER_PAGE - 1);
+    .range(from, from + count - 1);
   if (error) throw error;
   return data.map(toSharedPhoto);
 }

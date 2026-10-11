@@ -17,7 +17,7 @@ const TABS = ["Photos", "My Photos"] as const;
  * Adds photos. The "My Photos" tab: pick from the computer (several at once is fine) or paste a link, and
  * below, what the teacher uploaded before, to click or drag onto the slide again. Photos can also be dragged
  * from the computer straight onto the slide (see useElementDropTarget). The "Photos" tab has the photos admins
- * shared with every teacher, by category, and a search bar that filters them (see SharedPhotos).
+ * shared with every teacher, in a row per category, and a search bar that filters them (see SharedPhotos).
  * The panel stays open so several can be added in a row.
  */
 export function PhotosPanel() {
@@ -91,7 +91,7 @@ export function PhotosPanel() {
   return (
     <div
       data-keep-container-selection="true"
-      className="flex w-72 shrink-0 flex-col gap-3 overflow-y-auto border-r border-border-default bg-bg-surface p-5"
+      className="flex shrink-0 flex-col gap-3 overflow-y-auto border-r border-border-default bg-bg-surface side-panel"
     >
       <div className="flex items-center justify-between">
         <h2 className="text-[15px] font-extrabold text-text-primary">Photos</h2>

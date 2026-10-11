@@ -9,18 +9,9 @@ import { TextFormatToolbar } from "./TextFormatToolbar";
 import { ShapeBoxToolbar } from "./ShapeBoxToolbar";
 import { ReviewControls } from "./ReviewControls";
 import { ShareButton } from "./ShareButton";
+import { presentFullscreen } from "./EditorBottomBar";
 import { Spinner } from "@/components/Spinner";
 import { ChevronLeftIcon, PlayIcon, Redo2Icon, Undo2Icon } from "lucide-react";
-
-/** Opens the presentation, fullscreen when the browser allows it. */
-export async function presentFullscreen() {
-  try {
-    await document.documentElement.requestFullscreen();
-  } catch {
-    // Fullscreen isn't available (unsupported/blocked) — presentation still opens.
-  }
-  useEditorStore.getState().startPresentation();
-}
 
 export function EditorTopBar() {
   const title = useEditorStore((s) => s.presentation.title);

@@ -55,7 +55,6 @@ const NO_IDS: string[] = [];
 export const selectedIdsOn = (slideId: string) => (s: EditorState) =>
   s.selectedSlideId === slideId ? s.selectedElementIds : NO_IDS;
 export const MAX_ZOOM = 2;
-const ZOOM_STEP = 0.1;
 
 const MAX_HISTORY = 100;
 // Presentation changes closer together than this count as one undo step (a whole drag, a typed word).
@@ -333,8 +332,6 @@ interface EditorState {
   // On failure it switches back. Resolves true if the save worked.
   setPublished: (isPublished: boolean) => Promise<boolean>;
 
-  zoomIn: () => void;
-  zoomOut: () => void;
   resetZoom: () => void;
   setZoom: (zoom: number) => void;
 
@@ -410,6 +407,8 @@ interface EditorState {
   insertElement: (assetId: string, photo?: Photo) => void;
   // Most-recently-inserted asset ids first, for the Elements panel's "Recently used" row.
   recentElementAssetIds: string[];
+  // Photos last added to a slide, newest first, for the Photos panel's "Recently used" row.
+  recentPhotos: Photo[];
   updateElement: (slideId: string, elementId: string, patch: ElementPatch) => void;
   // Changes several elements in one store update (one redraw, one presentation copy), keyed by element id.
   updateElements: (slideId: string, patches: Record<string, ElementPatch>) => void;
@@ -593,6 +592,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   selectedSlideId: initialPresentation.slides[0].id,
   zoom: 1,
   recentElementAssetIds: [],
+  recentPhotos: [],
 
   selectSlide: (slideId) =>
     set({ selectedSlideId: slideId, selectedElementIds: [], selectedContainerId: null, selectedContainerIds: [] }),
@@ -970,8 +970,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     return false;
   },
 
-  zoomIn: () => set((state) => ({ zoom: Math.min(MAX_ZOOM, +(state.zoom + ZOOM_STEP).toFixed(2)) })),
-  zoomOut: () => set((state) => ({ zoom: Math.max(MIN_ZOOM, +(state.zoom - ZOOM_STEP).toFixed(2)) })),
   resetZoom: () => set({ zoom: 1 }),
   setZoom: (zoom) => set({ zoom: Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoom)) }),
 
@@ -1159,7 +1157,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       ...(asset?.isTextBox && { text: { html: "<p>Type here</p>" } }),
       ...(photo && { image: photo }),
     };
-    const { recentElementAssetIds, selectedSlideId, selectedContainerId, selectedContainerIds } = get();
+    const { recentElementAssetIds, recentPhotos, selectedSlideId, selectedContainerId, selectedContainerIds } = get();
     set({
       presentation: updateSlide(presentation, slideId, (s) => ({ ...s, elements: [...s.elements, element] })),
       // The drop may land on a slide other than the current one — make it current so the toolbar
@@ -1169,10 +1167,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         ? { selectedContainerId, selectedContainerIds }
         : { selectedContainerId: null, selectedContainerIds: [] }),
       selectedElementIds: [element.id],
-      // Photos aren't in the Elements panel, so they're not "recently used".
-      recentElementAssetIds: photo
-        ? recentElementAssetIds
-        : [assetId, ...recentElementAssetIds.filter((id) => id !== assetId)].slice(0, 8),
+      // Photos aren't in the Elements panel, so they're "recently used" in the Photos panel instead.
+      ...(photo
+        ? { recentPhotos: [photo, ...recentPhotos.filter((p) => p.src !== photo.src)].slice(0, 10) }
+        : { recentElementAssetIds: [assetId, ...recentElementAssetIds.filter((id) => id !== assetId)].slice(0, 8) }),
     });
   },
 

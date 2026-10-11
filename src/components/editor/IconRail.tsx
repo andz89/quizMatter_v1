@@ -2,18 +2,16 @@
 
 import type { ReactNode } from "react";
 import { useEditorStore } from "@/lib/store";
-import { BookOpenIcon, FileTextIcon, ImageIcon, LayoutGridIcon, PaintBucketIcon, ShapesIcon, SparklesIcon } from "lucide-react";
+import { BookOpenIcon, FileTextIcon, ImageIcon, PaintBucketIcon, ShapesIcon, SparklesIcon } from "lucide-react";
 
 /**
- * Canva-style narrow icon bar: "Elements", "Photos", "Background", "Effects", "Details" and "Presentations" expand their sidebar panels,
- * "Slides" opens the thumbnail modal.
+ * Canva-style narrow icon bar: "Elements", "Photos", "Background", "Effects", "Details" and "Presentations" expand their sidebar panels.
  */
 export function IconRail() {
   const isElementsPanelOpen = useEditorStore((s) => s.isElementsPanelOpen);
   const toggleElementsPanel = useEditorStore((s) => s.toggleElementsPanel);
   const isPhotosPanelOpen = useEditorStore((s) => s.isPhotosPanelOpen);
   const togglePhotosPanel = useEditorStore((s) => s.togglePhotosPanel);
-  const openGridView = useEditorStore((s) => s.openGridView);
   const isBackgroundPanelOpen = useEditorStore((s) => s.isBackgroundPanelOpen);
   const toggleBackgroundPanel = useEditorStore((s) => s.toggleBackgroundPanel);
   const isEffectsPanelOpen = useEditorStore((s) => s.isEffectsPanelOpen);
@@ -22,7 +20,6 @@ export function IconRail() {
   const toggleDetailsPanel = useEditorStore((s) => s.toggleDetailsPanel);
   const isPresentationsPanelOpen = useEditorStore((s) => s.isPresentationsPanelOpen);
   const togglePresentationsPanel = useEditorStore((s) => s.togglePresentationsPanel);
-  const slideCount = useEditorStore((s) => s.presentation.slides.length);
 
   return (
     <aside className="flex w-24 shrink-0 flex-col gap-0.5 overflow-y-auto border-r border-border-default bg-bg-surface px-1 py-3">
@@ -31,9 +28,6 @@ export function IconRail() {
       </RailButton>
       <RailButton label="Photos" active={isPhotosPanelOpen} onClick={togglePhotosPanel}>
         <ImageIcon size={22} />
-      </RailButton>
-      <RailButton label="Slides" title={`Slides (${slideCount})`} onClick={openGridView}>
-        <LayoutGridIcon size={22} />
       </RailButton>
       <RailButton label="Background" active={isBackgroundPanelOpen} onClick={toggleBackgroundPanel}>
         <PaintBucketIcon size={22} />

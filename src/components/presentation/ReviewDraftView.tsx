@@ -1,4 +1,5 @@
 import { FluidSlidePreview } from "@/components/presentation/FluidSlidePreview";
+import { LinkifiedText } from "@/components/LinkifiedText";
 import { CANVAS_HEIGHT, CANVAS_WIDTH, getSlideNumbers } from "@/lib/constants";
 import { formatDay } from "@/lib/format";
 import type { Presentation, ReviewerFields } from "@/lib/schema";
@@ -33,7 +34,9 @@ export function ReviewDraftView({ presentation, fields }: { presentation: Presen
         {details.map((detail) => (
           <div key={detail.label}>
             <dt className="text-[11px] font-bold tracking-[0.05em] text-text-header uppercase">{detail.label}</dt>
-            <dd className="mt-1 whitespace-pre-line break-words text-text-primary">{detail.value}</dd>
+            <dd className="mt-1 whitespace-pre-line break-words text-text-primary">
+              <LinkifiedText text={detail.value} />
+            </dd>
           </div>
         ))}
       </dl>

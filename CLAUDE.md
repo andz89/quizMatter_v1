@@ -188,6 +188,7 @@ Bright, rounded and friendly for kids, but clean enough to feel credible to teac
 - Row height: 48–56px
 - Gap between sections: 16–20px
 - Icon-to-label gap: 8–12px
+- Editor side panels (Elements, Photos, Presentations, …): the `side-panel` class (all 320px wide; 20px padding, 8px on the right next to a thin scrollbar), not their own width or `p-5`. Sideways rows in them use `ScrollRow` (`src/components/editor/ScrollRow.tsx`).
 
 # This is NOT the Next.js you know
 

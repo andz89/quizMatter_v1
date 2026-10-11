@@ -16,6 +16,7 @@ import { profileHref } from "@/lib/profiles";
 import { DETAIL_MAX_LENGTH, gradesLabel, gradesTitle, isWebLink, type Presentation } from "@/lib/schema";
 import { pauseFeature, pausedUntilFromError, useIsPaused } from "@/lib/clickLimits";
 import { LinkPending } from "@/components/LinkPending";
+import { LinkifiedText } from "@/components/LinkifiedText";
 import { Spinner } from "@/components/Spinner";
 import { TopLoadingBar } from "@/components/TopLoadingBar";
 import { FluidSlidePreview } from "@/components/presentation/FluidSlidePreview";
@@ -300,7 +301,9 @@ export function PresentationPreview({
             {details.map((detail) => (
               <div key={detail.label}>
                 <dt className="text-[11px] font-bold tracking-[0.05em] text-text-header uppercase">{detail.label}</dt>
-                <dd className="mt-1 whitespace-pre-line text-text-primary">{detail.value}</dd>
+                <dd className="mt-1 whitespace-pre-line text-text-primary">
+                  <LinkifiedText text={detail.value} />
+                </dd>
               </div>
             ))}
             {presentation.tags.length > 0 && (

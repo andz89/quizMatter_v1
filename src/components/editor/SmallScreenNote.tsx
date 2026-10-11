@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { MonitorSmartphoneIcon, PlayIcon } from "lucide-react";
-import { presentFullscreen } from "./EditorTopBar";
+import { presentFullscreen } from "./EditorBottomBar";
 
 /**
  * Covers the editor on phone-sized screens (held upright), where the slides are too small to edit. Presenting

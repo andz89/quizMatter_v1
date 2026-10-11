@@ -26,7 +26,8 @@ export function PhotoThumbnail({ src, alt = "", className }: { src: string; alt?
 
 /**
  * One photo in a list of the Photos panel: click to add it, drag it onto a box or the slide, ✕ to take it off the
- * list (if allowed). `title` (e.g. its file name) shows on hover.
+ * list (if allowed). `title` (e.g. its file name) shows on hover. A square in a grid; in a category's row
+ * (`inRow`), the same height as the others and as wide as the photo's own shape.
  */
 export function PhotoTile({
   photo,
@@ -34,15 +35,17 @@ export function PhotoTile({
   onAdd,
   onRemove,
   removeTitle,
+  inRow = false,
 }: {
   photo: Photo;
   title?: string;
   onAdd: () => void;
   onRemove?: () => void;
   removeTitle?: string;
+  inRow?: boolean;
 }) {
   return (
-    <div className="group relative">
+    <div className={`group relative ${inRow ? "shrink-0" : ""}`}>
       <button
         type="button"
         draggable
@@ -52,10 +55,13 @@ export function PhotoTile({
         }}
         onClick={onAdd}
         title={title ? `${title} (click or drag to add)` : "Click or drag to add"}
-        className="block aspect-square w-full cursor-grab overflow-hidden rounded-dropdown border border-border-default bg-bg-page transition-colors hover:border-accent"
+        style={inRow ? { aspectRatio: `${photo.width} / ${photo.height}` } : undefined}
+        className={`block cursor-grab overflow-hidden rounded-dropdown border border-border-default bg-bg-page transition-colors hover:border-accent ${
+          inRow ? "h-24 max-w-48 min-w-12" : "aspect-square w-full"
+        }`}
       >
         {/* Only the picture is the small copy: a click or drag still adds the full photo. */}
-        <PhotoThumbnail src={photo.src} className="h-full w-full object-contain" />
+        <PhotoThumbnail src={photo.src} className={`h-full w-full ${inRow ? "object-cover" : "object-contain"}`} />
       </button>
       {onRemove && (
         <button

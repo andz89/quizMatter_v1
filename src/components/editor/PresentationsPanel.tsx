@@ -7,10 +7,11 @@ import { createClient } from "@/lib/supabase/client";
 import { CANVAS_WIDTH, CANVAS_HEIGHT, SLIDE_DRAG_MIME, getSlideNumbers } from "@/lib/constants";
 import { creditLines, joinParts, slideCountLabel } from "@/lib/format";
 import { loadPublisherNames } from "@/lib/publishers";
-import { MAX_SLIDES, TOO_MANY_SLIDES_MESSAGE, gradesLabel, gradesTitle, parseSlide, type Slide } from "@/lib/schema";
+import { MAX_SLIDES, SUBJECTS, TOO_MANY_SLIDES_MESSAGE, gradesLabel, gradesTitle, parseSlide, type Slide } from "@/lib/schema";
 import { Spinner } from "@/components/Spinner";
 import { FluidSlidePreview } from "@/components/presentation/FluidSlidePreview";
 import { SaveCardButton } from "@/app/SaveCardButton";
+import { ScrollRow } from "./ScrollRow";
 import { ChevronLeftIcon, XIcon } from "lucide-react";
 
 // How many published presentations the list shows (newest first). The Saved tab shows up to this many more.
@@ -33,6 +34,8 @@ type PresentationSummary = {
   meta: string;
   // Full grade names when the meta line shortens Kindergarten to "K" (shown as its tooltip).
   metaTitle?: string;
+  // "" if it has none. The All tab has a row per subject.
+  subject: string;
   firstSlide: Slide | null;
 };
 
@@ -53,12 +56,14 @@ let cache: {
   savedIds: string[];
   myId: string;
   tab: Tab;
+  openSubject: string | null;
   openPresentation: PresentationSummary | null;
   slides: Slide[] | null;
 } | null = null;
 
 /**
- * Sidebar panel with the published presentations (mine too, except the one being edited), and a Saved tab with
+ * Sidebar panel with the published presentations (mine too, except the one being edited) in a row per subject (like
+ * Canva; "See all" lists the subject's presentations), and a Saved tab with
  * the ones I saved (bookmarked). Clicking a presentation shows its slides; clicking a slide adds a copy right after
  * the active slide, dragging one onto the workspace adds it right after the slide it's dropped on. Stays open so
  * several can be added in a row. Other people's presentations have the bookmark button, to save or remove them.
@@ -78,6 +83,8 @@ export function PresentationsPanel() {
   const [myId, setMyId] = useState(cached?.myId ?? "");
   const [tab, setTab] = useState<Tab>(cached?.tab ?? "all");
   const [search, setSearch] = useState("");
+  // The subject opened with "See all" ("" = no subject). null = the rows.
+  const [openSubject, setOpenSubject] = useState<string | null>(cached?.openSubject ?? null);
   const [openPresentation, setOpenPresentation] = useState<PresentationSummary | null>(cached?.openPresentation ?? null);
   // The open presentation's slides; null while loading.
   const [slides, setSlides] = useState<Slide[] | null>(cached?.slides ?? null);
@@ -118,20 +125,31 @@ export function PresentationsPanel() {
   // A presentation whose slides were still loading isn't kept: that request stops when the panel closes.
   useEffect(() => {
     if (presentations) {
-      cache = { presentationId, presentations, savedExtras, savedIds, myId, tab, openPresentation: slides ? openPresentation : null, slides };
+      cache = {
+        presentationId,
+        presentations,
+        savedExtras,
+        savedIds,
+        myId,
+        tab,
+        openSubject,
+        openPresentation: slides ? openPresentation : null,
+        slides,
+      };
     }
-  }, [presentationId, presentations, savedExtras, savedIds, myId, tab, openPresentation, slides]);
+  }, [presentationId, presentations, savedExtras, savedIds, myId, tab, openSubject, openPresentation, slides]);
 
-  // Escape steps back one level: out of a presentation first, then closes the panel.
+  // Escape steps back one level: out of a presentation first, then out of a subject, then closes the panel.
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!isPanelEscape(e)) return;
       if (openPresentation) setOpenPresentation(null);
+      else if (openSubject !== null && tab === "all") setOpenSubject(null);
       else closePresentationsPanel();
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [openPresentation, closePresentationsPanel]);
+  }, [openPresentation, openSubject, tab, closePresentationsPanel]);
 
   // The Saved tab's presentations that the list doesn't have are loaded the first time it shows (the newest saved,
   // up to PRESENTATION_LIMIT), once the list is in. Ones that were unpublished or hidden since don't come back, so
@@ -230,15 +248,50 @@ export function PresentationsPanel() {
   const savedIdSet = new Set(savedIds);
 
   const query = search.trim().toLowerCase();
-  const shownPresentations = (tab === "saved" ? savedPresentations : presentations)?.filter((presentation) =>
-    `${presentation.title} ${presentation.credits.join(" ")} ${presentation.meta}`.toLowerCase().includes(query)
+  // The All tab opens with a row per subject; a search or "See all" shows the list.
+  const isSubjectOpen = tab === "all" && openSubject !== null;
+  const showRows = tab === "all" && !query && !isSubjectOpen;
+  const shownPresentations = (tab === "saved" ? savedPresentations : presentations)?.filter(
+    (presentation) =>
+      (!isSubjectOpen || presentation.subject === openSubject) &&
+      `${presentation.title} ${presentation.credits.join(" ")} ${presentation.meta}`.toLowerCase().includes(query)
+  );
+
+  // A presentation's card: in the list, or smaller in a subject's row (without the credit lines).
+  const card = (presentation: PresentationSummary, inRow = false) => (
+    // The bookmark sits next to the button, not in it (a button can't go inside a button).
+    <div key={presentation.id} className={`relative min-w-0 ${inRow ? "w-44 shrink-0" : ""}`}>
+      <button type="button" onClick={() => showPresentation(presentation)} className="group w-full min-w-0 text-left">
+        <SlidePicture slide={presentation.firstSlide} />
+        <span className={`mt-1.5 block truncate font-semibold text-text-primary ${inRow ? "text-[13px]" : "text-sm"}`}>
+          {presentation.title}
+        </span>
+        {!inRow &&
+          presentation.credits.map((line) => (
+            <span key={line} className="block truncate text-[13px] text-text-secondary">{line}</span>
+          ))}
+        <span title={presentation.metaTitle} className={`block truncate text-text-secondary ${inRow ? "text-xs" : "text-[13px]"}`}>
+          {presentation.meta}
+        </span>
+      </button>
+      {/* My own presentations can't be saved. */}
+      {presentation.ownerId !== myId && (
+        <SaveCardButton
+          presentationId={presentation.id}
+          title={presentation.title}
+          isSaved={savedIdSet.has(presentation.id)}
+          onChange={(isSaved) => changeSaved(presentation, isSaved)}
+          className={inRow ? "top-1.5 right-1.5" : "top-2 right-2"}
+        />
+      )}
+    </div>
   );
 
   return (
     <div
       data-keep-container-selection="true"
       {...panelDragHandlers}
-      className="flex w-[440px] shrink-0 flex-col overflow-y-auto border-r border-border-default bg-bg-surface p-5"
+      className="flex shrink-0 flex-col overflow-y-auto border-r border-border-default bg-bg-surface side-panel"
     >
       <div className="mb-1 flex items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-1">
@@ -326,6 +379,17 @@ export function PresentationsPanel() {
             aria-label="Search presentations"
             className="mb-4 w-full rounded-input border border-border-default bg-bg-surface px-3 py-2 text-sm text-text-primary outline-none placeholder:text-text-secondary focus:border-text-secondary"
           />
+          {isSubjectOpen && (
+            <button
+              type="button"
+              onClick={() => setOpenSubject(null)}
+              title="Back to all subjects"
+              className="mb-3 flex items-center gap-1 self-start rounded-dropdown py-1 pr-2 text-[13px] font-semibold text-text-primary hover:bg-bg-page"
+            >
+              <ChevronLeftIcon size={16} />
+              {openSubject || OTHER_SUBJECT}
+            </button>
+          )}
           {shownPresentations === undefined ? (
             <Loading />
           ) : shownPresentations.length === 0 ? (
@@ -336,32 +400,16 @@ export function PresentationsPanel() {
                   ? "Nothing saved yet. Click the bookmark on a presentation to save it."
                   : "No published presentations yet."}
             </Message>
-          ) : (
-            <div className="flex flex-col gap-4">
-              {shownPresentations.map((presentation) => (
-                // The bookmark sits next to the button, not in it (a button can't go inside a button).
-                <div key={presentation.id} className="relative min-w-0">
-                  <button type="button" onClick={() => showPresentation(presentation)} className="group w-full min-w-0 text-left">
-                    <SlidePicture slide={presentation.firstSlide} />
-                    <span className="mt-1.5 block truncate text-sm font-semibold text-text-primary">{presentation.title}</span>
-                    {presentation.credits.map((line) => (
-                      <span key={line} className="block truncate text-[13px] text-text-secondary">{line}</span>
-                    ))}
-                    <span title={presentation.metaTitle} className="block truncate text-[13px] text-text-secondary">{presentation.meta}</span>
-                  </button>
-                  {/* My own presentations can't be saved. */}
-                  {presentation.ownerId !== myId && (
-                    <SaveCardButton
-                      presentationId={presentation.id}
-                      title={presentation.title}
-                      isSaved={savedIdSet.has(presentation.id)}
-                      onChange={(isSaved) => changeSaved(presentation, isSaved)}
-                      className="top-2 right-2"
-                    />
-                  )}
-                </div>
+          ) : showRows ? (
+            <div className="flex flex-col gap-5">
+              {bySubject(shownPresentations).map(({ subject, presentations: inSubject }) => (
+                <ScrollRow key={subject} name={subject || OTHER_SUBJECT} onSeeAll={() => setOpenSubject(subject)}>
+                  {inSubject.map((presentation) => card(presentation, true))}
+                </ScrollRow>
               ))}
             </div>
+          ) : (
+            <div className="flex flex-col gap-4">{shownPresentations.map((presentation) => card(presentation))}</div>
           )}
         </>
       )}
@@ -415,8 +463,27 @@ async function toSummaries(supabase: SupabaseClient, rows: SummaryRow[]): Promis
       slideCountLabel(row.slides[0]?.count ?? 0),
     ]),
     metaTitle: gradesTitle(row.grades),
+    subject: row.subject,
     firstSlide: parseSlide(row.first_slide[0]?.data),
   }));
+}
+
+// The row for presentations without a subject.
+const OTHER_SUBJECT = "Other";
+
+/** Groups presentations by subject: the DepEd subjects in list order, then teachers' own ones (A–Z), then none. */
+function bySubject(presentations: PresentationSummary[]) {
+  const groups = new Map<string, PresentationSummary[]>();
+  for (const presentation of presentations) {
+    groups.set(presentation.subject, [...(groups.get(presentation.subject) ?? []), presentation]);
+  }
+  const order = (subject: string) => {
+    const index = (SUBJECTS as readonly string[]).indexOf(subject);
+    return index >= 0 ? index : subject ? SUBJECTS.length : SUBJECTS.length + 1;
+  };
+  return [...groups]
+    .sort(([a], [b]) => order(a) - order(b) || a.localeCompare(b))
+    .map(([subject, list]) => ({ subject, presentations: list }));
 }
 
 /** `questionNumber` missing = worked out as the presentation's first slide (for the presentation list). */

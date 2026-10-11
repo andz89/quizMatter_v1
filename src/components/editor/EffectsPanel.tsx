@@ -31,7 +31,7 @@ export function EffectsPanel() {
   return (
     <div
       data-keep-container-selection="true"
-      className="flex w-72 shrink-0 flex-col gap-6 overflow-y-auto border-r border-border-default bg-bg-surface p-5"
+      className="flex shrink-0 flex-col gap-6 overflow-y-auto border-r border-border-default bg-bg-surface side-panel"
     >
       <div className="flex items-center justify-between">
         <h2 className="text-[15px] font-extrabold text-text-primary">Effects</h2>

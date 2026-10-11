@@ -8,6 +8,7 @@ import { useEditorShortcuts } from "@/lib/useEditorShortcuts";
 import { EditorTopBar } from "./EditorTopBar";
 import { IconRail } from "./IconRail";
 import { Workspace } from "./Workspace";
+import { EditorBottomBar } from "./EditorBottomBar";
 import { ElementsPanel } from "./ElementsPanel";
 import { PhotosPanel } from "./PhotosPanel";
 import { ColorPanel } from "./ColorPanel";
@@ -138,7 +139,10 @@ export function Editor({ presentation, draft, review }: { presentation: Presenta
           {isDetailsPanelOpen && <DetailsPanel />}
           {isPresentationsPanelOpen && <PresentationsPanel />}
         </div>
-        <Workspace />
+        <div className="flex min-w-0 flex-1 flex-col">
+          <Workspace />
+          <EditorBottomBar />
+        </div>
       </div>
       <SmallScreenNote />
       {isGridViewOpen && <SlideGridModal />}

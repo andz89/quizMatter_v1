@@ -212,6 +212,17 @@ export function PresentationView() {
     };
   }, []);
 
+  // The page under the presentation can't scroll while it shows: a long page (like the home page with many cards)
+  // kept its scrollbar on top of the fullscreen slides, making them narrower.
+  useEffect(() => {
+    const root = document.documentElement;
+    const before = root.style.overflow;
+    root.style.overflow = "hidden";
+    return () => {
+      root.style.overflow = before;
+    };
+  }, []);
+
   useEffect(() => {
     const handleFullscreenChange = () => {
       if (!document.fullscreenElement) exitPresentation();

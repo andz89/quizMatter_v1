@@ -130,6 +130,16 @@ body {
   word-wrap: normal;
 }
 
+/* The editor's side panels (Elements, Photos, Presentations, …): all the same width, a thin scrollbar, and less
+   padding on the right, where the scrollbar's space (always kept, so nothing shifts) makes up the rest.
+   ScrollRow stretches over these paddings, so change both together. */
+.side-panel {
+  width: 320px;
+  padding: 20px 8px 20px 20px;
+  scrollbar-width: thin;
+  scrollbar-gutter: stable;
+}
+
 .zoom-slider {
   -webkit-appearance: none;
   appearance: none;
