@@ -21,9 +21,6 @@ import { createAdminClient } from "@/lib/supabase/admin";
  * clicks Allow on /oauth/consent, and Claude then sends that user's login token with every request. Without a valid
  * token the answer is 401, which points Claude to /.well-known/oauth-protected-resource to start the login.
  * For now only admins can use it.
- *
- * It's a Pages Router API route (not an App Router route.ts) because the presentation importer imports
- * react-dom/server (for drawing background patterns), which the App Router doesn't allow on the server.
  */
 function createServer(appUrl: string, userId: string, supabase: SupabaseClient) {
   const server = new McpServer({ name: "quizmatter", version: "1.0.0" });
@@ -67,7 +64,7 @@ function createServer(appUrl: string, userId: string, supabase: SupabaseClient) 
       const text = [
         "This is how quizMatter SAVES slides, which is not the format send_presentation takes. Read it as a reference",
         "(content, slide order, layout, sizes on the 1280×720 slide). To make a presentation, call get_presentation_format and write it in that format.",
-        "Text is shown as plain text; big drawings and background art are left out (a note says what was there).",
+        "Text is shown as plain text; big drawings are left out (a note says what was there).",
         "",
         JSON.stringify(shrinkPresentation(result.presentation), null, 1),
       ].join("\n");
@@ -167,9 +164,8 @@ function createServer(appUrl: string, userId: string, supabase: SupabaseClient) 
       },
       async ({ details = {}, slides, final, draftId }) => {
         // Built here to catch mistakes while Claude can still fix them, and for the layout report. The editor builds
-        // the slides again from the same recipe (same positions), and also draws the background patterns, which can't
-        // be drawn on Cloudflare.
-        const result = buildSlides({ slides }, { drawPatterns: false });
+        // the slides again from the same recipe (same positions).
+        const result = buildSlides({ slides });
         // Photos are checked against the library only once the slides themselves are right.
         const errors = "errors" in result ? result.errors : await checkPhotos(result.slides);
         if ("errors" in result || errors.length) {
@@ -240,20 +236,17 @@ async function checkLogin(token: string): Promise<{ id: string; isAdmin: boolean
 const MAX_READ_SVG_LENGTH = 5_000;
 
 /**
- * The presentation for read_presentation: the text as plain text, and the heavy parts (background art, big
- * drawings) swapped for a short note, so Claude gets what the slides say and how they're laid out.
+ * The presentation for read_presentation: the text as plain text, and the heavy parts (big drawings)
+ * swapped for a short note, so Claude gets what the slides say and how they're laid out.
  */
 function shrinkPresentation({ slides, ...details }: Presentation) {
   const svgNote = (svg: string) =>
     svg.length > MAX_READ_SVG_LENGTH ? `(a drawing, ${Math.round(svg.length / 1000)} KB, left out)` : svg;
   return {
     ...details,
-    slides: slides.map(({ questionHtml, backgroundSvg, ...slide }) => ({
+    slides: slides.map(({ questionHtml, ...slide }) => ({
       ...slide,
       question: questionHtml ? htmlToText(questionHtml) : slide.question,
-      ...(backgroundSvg && {
-        backgroundArt: slide.backgroundPattern ? `pattern "${slide.backgroundPattern}"` : "(custom background art, left out)",
-      }),
       elements: slide.elements.map((element) => ({
         ...element,
         ...(element.text && { text: { ...element.text, html: htmlToText(element.text.html) } }),
@@ -346,5 +339,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   res.send(await response.text());
 }
 
-// A presentation with drawn backgrounds can be bigger than the 1 MB default.
+// A presentation with drawings can be bigger than the 1 MB default.
 export const config = { api: { bodyParser: { sizeLimit: "4mb" } } };

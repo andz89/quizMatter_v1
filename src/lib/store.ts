@@ -33,7 +33,6 @@ import {
   isFreeCanvas,
 } from "./constants";
 import { clamp, fitInBox, getOuterEdges } from "./geometry";
-import { withBackground, type BackgroundPatch } from "./slideBackground";
 import { REFUSALS, SaveRefusedError, saveErrorMessage, savePresentationToDb } from "./presentations";
 import { saveReviewDraft } from "./reviews";
 import { checkPauses, pausedUntilFromError } from "./clickLimits";
@@ -308,9 +307,9 @@ interface EditorState {
   setShapeStripHeight: (slideId: string, height: number) => void;
   // Sets the shape box's fill or border color; undefined = none.
   setShapeBoxColors: (slideId: string, patch: Partial<Pick<Slide, "shapeBoxFill" | "shapeBoxBorder">>) => void;
-  // Sets the slide's background color, pattern and/or pattern strength, redrawing the pattern.
-  setSlideBackground: (slideId: string, patch: BackgroundPatch) => void;
-  // Gives every slide this slide's background color, pattern and pattern strength.
+  // Sets the slide's background color or gradient; undefined = plain white.
+  setSlideBackground: (slideId: string, patch: Pick<Slide, "background">) => void;
+  // Gives every slide this slide's background color or gradient.
   applyBackgroundToAll: (slideId: string) => void;
   updateOption: (slideId: string, optionId: string, text: string, html: string) => void;
   setCorrectOption: (slideId: string, optionId: string) => void;
@@ -821,22 +820,15 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   setSlideBackground: (slideId, patch) => {
-    set((state) => ({ presentation: updateSlide(state.presentation, slideId, (s) => withBackground(s, patch)) }));
+    set((state) => ({ presentation: updateSlide(state.presentation, slideId, (s) => ({ ...s, ...patch })) }));
   },
 
   applyBackgroundToAll: (slideId) => {
     const { presentation } = get();
     const source = presentation.slides.find((s) => s.id === slideId);
     if (!source) return;
-    // The source's artwork is already drawn for its color, pattern and strength (or is Claude's own
-    // drawing), so every slide takes it as-is instead of redrawing it — and nothing gets erased.
-    const background = {
-      background: source.background,
-      backgroundPattern: source.backgroundPattern,
-      backgroundOpacity: source.backgroundOpacity,
-      backgroundSvg: source.backgroundSvg,
-    };
-    set({ presentation: { ...presentation, slides: presentation.slides.map((s) => ({ ...s, ...background })), updatedAt: Date.now() } });
+    const slides = presentation.slides.map((s) => ({ ...s, background: source.background }));
+    set({ presentation: { ...presentation, slides, updatedAt: Date.now() } });
   },
 
   setShapeStripHeight: (slideId, height) => {

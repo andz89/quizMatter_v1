@@ -55,7 +55,7 @@ export async function getPresentation(id: string): Promise<Presentation | null> 
 
 /**
  * Claude's draft (details + slides recipe), so the home page can present it. The slides are built in
- * the browser, like the editor does (building them needs react-dom/server, which server code can't use).
+ * the browser, like the editor does.
  */
 export async function getDraftPresentation(id: string): Promise<Draft | null> {
   if (!z.string().min(1).max(100).safeParse(id).success) return null;

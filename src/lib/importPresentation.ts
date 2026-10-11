@@ -43,7 +43,7 @@ import {
   GRADIENT_PREFIX,
 } from "./constants";
 import { DEFAULT_TEXT_COLOR, markupToHtml, stripMarkup } from "./richText";
-import { BACKGROUND_COLORS, BACKGROUND_GRADIENTS, BACKGROUND_PATTERN_IDS, PATTERN_OPACITY_RANGE, withBackground } from "./slideBackground";
+import { BACKGROUND_COLORS, BACKGROUND_GRADIENTS } from "./slideBackground";
 import { fitInBox, MIN_ELEMENT_SIZE, TRIM_PADDING, type Rect, type Size } from "./geometry";
 import ASSET_SHAPES from "./assetShapes.json";
 import { createId } from "./id";
@@ -367,18 +367,14 @@ const questionBoxes = {
     .describe('Choice slides only: fill and border colors of the picture box ("side"). Usually leave it out for a plain box; use it only when the pictures need it to stand out.'),
 };
 
-// Blank and title slides: a background color or gradient from the Background panel, a pattern and decorations.
-// Nothing here is a flat drawing the teacher can't change: the color and pattern are picked again in the panel,
-// and decorations are pictures they can move.
+// Blank and title slides: a background color or gradient from the Background panel, and decorations.
+// Nothing here is a flat drawing the teacher can't change: the color is picked again in the panel, and
+// decorations are pictures they can move.
 const blankDesign = {
   background: z
     .enum([...BACKGROUND_COLORS, ...BACKGROUND_GRADIENTS] as [string, ...string[]])
     .optional()
     .describe("The slide's background: a soft color, or a gradient from top to bottom. Leave out for plain white."),
-  backgroundPattern: z
-    .enum(BACKGROUND_PATTERN_IDS)
-    .optional()
-    .describe("A patterned background from the app, as a soft frame around the edges, in the slide's background color."),
   design: z.array(decorationRecipe).max(6).default([]).describe("Decorations behind everything."),
 };
 
@@ -426,11 +422,8 @@ const blankContent = {
   ...canvasContent,
 };
 
-// Blank and title slides: how solid their pattern is, and their optional "Reveal" as a short text.
+// Blank and title slides: their optional "Reveal" as a short text.
 const blankExtras = {
-  patternOpacity: whole(PATTERN_OPACITY_RANGE.min, PATTERN_OPACITY_RANGE.max)
-    .optional()
-    .describe('How solid "backgroundPattern" is, in percent. Leave out for 25.'),
   answer: z
     .string()
     .max(MAX_ANSWER_LENGTH)
@@ -641,7 +634,7 @@ Be a teacher, and be creative. Act like a kind, skilled teacher teaching this le
 - Get the facts right, and keep them fit for the pupils' age. If you're not sure of a fact, tell the user instead of guessing.
 - In choice questions, make the wrong options believable: take them from mistakes pupils really make, not silly ones, so the quiz shows what they truly understand.
 - Be kind and fair: use warm, encouraging words (e.g. "Great job!" on the recap), show boys and girls equally, and never make fun of anyone.
-- Design like a professional graphic designer, and use your creativity: plan each slide's look with care (clear focus, balance, good spacing, colors that go well together, easy-to-read text). Pick pictures, colors, layouts and backgrounds that make each idea clear and fun to look at. Show the idea in a picture, not only in words, and vary the slides so they don't all look the same. Make each presentation look different from the last one too: pick a fresh color set, patterns, decorations and kids for each topic, instead of the same favorite design every time.
+- Design like a professional graphic designer, and use your creativity: plan each slide's look with care (clear focus, balance, good spacing, colors that go well together, easy-to-read text). Pick pictures, colors, layouts and backgrounds that make each idea clear and fun to look at. Show the idea in a picture, not only in words, and vary the slides so they don't all look the same. Make each presentation look different from the last one too: pick a fresh color set, decorations and kids for each topic, instead of the same favorite design every time.
 - Keep one look through the presentation, so it feels like one lesson, not a mix: one color set (2–3 colors that suit the topic) and one main character (e.g. the same kid on the hook, the teaching and the recap). Change the layout and the decorations from slide to slide, not the colors.
 - Keep pupils thinking along the way: ask a small question, add a "Reveal", or start a short discussion before moving on.
 
@@ -691,7 +684,7 @@ The slide is 1280 × 720 px.
    - It has no boxes. "title" and "text" become text boxes ("titleStyle", "textStyle", "titleFontSize", "textFontSize"), and the pictures fill the room they leave, as "layout" says.
    - "textBoxes": extra text boxes you place yourself anywhere (labels, a speech bubble's words, a second paragraph). Their text is centered (set "align" in "style" for left or right), and the box shrinks to the height of its text, staying in the middle of where you put it.
    - Pictures can be placed by the app (default) or by you ("position").
-   - Design (see Design below): "background", "backgroundPattern" and "design".
+   - Design (see Design below): "background" and "design".
    - "answer" / "answerCanvas": optional "Reveal" — hidden content the teacher shows during the discussion, like an activity (see Answers and Reveal below).
 5. "title" — a title slide: a big centered title, and "text" as a short line under it (a subtitle, the grade, the teacher's name). Use it to open the presentation, or to start a new part ("Part 2: Let's practice!").
    - "title" is needed. "titleStyle", "textStyle", "titleFontSize" (72px if left out) and "textFontSize" (36px) work like on blank slides. There is no "layout".
@@ -756,18 +749,20 @@ How they look:
 - The picture list has people: students in school uniform — Filipino boys ("ph-student-…", one waving, one with a fist up), a waving boy with a book ("school-boy"), and students with a pencil, reading, with an apple, a book, a globe, a backpack or a paper, pointing up, or jumping for joy ("student-…"). Their "color" is their clothes.
 - Kids and people make presentations friendly (a kid reading on a lesson slide, a kid cheering on a summary slide). But first look in the shared photo library: call find_photos with words like "kid", "girl", "boy", "student" or "people", plus what the kid should be doing (e.g. "girl reading", "boy cheering"). It has many more kids than the picture list. Look through all the kids it gives you and try a few searches, not only the first result. Use the built-in students above only when find_photos has nothing that fits.
 - Vary the kids: inside one presentation, you decide when to use a kid again. find_photos gives equally good matches in a new random order each time, so look through every kid it gives you and pick the one that fits the slide best, not just the first. The built-in students too: not always "student-pointing" or "student-globe". Show girls and boys about equally.
-- Fruits include apple, banana, grapes, mango, papaya, coconut, rambutan, dragon-fruit, kiwi, avocado, peach, pomegranate, blueberries and more.
+- Drawn fruits (for counting and picture sums; see Real photos for when a photo is better) include apple, banana, grapes, mango, papaya, coconut, rambutan, dragon-fruit, kiwi, avocado, peach, pomegranate, blueberries and more.
 - Shapes include every kind of triangle (equilateral, isosceles, scalene, right, acute, obtuse) and four-sided shape (square, rectangle, trapezoid, right trapezoid, rhombus, kite, parallelogram…). 3D solids include prisms and pyramids with 3–6 sided bases, frustum, hemisphere, octahedron and icosahedron.
 - Settings like "clockTime", "fraction", "numberLine", "tenFrame", "baseTen", "thermometer", "barGraph", "protractor", "flowchart", "cycle", "mindMap", "tree" and "factorTree" only work on the pictures named in their description.
 - Diagrams show how ideas connect: flowchart (steps in order, joined by arrows), cycle (steps that repeat in a ring, e.g. the water cycle or a life cycle), mind-map (a main idea with ideas around it), tree-diagram (a top box that splits into groups, each with its own items, e.g. a classification) and factor-tree (a number split into two factors, each split again until only primes are left, for prime factorization). Keep each box's text short: a word or a few.
 - Keep "elements" useful: they should help answer the question or explain the topic. Decoration goes in "design".
 
 Real photos:
-- The app has a library of shared photos, each with a file name, description and tags saying what it shows. When a slide really needs a real photo (a real frog, a volcano, a map), call find_photos with a few words (e.g. "frog rainforest") and pick the one whose description fits best.
+- The app has a library of shared photos, each with a file name, description and tags saying what it shows. Call find_photos with a few words (e.g. "banana", "frog rainforest") and pick the one whose description fits best.
+- Photo or drawing? For a real thing — a fruit, an animal, a plant, food, an object, a place, a job — look in find_photos first, even when the picture list has a drawing of it (e.g. a real banana photo over the drawn "banana"). Use a drawing when it works better: counting and picture sums (many copies of the same thing, all alike), shapes, diagrams, clocks, number lines and the other math tools, things that need recoloring, decorations, or when find_photos has nothing that fits.
+- Don't mix photos and drawings of things on one slide: a real banana beside drawn apples looks odd. Pick one kind for the slide's things (shapes, ribbons, arrows and other layout pieces are fine with either).
 - Put it in "elements" like any picture: { "asset": "photo", "photo": { "src": …, "width": …, "height": … } }, copying "photo" exactly as find_photos returned it. "in", "size", "position", "callouts", "opacity", "rotation", "flipX" and "flipY" work on photos; "color", "crop" and the math/clock settings don't. Only use photos find_photos gave you, or ones you just uploaded with prepare_photo_upload (copy "src", "width" and "height" from its upload answer): any other photo is refused.
 - From a zip the user attached (photos plus lesson text): unzip it, read the text and plan the slides from it, upload the zip's photos with prepare_photo_upload (ask the user for the photos' source if the zip doesn't say), then put each photo on the slide it fits best. Leave a photo out only if it fits nowhere, and tell the user which ones you left out.
 - A photo's "source" says who owns it or where it came from. When it has one, credit it on the slide in a small text box near the photo (e.g. "Photo: Juan Cruz, Pexels"), unless the user says not to. Also list it on the last slide, "References" (see above).
-- If find_photos has nothing that fits, leave room for a photo (e.g. a blank slide with "layout": "text-left" and no pictures on the right), and tell the user in your reply which slides need a photo and what it should show. The teacher can add one in the editor with the Photos button (upload from their computer, or paste a photo link).
+- If find_photos has nothing that fits, use a drawing from the picture list when one shows it well. If neither fits, leave room for a photo (e.g. a blank slide with "layout": "text-left" and no pictures on the right), and tell the user in your reply which slides need a photo and what it should show. The teacher can add one in the editor with the Photos button (upload from their computer, or paste a photo link).
 - For one photo that fills the whole slide from a link the user gave you, use an "image" embed slide instead.
 
 Placing them yourself:
@@ -810,7 +805,7 @@ Arrows that point at part of a picture ("callouts", blank, title and custom slid
 
 When presenting, the teacher clicks a button to show hidden content in a popup. On short-answer and custom slides it's the correct answer. On blank and title slides the app calls it "Reveal" (see below). There are two kinds:
 - "answer": a short typed text (at most ${MAX_ANSWER_LENGTH} characters), e.g. "12 apples". Short-answer slides always need one.
-- "answerCanvas": the answer as a picture — a white 1280 × 720 canvas, built exactly like a blank slide: "layout", "title", "text", "textBoxes", "elements" (with "position" and "callouts"), and the same style and font size settings. No design, pattern or background. When you give it, the teacher sees the canvas instead of the text.
+- "answerCanvas": the answer as a picture — a white 1280 × 720 canvas, built exactly like a blank slide: "layout", "title", "text", "textBoxes", "elements" (with "position" and "callouts"), and the same style and font size settings. No design or background. When you give it, the teacher sees the canvas instead of the text.
 - Use "answerCanvas" when the answer is best shown, not just said: a worked solution step by step, the counted pictures with the total, a shape with its parts labeled, the clock showing the right time. Keep it clear: a title like "Answer: 12", a short explanation, and the pictures that prove it.
 - A short-answer slide with "answerCanvas" still needs "answer" (a short text version).
 - Custom slides: give "answer", "answerCanvas" or both, with every item's answer.
@@ -825,7 +820,7 @@ When presenting, the teacher clicks a button to show hidden content in a popup. 
 === Design ===
 
 Question slides ("choice", "true-false", "short-answer" and "custom") — keep them plain:
-- Plain white, with no background color, decorations or pattern: they don't have "background", "design" or "backgroundPattern".
+- Plain white, with no background color or decorations: they don't have "background" or "design".
 - "pictureBox" (choice and true-false slides): leave it out, so the picture box stays plain with no background color. Only add a soft fill and/or border when it's really needed, e.g. white or very light pictures that would get lost on the white slide. Then use one soft color family for the whole presentation.
 
 Blank and title slides — white or a soft background (see Background below), made friendly with design:
@@ -847,11 +842,9 @@ Text colors: you can't see the slide, so the layout report checks every text's c
 
 Background (blank and title slides only) — the same choices the teacher has in the Background panel, so they can change them later:
 - "background": a soft color (${BACKGROUND_COLORS.join(", ")}) or a soft gradient from top to bottom (${BACKGROUND_GRADIENTS.map((g) => `"${g}"`).join(", ")}). Write it exactly as listed. Leave it out for plain white.
-- "backgroundPattern": a ready-made pattern from the app: ${BACKGROUND_PATTERN_IDS.join(", ")}. It shows as a soft frame around the slide's edges, in the slide's background color, at 25% opacity unless you set "patternOpacity". It replaces "design": a slide with a pattern gets no decorations.
 - There is no way to draw your own full-slide background: everything on a slide must be something the teacher can pick, move or edit.
-- A pattern is a quiet choice, as it takes the place of decorations: good for a calm slide (a long text, the References slide). Slides that need personality — the title, the hook, the recap, a story page — get a color or gradient with decorations instead.
 
-Opacity: you choose how solid decorations, patterns and pictures are. Decorations away from the text can be bold and fully solid (opacity 100), so they really show. Only make what sits right behind text light, so the text stays easy to read (the report checks it).
+Opacity: you choose how solid decorations and pictures are. Decorations away from the text can be bold and fully solid (opacity 100), so they really show. Only make what sits right behind text light, so the text stays easy to read (the report checks it).
 
 Your own drawings (SVG) — for blank and title slide design only:
 - In "design", give "svg" instead of "asset" to draw your own decoration for a spot (square viewBox, e.g. "0 0 100 100").
@@ -882,20 +875,15 @@ function renameLessonSlides(data: unknown): unknown {
   return { ...data, slides };
 }
 
-/**
- * `drawPatterns: false` skips drawing background patterns (they need react-dom/server, which
- * Cloudflare Workers don't have) — for the MCP server, which only wants the errors.
- */
 export function buildSlides(
   data: unknown,
-  { drawPatterns = true } = {},
 ): { slides: Slide[]; report: string } | { errors: string[] } {
   const parsed = presentationRecipeSchema.safeParse(renameLessonSlides(data));
   if (!parsed.success) return { errors: [z.prettifyError(parsed.error)] };
 
   const errors: string[] = [];
   const built = parsed.data.slides.map((recipe, i) =>
-    buildSlide(recipe, drawPatterns, (message) => errors.push(`Slide ${i + 1}: ${message}`)),
+    buildSlide(recipe, (message) => errors.push(`Slide ${i + 1}: ${message}`)),
   );
   if (errors.length) return { errors };
   const report = built
@@ -926,7 +914,6 @@ function questionFields(recipe: QuestionRecipe) {
 
 function buildSlide(
   recipe: SlideRecipe,
-  drawPatterns: boolean,
   reportError: (message: string) => void,
 ): { slide: Slide; report: string[] } {
   const blank = createBlankSlide(recipe.type);
@@ -937,15 +924,10 @@ function buildSlide(
   // Blank, title and custom slides have no boxes: the title and text become text boxes, and the pictures go anywhere.
   const isCanvas = recipe.type === "blank" || recipe.type === "title" || recipe.type === "custom";
   const isTitle = recipe.type === "title";
-  // Blank and title slides get a background, a pattern and decorations; question slides stay plain white.
+  // Blank and title slides get a background and decorations; question slides stay plain white.
   const hasDesign = recipe.type === "blank" || recipe.type === "title";
   if (hasDesign) {
     slide.background = recipe.background;
-    // The pattern takes the slide's background color (or gradient).
-    if (recipe.patternOpacity !== undefined && !recipe.backgroundPattern) reportError('"patternOpacity" needs a "backgroundPattern".');
-    if (recipe.backgroundPattern && drawPatterns) {
-      slide = withBackground(slide, { backgroundPattern: recipe.backgroundPattern, backgroundOpacity: recipe.patternOpacity });
-    }
   } else if (recipe.type !== "custom") {
     slide.shapeBoxFill = recipe.pictureBox?.fill;
     slide.shapeBoxBorder = recipe.pictureBox?.border;
@@ -1160,9 +1142,8 @@ function buildSlide(
     });
   }
 
-  // Drawn first, so they sit behind everything. Only blank and title slides have decorations. A pattern background is already the slide's decoration,
-  // so other decorations would only crowd it.
-  const design = !hasDesign || recipe.backgroundPattern ? [] : recipe.design;
+  // Drawn first, so they sit behind everything. Only blank and title slides have decorations.
+  const design = hasDesign ? recipe.design : [];
   const decorations = design.flatMap((item, i) => {
     if (!item.asset === !item.svg) {
       reportError(`decoration ${i + 1}${item.asset ? ` (${item.asset})` : ""}: give "asset" or "svg" (one of them).`);
@@ -1191,7 +1172,7 @@ function buildSlide(
   // slide with no design, whose elements then move into the answer box.
   if (isCanvas && recipe.answer !== undefined) slide.correctAnswer = recipe.answer;
   if ((recipe.type === "short-answer" || isCanvas) && recipe.answerCanvas) {
-    const canvas = buildSlide({ type: "blank", design: [], ...recipe.answerCanvas }, drawPatterns, (message) =>
+    const canvas = buildSlide({ type: "blank", design: [], ...recipe.answerCanvas }, (message) =>
       reportError(`answer canvas: ${message}`),
     );
     slide.answerType = "canvas";
@@ -1351,7 +1332,6 @@ function pickLayout(options: string[], elements: ElementRecipe[]): Slide["layout
 // ---------------------------------------------------------------------------------------------
 
 // Space around the slide's edge and between the text and the pictures (px).
-// The margin is wider than a pattern background's 40px frame, so text never sits on the pattern.
 const BLANK_MARGIN = 56;
 const BLANK_GAP = 24;
 const BLANK_TITLE_HEIGHT = 72;
@@ -1752,7 +1732,7 @@ const MATH_SETTINGS = [
  */
 function photoAsset(el: ElementRecipe): Asset | string {
   if (!el.photo) return '"asset": "photo" needs "photo": one from find_photos.';
-  return { id: PHOTO_ID, category: "background", label: "Photo", defaultSize: { width: el.photo.width, height: el.photo.height }, render: () => null };
+  return { id: PHOTO_ID, category: "decorative", label: "Photo", defaultSize: { width: el.photo.width, height: el.photo.height }, render: () => null };
 }
 
 function buildSettings(el: ElementRecipe, asset: Asset): Partial<SvgElement> | string {

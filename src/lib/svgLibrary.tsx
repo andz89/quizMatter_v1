@@ -21,7 +21,7 @@ import {
   type DiagramShape,
 } from "./constants";
 
-export type ElementCategory = "shape" | "line" | "arrow" | "solid" | "icon" | "time" | "math" | "diagram" | "decorative" | "blob" | "ribbon" | "cloud" | "number" | "letter" | "symbol" | "emoji" | "music" | "fruit" | "kitchen" | "book" | "vehicle" | "person" | "animal" | "space" | "sport" | "tree" | "leaf" | "flag" | "background" | "text";
+export type ElementCategory = "shape" | "line" | "arrow" | "solid" | "icon" | "time" | "math" | "diagram" | "decorative" | "blob" | "ribbon" | "cloud" | "number" | "letter" | "symbol" | "emoji" | "music" | "fruit" | "kitchen" | "book" | "vehicle" | "person" | "animal" | "space" | "sport" | "tree" | "leaf" | "flag" | "text";
 
 // The per-element settings some assets draw from (3D angle, clock time, number line numbers).
 // A whole SvgElement fits here, so callers can just pass the element.
@@ -1932,48 +1932,6 @@ function renderTwinkle(cx: number, cy: number, size: number, color: string) {
       d={`M${cx} ${cy - size}Q${cx} ${cy} ${cx + size} ${cy}Q${cx} ${cy} ${cx} ${cy + size}Q${cx} ${cy} ${cx - size} ${cy}Q${cx} ${cy} ${cx} ${cy - size}Z`}
       fill={color}
     />
-  );
-}
-
-// Patterned backgrounds: a wide rounded card filled with `color`, with a fixed rainbow pattern on top.
-// The pattern stays inside the card's rounded corners, so no clipping is needed.
-const PATTERN_COLORS = ["#EF4444", "#F97316", "#FACC15", "#22C55E", "#06B6D4", "#3B82F6", "#8B5CF6", "#EC4899"];
-const patternColor = (index: number) => PATTERN_COLORS[index % PATTERN_COLORS.length];
-
-// Rows of shapes 20 apart, every other row shifted half a step (like polka dots). `draw` gets each
-// shape's center and a running number for picking its color.
-function staggeredGrid(draw: (x: number, y: number, index: number) => ReactNode) {
-  return Array.from({ length: 5 }, (_, row) =>
-    Array.from({ length: row % 2 ? 7 : 8 }, (_, col) => (
-      <g key={`${row}-${col}`}>{draw(10 + col * 20 + (row % 2) * 10, 10 + row * 20, col + row * 2)}</g>
-    )),
-  );
-}
-
-// A small + − × ÷ = sign centered on (x, y), for the Math Symbols background.
-function renderMathSign(kind: number, x: number, y: number, color: string) {
-  const stroke = { stroke: color, strokeWidth: 2.2, strokeLinecap: "round" as const, fill: "none" };
-  if (kind === 0) return <path d={`M${x - 4.5} ${y}H${x + 4.5}M${x} ${y - 4.5}V${y + 4.5}`} {...stroke} />;
-  if (kind === 1) return <path d={`M${x - 4.5} ${y}H${x + 4.5}`} {...stroke} />;
-  if (kind === 2) return <path d={`M${x - 3.2} ${y - 3.2}L${x + 3.2} ${y + 3.2}M${x + 3.2} ${y - 3.2}L${x - 3.2} ${y + 3.2}`} {...stroke} />;
-  if (kind === 3) {
-    return (
-      <>
-        <path d={`M${x - 4.5} ${y}H${x + 4.5}`} {...stroke} />
-        <circle cx={x} cy={y - 3.4} r="1.3" fill={color} />
-        <circle cx={x} cy={y + 3.4} r="1.3" fill={color} />
-      </>
-    );
-  }
-  return <path d={`M${x - 4.5} ${y - 1.9}H${x + 4.5}M${x - 4.5} ${y + 1.9}H${x + 4.5}`} {...stroke} />;
-}
-
-function renderPatternCard(color: string, pattern: ReactNode) {
-  return (
-    <>
-      <rect x="0" y="0" width="160" height="100" rx="10" fill={color} />
-      {pattern}
-    </>
   );
 }
 
@@ -6125,231 +6083,6 @@ const ASSETS: ElementAsset[] = [
     render: (color: string) => renderGlyph(char, color),
   })),
 
-  // Backgrounds — the card uses `color`; the rainbow pattern on top keeps its own colors.
-  ...[
-    {
-      id: "background-dots",
-      label: "Polka Dots",
-      defaultColor: "#FEF3C7",
-      pattern: Array.from({ length: 5 }, (_, row) =>
-        Array.from({ length: row % 2 ? 7 : 8 }, (_, col) => (
-          <circle key={`${row}-${col}`} cx={10 + col * 20 + (row % 2) * 10} cy={10 + row * 20} r="5" fill={patternColor(col + row)} />
-        )),
-      ),
-    },
-    {
-      id: "background-stripes",
-      label: "Rainbow Stripes",
-      defaultColor: "#FFFFFF",
-      pattern: Array.from({ length: 7 }, (_, i) => (
-        <rect key={i} x="8" y={8 + i * 12} width="144" height="9" rx="4.5" fill={patternColor(i)} />
-      )),
-    },
-    {
-      id: "background-zigzag",
-      label: "Zigzag",
-      defaultColor: "#ECFEFF",
-      pattern: Array.from({ length: 5 }, (_, row) => (
-        <polyline
-          key={row}
-          points={Array.from({ length: 15 }, (_, i) => `${10 + i * 10},${18 + row * 16 + (i % 2 ? -5 : 5)}`).join(" ")}
-          fill="none"
-          stroke={patternColor(row * 2)}
-          strokeWidth="4"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      )),
-    },
-    {
-      id: "background-waves",
-      label: "Waves",
-      defaultColor: "#EFF6FF",
-      pattern: Array.from({ length: 6 }, (_, row) => (
-        <path
-          key={row}
-          d={`M8 ${16 + row * 14}q10 -7 20 0${" t20 0".repeat(6)}`}
-          fill="none"
-          stroke={patternColor(row + 3)}
-          strokeWidth="4"
-          strokeLinecap="round"
-        />
-      )),
-    },
-    {
-      id: "background-checkers",
-      label: "Checkerboard",
-      defaultColor: "#FFFFFF",
-      pattern: Array.from({ length: 7 }, (_, row) =>
-        Array.from({ length: 12 }, (_, col) =>
-          (row + col) % 2 === 0 ? (
-            <rect key={`${row}-${col}`} x={8 + col * 12} y={8 + row * 12} width="12" height="12" fill={patternColor((col - row + 14) / 2)} />
-          ) : null,
-        ),
-      ),
-    },
-    {
-      id: "background-triangles",
-      label: "Triangles",
-      defaultColor: "#FDF4FF",
-      pattern: Array.from({ length: 6 }, (_, row) =>
-        Array.from({ length: 9 }, (_, col) => {
-          const x = 8 + col * 16;
-          const y = 8 + row * 14;
-          return <polygon key={`${row}-${col}`} points={`${x},${y + 14} ${x + 8},${y} ${x + 16},${y + 14}`} fill={patternColor(col + row * 3)} />;
-        }),
-      ),
-    },
-    {
-      id: "background-stars",
-      label: "Stars",
-      defaultColor: "#1E1B4B",
-      pattern: Array.from({ length: 5 }, (_, row) =>
-        Array.from({ length: row % 2 ? 7 : 8 }, (_, col) => (
-          <polygon key={`${row}-${col}`} points={starPoints(10 + col * 20 + (row % 2) * 10, 10 + row * 20, 6.5, 3)} fill={patternColor(col + row * 2)} />
-        )),
-      ),
-    },
-    {
-      id: "background-confetti",
-      label: "Confetti",
-      defaultColor: "#FFFFFF",
-      pattern: Array.from({ length: 5 }, (_, row) =>
-        Array.from({ length: 8 }, (_, col) => {
-          // Small made-up offsets so the pieces look scattered, not lined up.
-          const x = 10 + col * 20 + ((col * 7 + row * 13) % 7) - 3;
-          const y = 10 + row * 20 + ((col * 5 + row * 11) % 7) - 3;
-          const fill = patternColor(col * 3 + row * 5);
-          const key = `${row}-${col}`;
-          const shape = (col + row * 2) % 3;
-          if (shape === 0) return <circle key={key} cx={x} cy={y} r="3.5" fill={fill} />;
-          if (shape === 1) return <rect key={key} x={x - 4} y={y - 2} width="8" height="4" rx="1" fill={fill} transform={`rotate(${(col * 40 + row * 25) % 180} ${x} ${y})`} />;
-          return <polygon key={key} points={`${x},${y - 4} ${x + 4},${y + 3} ${x - 4},${y + 3}`} fill={fill} />;
-        }),
-      ),
-    },
-    {
-      id: "background-hearts",
-      label: "Hearts",
-      defaultColor: "#FFF1F2",
-      pattern: staggeredGrid((x, y, i) => (
-        <path d={SMALL_HEART_PATH} transform={`translate(${x - 6.5} ${y - 6.5}) scale(0.65)`} fill={patternColor(i + 7)} />
-      )),
-    },
-    {
-      id: "background-flowers",
-      label: "Flowers",
-      defaultColor: "#F0FDF4",
-      pattern: staggeredGrid((x, y, i) => (
-        <>
-          {Array.from({ length: 5 }, (_, petal) => {
-            const angle = (petal * 72 - 90) * (Math.PI / 180);
-            return <circle key={petal} cx={x + 3.2 * Math.cos(angle)} cy={y + 3.2 * Math.sin(angle)} r="2.6" fill={patternColor(i)} />;
-          })}
-          <circle cx={x} cy={y} r="1.8" fill="#FFFFFF" />
-        </>
-      )),
-    },
-    {
-      id: "background-math",
-      label: "Math Symbols",
-      defaultColor: "#EFF6FF",
-      pattern: Array.from({ length: 5 }, (_, row) =>
-        Array.from({ length: 8 }, (_, col) => (
-          <g key={`${row}-${col}`}>{renderMathSign((col + row * 3) % 5, 10 + col * 20, 10 + row * 20, patternColor(col + row))}</g>
-        )),
-      ),
-    },
-    {
-      id: "background-bubbles",
-      label: "Bubbles",
-      defaultColor: "#ECFEFF",
-      pattern: Array.from({ length: 5 }, (_, row) =>
-        Array.from({ length: 8 }, (_, col) => {
-          // Small made-up offsets and sizes so the bubbles look like they're floating, not lined up.
-          const r = 2.5 + ((col * 7 + row * 3) % 4);
-          const x = 10 + col * 20 + ((col * 5 + row * 7) % 5) - 2;
-          const y = 10 + row * 20 + ((col * 3 + row * 11) % 5) - 2;
-          return (
-            <g key={`${row}-${col}`}>
-              <circle cx={x} cy={y} r={r} fill="none" stroke={patternColor(col * 2 + row)} strokeWidth="1.8" />
-              <circle cx={x - r * 0.4} cy={y - r * 0.4} r={r * 0.22} fill={patternColor(col * 2 + row)} />
-            </g>
-          );
-        }),
-      ),
-    },
-    {
-      id: "background-rainbows",
-      label: "Rainbows",
-      defaultColor: "#FFFBEB",
-      pattern: staggeredGrid((x, y) =>
-        [6, 4.2, 2.4].map((r, band) => (
-          <path
-            key={band}
-            d={`M${x - r} ${y + 3}A${r} ${r} 0 0 1 ${x + r} ${y + 3}`}
-            fill="none"
-            stroke={["#EF4444", "#FACC15", "#3B82F6"][band]}
-            strokeWidth="1.7"
-            strokeLinecap="round"
-          />
-        )),
-      ),
-    },
-    {
-      id: "background-diamonds",
-      label: "Diamonds",
-      defaultColor: "#FAF5FF",
-      pattern: staggeredGrid((x, y, i) => (
-        <polygon points={`${x},${y - 6.5} ${x + 5},${y} ${x},${y + 6.5} ${x - 5},${y}`} fill={patternColor(i + 3)} />
-      )),
-    },
-    {
-      id: "background-moons",
-      label: "Moons & Stars",
-      defaultColor: "#312E81",
-      pattern: staggeredGrid((x, y, i) =>
-        i % 2 ? (
-          <polygon points={starPoints(x, y, 5, 2.2)} fill={patternColor(i)} />
-        ) : (
-          // A crescent: a half circle on the left with a shallower curve cut out of it.
-          <path d={`M${x + 1.5} ${y - 5.5}A5.5 5.5 0 1 0 ${x + 1.5} ${y + 5.5}A7 7 0 0 1 ${x + 1.5} ${y - 5.5}Z`} fill="#FACC15" />
-        ),
-      ),
-    },
-    {
-      id: "background-sprinkles",
-      label: "Sprinkles",
-      defaultColor: "#FFF7ED",
-      pattern: Array.from({ length: 6 }, (_, row) =>
-        Array.from({ length: 10 }, (_, col) => {
-          const x = 8 + col * 16;
-          const y = 10 + row * 16;
-          return (
-            <rect
-              key={`${row}-${col}`}
-              x={x - 3.5}
-              y={y - 1.3}
-              width="7"
-              height="2.6"
-              rx="1.3"
-              fill={patternColor(col * 3 + row * 5)}
-              transform={`rotate(${(col * 47 + row * 71) % 180} ${x} ${y})`}
-            />
-          );
-        }),
-      ),
-    },
-  ].map(({ id, label, defaultColor, pattern }) => ({
-    id,
-    category: "background" as const,
-    label,
-    defaultColor,
-    viewBox: "0 0 160 100",
-    defaultSize: { width: 320, height: 200 },
-    render: (color: string) => renderPatternCard(color, pattern),
-  })),
-
   // Flags — see flags.tsx. They keep their true colors (`color` is ignored) and start 300px wide
   // in their real shape.
   ...FLAGS.map(({ id, label, width, height, render }) => ({
@@ -6428,7 +6161,7 @@ export function canTrimDrawing(asset: ElementAsset): boolean {
   );
 }
 
-// The categories shown in the Elements panel, in order (background and text live elsewhere).
+// The categories shown in the Elements panel, in order (text lives elsewhere).
 export const ELEMENT_PANEL_CATEGORIES = ["shape", "line", "arrow", "solid", "icon", "time", "math", "diagram", "decorative", "blob", "ribbon", "cloud", "number", "letter", "symbol", "emoji", "music", "fruit", "kitchen", "book", "vehicle", "person", "animal", "space", "sport", "tree", "leaf", "flag"] as const satisfies readonly ElementCategory[];
 
 export const ELEMENT_CATEGORY_LABELS: Record<ElementCategory, string> = {
@@ -6460,7 +6193,6 @@ export const ELEMENT_CATEGORY_LABELS: Record<ElementCategory, string> = {
   tree: "Trees",
   leaf: "Leaves",
   flag: "Flags",
-  background: "Backgrounds",
   text: "Text",
 };
 

@@ -22,7 +22,6 @@ import {
   GRADIENT_PREFIX,
 } from "@/lib/constants";
 import type { Slide } from "@/lib/schema";
-import { svgDataUrl } from "@/lib/svgLibrary";
 import { SlideText } from "@/components/editor/SlideText";
 import { StaticElementView } from "@/components/editor/StaticElementView";
 import { toCssBackground } from "@/components/editor/ElementSvg";
@@ -44,18 +43,10 @@ export function slideBackgroundCss(background: string) {
     : background;
 }
 
-/** The slide's background color (or gradient) and artwork. The artwork is a CSS image, so nothing inside it can run. */
-export function getSlideBackgroundStyle(slide: Pick<Slide, "background" | "backgroundSvg">) {
-  const isGradient = !!slide.background?.startsWith(GRADIENT_PREFIX);
-  // The artwork is drawn on top of the gradient.
-  const images = [
-    slide.backgroundSvg && `url("${svgDataUrl(slide.backgroundSvg)}")`,
-    isGradient && slideBackgroundCss(slide.background!),
-  ].filter(Boolean);
-  return {
-    backgroundColor: isGradient ? undefined : slide.background,
-    ...(images.length > 0 && { backgroundImage: images.join(", "), backgroundSize: "100% 100%" }),
-  };
+/** The slide's background color, or its gradient. */
+export function getSlideBackgroundStyle(slide: Pick<Slide, "background">) {
+  if (slide.background?.startsWith(GRADIENT_PREFIX)) return { backgroundImage: slideBackgroundCss(slide.background) };
+  return { backgroundColor: slide.background };
 }
 
 // The number circle's size and its gap to the question box (Tailwind h-12 w-12 and mr-2 / top-4).

@@ -389,14 +389,6 @@ export const slideSchema = z.object({
   shapeBoxBorder: colorSchema.optional(),
   // The slide's background color, behind everything. Missing = the plain white surface.
   background: colorSchema.optional(),
-  // Full-slide artwork (SVG markup) drawn over the background color, behind everything else. Shown
-  // as an image, so nothing inside it can run. Missing = none.
-  backgroundSvg: svgSchema.optional(),
-  // Which library pattern `backgroundSvg` was drawn from (e.g. "background-dots"), so it can be
-  // redrawn when the color changes. Missing = no pattern (the artwork, if any, is Claude's own).
-  backgroundPattern: idSchema.optional(),
-  // How solid that pattern is, in percent. Missing = DEFAULT_PATTERN_OPACITY.
-  backgroundOpacity: z.number().optional(),
   options: z.tuple([optionSchema, optionSchema, optionSchema, optionSchema]),
   correctOptionId: idSchema.nullable(),
   // Short-answer, custom and blank slides only: the answer the teacher expects. (Their options stay empty and aren't shown.)

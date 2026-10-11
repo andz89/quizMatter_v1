@@ -2,25 +2,16 @@
 
 import { useEffect } from "react";
 import { useEditorStore, isPanelEscape } from "@/lib/store";
-import { getElementAsset } from "@/lib/svgLibrary";
 import { getSlideNumbers, GRADIENT_PREFIX } from "@/lib/constants";
-import {
-  BACKGROUND_COLORS,
-  BACKGROUND_GRADIENTS,
-  BACKGROUND_PATTERN_IDS,
-  DEFAULT_PATTERN_OPACITY,
-  PATTERN_OPACITY_RANGE,
-} from "@/lib/slideBackground";
-import { ElementSvg } from "./ElementSvg";
+import { BACKGROUND_COLORS, BACKGROUND_GRADIENTS } from "@/lib/slideBackground";
 import { NONE_SWATCH } from "./ColorPanel";
-import { PanelLabel, PanelSlider } from "./PanelControls";
+import { PanelLabel } from "./PanelControls";
 import { SlideThumbnailPreview } from "./SlideThumbnailPreview";
 import { slideBackgroundCss } from "@/components/presentation/SlideStaticView";
 import { XIcon } from "lucide-react";
 
 /**
- * Sidebar panel for the selected slide's background: a soft color or gradient and an optional pattern frame with
- * its strength. Every change goes straight onto the slide; the small preview on top shows it too.
+ * Sidebar panel for the selected slide's background: a soft color or gradient. Every change goes straight onto the slide; the small preview on top shows it too.
  */
 export function BackgroundPanel() {
   const closeBackgroundPanel = useEditorStore((s) => s.closeBackgroundPanel);
@@ -88,44 +79,6 @@ export function BackgroundPanel() {
         </div>
       </section>
 
-      <section className="flex flex-col gap-3">
-        <PanelLabel>Pattern</PanelLabel>
-        <p className="text-xs text-text-secondary">A soft frame around the slide&apos;s edges, in the slide&apos;s color.</p>
-        <div className="grid grid-cols-3 gap-2.5">
-          <Tile
-            title="None"
-            wide
-            selected={!slide.backgroundPattern}
-            onClick={() => setSlideBackground(slide.id, { backgroundPattern: undefined })}
-          >
-            <span className="flex h-full w-full items-center justify-center text-xs text-text-secondary">None</span>
-          </Tile>
-          {BACKGROUND_PATTERN_IDS.map((patternId) => (
-            <Tile
-              key={patternId}
-              title={getElementAsset(patternId)?.label ?? patternId}
-              wide
-              selected={slide.backgroundPattern === patternId}
-              onClick={() => setSlideBackground(slide.id, { backgroundPattern: patternId })}
-            >
-              {/* Shown in the slide's color, so the tile previews what the slide will get. */}
-              <ElementSvg assetId={patternId} color={slide.background ?? getElementAsset(patternId)?.defaultColor ?? "#FFFFFF"} />
-            </Tile>
-          ))}
-        </div>
-        {/* Greyed out until there's a pattern to make stronger or fainter. */}
-        <div className={slide.backgroundPattern ? "" : "pointer-events-none opacity-40"}>
-          <PanelSlider
-            label="Strength"
-            unit="%"
-            min={PATTERN_OPACITY_RANGE.min}
-            max={PATTERN_OPACITY_RANGE.max}
-            value={slide.backgroundOpacity ?? DEFAULT_PATTERN_OPACITY}
-            onChange={(value) => setSlideBackground(slide.id, { backgroundOpacity: value })}
-          />
-        </div>
-      </section>
-
       <button
         type="button"
         onClick={() => applyBackgroundToAll(slide.id)}
@@ -139,13 +92,11 @@ export function BackgroundPanel() {
 
 function Tile({
   title,
-  wide,
   selected,
   onClick,
   children,
 }: {
   title: string;
-  wide?: boolean;
   selected: boolean;
   onClick: () => void;
   children: React.ReactNode;
@@ -155,7 +106,7 @@ function Tile({
       type="button"
       title={title}
       onClick={onClick}
-      className={`rounded-dropdown border bg-bg-page p-0.5 transition-colors hover:border-accent ${wide ? "h-12 w-full" : "h-9 w-9"}`}
+      className="h-9 w-9 rounded-dropdown border bg-bg-page p-0.5 transition-colors hover:border-accent"
       style={{ borderColor: selected ? "var(--accent)" : "var(--border-default)", borderWidth: selected ? 2 : 1 }}
     >
       {children}
