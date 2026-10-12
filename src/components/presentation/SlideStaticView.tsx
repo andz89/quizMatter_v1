@@ -21,6 +21,7 @@ import {
   isFreeCanvas,
   GRADIENT_PREFIX,
   MESH_PREFIX,
+  RADIAL_PREFIX,
 } from "@/lib/constants";
 import type { Slide } from "@/lib/schema";
 import { SlideText } from "@/components/editor/SlideText";
@@ -42,10 +43,11 @@ const MESH_CORNERS = ["0% 0%", "100% 0%", "0% 100%", "100% 100%"];
 
 /**
  * A slide's background color as CSS: the color itself, its gradient from the top of the slide to the bottom,
- * or its soft blend (a round glow of color in each corner, fading out, over a corner-to-corner gradient).
+ * its round gradient from the middle out, or its soft blend (a round glow of color in each corner, fading out, over a corner-to-corner gradient).
  */
 export function slideBackgroundCss(background: string) {
   if (background.startsWith(GRADIENT_PREFIX)) return `linear-gradient(180deg, ${background.slice(GRADIENT_PREFIX.length)})`;
+  if (background.startsWith(RADIAL_PREFIX)) return `radial-gradient(circle, ${background.slice(RADIAL_PREFIX.length)})`;
   if (background.startsWith(MESH_PREFIX)) {
     const corners = background.slice(MESH_PREFIX.length).split(",");
     const glows = corners.map((color, i) => `radial-gradient(at ${MESH_CORNERS[i]}, ${color} 0%, transparent 70%)`);
@@ -56,7 +58,7 @@ export function slideBackgroundCss(background: string) {
 
 /** The slide's background color, gradient or soft blend. */
 export function getSlideBackgroundStyle(slide: Pick<Slide, "background">) {
-  if (slide.background?.startsWith(GRADIENT_PREFIX) || slide.background?.startsWith(MESH_PREFIX)) {
+  if (slide.background && /^(gradient|radial|mesh):/.test(slide.background)) {
     return { backgroundImage: slideBackgroundCss(slide.background) };
   }
   return { backgroundColor: slide.background };

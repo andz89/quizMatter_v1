@@ -42,6 +42,7 @@ import {
   TREE_LEAVES_MAX,
   GRADIENT_PREFIX,
   MESH_PREFIX,
+  RADIAL_PREFIX,
 } from "./constants";
 import { DEFAULT_TEXT_COLOR, markupToHtml, stripMarkup } from "./richText";
 import { BACKGROUND_COLORS, BACKGROUND_GRADIENTS, BACKGROUND_MESHES } from "./slideBackground";
@@ -378,7 +379,7 @@ const blankDesign = {
   background: z
     .enum([...BACKGROUND_COLORS, ...BACKGROUND_GRADIENTS, ...BACKGROUND_MESHES] as [string, ...string[]])
     .optional()
-    .describe("The slide's background: a soft color, a gradient from top to bottom, or a soft blend of four corner colors. Leave out for plain white."),
+    .describe("The slide's background: a soft color, a gradient (top to bottom, or a round one from the middle out), or a soft blend of four corner colors. Leave out for plain white."),
   design: z.array(decorationRecipe).max(6).default([]).describe("Decorations behind everything."),
 };
 
@@ -854,7 +855,7 @@ Mix the decorations too: corners on one slide, scatter on the next, a big "posit
 Text colors: you can't see the slide, so the layout report checks every text's contrast with what's behind it (the background, or a solid shape under the text) and warns when it's hard to read. Fix every contrast warning before the final version.
 
 Background (blank and title slides only) — the same choices the teacher has in the Background panel, so they can change them later:
-- "background": a soft color (${BACKGROUND_COLORS.join(", ")}) a soft gradient from top to bottom (${BACKGROUND_GRADIENTS.map((g) => `"${g}"`).join(", ")}), or a soft blend with one color per corner, in the order top-left, top-right, bottom-left, bottom-right (${BACKGROUND_MESHES.map((m) => `"${m}"`).join(", ")}). Write it exactly as listed. Leave it out for plain white.
+- "background": a soft color (${BACKGROUND_COLORS.join(", ")}) a soft gradient — top to bottom, or "radial:" ones round from the middle out — (${BACKGROUND_GRADIENTS.map((g) => `"${g}"`).join(", ")}), or a soft blend with one color per corner, in the order top-left, top-right, bottom-left, bottom-right (${BACKGROUND_MESHES.map((m) => `"${m}"`).join(", ")}). Write it exactly as listed. Leave it out for plain white.
 - There is no way to draw your own full-slide background: everything on a slide must be something the teacher can pick, move or edit.
 
 Opacity: you choose how solid decorations and pictures are. Decorations away from the text can be bold and fully solid (opacity 100), so they really show. Only make what sits right behind text light, so the text stays easy to read (the report checks it).
@@ -1640,6 +1641,14 @@ function backgroundAt(background: string | undefined, x: number, y: number): str
     const [topLeft, topRight, bottomLeft, bottomRight] = background.slice(MESH_PREFIX.length).split(",");
     const across = x / CANVAS_WIDTH;
     return mixColors(mixColors(bottomRight, bottomLeft, across), mixColors(topRight, topLeft, across), y / CANVAS_HEIGHT);
+  }
+  if (background.startsWith(RADIAL_PREFIX)) {
+    // Its colors are spread evenly from the middle (0) to the farthest corner (1).
+    const colors = background.slice(RADIAL_PREFIX.length).split(",");
+    const out = Math.hypot(x - CANVAS_WIDTH / 2, y - CANVAS_HEIGHT / 2) / Math.hypot(CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2);
+    const place = out * (colors.length - 1);
+    const i = Math.min(Math.floor(place), colors.length - 2);
+    return mixColors(colors[i + 1], colors[i], place - i);
   }
   if (!background.startsWith(GRADIENT_PREFIX)) return background;
   const [from, to] = background.slice(GRADIENT_PREFIX.length).split(",");

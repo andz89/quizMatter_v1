@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { useEditorStore, isPanelEscape } from "@/lib/store";
-import { getSlideNumbers, GRADIENT_PREFIX, MESH_PREFIX } from "@/lib/constants";
+import { getSlideNumbers, MESH_PREFIX } from "@/lib/constants";
 import { BACKGROUND_COLORS, BACKGROUND_GRADIENTS, BACKGROUND_MESHES } from "@/lib/slideBackground";
 import { NONE_SWATCH } from "./ColorPanel";
 import { PanelLabel } from "./PanelControls";
@@ -71,7 +71,7 @@ export function BackgroundPanel() {
           {BACKGROUND_GRADIENTS.map((gradient) => (
             <Tile
               key={gradient}
-              title={gradient.slice(GRADIENT_PREFIX.length).replace(",", " → ")}
+              title={gradient.slice(gradient.indexOf(":") + 1).replaceAll(",", " → ")}
               selected={slide.background === gradient} onClick={() => setSlideBackground(slide.id, { background: gradient })}>
               <span className="block h-full w-full rounded-dropdown" style={{ background: slideBackgroundCss(gradient) }} />
             </Tile>

@@ -1,6 +1,6 @@
 // A slide's background: a soft color or gradient. Used by the Background panel and by the presentation importer,
 // so both offer the same choices.
-import { GRADIENT_PREFIX, MESH_PREFIX } from "./constants";
+import { GRADIENT_PREFIX, MESH_PREFIX, RADIAL_PREFIX } from "./constants";
 
 // Soft colors the Background panel offers. All light, so the dark text stays easy to read.
 export const BACKGROUND_COLORS = [
@@ -16,9 +16,9 @@ export const BACKGROUND_COLORS = [
   "#F5F5F4",
 ];
 
-// Two-color gradients the Background panel offers (soft ones first, then stronger light ones), drawn from the top
-// of the slide to the bottom. Stored like any gradient color ("gradient:#from,#to"). All light, so the dark text
-// stays easy to read.
+// Gradients the Background panel offers (soft ones first, then stronger light ones). Most are two colors drawn from
+// the top of the slide to the bottom, stored like any gradient color ("gradient:#from,#to"); the round ones at the end
+// go from the middle out ("radial:#middle,…,#edge"). All light, so the dark text stays easy to read.
 export const BACKGROUND_GRADIENTS = [
   ["#FEF9C3", "#DCFCE7"],
   ["#FEF3C7", "#FFE4E6"],
@@ -55,7 +55,9 @@ export const BACKGROUND_GRADIENTS = [
   ["#DDD6FE", "#A7F3D0"],
   ["#FECACA", "#FEF08A"],
   ["#C7D2FE", "#F5D0FE"],
-].map(([from, to]) => `${GRADIENT_PREFIX}${from},${to}`);
+]
+  .map(([from, to]) => `${GRADIENT_PREFIX}${from},${to}`)
+  .concat(`${RADIAL_PREFIX}#F0FFF7,#F0A3E9,#D3BFFF`);
 
 // Soft blends the Background panel offers: one color per corner (top-left, top-right, bottom-left,
 // bottom-right) melting into each other. Stored as "mesh:#tl,#tr,#bl,#br". All light, so the dark text stays easy to read.

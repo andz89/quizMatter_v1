@@ -67,6 +67,9 @@ export const GRADIENT_PREFIX = "gradient:";
 // Soft blends (slide backgrounds only): a color in each corner melting into the others, stored as
 // "mesh:#topLeft,#topRight,#bottomLeft,#bottomRight".
 export const MESH_PREFIX = "mesh:";
+// Round gradients (slide backgrounds only): colors spread evenly from the middle out to the corners, stored as
+// "radial:#middle,…,#edge".
+export const RADIAL_PREFIX = "radial:";
 
 // Lowest opacity (percent) an element can be set to, so it never fully disappears.
 export const OPACITY_MIN = 5;
