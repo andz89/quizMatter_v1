@@ -25,7 +25,7 @@ import { PanelLabel } from "./PanelControls";
 import { ChevronDownIcon, ExternalLinkIcon, XIcon } from "lucide-react";
 
 /**
- * The modal for the presentation as a whole (opened from "Info" in the bottom bar): title, description, grade,
+ * The modal for the presentation as a whole (opened by clicking the title in the top bar): title, description, grade,
  * subject, term, week, day, curriculum, learning competency, tags and references. All optional. Edits count as unsaved
  * changes until Save, like any other edit. Private/published (Draft/Shared on a QuizMatter presentation) is the
  * Share button in the top bar.

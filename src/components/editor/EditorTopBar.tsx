@@ -1,9 +1,10 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { useEditorStore } from "@/lib/store";
 import { useFormatTexts } from "@/lib/useFormatTexts";
-import { DETAIL_MAX_LENGTH } from "@/lib/schema";
+import { DetailsModal } from "./DetailsModal";
 import { SelectedElementToolbar } from "./SelectedElementToolbar";
 import { TextFormatToolbar } from "./TextFormatToolbar";
 import { ShapeBoxToolbar } from "./ShapeBoxToolbar";
@@ -15,7 +16,7 @@ import { ChevronLeftIcon, PlayIcon, Redo2Icon, Undo2Icon } from "lucide-react";
 
 export function EditorTopBar() {
   const title = useEditorStore((s) => s.presentation.title);
-  const setPresentationDetails = useEditorStore((s) => s.setPresentationDetails);
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const undo = useEditorStore((s) => s.undo);
   const redo = useEditorStore((s) => s.redo);
   const canUndo = useEditorStore((s) => s.past.length > 0);
@@ -28,13 +29,15 @@ export function EditorTopBar() {
     <header className="relative z-20 flex min-h-14 shrink-0 flex-wrap items-center gap-x-3 border-b border-border-default bg-bg-surface px-4 py-2.5 lg:h-14 lg:py-0">
       <BackToPresentationsLink />
 
-      <input
-        value={title}
-        onChange={(e) => setPresentationDetails({ title: e.target.value })}
-        placeholder="Untitled presentation"
-        maxLength={DETAIL_MAX_LENGTH.title}
-        className="w-40 min-w-0 flex-1 rounded-input px-2 py-1 text-[15px] font-semibold text-text-primary outline-none hover:bg-bg-page focus:bg-bg-page sm:w-auto sm:flex-none"
-      />
+      <button
+        type="button"
+        onClick={() => setIsDetailsOpen(true)}
+        title="Presentation details"
+        className={`w-40 min-w-0 flex-1 truncate rounded-input px-2 py-1 text-left text-[15px] font-semibold hover:bg-bg-page sm:w-auto sm:max-w-xs sm:flex-none ${title ? "text-text-primary" : "text-text-secondary"}`}
+      >
+        {title || "Untitled presentation"}
+      </button>
+      {isDetailsOpen && <DetailsModal onClose={() => setIsDetailsOpen(false)} />}
 
       <div className="flex items-center">
         <button type="button" onClick={undo} disabled={!canUndo} title="Undo (Ctrl+Z)" className={historyButtonClass}>

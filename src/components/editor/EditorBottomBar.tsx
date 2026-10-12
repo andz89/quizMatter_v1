@@ -1,9 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { InfoIcon, LayoutGridIcon, Maximize2Icon } from "lucide-react";
+import { LayoutGridIcon, Maximize2Icon } from "lucide-react";
 import { useEditorStore, MIN_ZOOM, MAX_ZOOM } from "@/lib/store";
-import { DetailsModal } from "./DetailsModal";
 
 /** Opens the presentation, fullscreen when the browser allows it. */
 export async function presentFullscreen() {
@@ -17,7 +15,7 @@ export async function presentFullscreen() {
 
 const ICON_BUTTON = "flex h-8 w-8 shrink-0 items-center justify-center rounded-dropdown text-text-primary hover:bg-bg-page";
 
-/** The bar under the slides (like Canva's): Info (the presentation's details), zoom, which slide is showing, the slide grid, and fullscreen. */
+/** The bar under the slides (like Canva's): zoom, which slide is showing, the slide grid, and fullscreen. */
 export function EditorBottomBar() {
   const zoom = useEditorStore((s) => s.zoom);
   const setZoom = useEditorStore((s) => s.setZoom);
@@ -25,21 +23,9 @@ export function EditorBottomBar() {
   const openGridView = useEditorStore((s) => s.openGridView);
   const slideCount = useEditorStore((s) => s.presentation.slides.length);
   const slideNumber = useEditorStore((s) => s.presentation.slides.findIndex((slide) => slide.id === s.selectedSlideId) + 1);
-  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
 
   return (
     <div className="flex h-11 shrink-0 items-center justify-end gap-3 border-t border-border-default bg-bg-surface px-4">
-      <button
-        type="button"
-        onClick={() => setIsDetailsOpen(true)}
-        className="flex h-8 shrink-0 items-center gap-2 rounded-dropdown px-2 text-xs font-semibold text-text-primary hover:bg-bg-page"
-        title="Presentation details"
-      >
-        <InfoIcon size={16} />
-        Info
-      </button>
-      {isDetailsOpen && <DetailsModal onClose={() => setIsDetailsOpen(false)} />}
-
       <input
         type="range"
         className="zoom-slider w-36"
