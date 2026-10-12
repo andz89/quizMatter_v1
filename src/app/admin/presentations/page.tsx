@@ -24,7 +24,7 @@ export default async function AdminPresentationsPage() {
     listDrafts(account.id),
     supabase
       .from("presentations")
-      .select("id, title, grades, subject, week, day, is_published, created_at, updated_at, slides(count), first_slide:slides(data, position)")
+      .select("id, title, grades, subject, term, week, day, is_published, created_at, updated_at, slides(count), first_slide:slides(data, position)")
       .eq("from_admin", true)
       .eq("owner_id", account.id)
       .order("updated_at", { ascending: false })
@@ -97,6 +97,7 @@ type SavedPresentation = {
   title: string;
   grades: string[];
   subject: string;
+  term: string;
   week: string;
   day: string;
   is_published: boolean;

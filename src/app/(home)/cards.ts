@@ -11,7 +11,7 @@ import { changedSince, type HomeSearch } from "../homeSearch";
 // reviewers: who is in its "Reviewed by" list, for the check and the Reviewer row on its card (everyone sees them).
 // Only reviewer_id and name: teachers may read just some of that table's columns (see 20261023000000_hide_review_approver.sql).
 export const CARD_COLUMNS =
-  "id, owner_id, title, grades, subject, week, day, author, is_published, from_admin, hidden_at, created_at, updated_at, slides(count), first_slide:slides(data, position), reviewers:presentation_reviewers(reviewer_id, name)";
+  "id, owner_id, title, grades, subject, term, week, day, author, is_published, from_admin, hidden_at, created_at, updated_at, slides(count), first_slide:slides(data, position), reviewers:presentation_reviewers(reviewer_id, name)";
 
 export type CardPresentation = {
   id: string;
@@ -19,6 +19,7 @@ export type CardPresentation = {
   title: string;
   grades: string[];
   subject: string;
+  term: string;
   week: string;
   day: string;
   author: string;

@@ -22,7 +22,7 @@ const DRAG_IMAGE_WIDTH = 180;
 // Each presentation's first slide only (for its picture), not all of them, to keep the panel light. reviewers: its
 // "Reviewed by" names (teachers may read only some of that table's columns, see the hide_review_approver migration).
 const SUMMARY_COLUMNS =
-  "id, owner_id, title, grades, subject, week, day, author, from_admin, slides(count), first_slide:slides(data, position), reviewers:presentation_reviewers(name)";
+  "id, owner_id, title, grades, subject, term, week, day, author, from_admin, slides(count), first_slide:slides(data, position), reviewers:presentation_reviewers(name)";
 
 type PresentationSummary = {
   id: string;
@@ -438,6 +438,7 @@ type SummaryRow = {
   title: string;
   grades: string[];
   subject: string;
+  term: string;
   week: string;
   day: string;
   author: string;

@@ -73,6 +73,7 @@ export type DraftSummary = {
   title: string;
   grades: string[];
   subject: string;
+  term: string;
   week: string;
   day: string;
   // Only for search.
@@ -92,7 +93,7 @@ export async function listDrafts(ownerId: string): Promise<DraftSummary[]> {
     .env.DRAFTS_DB.prepare(
       `SELECT id, json_extract(recipe, '$.details.title') AS title, json_extract(recipe, '$.details.grades') AS grades, json_extract(recipe, '$.details.grade') AS grade,
          json_extract(recipe, '$.details.subject') AS subject,
-         coalesce(json_extract(recipe, '$.details.week'), '') AS week, coalesce(json_extract(recipe, '$.details.day'), '') AS day,
+         coalesce(json_extract(recipe, '$.details.term'), '') AS term, coalesce(json_extract(recipe, '$.details.week'), '') AS week, coalesce(json_extract(recipe, '$.details.day'), '') AS day,
          coalesce(json_extract(recipe, '$.details.curriculum'), '') AS curriculum,
          coalesce(json_extract(recipe, '$.details.learningCompetency'), '') AS learningCompetency,
          coalesce((SELECT group_concat(value, ' ') FROM json_each(recipe, '$.details.tags')), '') AS tags, json_array_length(recipe, '$.slides') AS slideCount,

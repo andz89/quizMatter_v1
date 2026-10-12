@@ -16,7 +16,7 @@ export default async function AllPresentationsPage() {
   const [{ data: presentations, error }, drafts, account, folders, folderItems] = await Promise.all([
     supabase
       .from("presentations")
-      .select("id, title, grades, subject, week, day, is_published, updated_at, slides(count)")
+      .select("id, title, grades, subject, term, week, day, is_published, updated_at, slides(count)")
       // Other teachers' published presentations are readable too, so only take mine.
       .eq("owner_id", claims?.claims.sub ?? "")
       // QuizMatter presentations an admin made are on Admin → Presentations, not here.
@@ -65,6 +65,7 @@ type SavedPresentation = {
   title: string;
   grades: string[];
   subject: string;
+  term: string;
   week: string;
   day: string;
   is_published: boolean;
