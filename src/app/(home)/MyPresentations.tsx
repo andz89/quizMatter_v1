@@ -1,23 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import dynamic from "next/dynamic";
 import Link from "next/link";
 import { DndContext, DragOverlay, MouseSensor, rectIntersection, TouchSensor, useSensor, useSensors, type DragEndEvent, type DragStartEvent } from "@dnd-kit/core";
 import { snapCenterToCursor } from "@dnd-kit/modifiers";
 import { toast } from "sonner";
-import { useEditorStore } from "@/lib/store";
 import type { Folder } from "@/lib/folders";
 import { LinkPending } from "@/components/LinkPending";
 import type { PresentationCardData } from "../PresentationCard";
 import { DraggedCards, FolderHeader, FolderTiles, MoveToFolderModal, SelectRow, folderDropId, movedMessage } from "../MyFolders";
 import { moveToFolder } from "../folderActions";
-import { Cards, PartLabel, SubjectChips, subjectChip } from "./CardGrid";
-
-// Only downloaded when the teacher clicks Present on a card.
-const PresentationView = dynamic(() =>
-  import("@/components/presentation/PresentationView").then((mod) => mod.PresentationView)
-);
+import { Cards, PartLabel, PresentingView, SubjectChips, subjectChip } from "./CardGrid";
 
 // How many of my newest cards show ("See all" opens the rest on /presentations).
 const MY_ROW_SIZE = 5;
@@ -37,7 +30,6 @@ export function MyPresentations({
   myCards: PresentationCardData[];
   folders: Folder[];
 }) {
-  const isPresenting = useEditorStore((s) => s.isPresenting);
   // The picked subject chip ("" = All).
   const [subject, setSubject] = useState("");
   const ofSubject = (cards: PresentationCardData[]) =>
@@ -186,7 +178,7 @@ export function MyPresentations({
       {movingCards && (
         <MoveToFolderModal cards={movingCards} folders={folders} onMoved={endSelecting} onClose={() => setMovingCards(null)} />
       )}
-      {isPresenting && <PresentationView />}
+      <PresentingView />
       <DragOverlay dropAnimation={null}>{draggedCards.length > 0 && <DraggedCards cards={draggedCards} />}</DragOverlay>
     </DndContext>
   );

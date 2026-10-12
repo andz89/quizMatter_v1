@@ -1,10 +1,23 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
+import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
+import { useEditorStore } from "@/lib/store";
 import { OTHER_CHOICE, SUBJECTS, isOtherSubject } from "@/lib/schema";
 import { PresentationCard, type PresentationCardData } from "../PresentationCard";
 import { DraggableCard } from "../MyFolders";
+
+// Only downloaded when the teacher clicks Present on a card.
+const PresentationView = dynamic(() =>
+  import("@/components/presentation/PresentationView").then((mod) => mod.PresentationView)
+);
+
+/** The fullscreen presentation, while Present (in a card's ⋮ menu) is on. */
+export function PresentingView() {
+  const isPresenting = useEditorStore((s) => s.isPresenting);
+  return isPresenting ? <PresentationView /> : null;
+}
 
 export function Cards({
   cards,
@@ -98,13 +111,37 @@ export function useSavedIds(cards: PresentationCardData[], onChange?: (card: Pre
   return { savedIds, onSavedChange };
 }
 
-/** Other people's presentations with working bookmarks (see useSavedIds). `removeOnUnsave`: the Saved page drops the card. */
-export function SavableCards({ cards, empty, removeOnUnsave = false }: { cards: PresentationCardData[]; empty: string; removeOnUnsave?: boolean }) {
+/**
+ * Other people's presentations with working bookmarks (see useSavedIds). `removeOnUnsave`: the Saved page drops the
+ * card. `showMenu`: my own cards (search in Mine) get the ⋮ menu (Edit, Present, Delete).
+ */
+export function SavableCards({
+  cards,
+  empty,
+  removeOnUnsave = false,
+  showMenu = false,
+}: {
+  cards: PresentationCardData[];
+  empty: string;
+  removeOnUnsave?: boolean;
+  showMenu?: boolean;
+}) {
   const [removedIds, setRemovedIds] = useState<Set<string>>(new Set());
   const { savedIds, onSavedChange } = useSavedIds(cards, (card, isSaved) => {
     if (removeOnUnsave && !isSaved) setRemovedIds((ids) => new Set(ids).add(card.id));
   });
-  return <Cards cards={cards.filter((card) => !removedIds.has(card.id))} empty={empty} savedIds={savedIds} onSavedChange={onSavedChange} />;
+  return (
+    <>
+      <Cards
+        cards={cards.filter((card) => !removedIds.has(card.id))}
+        showMenu={showMenu}
+        empty={empty}
+        savedIds={savedIds}
+        onSavedChange={onSavedChange}
+      />
+      {showMenu && <PresentingView />}
+    </>
+  );
 }
 
 /** The chip a subject falls under: its own name, "Other" for one not on the list, "" for none. */

@@ -5,7 +5,7 @@ import { getAccount } from "@/lib/account";
 import { createClient } from "@/lib/supabase/server";
 import { listDrafts, type DraftSummary } from "@/lib/drafts";
 import { LinkPending } from "@/components/LinkPending";
-import { changedSince, parseHomeSearch, type HomeSearch } from "../../homeSearch";
+import { changedSince, homeSearchQuery, parseHomeSearch, type HomeSearch } from "../../homeSearch";
 import { CARD_COLUMNS, applySearch, draftCard, draftMatches, loadCardContext, myCard, myId, orderBy, type CardPresentation } from "../cards";
 import { SavableCards } from "../CardGrid";
 import { ShowMore } from "../ShowMore";
@@ -64,9 +64,14 @@ export default async function SearchPage({ searchParams }: PageProps<"/search">)
         </Link>
       </div>
 
-      {/* My own cards have no bookmark (canSave is off). Keyed by how many show, so the cards "Show more" adds
-          get their bookmarks from the fresh data. */}
-      <SavableCards key={search.shown} cards={cards} empty="No presentations match your search." />
+      {/* My own cards have no bookmark (canSave is off) but get the ⋮ menu. Keyed by the whole search (with how many
+          show), so a new search or "Show more" takes the bookmarks from the fresh data, not the last results. */}
+      <SavableCards
+        key={homeSearchQuery(search)}
+        cards={cards}
+        showMenu={isMine}
+        empty="No presentations match your search."
+      />
       {/* Reads the address, so it waits for it in the browser. */}
       <Suspense>
         {/* Pages only the saved presentations: the drafts always show and aren't paged. */}

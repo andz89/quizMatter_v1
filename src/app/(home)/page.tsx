@@ -2,15 +2,15 @@ import { redirect } from "next/navigation";
 import { getAccount } from "@/lib/account";
 import { createClient } from "@/lib/supabase/server";
 import { listDrafts, type DraftSummary } from "@/lib/drafts";
-import { homeSearchQuery, parseHomeSearch } from "../homeSearch";
+import { PAGE_SIZE, homeSearchQuery, parseHomeSearch } from "../homeSearch";
 import { CARD_COLUMNS, draftCard, myCard, myId, orderBy, type CardPresentation } from "./cards";
 import { MyPresentations } from "./MyPresentations";
 
 /** My presentations and Claude's drafts, newest changed first, with my folders. */
 export default async function HomePage({ searchParams }: PageProps<"/">) {
-  // Old links had the search on "/" (e.g. /?q=fractions); it has its own page now.
-  const query = homeSearchQuery(parseHomeSearch(await searchParams));
-  if (query !== "") redirect(`/search${query}`);
+  // Old links had the search on "/" (e.g. /?q=fractions); it has its own page now. "shown" alone isn't a search.
+  const search = parseHomeSearch(await searchParams);
+  if (homeSearchQuery({ ...search, shown: PAGE_SIZE }) !== "") redirect(`/search${homeSearchQuery(search)}`);
 
   const account = await getAccount();
   const supabase = await createClient();
