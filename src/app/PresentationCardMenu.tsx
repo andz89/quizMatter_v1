@@ -8,7 +8,7 @@ import { createBlankPresentation } from "@/lib/factories";
 import { buildSlides } from "@/lib/importPresentation";
 import type { Presentation } from "@/lib/schema";
 import { loadPeopleArt, usesPeopleArt } from "@/lib/peopleArt";
-import { getDraftPresentation, getPresentation, removePresentations } from "./actions";
+import { getDraftPresentation, getPresentation, removePresentations, submitToQuizMatter } from "./actions";
 import { moveToQuizMatter } from "./admin/presentations/actions";
 import { toast } from "sonner";
 import type { PresentationCardData } from "./PresentationCard";
@@ -19,6 +19,7 @@ const itemClass = "block w-full px-3 py-1.5 text-left text-sm text-text-primary 
 /**
  * The "⋮" button on my presentation cards, with Edit, Present and Delete (Remove for Claude's drafts). A
  * draft Claude is still checking can only be removed. Admins also get "Move to QuizMatter" (see canMoveToQuizMatter).
+ * Editors also get "Submit to QuizMatter" (see canSubmit); while it waits there's no Edit or Delete.
  * `onMoveToFolder` adds "Move to folder…" (saved presentations only: Claude's drafts can't go in folders).
  */
 export function PresentationCardMenu({
@@ -32,6 +33,8 @@ export function PresentationCardMenu({
   const [isBusy, setIsBusy] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const isDraft = card.badge === "draft" || card.badge === "checking" || card.badge === "unfinished";
+  // Waiting for QuizMatter: locked (see the quizmatter_submissions migration).
+  const isWaiting = card.submission === "submitted";
 
   // Closes on a click outside the menu, or on Esc.
   useEffect(() => {
@@ -96,6 +99,18 @@ export function PresentationCardMenu({
     else toast.error("Couldn't move the presentation. Please try again.");
   };
 
+  const submit = async () => {
+    setIsOpen(false);
+    const question = `Send "${card.title}" to QuizMatter? An admin will check it. Until they decide, you can't change or delete it. If they approve it, QuizMatter gets its own copy, shared with every teacher, with you as the Author.`;
+    if (!confirm(question)) return;
+    setIsBusy(true);
+    // On success the page reloads its list and the card says "Waiting for QuizMatter".
+    const error = await submitToQuizMatter(card.id);
+    setIsBusy(false);
+    if (error) toast.error(error);
+    else toast.success("Sent to QuizMatter. You'll see their answer in Reviews & submissions.");
+  };
+
   if (isBusy) {
     return (
       <span className="absolute top-5 right-5 z-20 flex h-7 w-7 items-center justify-center rounded-full bg-bg-surface">
@@ -119,7 +134,7 @@ export function PresentationCardMenu({
       {/* Opens to the left of the button, so it fits inside the card (the phone row clips anything taller). */}
       {isOpen && (
         <div className="absolute top-0 right-9 w-44 overflow-hidden rounded-dropdown border border-border-default bg-bg-surface py-1">
-          {card.badge !== "checking" && (
+          {card.badge !== "checking" && !isWaiting && (
             // Opens in a new tab, so the list stays open in this one.
             <Link href={card.href} target="_blank" onClick={() => setIsOpen(false)} className={itemClass}>
               Edit
@@ -147,9 +162,16 @@ export function PresentationCardMenu({
               Move to QuizMatter
             </button>
           )}
-          <button type="button" onClick={remove} className={itemClass}>
-            {isDraft ? "Remove" : "Delete"}
-          </button>
+          {card.canSubmit && (
+            <button type="button" onClick={submit} className={itemClass}>
+              {card.submission === "sent_back" ? "Submit again" : "Submit to QuizMatter"}
+            </button>
+          )}
+          {!isWaiting && (
+            <button type="button" onClick={remove} className={itemClass}>
+              {isDraft ? "Remove" : "Delete"}
+            </button>
+          )}
         </div>
       )}
     </div>

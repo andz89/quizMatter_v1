@@ -4,6 +4,7 @@ import { loadPublisherNames } from "@/lib/publishers";
 import { creditLines, detailsLabel, joinParts, slideCountLabel, timeAgo } from "@/lib/format";
 import { DAYS, GRADES, OTHER_CHOICE, SUBJECTS, TERMS, WEEKS, gradesTitle, isOtherDay, isOtherGrade, isOtherSubject, isOtherTerm, isOtherWeek, parseSlide } from "@/lib/schema";
 import { contains, searchWords } from "@/lib/search";
+import { loadMySubmissions, type SubmissionStatus } from "@/lib/submissions";
 import type { PresentationCardData } from "../PresentationCard";
 import { changedSince, type HomeSearch } from "../homeSearch";
 
@@ -122,13 +123,29 @@ export function toCard(presentation: CardPresentation, href: string, now: number
   };
 }
 
-/** My own presentation as a card: opens the editor; shows Published / Hidden. */
-export function myCard(p: CardPresentation, isAdmin: boolean, now: number) {
+/** My submissions' statuses by presentation id (editors only; see the quizmatter_submissions migration). */
+export async function mySubmissionStatuses(supabase: SupabaseClient, isEditor: boolean): Promise<Map<string, SubmissionStatus>> {
+  if (!isEditor) return new Map();
+  return new Map((await loadMySubmissions(supabase)).map((submission) => [submission.presentationId, submission.status]));
+}
+
+/**
+ * My own presentation as a card: opens the editor; shows Published / Hidden, and its QuizMatter submission.
+ * Editors may submit it unless it's waiting or already approved (see the quizmatter_submissions migration).
+ */
+export function myCard(
+  p: CardPresentation,
+  isAdmin: boolean,
+  now: number,
+  extra: { isEditor: boolean; submission?: SubmissionStatus },
+) {
   return {
     ...toCard(p, `/presentation/${p.id}/edit`, now),
     // Hidden by an admin: other teachers can't see it, even if it's published.
     badge: p.hidden_at ? ("hidden" as const) : p.is_published ? ("published" as const) : undefined,
     canMoveToQuizMatter: isAdmin,
+    submission: extra.submission,
+    canSubmit: extra.isEditor && !p.hidden_at && extra.submission !== "submitted" && extra.submission !== "approved",
     createdAt: Date.parse(p.created_at),
     updatedAt: Date.parse(p.updated_at),
   };

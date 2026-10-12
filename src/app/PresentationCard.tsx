@@ -4,6 +4,7 @@ import { CANVAS_WIDTH, CANVAS_HEIGHT, getSlideNumbers } from "@/lib/constants";
 import { Spinner } from "@/components/Spinner";
 import { FluidSlidePreview } from "@/components/presentation/FluidSlidePreview";
 import type { Slide } from "@/lib/schema";
+import { SUBMISSION_LABELS, type SubmissionStatus } from "@/lib/submissions";
 import { PresentationCardMenu } from "./PresentationCardMenu";
 import { SaveCardButton } from "./SaveCardButton";
 
@@ -28,6 +29,10 @@ export type PresentationCardData = {
   credits?: string[];
   // Adds "Move to QuizMatter" to the card's menu (an admin's own saved presentations only).
   canMoveToQuizMatter?: boolean;
+  // Sent to QuizMatter (see the quizmatter_submissions migration): a second label next to the status.
+  submission?: SubmissionStatus;
+  // Adds "Submit to QuizMatter" to the ⋮ menu (an editor's own presentation, not waiting or approved).
+  canSubmit?: boolean;
   // Adds the bookmark button (someone else's presentation): `isSaved` = it's in my "Saved" row.
   canSave?: boolean;
   isSaved?: boolean;
@@ -99,7 +104,19 @@ export function PresentationCard({
         )}
       </div>
       <div className="flex flex-col gap-1 px-1 pt-3 pb-1">
-        {card.badge && <Kicker badge={card.badge} />}
+        {/* Canceled has no card label: it's unlocked and can be submitted again. */}
+        {(card.badge || (card.submission && card.submission !== "canceled")) && (
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            {card.badge && <Kicker badge={card.badge} />}
+            {card.submission && card.submission !== "canceled" && (
+              <span
+                className={`text-[11px] leading-none font-semibold tracking-[0.06em] uppercase ${SUBMISSION_KICKERS[card.submission]}`}
+              >
+                {SUBMISSION_LABELS[card.submission].label}
+              </span>
+            )}
+          </div>
+        )}
         <p
           className={`truncate font-heading text-[15px] font-extrabold tracking-[-0.02em] ${
             isChecking ? "text-text-secondary" : "text-text-primary"
@@ -179,6 +196,13 @@ const KICKERS: Record<
   hidden: { label: "Hidden by QuizMatter", className: "text-danger-strong" },
   checking: { label: "Checking…", className: "text-text-secondary" },
   unfinished: { label: "Not finished", className: "text-text-secondary" },
+};
+
+// The submission label's text color (like KICKERS: dark shades, so the small text reads well).
+const SUBMISSION_KICKERS: Record<Exclude<SubmissionStatus, "canceled">, string> = {
+  submitted: "text-text-secondary",
+  sent_back: "text-highlight-strong",
+  approved: "text-success-strong",
 };
 
 function Kicker({

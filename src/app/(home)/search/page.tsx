@@ -6,7 +6,8 @@ import { createClient } from "@/lib/supabase/server";
 import { listDrafts, type DraftSummary } from "@/lib/drafts";
 import { LinkPending } from "@/components/LinkPending";
 import { changedSince, homeSearchQuery, parseHomeSearch, type HomeSearch } from "../../homeSearch";
-import { CARD_COLUMNS, applySearch, draftCard, draftMatches, loadCardContext, myCard, myId, orderBy, type CardPresentation } from "../cards";
+import type { SubmissionStatus } from "@/lib/submissions";
+import { CARD_COLUMNS, applySearch, draftCard, draftMatches, loadCardContext, myCard, myId, mySubmissionStatuses, orderBy, type CardPresentation } from "../cards";
 import { SavableCards } from "../CardGrid";
 import { ShowMore } from "../ShowMore";
 
@@ -26,17 +27,19 @@ export default async function SearchPage({ searchParams }: PageProps<"/search">)
     // All shared: QuizMatter's and other teachers' (my own aren't in it, so my copies don't sit next to the originals).
     : base.eq("is_published", true).is("hidden_at", null).or(`from_admin.eq.true,owner_id.neq.${me}`);
 
-  const [{ data, count, error }, drafts] = await Promise.all([
+  const [{ data, count, error }, drafts, submissionOf] = await Promise.all([
     orderBy(applySearch(query, search), search.sort).range(0, search.shown - 1),
     // Claude's drafts are only mine; an admin's become QuizMatter presentations, so they have none here.
     isMine && !account.isAdmin ? listDrafts(account.id) : [],
+    // Editors: which of mine were sent to QuizMatter, for the card's label and menu.
+    mySubmissionStatuses(supabase, isMine && account.isEditor),
   ]);
   if (error) throw error;
 
   let cards;
   let draftCount = 0;
   if (isMine) {
-    const mine = buildMineCards(data, drafts, search, account.isAdmin);
+    const mine = buildMineCards(data, drafts, search, account, submissionOf);
     cards = mine.cards;
     draftCount = mine.draftCount;
   } else {
@@ -82,13 +85,21 @@ export default async function SearchPage({ searchParams }: PageProps<"/search">)
 }
 
 /** My matching drafts first (only a few, so they aren't paged; one already saved shows as itself), then my presentations. */
-function buildMineCards(mine: CardPresentation[], drafts: DraftSummary[], search: HomeSearch, isAdmin: boolean) {
+function buildMineCards(
+  mine: CardPresentation[],
+  drafts: DraftSummary[],
+  search: HomeSearch,
+  account: { isAdmin: boolean; isEditor: boolean },
+  submissionOf: Map<string, SubmissionStatus>,
+) {
   const now = Date.now();
   const since = changedSince(search);
   const loadedIds = new Set(mine.map((presentation) => presentation.id));
   const matchingDrafts = drafts.filter((draft) => !loadedIds.has(draft.id) && draftMatches(draft, search, since));
   return {
-    cards: [...matchingDrafts.map((draft) => draftCard(draft, now)), ...mine.map((presentation) => myCard(presentation, isAdmin, now))],
+    cards: [...matchingDrafts.map((draft) => draftCard(draft, now)), ...mine.map((presentation) =>
+        myCard(presentation, account.isAdmin, now, { isEditor: account.isEditor, submission: submissionOf.get(presentation.id) }),
+      )],
     draftCount: matchingDrafts.length,
   };
 }
