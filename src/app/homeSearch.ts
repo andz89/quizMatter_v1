@@ -27,14 +27,14 @@ const text = z.string().trim().max(SEARCH_MAX_LENGTH).catch("");
 
 // Anything odd in the link (too long, unknown value) falls back to the default instead of breaking the page.
 const homeSearchSchema = z.object({
-  // "Includes the words": found in the title, subject, author or tags.
+  // "Includes the words": found in the title, subject, week, day, author or tags.
   q: text,
   title: text,
   // A list subject, or "Other" for every subject not on the list.
   subject: z.union([z.enum(SUBJECTS), z.literal(OTHER_CHOICE), z.literal("")]).catch(""),
   author: text,
   tags: text,
-  // "Doesn't have": not in the title, subject, author or tags.
+  // "Doesn't have": not in the title, subject, week, day, author or tags.
   not: text,
   // A list grade, or "Other" for every grade not on the list.
   grade: z.union([z.enum(GRADES), z.literal(OTHER_CHOICE), z.literal("")]).catch(""),

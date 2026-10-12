@@ -81,7 +81,7 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
     if (isSearching) {
       if (search.q) {
         const pattern = contains(search.q);
-        query = query.or(`title.ilike.${pattern},subject.ilike.${pattern},author.ilike.${pattern},tags_text.ilike.${pattern}`);
+        query = query.or(`title.ilike.${pattern},subject.ilike.${pattern},week.ilike.${pattern},day.ilike.${pattern},author.ilike.${pattern},tags_text.ilike.${pattern}`);
       }
       if (search.title) query = query.ilike("title", contains(search.title));
       if (search.subject === OTHER_CHOICE) query = query.neq("subject", "").not("subject", "in", inList(SUBJECTS));
@@ -94,6 +94,8 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
         query = query
           .not("title", "ilike", pattern)
           .not("subject", "ilike", pattern)
+          .not("week", "ilike", pattern)
+          .not("day", "ilike", pattern)
           .not("author", "ilike", pattern)
           .not("tags_text", "ilike", pattern);
       }
@@ -232,7 +234,7 @@ function BlockedHome() {
  */
 function draftMatches(draft: DraftSummary, search: HomeSearch, since: number): boolean {
   const has = (text: string, part: string) => text.toLowerCase().includes(part.toLowerCase());
-  const details = `${draft.title} ${draft.subject} ${draft.tags}`;
+  const details = `${draft.title} ${draft.subject} ${draft.week} ${draft.day} ${draft.tags}`;
   return (
     has(details, search.q) &&
     has(draft.title, search.title) &&
