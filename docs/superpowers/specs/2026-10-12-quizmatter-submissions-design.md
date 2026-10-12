@@ -108,16 +108,19 @@ note with `reviewNoteSchema`), and every action shows a sonner toast when it wor
   - `approved`: "In QuizMatter", Mint (`bg-success-soft text-success-strong`)
   - `canceled`: no card label (it's unlocked and can be submitted again), "Canceled" in the table, Coral
     (`bg-danger-soft text-danger-strong`)
-  The home page's card data (`cards.ts`) reads the submission status of my presentations.
+  The home page and search page read my statuses with `my_submissions()` (no table rules needed) and pass them
+  to `myCard`.
 - **Card ⋮ menu** (`PresentationCardMenu`): "Submit to QuizMatter" for editors on a saved presentation whose
   status is none, `sent_back` or `canceled`. A confirm box first: *"Send "{title}" to QuizMatter? An admin will
   check it. Until they decide, you can't change or delete it. If they approve it, QuizMatter gets its own copy,
   shared with every teacher, with you as the Author."* While it waits, the menu has no Edit or Delete
   (Present still works).
-- **Opening it** (`src/app/presentation/[id]/edit/page.tsx`): while `submitted`, the owner gets the view-only
-  page (like a locked review), with a notice: *"Submitted to QuizMatter on {date}. You can change it again once an
-  admin decides."* When `sent_back`, the editor opens normally, with a notice at the top showing the admin's note
-  and a "Submit again" button.
+- **Opening it** (`src/app/presentation/[id]/edit/page.tsx`): while `submitted`, the edit page sends the owner to
+  the existing view page (`/presentation/[id]`), which shows a "Waiting for QuizMatter" label and the words *"You
+  sent this to QuizMatter {time ago}. You can change it again once an admin decides."*, and no Edit button. When
+  `sent_back`, the editor opens normally, with a Sunny line under the top bar (like the review's `ReviewBanner`):
+  *"QuizMatter sent this back: {note} Save your changes, then submit it again from its card's ⋮ menu."* No button
+  in the editor, so unsaved changes are never submitted by mistake.
 - **The home tab is renamed "Reviews & submissions"** (was "My reviews", in `HomeTabs.tsx`), since it now holds
   both. Its address moves from `/reviews` to `/reviews-submissions` (the folder `src/app/(home)/reviews` becomes
   `src/app/(home)/reviews-submissions`; every link to `/reviews` is updated, and the CLAUDE.md "Presentation
