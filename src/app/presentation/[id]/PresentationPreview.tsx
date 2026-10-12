@@ -7,13 +7,13 @@ import { toast } from "sonner";
 import { BookmarkIcon, ChevronLeftIcon, ChevronRightIcon, ClipboardCheckIcon, EyeIcon } from "lucide-react";
 import { CANVAS_WIDTH, CANVAS_HEIGHT, getSlideNumbers } from "@/lib/constants";
 import { createId } from "@/lib/id";
-import { creditLines, formatDay, joinParts, slideCountLabel } from "@/lib/format";
+import { creditLines, detailsLabel, formatDay, joinParts, slideCountLabel } from "@/lib/format";
 import { SaveRefusedError, saveErrorMessage, savePresentationToDb } from "@/lib/presentations";
 import { startReview } from "@/lib/reviews";
 import { loadReviewStatus, type Reviewer, type ReviewStatus } from "@/lib/reviewStatus";
 import { createClient } from "@/lib/supabase/client";
 import { profileHref } from "@/lib/profiles";
-import { DETAIL_MAX_LENGTH, gradesLabel, gradesTitle, isWebLink, type Presentation } from "@/lib/schema";
+import { DETAIL_MAX_LENGTH, gradesTitle, isWebLink, type Presentation } from "@/lib/schema";
 import { pauseFeature, pausedUntilFromError, useIsPaused } from "@/lib/clickLimits";
 import { LinkPending } from "@/components/LinkPending";
 import { LinkifiedText } from "@/components/LinkifiedText";
@@ -276,7 +276,7 @@ export function PresentationPreview({
         <header className="mt-6 mb-6">
           <h1 className="text-base font-extrabold text-text-primary">{presentation.title || "Untitled presentation"}</h1>
           <p title={gradesTitle(presentation.grades)} className="mt-0.5 text-sm text-text-secondary">
-            {joinParts([gradesLabel(presentation.grades), presentation.subject, slideCountLabel(slideCount)])}
+            {joinParts([detailsLabel(presentation), slideCountLabel(slideCount)])}
           </p>
           {/* Author and Publisher rows; each reviewer gets their own row below, with their email and date. The
               publisher's and reviewers' names open their profile pages ("QuizMatter" and the typed Author don't). */}

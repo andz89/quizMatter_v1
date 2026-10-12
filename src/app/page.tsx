@@ -4,8 +4,8 @@ import { getAccount } from "@/lib/account";
 import { createClient } from "@/lib/supabase/server";
 import { listDrafts, type DraftSummary } from "@/lib/drafts";
 import { loadPublisherNames } from "@/lib/publishers";
-import { creditLines, joinParts, slideCountLabel, timeAgo } from "@/lib/format";
-import { GRADES, OTHER_CHOICE, SUBJECTS, gradesLabel, gradesTitle, isOtherGrade, isOtherSubject, parseSlide } from "@/lib/schema";
+import { creditLines, detailsLabel, joinParts, slideCountLabel, timeAgo } from "@/lib/format";
+import { GRADES, OTHER_CHOICE, SUBJECTS, gradesTitle, isOtherGrade, isOtherSubject, parseSlide } from "@/lib/schema";
 import { contains } from "@/lib/search";
 import { NewPresentationButton } from "./PresentationListButtons";
 import { PresentationHome } from "./PresentationHome";
@@ -27,7 +27,7 @@ const SEARCH_LIMIT = 50;
 // reviewers: who is in its "Reviewed by" list, for the check and the Reviewer row on its card (everyone sees them).
 // Only reviewer_id and name: teachers may read just some of that table's columns (see 20261023000000_hide_review_approver.sql).
 const CARD_COLUMNS =
-  "id, owner_id, title, grades, subject, author, is_published, from_admin, hidden_at, created_at, updated_at, slides(count), first_slide:slides(data, position), reviewers:presentation_reviewers(reviewer_id, name)";
+  "id, owner_id, title, grades, subject, week, day, author, is_published, from_admin, hidden_at, created_at, updated_at, slides(count), first_slide:slides(data, position), reviewers:presentation_reviewers(reviewer_id, name)";
 
 export default async function HomePage({ searchParams }: PageProps<"/">) {
   // Banned (Admin → Teachers): the home page only says so, until Supabase's ban ends their login (see proxy.ts).
@@ -256,6 +256,8 @@ type CardPresentation = {
   title: string;
   grades: string[];
   subject: string;
+  week: string;
+  day: string;
   author: string;
   is_published: boolean;
   from_admin: boolean;
@@ -307,7 +309,7 @@ function buildCards(
         href: `/presentation/new?draft=${draft.id}`,
         title: draft.title || "Untitled presentation",
         subject: draft.subject,
-        meta: joinParts([gradesLabel(draft.grades), draft.subject, slideCountLabel(draft.slideCount), timeAgo(draft.createdAt, now)]),
+        meta: joinParts([detailsLabel(draft), slideCountLabel(draft.slideCount), timeAgo(draft.createdAt, now)]),
         metaTitle: gradesTitle(draft.grades),
         firstSlide: null,
         badge: ({ ready: "draft", checking: "checking", unfinished: "unfinished" } as const)[draft.state],
@@ -363,7 +365,7 @@ function toCard(presentation: CardPresentation, href: string, now: number): Pres
     href,
     title: presentation.title || "Untitled presentation",
     subject: presentation.subject,
-    meta: joinParts([gradesLabel(presentation.grades), presentation.subject, slideCountLabel(slideCount), timeAgo(Date.parse(presentation.updated_at), now)]),
+    meta: joinParts([detailsLabel(presentation), slideCountLabel(slideCount), timeAgo(Date.parse(presentation.updated_at), now)]),
     metaTitle: gradesTitle(presentation.grades),
     firstSlide: parseSlide(presentation.first_slide[0]?.data),
     isReviewed: presentation.reviewers.length > 0,

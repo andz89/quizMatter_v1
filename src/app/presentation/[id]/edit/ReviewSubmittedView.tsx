@@ -4,8 +4,8 @@ import Link from "next/link";
 import { LinkPending } from "@/components/LinkPending";
 import { PresentDraftButton } from "@/components/presentation/PresentDraftButton";
 import { ReviewDraftView } from "@/components/presentation/ReviewDraftView";
-import { joinParts, slideCountLabel } from "@/lib/format";
-import { gradesLabel, gradesTitle, type Presentation, type ReviewerFields } from "@/lib/schema";
+import { detailsLabel, joinParts, slideCountLabel } from "@/lib/format";
+import { gradesTitle, type Presentation, type ReviewerFields } from "@/lib/schema";
 
 /**
  * What a reviewer sees after submitting: their version, view only (no editor, no tools), while QuizMatter
@@ -28,7 +28,7 @@ export function ReviewSubmittedView({ presentation, fields }: { presentation: Pr
         <div className="min-w-0">
           <h1 className="text-base font-extrabold text-text-primary">{presentation.title || "Untitled presentation"}</h1>
           <p title={gradesTitle(presentation.grades)} className="mt-0.5 text-sm text-text-secondary">
-            {joinParts([gradesLabel(presentation.grades), presentation.subject, slideCountLabel(presentation.slides.length)])}
+            {joinParts([detailsLabel(presentation), slideCountLabel(presentation.slides.length)])}
           </p>
         </div>
         <PresentDraftButton

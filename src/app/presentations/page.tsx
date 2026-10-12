@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { DRAFT_LIFETIME_MS, listDrafts, type DraftSummary } from "@/lib/drafts";
-import { joinParts, timeAgo } from "@/lib/format";
-import { gradesLabel, gradesTitle } from "@/lib/schema";
+import { detailsLabel, timeAgo } from "@/lib/format";
+import { gradesTitle } from "@/lib/schema";
 import { LinkPending } from "@/components/LinkPending";
 import { NavBar, navLinkClass } from "@/components/NavBar";
 import { getAccount } from "@/lib/account";
@@ -16,7 +16,7 @@ export default async function AllPresentationsPage() {
   const [{ data: presentations, error }, drafts, account, folders, folderItems] = await Promise.all([
     supabase
       .from("presentations")
-      .select("id, title, grades, subject, is_published, updated_at, slides(count)")
+      .select("id, title, grades, subject, week, day, is_published, updated_at, slides(count)")
       // Other teachers' published presentations are readable too, so only take mine.
       .eq("owner_id", claims?.claims.sub ?? "")
       // QuizMatter presentations an admin made are on Admin → Presentations, not here.
@@ -65,6 +65,8 @@ type SavedPresentation = {
   title: string;
   grades: string[];
   subject: string;
+  week: string;
+  day: string;
   is_published: boolean;
   updated_at: string;
   slides: { count: number }[];
@@ -80,7 +82,7 @@ function buildRows(presentations: SavedPresentation[], drafts: DraftSummary[]): 
       return {
         id: presentation.id,
         title: presentation.title || "Untitled presentation",
-        meta: joinParts([gradesLabel(presentation.grades), presentation.subject]),
+        meta: detailsLabel(presentation),
         metaTitle: gradesTitle(presentation.grades),
         status: "saved" as const,
         isPublished: presentation.is_published,
@@ -95,7 +97,7 @@ function buildRows(presentations: SavedPresentation[], drafts: DraftSummary[]): 
       .map((draft) => ({
         id: draft.id,
         title: draft.title || "Untitled presentation",
-        meta: joinParts([gradesLabel(draft.grades), draft.subject]),
+        meta: detailsLabel(draft),
         metaTitle: gradesTitle(draft.grades),
         status: "draft" as const,
         slideCount: draft.slideCount,

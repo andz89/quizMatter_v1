@@ -73,6 +73,8 @@ export type DraftSummary = {
   title: string;
   grades: string[];
   subject: string;
+  week: string;
+  day: string;
   // The tags as one line of text ("fractions addition"), only for search.
   tags: string;
   slideCount: number;
@@ -87,6 +89,7 @@ export async function listDrafts(ownerId: string): Promise<DraftSummary[]> {
     .env.DRAFTS_DB.prepare(
       `SELECT id, json_extract(recipe, '$.details.title') AS title, json_extract(recipe, '$.details.grades') AS grades, json_extract(recipe, '$.details.grade') AS grade,
          json_extract(recipe, '$.details.subject') AS subject,
+         coalesce(json_extract(recipe, '$.details.week'), '') AS week, coalesce(json_extract(recipe, '$.details.day'), '') AS day,
          coalesce((SELECT group_concat(value, ' ') FROM json_each(recipe, '$.details.tags')), '') AS tags, json_array_length(recipe, '$.slides') AS slideCount,
          created_at AS createdAt, json_extract(recipe, '$.checking') AS checking
        FROM drafts WHERE owner_id = ? AND created_at >= ? ORDER BY created_at DESC`,

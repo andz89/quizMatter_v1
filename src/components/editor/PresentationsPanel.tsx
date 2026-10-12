@@ -5,9 +5,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { useEditorStore, isPanelEscape } from "@/lib/store";
 import { createClient } from "@/lib/supabase/client";
 import { CANVAS_WIDTH, CANVAS_HEIGHT, SLIDE_DRAG_MIME, getSlideNumbers } from "@/lib/constants";
-import { creditLines, joinParts, slideCountLabel } from "@/lib/format";
+import { creditLines, detailsLabel, joinParts, slideCountLabel } from "@/lib/format";
 import { loadPublisherNames } from "@/lib/publishers";
-import { MAX_SLIDES, SUBJECTS, TOO_MANY_SLIDES_MESSAGE, gradesLabel, gradesTitle, parseSlide, type Slide } from "@/lib/schema";
+import { MAX_SLIDES, SUBJECTS, TOO_MANY_SLIDES_MESSAGE, gradesTitle, parseSlide, type Slide } from "@/lib/schema";
 import { Spinner } from "@/components/Spinner";
 import { FluidSlidePreview } from "@/components/presentation/FluidSlidePreview";
 import { SaveCardButton } from "@/app/SaveCardButton";
@@ -22,7 +22,7 @@ const DRAG_IMAGE_WIDTH = 180;
 // Each presentation's first slide only (for its picture), not all of them, to keep the panel light. reviewers: its
 // "Reviewed by" names (teachers may read only some of that table's columns, see the hide_review_approver migration).
 const SUMMARY_COLUMNS =
-  "id, owner_id, title, grades, subject, author, from_admin, slides(count), first_slide:slides(data, position), reviewers:presentation_reviewers(name)";
+  "id, owner_id, title, grades, subject, week, day, author, from_admin, slides(count), first_slide:slides(data, position), reviewers:presentation_reviewers(name)";
 
 type PresentationSummary = {
   id: string;
@@ -438,6 +438,8 @@ type SummaryRow = {
   title: string;
   grades: string[];
   subject: string;
+  week: string;
+  day: string;
   author: string;
   from_admin: boolean;
   slides: { count: number }[];
@@ -458,8 +460,7 @@ async function toSummaries(supabase: SupabaseClient, rows: SummaryRow[]): Promis
       reviewerNames: row.reviewers.map((reviewer) => reviewer.name),
     }),
     meta: joinParts([
-      gradesLabel(row.grades),
-      row.subject,
+      detailsLabel(row),
       slideCountLabel(row.slides[0]?.count ?? 0),
     ]),
     metaTitle: gradesTitle(row.grades),

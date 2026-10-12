@@ -4,8 +4,8 @@ import { ClipboardCheckIcon } from "lucide-react";
 import { LinkPending } from "@/components/LinkPending";
 import { getAccount } from "@/lib/account";
 import { listDrafts, type DraftSummary } from "@/lib/drafts";
-import { joinParts, timeAgo } from "@/lib/format";
-import { QUIZMATTER_NAME, gradesLabel, gradesTitle, parseSlide } from "@/lib/schema";
+import { detailsLabel, timeAgo } from "@/lib/format";
+import { QUIZMATTER_NAME, gradesTitle, parseSlide } from "@/lib/schema";
 import { createClient } from "@/lib/supabase/server";
 import { NewPresentationButton } from "../../PresentationListButtons";
 import { AdminPresentations, type AdminPresentationRow } from "./AdminPresentations";
@@ -24,7 +24,7 @@ export default async function AdminPresentationsPage() {
     listDrafts(account.id),
     supabase
       .from("presentations")
-      .select("id, title, grades, subject, is_published, created_at, updated_at, slides(count), first_slide:slides(data, position)")
+      .select("id, title, grades, subject, week, day, is_published, created_at, updated_at, slides(count), first_slide:slides(data, position)")
       .eq("from_admin", true)
       .eq("owner_id", account.id)
       .order("updated_at", { ascending: false })
@@ -97,6 +97,8 @@ type SavedPresentation = {
   title: string;
   grades: string[];
   subject: string;
+  week: string;
+  day: string;
   is_published: boolean;
   created_at: string;
   updated_at: string;
@@ -119,7 +121,7 @@ function buildRows(
     .map((draft) => ({
       id: draft.id,
       title: draft.title || "Untitled presentation",
-      meta: joinParts([gradesLabel(draft.grades), draft.subject]),
+      meta: detailsLabel(draft),
       metaTitle: gradesTitle(draft.grades),
       isShared: false,
       firstSlide: null,
@@ -140,7 +142,7 @@ function buildRows(
     return {
       id: presentation.id,
       title: presentation.title || "Untitled presentation",
-      meta: joinParts([gradesLabel(presentation.grades), presentation.subject]),
+      meta: detailsLabel(presentation),
       metaTitle: gradesTitle(presentation.grades),
       isShared: presentation.is_published,
       firstSlide: parseSlide(presentation.first_slide[0]?.data),
