@@ -6,6 +6,7 @@ import { gradesTitle } from "@/lib/schema";
 import { LinkPending } from "@/components/LinkPending";
 import { NavBar, navLinkClass } from "@/components/NavBar";
 import { getAccount } from "@/lib/account";
+import { loadMySubmissions } from "@/lib/submissions";
 import { NewPresentationButton } from "../PresentationListButtons";
 import { PresentationList, type PresentationRow } from "./PresentationList";
 
@@ -13,7 +14,7 @@ import { PresentationList, type PresentationRow } from "./PresentationList";
 export default async function AllPresentationsPage() {
   const supabase = await createClient();
   const { data: claims } = await supabase.auth.getClaims();
-  const [{ data: presentations, error }, drafts, account, folders, folderItems] = await Promise.all([
+  const [{ data: presentations, error }, drafts, account, folders, folderItems, submissions] = await Promise.all([
     supabase
       .from("presentations")
       .select("id, title, grades, subject, term, week, day, is_published, updated_at, slides(count)")
@@ -28,13 +29,21 @@ export default async function AllPresentationsPage() {
     // My folders, and which presentation is in which (see the folders migration).
     supabase.from("folders").select("id, name").order("name"),
     supabase.from("folder_items").select("presentation_id, folder_id"),
+    // Editors: mine sent to QuizMatter (see the quizmatter_submissions migration). Only editors can have any.
+    getAccount().then((account) => (account.isEditor ? loadMySubmissions(supabase) : [])),
   ]);
   if (error) throw error;
   if (folders.error) throw folders.error;
   if (folderItems.error) throw folderItems.error;
 
   const folderOf = new Map(folderItems.data.map((item) => [item.presentation_id, item.folder_id]));
-  const rows = buildRows(presentations, drafts).map((row) => ({ ...row, folderId: folderOf.get(row.id) }));
+  // Waiting for QuizMatter: locked, so it can't be deleted until an admin decides.
+  const waitingIds = new Set(submissions.filter((s) => s.status === "submitted").map((s) => s.presentationId));
+  const rows = buildRows(presentations, drafts).map((row) => ({
+    ...row,
+    folderId: folderOf.get(row.id),
+    isWaiting: waitingIds.has(row.id),
+  }));
 
   return (
     <>

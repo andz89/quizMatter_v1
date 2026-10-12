@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { Spinner } from "@/components/Spinner";
+import { SUBMISSION_LABELS } from "@/lib/submissions";
 import { removePresentations } from "../actions";
 import { FolderIcon, GlobeIcon, SearchIcon, Trash2Icon } from "lucide-react";
 
@@ -25,6 +26,8 @@ export type PresentationRow = {
   note?: string;
   // Which of my folders it's in, if any (see the folders migration).
   folderId?: string;
+  // Sent to QuizMatter and waiting: locked, so it can't be checked or deleted (see the quizmatter_submissions migration).
+  isWaiting?: boolean;
 };
 
 // The folder filter: every folder, no folder, or one folder's id.
@@ -70,9 +73,10 @@ export function PresentationList({ rows, folders }: { rows: PresentationRow[]; f
   );
   const countOf = (id: Filter) => (id === "all" ? rows.length : rows.filter((row) => row.status === id).length);
 
-  // Only rows you can see count, so a filter or search never deletes something hidden.
-  const checked = shown.filter((row) => checkedIds.has(row.id));
-  const allChecked = shown.length > 0 && checked.length === shown.length;
+  // Only rows you can see count, so a filter or search never deletes something hidden. Waiting ones can't be deleted.
+  const checkable = shown.filter((row) => !row.isWaiting);
+  const checked = checkable.filter((row) => checkedIds.has(row.id));
+  const allChecked = checkable.length > 0 && checked.length === checkable.length;
 
   const toggle = (id: string) =>
     setCheckedIds((ids) => {
@@ -80,7 +84,7 @@ export function PresentationList({ rows, folders }: { rows: PresentationRow[]; f
       if (!next.delete(id)) next.add(id);
       return next;
     });
-  const toggleAll = () => setCheckedIds(new Set(allChecked ? [] : shown.map((row) => row.id)));
+  const toggleAll = () => setCheckedIds(new Set(allChecked ? [] : checkable.map((row) => row.id)));
 
   const deleteChecked = () => {
     const count = checked.length;
@@ -178,7 +182,7 @@ export function PresentationList({ rows, folders }: { rows: PresentationRow[]; f
               if (el) el.indeterminate = checked.length > 0 && !allChecked;
             }}
             onChange={toggleAll}
-            disabled={shown.length === 0 || isDeleting}
+            disabled={checkable.length === 0 || isDeleting}
             aria-label="Select all presentations"
             className="h-4 w-4 accent-accent"
           />
@@ -248,7 +252,7 @@ function PresentationListRow({
         type="checkbox"
         checked={isChecked}
         onChange={onToggle}
-        disabled={isBeingDeleted}
+        disabled={isBeingDeleted || row.isWaiting}
         aria-label={`Select ${row.title}`}
         className="relative z-10 h-4 w-4 accent-accent"
       />
@@ -261,7 +265,7 @@ function PresentationListRow({
             {row.title}
           </Link>
         )}
-        {(row.meta || row.note || row.isPublished) && (
+        {(row.meta || row.note || row.isPublished || row.isWaiting) && (
           <p title={row.metaTitle} className="mt-0.5 flex items-center gap-1.5 truncate text-[13px] text-text-secondary">
             {row.meta}
             {row.meta && row.isPublished && " ·"}
@@ -272,6 +276,7 @@ function PresentationListRow({
               </span>
             )}
             {row.note && `${row.meta || row.isPublished ? "· " : ""}${row.note}`}
+            {row.isWaiting && `${row.meta || row.isPublished ? "· " : ""}${SUBMISSION_LABELS.submitted.label}`}
           </p>
         )}
         {/* On phones the other columns are hidden, so their facts go under the title. */}
@@ -296,7 +301,7 @@ function PresentationListRow({
         <span className="hidden text-sm text-text-primary sm:block">{row.slideCount}</span>
         <span className="hidden text-sm text-text-secondary sm:block">{row.dateLabel}</span>
         <span className="relative flex justify-end">
-          {isRemoving || isBeingDeleted ? (
+          {row.isWaiting ? null : isRemoving || isBeingDeleted ? (
             <span className="flex p-1.5">
               <Spinner size={16} />
             </span>
