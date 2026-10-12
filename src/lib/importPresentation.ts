@@ -85,6 +85,8 @@ import {
   referenceSchema,
   SUBJECTS,
   subjectSchema,
+  weekSchema,
+  daySchema,
   tagsSchema,
   type Slide,
   type SvgElement,
@@ -564,6 +566,12 @@ export const claudeDetailsSchema = z.object({
   subject: subjectSchema
     .optional()
     .describe(`One of: ${SUBJECTS.map((subject) => `"${subject}"`).join(", ")}. Only if none fits, the subject's own name.`),
+  week: weekSchema
+    .optional()
+    .describe(`The school week it's for: "Week 1" to "Week 20", or its own name. Only if the user or their document names one.`),
+  day: daySchema
+    .optional()
+    .describe('The day of that week: "Day 1" to "Day 5", or its own name. Only if the user or their document names one.'),
   curriculum: z.string().trim().max(DETAIL_MAX_LENGTH.curriculum).optional().describe('e.g. "MATATAG", "K to 12".'),
   learningCompetency: z
     .string()
@@ -649,7 +657,7 @@ End every presentation with a "References" slide: a blank slide titled "Referenc
 - any other source you used for facts or content.
 Never make up a reference. If there is nothing to list, leave the slide out.
 
-Also fill in "details" when you send it: the presentation's title, a short description, grades, subject, curriculum, learning competency and a few tags (and author or reference links only when the user, or a document or link they gave you, names them).
+Also fill in "details" when you send it: the presentation's title, a short description, grades, subject, curriculum, learning competency and a few tags (and author, reference links, week or day only when the user, or a document or link they gave you, names them).
 
 Leave a setting out and the app decides it. On question slides that's usually best. On blank and title slides, the app's layouts ("text-top", "text-left", "title-only") are only a quick start: for a designed slide, place the pictures and text yourself ("position", "textBoxes"), using the slide ideas in Design below. The layout report you get back (see "Checking before the final version") shows where everything landed.
 
