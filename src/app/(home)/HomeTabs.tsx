@@ -13,7 +13,7 @@ const TABS: { id: HomeTab; label: string; href: string }[] = [
   { id: "mine", label: "My presentations", href: "/" },
   { id: "quizmatter", label: "From QuizMatter", href: "/quizmatter" },
   // Editors only.
-  { id: "reviewed", label: "My reviews", href: "/reviews" },
+  { id: "reviewed", label: "Reviews & submissions", href: "/reviews-submissions" },
   { id: "saved", label: "Saved", href: "/saved" },
   { id: "teachers", label: "Other teachers", href: "/teachers" },
 ];
