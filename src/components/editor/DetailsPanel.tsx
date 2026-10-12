@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useEditorStore, isPanelEscape } from "@/lib/store";
 import { createClient } from "@/lib/supabase/client";
 import {
+  DAYS,
   DETAIL_MAX_LENGTH,
   GRADES,
   MAX_REFERENCE_LINKS,
@@ -14,13 +15,14 @@ import {
   isWebLink,
   referenceSchema,
   tagsSchema,
+  WEEKS,
 } from "@/lib/schema";
 import { parseTags } from "@/lib/photos";
 import { PanelLabel } from "./PanelControls";
 import { ChevronDownIcon, ExternalLinkIcon, XIcon } from "lucide-react";
 
 /**
- * Sidebar panel for the presentation as a whole: title, description, grade, subject, curriculum,
+ * Sidebar panel for the presentation as a whole: title, description, grade, subject, week, day, curriculum,
  * learning competency, tags and references. All optional. Edits count as unsaved changes until Save, like any
  * other edit. Private/published (Draft/Shared on a QuizMatter presentation) is the Share button in the top bar.
  */
@@ -91,6 +93,24 @@ export function DetailsPanel() {
         onChange={(subject) => setPresentationDetails({ subject })}
         maxLength={DETAIL_MAX_LENGTH.subject}
         placeholder="Type the subject, e.g. Robotics"
+      />
+      <ListOrOtherField
+        label="Week"
+        list={WEEKS}
+        value={presentation.week}
+        onChange={(week) => setPresentationDetails({ week })}
+        maxLength={DETAIL_MAX_LENGTH.week}
+        placeholder="Type the week, e.g. Week 21"
+        canPickNone
+      />
+      <ListOrOtherField
+        label="Day"
+        list={DAYS}
+        value={presentation.day}
+        onChange={(day) => setPresentationDetails({ day })}
+        maxLength={DETAIL_MAX_LENGTH.day}
+        placeholder="Type the day, e.g. Day 6"
+        canPickNone
       />
       {textField("curriculum", "Curriculum", "e.g. MATATAG")}
       {textField("learningCompetency", "Learning competency", "The competency this presentation targets, with its code", true)}
@@ -272,9 +292,9 @@ function GradesField({ grades, onChange }: { grades: string[]; onChange: (grades
 }
 
 /**
- * The subject: one from `list`, or "Other…" with a box to type the teacher's own. A value not on the list
- * opens as "Other…" with its text in the box. None by default: "None" shows until one is picked, but isn't in the
- * list to pick back.
+ * The subject (or week, day): one from `list`, or "Other…" with a box to type the teacher's own. A value not on the
+ * list opens as "Other…" with its text in the box. None by default: "None" shows until one is picked, but isn't in
+ * the list to pick back, unless `canPickNone` makes it a choice that clears the value.
  */
 function ListOrOtherField({
   label,
@@ -283,6 +303,7 @@ function ListOrOtherField({
   onChange,
   maxLength,
   placeholder,
+  canPickNone = false,
 }: {
   label: string;
   list: readonly string[];
@@ -290,6 +311,7 @@ function ListOrOtherField({
   onChange: (value: string) => void;
   maxLength: number;
   placeholder: string;
+  canPickNone?: boolean;
 }) {
   // "Other…" picked but nothing typed yet (an empty value alone would show "None").
   const [isOtherPicked, setIsOtherPicked] = useState(false);
@@ -306,7 +328,7 @@ function ListOrOtherField({
         }}
         className={inputClass}
       >
-        <option value="" disabled hidden>
+        <option value="" disabled={!canPickNone} hidden={!canPickNone}>
           None
         </option>
         {list.map((name) => (
