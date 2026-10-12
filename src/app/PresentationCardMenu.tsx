@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useEditorStore } from "@/lib/store";
+import { ConfirmModal } from "@/components/editor/ConfirmModal";
 import { Spinner } from "@/components/Spinner";
 import { createBlankPresentation } from "@/lib/factories";
 import { buildSlides } from "@/lib/importPresentation";
@@ -31,6 +32,7 @@ export function PresentationCardMenu({
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [isBusy, setIsBusy] = useState(false);
+  const [isConfirmingSubmit, setIsConfirmingSubmit] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const isDraft = card.badge === "draft" || card.badge === "checking" || card.badge === "unfinished";
   // Waiting for QuizMatter: locked (see the quizmatter_submissions migration).
@@ -100,9 +102,7 @@ export function PresentationCardMenu({
   };
 
   const submit = async () => {
-    setIsOpen(false);
-    const question = `Send "${card.title}" to QuizMatter? An admin will check it. Until they decide, you can't change or delete it. If they approve it, QuizMatter gets its own copy, shared with every teacher, with you as the Author.`;
-    if (!confirm(question)) return;
+    setIsConfirmingSubmit(false);
     setIsBusy(true);
     // On success the page reloads its list and the card says "Waiting for QuizMatter".
     const error = await submitToQuizMatter(card.id);
@@ -163,7 +163,14 @@ export function PresentationCardMenu({
             </button>
           )}
           {card.canSubmit && (
-            <button type="button" onClick={submit} className={itemClass}>
+            <button
+              type="button"
+              onClick={() => {
+                setIsOpen(false);
+                setIsConfirmingSubmit(true);
+              }}
+              className={itemClass}
+            >
               {card.submission === "sent_back" ? "Submit again" : "Submit to QuizMatter"}
             </button>
           )}
@@ -173,6 +180,15 @@ export function PresentationCardMenu({
             </button>
           )}
         </div>
+      )}
+      {isConfirmingSubmit && (
+        <ConfirmModal
+          title="Send it to QuizMatter?"
+          message={`An admin will check "${card.title}". Until they decide, you can't change or delete it. If they approve it, QuizMatter gets its own copy, shared with every teacher, with you as the Author.`}
+          confirmLabel="Submit"
+          onConfirm={submit}
+          onCancel={() => setIsConfirmingSubmit(false)}
+        />
       )}
     </div>
   );

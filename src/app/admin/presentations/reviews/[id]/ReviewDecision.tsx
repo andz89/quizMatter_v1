@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { CheckIcon, UndoIcon } from "lucide-react";
+import { ConfirmModal } from "@/components/editor/ConfirmModal";
 import { Modal } from "@/components/Modal";
 import { Spinner } from "@/components/Spinner";
 import { TopLoadingBar } from "@/components/TopLoadingBar";
@@ -16,9 +17,10 @@ export function ReviewDecision({ presentationId }: { presentationId: string }) {
   const [isBusy, startTransition] = useTransition();
   // The send-back note being typed, while its window is open (null = closed).
   const [note, setNote] = useState<string | null>(null);
+  const [isConfirming, setIsConfirming] = useState(false);
 
   const publish = () => {
-    if (!confirm("Publish these changes? Every teacher sees them right away.")) return;
+    setIsConfirming(false);
     startTransition(async () => {
       const error = await publishReview(presentationId);
       if (error) return void toast.error(error);
@@ -53,7 +55,7 @@ export function ReviewDecision({ presentationId }: { presentationId: string }) {
       </button>
       <button
         type="button"
-        onClick={publish}
+        onClick={() => setIsConfirming(true)}
         disabled={isBusy}
         className="inline-flex items-center gap-2 rounded-button bg-accent btn-press px-4 py-2 text-sm font-semibold text-white hover:bg-accent-hover disabled:opacity-60"
       >
@@ -61,6 +63,15 @@ export function ReviewDecision({ presentationId }: { presentationId: string }) {
         Publish
       </button>
       {isBusy && <TopLoadingBar />}
+      {isConfirming && (
+        <ConfirmModal
+          title="Publish these changes?"
+          message="Every teacher sees the reviewed version right away."
+          confirmLabel="Publish"
+          onConfirm={publish}
+          onCancel={() => setIsConfirming(false)}
+        />
+      )}
 
       {note !== null && (
         <Modal title="Send back to the reviewer" onClose={() => setNote(null)} isBusy={isBusy}>

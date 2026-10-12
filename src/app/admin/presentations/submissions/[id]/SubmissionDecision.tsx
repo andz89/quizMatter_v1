@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { CheckIcon, UndoIcon } from "lucide-react";
+import { ConfirmModal } from "@/components/editor/ConfirmModal";
 import { Modal } from "@/components/Modal";
 import { Spinner } from "@/components/Spinner";
 import { TopLoadingBar } from "@/components/TopLoadingBar";
@@ -16,9 +17,10 @@ export function SubmissionDecision({ presentationId }: { presentationId: string 
   const [isBusy, startTransition] = useTransition();
   // The send-back note being typed, while its window is open (null = closed).
   const [note, setNote] = useState<string | null>(null);
+  const [isConfirming, setIsConfirming] = useState(false);
 
   const approve = () => {
-    if (!confirm("Approve it? QuizMatter gets its own copy, shared with every teacher right away, with the editor as the Author.")) return;
+    setIsConfirming(false);
     startTransition(async () => {
       const error = await approveSubmission(presentationId);
       if (error) return void toast.error(error);
@@ -53,7 +55,7 @@ export function SubmissionDecision({ presentationId }: { presentationId: string 
       </button>
       <button
         type="button"
-        onClick={approve}
+        onClick={() => setIsConfirming(true)}
         disabled={isBusy}
         className="inline-flex items-center gap-2 rounded-button bg-accent btn-press px-4 py-2 text-sm font-semibold text-white hover:bg-accent-hover disabled:opacity-60"
       >
@@ -61,6 +63,15 @@ export function SubmissionDecision({ presentationId }: { presentationId: string 
         Approve
       </button>
       {isBusy && <TopLoadingBar />}
+      {isConfirming && (
+        <ConfirmModal
+          title="Approve this presentation?"
+          message="QuizMatter gets its own copy, shared with every teacher right away, with the editor as the Author."
+          confirmLabel="Approve"
+          onConfirm={approve}
+          onCancel={() => setIsConfirming(false)}
+        />
+      )}
 
       {note !== null && (
         <Modal title="Send back to the editor" onClose={() => setNote(null)} isBusy={isBusy}>

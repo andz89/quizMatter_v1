@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { EllipsisVerticalIcon, SendIcon, XCircleIcon } from "lucide-react";
 import { Modal } from "@/components/Modal";
+import { ConfirmModal } from "./ConfirmModal";
 import { Spinner } from "@/components/Spinner";
 import { TopLoadingBar } from "@/components/TopLoadingBar";
 import { saveErrorMessage } from "@/lib/presentations";
@@ -22,6 +23,7 @@ export function ReviewControls() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isStopping, setIsStopping] = useState(false);
+  const [isConfirmingStop, setIsConfirmingStop] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Closes on a click outside the menu, or on Esc (like the account menu).
@@ -44,8 +46,7 @@ export function ReviewControls() {
   if (!review) return null;
 
   const stop = async () => {
-    setIsMenuOpen(false);
-    if (!confirm("Stop this review? Your changes are thrown away and the presentation stays as it was.")) return;
+    setIsConfirmingStop(false);
     const { presentation } = useEditorStore.getState();
     setIsStopping(true);
     try {
@@ -87,7 +88,14 @@ export function ReviewControls() {
             <SendIcon size={16} />
             Submit for publishing
           </button>
-          <button type="button" onClick={stop} className={stopItemClass}>
+          <button
+            type="button"
+            onClick={() => {
+              setIsMenuOpen(false);
+              setIsConfirmingStop(true);
+            }}
+            className={stopItemClass}
+          >
             <XCircleIcon size={16} />
             Stop review
           </button>
@@ -95,6 +103,16 @@ export function ReviewControls() {
       )}
       {isStopping && <TopLoadingBar />}
       {isFormOpen && <SubmitForm reviewer={review.fields} onClose={() => setIsFormOpen(false)} />}
+      {isConfirmingStop && (
+        <ConfirmModal
+          title="Stop this review?"
+          message="Your changes are thrown away and the presentation stays as it was."
+          confirmLabel="Stop review"
+          danger
+          onConfirm={stop}
+          onCancel={() => setIsConfirmingStop(false)}
+        />
+      )}
     </div>
   );
 }
