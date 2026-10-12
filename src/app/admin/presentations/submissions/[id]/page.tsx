@@ -13,6 +13,9 @@ import { gradesTitle } from "@/lib/schema";
 import { createClient } from "@/lib/supabase/server";
 import { SubmissionDecision } from "./SubmissionDecision";
 
+// "2026-10-12": the day it was submitted in the Philippines' time zone (like formatDate), not the UTC day.
+const manilaDay = (time: string) => new Date(time).toLocaleDateString("en-CA", { timeZone: "Asia/Manila" });
+
 type SubmissionRow = { presentation_id: string; editor_name: string; editor_email: string; submitted_at: string };
 
 /** An editor's presentation waiting for QuizMatter: view only, with Present, Send back and Approve. */
@@ -59,7 +62,7 @@ export default async function AdminSubmissionPage({ params }: PageProps<"/admin/
       <ReviewDraftView
         presentation={presentation}
         byLabel="Submitted by"
-        fields={{ name: submission.editor_name, email: submission.editor_email, reviewedOn: submission.submitted_at.slice(0, 10) }}
+        fields={{ name: submission.editor_name, email: submission.editor_email, reviewedOn: manilaDay(submission.submitted_at) }}
       />
     </PeopleArtGate>
   );

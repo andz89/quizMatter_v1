@@ -36,13 +36,17 @@ export async function dismissReports(id: string): Promise<boolean> {
   return !error;
 }
 
-/** Deletes a reported presentation for good (its slides and reports go with it). False if it failed. */
-export async function deleteReportedPresentation(id: string): Promise<boolean> {
+/** Deletes a reported presentation for good (its slides and reports go with it). An error message, or null. */
+export async function deleteReportedPresentation(id: string): Promise<string | null> {
   const parsed = idSchema.safeParse(id);
-  if (!parsed.success || !(await getAccount()).isAdmin) return false;
+  if (!parsed.success || !(await getAccount()).isAdmin) return "Couldn't delete it. Please try again.";
 
   const supabase = await createClient();
   const { data, error } = await supabase.from("presentations").delete().eq("id", parsed.data).select("id");
   refresh();
-  return !error && data.length === 1;
+  // Locked (see the presentation_reviews and quizmatter_submissions migrations): it has to be let go first.
+  if (error?.code === "QMREV") {
+    return "It's under review or waiting for QuizMatter. Cancel the review (Under review) or send it back (Submissions) first, then delete it.";
+  }
+  return !error && data.length === 1 ? null : "Couldn't delete it. Please try again.";
 }

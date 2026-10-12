@@ -115,6 +115,7 @@ export async function approveSubmission(id: string): Promise<string | null> {
   refresh();
   if (error?.code === "QMSUB") return "This presentation isn't waiting for QuizMatter anymore.";
   if (error?.code === "QMBRV") return "This editor is banned, so their presentation can't be approved. Send it back instead.";
+  if (error?.code === "QMHID") return "This presentation is hidden (Admin → Reports), so it can't be approved. Send it back instead.";
   return error ? "Couldn't approve the presentation. Please try again." : null;
 }
 

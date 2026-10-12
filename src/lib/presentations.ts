@@ -29,6 +29,7 @@ export const REFUSALS: Record<string, string> = {
   // Presentation reviews and submissions (see the presentation_reviews and quizmatter_submissions migrations).
   QMREV: "This presentation is under review or waiting for QuizMatter, so it can't be changed right now. Copy anything you need before leaving.",
   QMRVW: "Someone else is reviewing this presentation, or you can't review it right now.",
+  QMSUB: "This presentation is already waiting for QuizMatter, or already in QuizMatter.",
   // Publishing an empty presentation (see the share_limits migration).
   QMPUB: PUBLISH_NEEDS_CONTENT,
 };

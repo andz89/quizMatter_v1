@@ -75,8 +75,9 @@ function Row({ row }: { row: ReportedRow }) {
   const remove = () => {
     if (!confirm(`Delete "${row.title}"? Its owner loses it too. This can't be undone.`)) return;
     startTransition(async () => {
-      if (await deleteReportedPresentation(row.id)) toast.success("Presentation deleted.");
-      else toast.error("Couldn't delete it. Please try again.");
+      const error = await deleteReportedPresentation(row.id);
+      if (error) toast.error(error);
+      else toast.success("Presentation deleted.");
     });
   };
 

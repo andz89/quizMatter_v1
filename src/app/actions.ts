@@ -8,7 +8,8 @@ import { fetchPresentation } from "@/lib/fetchPresentation";
 import { PUBLISH_NEEDS_CONTENT, type Presentation } from "@/lib/schema";
 import { createClient } from "@/lib/supabase/server";
 
-const idsSchema = z.array(z.string().min(1).max(100)).max(200);
+const idSchema = z.string().min(1).max(100);
+const idsSchema = z.array(idSchema).max(200);
 
 /**
  * Deletes my saved presentations (their slides go with them — `on delete cascade`) and discards Claude's
@@ -72,7 +73,7 @@ export async function getDraftPresentation(id: string): Promise<Draft | null> {
  */
 export async function submitToQuizMatter(id: string): Promise<string | null> {
   // Checked with zod before anything is saved (see CLAUDE.md, "Saving Data").
-  const parsed = z.string().min(1).max(100).safeParse(id);
+  const parsed = idSchema.safeParse(id);
   if (!parsed.success) return "Couldn't submit the presentation. Please try again.";
   if (!(await getAccount()).isEditor) return "Only editors can submit presentations to QuizMatter.";
 
@@ -80,6 +81,7 @@ export async function submitToQuizMatter(id: string): Promise<string | null> {
   const { error } = await supabase.rpc("submit_presentation", { target_id: parsed.data });
   refresh();
   if (error?.code === "QMPUB") return PUBLISH_NEEDS_CONTENT;
+  // Same words as REFUSALS.QMSUB (src/lib/presentations.ts is browser-only, so not imported here).
   if (error?.code === "QMSUB") return "This presentation is already waiting for QuizMatter, or already in QuizMatter.";
   return error ? "Couldn't submit the presentation. Please try again." : null;
 }

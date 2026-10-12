@@ -13,6 +13,8 @@ const nextConfig: NextConfig = {
       { source: "/lesson/:id", destination: "/presentation/:id", permanent: true },
       { source: "/quiz/new", destination: "/presentation/new", permanent: true },
       { source: "/quiz/:id", destination: "/presentation/:id/edit", permanent: true },
+      // The editors' "My reviews" tab is "Reviews & submissions" now.
+      { source: "/reviews", destination: "/reviews-submissions", permanent: true },
     ];
   },
 };
