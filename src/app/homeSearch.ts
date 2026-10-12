@@ -23,8 +23,10 @@ export const SORTS = [
 
 // Cards per "Show more" step (search results and Other teachers).
 export const PAGE_SIZE = 20;
+// The most cards "Show more" can show.
+export const MAX_SHOWN = 500;
 // How many cards are shown: 20, 40, 60… at most 500. Anything else falls back to 20.
-export const shownSchema = z.coerce.number().int().min(PAGE_SIZE).max(500).multipleOf(PAGE_SIZE).catch(PAGE_SIZE);
+export const shownSchema = z.coerce.number().int().min(PAGE_SIZE).max(MAX_SHOWN).multipleOf(PAGE_SIZE).catch(PAGE_SIZE);
 export function parseShown(params: Record<string, string | string[] | undefined>): number {
   return shownSchema.parse(firstValues(params).shown);
 }

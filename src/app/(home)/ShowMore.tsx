@@ -3,13 +3,13 @@
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { LinkPending } from "@/components/LinkPending";
-import { PAGE_SIZE } from "../homeSearch";
+import { MAX_SHOWN, PAGE_SIZE } from "../homeSearch";
 
-/** "Show more": the same page with 20 more cards (`shown` in the link), keeping the scroll. Hidden once all show. */
+/** "Show more": the same page with 20 more cards (`shown` in the link), keeping the scroll. Hidden once all show, or at the most allowed. */
 export function ShowMore({ shown, total }: { shown: number; total: number }) {
   const pathname = usePathname();
   const params = useSearchParams();
-  if (shown >= total) return null;
+  if (shown >= total || shown >= MAX_SHOWN) return null;
   const next = new URLSearchParams(params ?? undefined);
   next.set("shown", String(shown + PAGE_SIZE));
   return (

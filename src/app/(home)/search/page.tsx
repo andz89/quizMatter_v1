@@ -69,8 +69,8 @@ export default async function SearchPage({ searchParams }: PageProps<"/search">)
       <SavableCards key={search.shown} cards={cards} empty="No presentations match your search." />
       {/* Reads the address, so it waits for it in the browser. */}
       <Suspense>
-        {/* The drafts always show, so they count as shown too. */}
-        <ShowMore shown={search.shown + draftCount} total={total} />
+        {/* Pages only the saved presentations: the drafts always show and aren't paged. */}
+        <ShowMore shown={search.shown} total={count ?? 0} />
       </Suspense>
     </>
   );
