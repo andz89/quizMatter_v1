@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { DAYS, GRADES, OTHER_CHOICE, SUBJECTS, WEEKS } from "@/lib/schema";
+import { DAYS, GRADES, OTHER_CHOICE, SUBJECTS, TERMS, WEEKS } from "@/lib/schema";
 import { SearchField, SearchForm, SearchSelect, SearchTextInput } from "@/components/SearchForm";
 import { DEFAULT_SEARCH, homeSearchQuery, LOOK_IN, PAGE_SIZE, parseHomeSearch, SORTS, WITHIN, type HomeSearch } from "../homeSearch";
 
@@ -70,6 +70,17 @@ function SearchBox({ search }: { search: HomeSearch }) {
             { id: OTHER_CHOICE, label: OTHER_CHOICE },
           ]}
           onChange={(grade) => set({ grade })}
+        />
+      </SearchField>
+      <SearchField label="Term">
+        <SearchSelect
+          value={values.term}
+          options={[
+            { id: "", label: "Any term" },
+            ...TERMS.map((term) => ({ id: term, label: term })),
+            { id: OTHER_CHOICE, label: OTHER_CHOICE },
+          ]}
+          onChange={(term) => set({ term })}
         />
       </SearchField>
       <SearchField label="Week">

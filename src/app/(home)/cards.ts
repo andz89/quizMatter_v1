@@ -2,7 +2,7 @@ import type { PostgrestFilterBuilder, SupabaseClient } from "@supabase/supabase-
 import type { DraftSummary } from "@/lib/drafts";
 import { loadPublisherNames } from "@/lib/publishers";
 import { creditLines, detailsLabel, joinParts, slideCountLabel, timeAgo } from "@/lib/format";
-import { DAYS, GRADES, OTHER_CHOICE, SUBJECTS, WEEKS, gradesTitle, isOtherDay, isOtherGrade, isOtherSubject, isOtherWeek, parseSlide } from "@/lib/schema";
+import { DAYS, GRADES, OTHER_CHOICE, SUBJECTS, TERMS, WEEKS, gradesTitle, isOtherDay, isOtherGrade, isOtherSubject, isOtherTerm, isOtherWeek, parseSlide } from "@/lib/schema";
 import { contains, searchWords } from "@/lib/search";
 import type { PresentationCardData } from "../PresentationCard";
 import { changedSince, type HomeSearch } from "../homeSearch";
@@ -63,6 +63,8 @@ export function applySearch<Q extends PresentationQuery>(query: Q, search: HomeS
   // Has a grade not on the list (its grades aren't all list grades); or includes this grade.
   if (search.grade === OTHER_CHOICE) query = query.not("grades", "cd", `{${GRADES.map((grade) => `"${grade}"`).join(",")}}`) as Q;
   else if (search.grade) query = query.contains("grades", [search.grade]) as Q;
+  if (search.term === OTHER_CHOICE) query = query.neq("term", "").not("term", "in", inList(TERMS)) as Q;
+  else if (search.term) query = query.eq("term", search.term) as Q;
   if (search.week === OTHER_CHOICE) query = query.neq("week", "").not("week", "in", inList(WEEKS)) as Q;
   else if (search.week) query = query.eq("week", search.week) as Q;
   if (search.day === OTHER_CHOICE) query = query.neq("day", "").not("day", "in", inList(DAYS)) as Q;
@@ -85,12 +87,13 @@ export function orderBy<Q extends PresentationQuery>(query: Q, sort: HomeSearch[
  */
 export function draftMatches(draft: DraftSummary, search: HomeSearch, since: number): boolean {
   const has = (text: string, part: string) => text.toLowerCase().includes(part.toLowerCase());
-  const details = `${draft.title} ${draft.subject} ${draft.week} ${draft.day} ${draft.curriculum} ${draft.learningCompetency} ${draft.tags}`;
+  const details = `${draft.title} ${draft.subject} ${draft.term} ${draft.week} ${draft.day} ${draft.curriculum} ${draft.learningCompetency} ${draft.tags}`;
   return (
     searchWords(search.q).every((word) => has(details, word)) &&
     has(draft.title, search.title) &&
     (search.subject === OTHER_CHOICE ? isOtherSubject(draft.subject) : !search.subject || draft.subject === search.subject) &&
     (search.grade === OTHER_CHOICE ? draft.grades.some(isOtherGrade) : !search.grade || draft.grades.includes(search.grade)) &&
+    (search.term === OTHER_CHOICE ? isOtherTerm(draft.term) : !search.term || draft.term === search.term) &&
     (search.week === OTHER_CHOICE ? isOtherWeek(draft.week) : !search.week || draft.week === search.week) &&
     (search.day === OTHER_CHOICE ? isOtherDay(draft.day) : !search.day || draft.day === search.day) &&
     has(draft.tags, search.tags) &&
