@@ -79,13 +79,12 @@ export function Empty({ children }: { children: ReactNode }) {
 }
 
 /**
- * Other people's presentations with working bookmarks. A click flips the bookmark here at once, then
- * router.refresh() updates the tab counts in the layout. `removeOnUnsave`: the Saved page drops the card.
+ * Working bookmarks for other people's presentations. A click flips the bookmark here at once, then
+ * router.refresh() updates the tab counts in the layout. `onChange` runs after each flip.
  */
-export function SavableCards({ cards, empty, removeOnUnsave = false }: { cards: PresentationCardData[]; empty: string; removeOnUnsave?: boolean }) {
+export function useSavedIds(cards: PresentationCardData[], onChange?: (card: PresentationCardData, isSaved: boolean) => void) {
   const router = useRouter();
   const [savedIds, setSavedIds] = useState(() => new Set(cards.filter((card) => card.isSaved).map((card) => card.id)));
-  const [removedIds, setRemovedIds] = useState<Set<string>>(new Set());
   const onSavedChange = (card: PresentationCardData, isSaved: boolean) => {
     setSavedIds((ids) => {
       const next = new Set(ids);
@@ -93,9 +92,18 @@ export function SavableCards({ cards, empty, removeOnUnsave = false }: { cards: 
       else next.delete(card.id);
       return next;
     });
-    if (removeOnUnsave && !isSaved) setRemovedIds((ids) => new Set(ids).add(card.id));
+    onChange?.(card, isSaved);
     router.refresh();
   };
+  return { savedIds, onSavedChange };
+}
+
+/** Other people's presentations with working bookmarks (see useSavedIds). `removeOnUnsave`: the Saved page drops the card. */
+export function SavableCards({ cards, empty, removeOnUnsave = false }: { cards: PresentationCardData[]; empty: string; removeOnUnsave?: boolean }) {
+  const [removedIds, setRemovedIds] = useState<Set<string>>(new Set());
+  const { savedIds, onSavedChange } = useSavedIds(cards, (card, isSaved) => {
+    if (removeOnUnsave && !isSaved) setRemovedIds((ids) => new Set(ids).add(card.id));
+  });
   return <Cards cards={cards.filter((card) => !removedIds.has(card.id))} empty={empty} savedIds={savedIds} onSavedChange={onSavedChange} />;
 }
 
