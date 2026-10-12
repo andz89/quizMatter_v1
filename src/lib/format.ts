@@ -1,8 +1,13 @@
-import { QUIZMATTER_NAME } from "./schema";
+import { QUIZMATTER_NAME, gradesLabel } from "./schema";
 
 /** "Grade 4 · Mathematics", skipping the parts that aren't filled in. */
 export function joinParts(parts: (string | false | null | undefined)[]): string {
   return parts.filter(Boolean).join(" · ");
+}
+
+/** "Grade 4 · Mathematics · Week 3 · Day 2": a presentation's grades, subject, week and day, skipping empty ones. */
+export function detailsLabel({ grades, subject, week, day }: { grades: readonly string[]; subject: string; week?: string; day?: string }): string {
+  return joinParts([gradesLabel(grades), subject, week, day]);
 }
 
 // Worked out on the server so the page shows the same text before and after it loads in the browser.

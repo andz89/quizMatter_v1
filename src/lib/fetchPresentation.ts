@@ -67,7 +67,7 @@ export async function loadPresentation(
   const { data, error } = await supabase
     .from("presentations")
     .select(
-      "id, owner_id, title, description, grades, subject, curriculum, learning_competency, author, reference_links, tags, transition, transition_speed, is_published, from_admin, created_at, updated_at, slides(data, position)",
+      "id, owner_id, title, description, grades, subject, week, day, curriculum, learning_competency, author, reference_links, tags, transition, transition_speed, is_published, from_admin, created_at, updated_at, slides(data, position)",
     )
     .eq("id", id)
     .order("position", { referencedTable: "slides" })
@@ -82,6 +82,8 @@ export async function loadPresentation(
     description: data.description,
     grades: data.grades,
     subject: data.subject,
+    week: data.week,
+    day: data.day,
     curriculum: data.curriculum,
     learningCompetency: data.learning_competency,
     author: data.author,

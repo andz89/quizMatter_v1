@@ -448,6 +448,8 @@ export const DETAIL_MAX_LENGTH = {
   description: 1000,
   grade: 40,
   subject: 80,
+  week: 40,
+  day: 40,
   curriculum: 80,
   learningCompetency: 1000,
   author: 120,
@@ -468,6 +470,10 @@ export const SUBJECTS = [
   "EPP/TLE",
   "Mother Tongue",
 ] as const;
+
+// The school weeks and days a teacher picks from. A presentation may also have its own ("Other").
+export const WEEKS = Array.from({ length: 20 }, (_, i) => `Week ${i + 1}`);
+export const DAYS = Array.from({ length: 5 }, (_, i) => `Day ${i + 1}`);
 
 // The pick-list, chip and search option for every grade or subject not on its list.
 export const OTHER_CHOICE = "Other";
@@ -492,6 +498,8 @@ function listOrOwnSchema(list: readonly string[], maxLength: number) {
 
 const gradeSchema = listOrOwnSchema(GRADES, DETAIL_MAX_LENGTH.grade);
 export const subjectSchema = listOrOwnSchema(SUBJECTS, DETAIL_MAX_LENGTH.subject);
+export const weekSchema = listOrOwnSchema(WEEKS, DETAIL_MAX_LENGTH.week);
+export const daySchema = listOrOwnSchema(DAYS, DETAIL_MAX_LENGTH.day);
 
 // Every list grade plus one of the teacher's own. Same limit as the multiple_grades migration.
 export const MAX_GRADES = GRADES.length + 1;
@@ -572,6 +580,9 @@ export const presentationSchema = z.preprocess(withGrades, z.object({
   // The grades it's for, e.g. ["Grade 1", "Grade 2"] (none = []).
   grades: gradesSchema,
   subject: subjectSchema,
+  // The school week and day it's for, e.g. "Week 3", "Day 2" ("" = none). Older data has none.
+  week: weekSchema.default(""),
+  day: daySchema.default(""),
   curriculum: z.string().max(DETAIL_MAX_LENGTH.curriculum),
   learningCompetency: z.string().max(DETAIL_MAX_LENGTH.learningCompetency),
   // Who wrote the content: the teacher, a book, another teacher… Not who published it — that's the
@@ -684,6 +695,8 @@ export type PresentationDetails = Pick<
   | "description"
   | "grades"
   | "subject"
+  | "week"
+  | "day"
   | "curriculum"
   | "learningCompetency"
   | "author"
