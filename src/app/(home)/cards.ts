@@ -126,7 +126,9 @@ export function toCard(presentation: CardPresentation, href: string, now: number
 /** My submissions' statuses by presentation id (editors only; see the quizmatter_submissions migration). */
 export async function mySubmissionStatuses(supabase: SupabaseClient, isEditor: boolean): Promise<Map<string, SubmissionStatus>> {
   if (!isEditor) return new Map();
-  return new Map((await loadMySubmissions(supabase)).map((submission) => [submission.presentationId, submission.status]));
+  const submissions = await loadMySubmissions(supabase);
+  // A receipt whose original I deleted has no card.
+  return new Map(submissions.flatMap((s) => (s.presentationId ? [[s.presentationId, s.status] as const] : [])));
 }
 
 /**

@@ -5,7 +5,7 @@ import { SUBMISSION_LABELS, type MySubmission } from "@/lib/submissions";
 
 /**
  * An editor's presentations sent to QuizMatter, as a table (see the quizmatter_submissions migration). The title
- * opens my presentation; an approved one also links to QuizMatter's copy.
+ * opens my presentation; an approved one also links to QuizMatter's copy, even after I deleted my original.
  */
 export function SubmissionsTable({ rows }: { rows: MySubmission[] }) {
   return (
@@ -22,15 +22,22 @@ export function SubmissionsTable({ rows }: { rows: MySubmission[] }) {
         </thead>
         <tbody>
           {rows.map((row) => (
-            <tr key={row.presentationId} className="border-b border-border-default last:border-b-0">
+            <tr key={row.id} className="border-b border-border-default last:border-b-0">
               <td className="max-w-64 px-5 py-3">
-                <Link
-                  href={`/presentation/${row.presentationId}`}
-                  className="block truncate font-semibold text-text-primary hover:text-accent"
-                >
-                  {row.title || "Untitled presentation"}
-                  <LinkPending />
-                </Link>
+                {row.presentationId ? (
+                  <Link
+                    href={`/presentation/${row.presentationId}`}
+                    className="block truncate font-semibold text-text-primary hover:text-accent"
+                  >
+                    {row.title || "Untitled presentation"}
+                    <LinkPending />
+                  </Link>
+                ) : (
+                  <p className="truncate">
+                    <span className="font-semibold text-text-primary">{row.title || "Untitled presentation"}</span>
+                    <span className="text-text-secondary"> (original deleted)</span>
+                  </p>
+                )}
                 {row.status === "approved" && row.copyId && (
                   <Link href={`/presentation/${row.copyId}`} className="text-[13px] text-accent hover:underline">
                     See it in QuizMatter

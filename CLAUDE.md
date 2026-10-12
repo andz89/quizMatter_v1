@@ -79,6 +79,7 @@ Editors (teachers an admin trusts) review shared QuizMatter presentations; an ad
 An editor sends one of their own presentations to QuizMatter; an admin approves it or sends it back with a note. Full design: `docs/superpowers/specs/2026-10-12-quizmatter-submissions-design.md`. Keep these rules:
 
 - **Copy on approval:** `approve_submission` copies the presentation and its slides in one step: a shared QuizMatter presentation (`from_admin`), owned by the approving admin, Author = the editor. The editor keeps their original.
+- **Receipts:** each `presentation_submissions` row has its own `id`; an approved one stays after the editor deletes the original (`presentation_id` becomes empty) and is traced by `copy_id`. Sent-back and canceled ones go with their original. See `20261121000000_submission_receipts.sql`.
 - **Locked while waiting:** a `submitted` row in `presentation_submissions` counts in `is_review_locked`, so the review lock triggers refuse changes (`QMREV`). No Withdraw. Approved can't be submitted again.
 - **The rules live in the database functions** (`submit_presentation`, `approve_submission`, `send_back_submission`, `my_submissions`, `admin_submissions`, `submission_status`). Migration: `20261119000000_quizmatter_submissions.sql`.
 - **In the app:** reads through `src/lib/submissions.ts` (`SUBMISSION_LABELS` for the words and colors); actions `submitToQuizMatter` (`src/app/actions.ts`), `approveSubmission` / `sendBackSubmission` (admin actions). Admin pages under `src/app/admin/presentations/submissions`.

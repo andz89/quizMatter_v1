@@ -75,7 +75,7 @@ async function loadTabCounts(supabase: SupabaseClient, me: string, isEditor: boo
       : { data: [], error: null },
     isEditor ? supabase.rpc("my_reviews") : { data: [] as MyReviewRow[], error: null },
     // Editors: my presentations sent to QuizMatter (see the quizmatter_submissions migration).
-    isEditor ? supabase.rpc("my_submissions") : { data: [] as { presentation_id: string }[], error: null },
+    isEditor ? supabase.rpc("my_submissions") : { data: [] as { id: string }[], error: null },
   ]);
   for (const result of [mine, quizmatter, teachers, saved, reviewed, myReviews, mySubmissions]) if (result.error) throw result.error;
 
@@ -88,7 +88,8 @@ async function loadTabCounts(supabase: SupabaseClient, me: string, isEditor: boo
     reviewed: new Set([
       ...(reviewed.data ?? []).map((row) => row.id as string),
       ...((myReviews.data ?? []) as MyReviewRow[]).map((row) => row.presentation_id),
-      ...((mySubmissions.data ?? []) as { presentation_id: string }[]).map((row) => row.presentation_id),
+      // By receipt id: one whose original I deleted has no presentation id.
+      ...((mySubmissions.data ?? []) as { id: string }[]).map((row) => row.id),
     ]).size,
   };
 }

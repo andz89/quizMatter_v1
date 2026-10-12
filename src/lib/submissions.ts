@@ -12,7 +12,10 @@ export const SUBMISSION_LABELS: Record<SubmissionStatus, { label: string; classN
 };
 
 export type MySubmission = {
-  presentationId: string;
+  // The receipt's own id: it stays after the original is deleted (see the submission_receipts migration).
+  id: string;
+  // My original; null once I deleted it (only an approved receipt stays then).
+  presentationId: string | null;
   title: string;
   status: SubmissionStatus;
   adminNote: string;
@@ -22,7 +25,8 @@ export type MySubmission = {
 };
 
 type MySubmissionRow = {
-  presentation_id: string;
+  id: string;
+  presentation_id: string | null;
   title: string;
   status: SubmissionStatus;
   admin_note: string | null;
@@ -30,11 +34,12 @@ type MySubmissionRow = {
   copy_id: string | null;
 };
 
-/** My submissions, newest first. Throws if the lookup fails. */
+/** My submissions, newest first, with each one's current title. Throws if the lookup fails. */
 export async function loadMySubmissions(supabase: SupabaseClient): Promise<MySubmission[]> {
   const { data, error } = await supabase.rpc("my_submissions");
   if (error) throw error;
   return (data as MySubmissionRow[]).map((row) => ({
+    id: row.id,
     presentationId: row.presentation_id,
     title: row.title,
     status: row.status,
