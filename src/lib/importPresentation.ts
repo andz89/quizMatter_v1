@@ -41,9 +41,10 @@ import {
   TREE_BRANCHES,
   TREE_LEAVES_MAX,
   GRADIENT_PREFIX,
+  MESH_PREFIX,
 } from "./constants";
 import { DEFAULT_TEXT_COLOR, markupToHtml, stripMarkup } from "./richText";
-import { BACKGROUND_COLORS, BACKGROUND_GRADIENTS } from "./slideBackground";
+import { BACKGROUND_COLORS, BACKGROUND_GRADIENTS, BACKGROUND_MESHES } from "./slideBackground";
 import { fitInBox, MIN_ELEMENT_SIZE, TRIM_PADDING, type Rect, type Size } from "./geometry";
 import ASSET_SHAPES from "./assetShapes.json";
 import { createId } from "./id";
@@ -375,9 +376,9 @@ const questionBoxes = {
 // decorations are pictures they can move.
 const blankDesign = {
   background: z
-    .enum([...BACKGROUND_COLORS, ...BACKGROUND_GRADIENTS] as [string, ...string[]])
+    .enum([...BACKGROUND_COLORS, ...BACKGROUND_GRADIENTS, ...BACKGROUND_MESHES] as [string, ...string[]])
     .optional()
-    .describe("The slide's background: a soft color, or a gradient from top to bottom. Leave out for plain white."),
+    .describe("The slide's background: a soft color, a gradient from top to bottom, or a soft blend of four corner colors. Leave out for plain white."),
   design: z.array(decorationRecipe).max(6).default([]).describe("Decorations behind everything."),
 };
 
@@ -853,7 +854,7 @@ Mix the decorations too: corners on one slide, scatter on the next, a big "posit
 Text colors: you can't see the slide, so the layout report checks every text's contrast with what's behind it (the background, or a solid shape under the text) and warns when it's hard to read. Fix every contrast warning before the final version.
 
 Background (blank and title slides only) — the same choices the teacher has in the Background panel, so they can change them later:
-- "background": a soft color (${BACKGROUND_COLORS.join(", ")}) or a soft gradient from top to bottom (${BACKGROUND_GRADIENTS.map((g) => `"${g}"`).join(", ")}). Write it exactly as listed. Leave it out for plain white.
+- "background": a soft color (${BACKGROUND_COLORS.join(", ")}) a soft gradient from top to bottom (${BACKGROUND_GRADIENTS.map((g) => `"${g}"`).join(", ")}), or a soft blend with one color per corner, in the order top-left, top-right, bottom-left, bottom-right (${BACKGROUND_MESHES.map((m) => `"${m}"`).join(", ")}). Write it exactly as listed. Leave it out for plain white.
 - There is no way to draw your own full-slide background: everything on a slide must be something the teacher can pick, move or edit.
 
 Opacity: you choose how solid decorations and pictures are. Decorations away from the text can be bold and fully solid (opacity 100), so they really show. Only make what sits right behind text light, so the text stays easy to read (the report checks it).
@@ -1615,11 +1616,11 @@ const CONTRAST_POINTS = [0.1, 0.3, 0.5, 0.7, 0.9];
 
 /**
  * The color at a point behind the text on a free canvas slide: the top drawing there, mixed with the
- * background when it's see-through, or else the background itself (on a gradient, its color at that height).
+ * background when it's see-through, or else the background itself (on a gradient or soft blend, its color at that spot).
  * Null when a photo or a many-colored drawing is there, as its colors can't be known here.
  */
 function colorBehind(x: number, y: number, slide: Slide): string | null {
-  const background = backgroundAt(slide.background, y);
+  const background = backgroundAt(slide.background, x, y);
   // Later elements are drawn on top, so the first one found from the end is the one you see.
   for (const el of [...slide.elements].reverse()) {
     const asset = getElementAsset(el.assetId);
@@ -1632,9 +1633,14 @@ function colorBehind(x: number, y: number, slide: Slide): string | null {
   return background;
 }
 
-/** The slide's background color at height `y`: white, its color, or the mix of its gradient there. */
-function backgroundAt(background: string | undefined, y: number): string {
+/** The slide's background color at (`x`, `y`): white, its color, or the mix of its gradient or soft blend there. */
+function backgroundAt(background: string | undefined, x: number, y: number): string {
   if (!background) return "#FFFFFF";
+  if (background.startsWith(MESH_PREFIX)) {
+    const [topLeft, topRight, bottomLeft, bottomRight] = background.slice(MESH_PREFIX.length).split(",");
+    const across = x / CANVAS_WIDTH;
+    return mixColors(mixColors(bottomRight, bottomLeft, across), mixColors(topRight, topLeft, across), y / CANVAS_HEIGHT);
+  }
   if (!background.startsWith(GRADIENT_PREFIX)) return background;
   const [from, to] = background.slice(GRADIENT_PREFIX.length).split(",");
   return mixColors(to, from, y / CANVAS_HEIGHT);

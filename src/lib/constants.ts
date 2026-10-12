@@ -64,6 +64,9 @@ export function autoFitRange(fontSize: number) {
 
 // Gradients are stored in the same color string as "gradient:#from,#to", so the schema stays a plain string.
 export const GRADIENT_PREFIX = "gradient:";
+// Soft blends (slide backgrounds only): a color in each corner melting into the others, stored as
+// "mesh:#topLeft,#topRight,#bottomLeft,#bottomRight".
+export const MESH_PREFIX = "mesh:";
 
 // Lowest opacity (percent) an element can be set to, so it never fully disappears.
 export const OPACITY_MIN = 5;

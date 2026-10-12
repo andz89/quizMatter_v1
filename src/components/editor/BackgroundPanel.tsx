@@ -2,8 +2,8 @@
 
 import { useEffect } from "react";
 import { useEditorStore, isPanelEscape } from "@/lib/store";
-import { getSlideNumbers, GRADIENT_PREFIX } from "@/lib/constants";
-import { BACKGROUND_COLORS, BACKGROUND_GRADIENTS } from "@/lib/slideBackground";
+import { getSlideNumbers, GRADIENT_PREFIX, MESH_PREFIX } from "@/lib/constants";
+import { BACKGROUND_COLORS, BACKGROUND_GRADIENTS, BACKGROUND_MESHES } from "@/lib/slideBackground";
 import { NONE_SWATCH } from "./ColorPanel";
 import { PanelLabel } from "./PanelControls";
 import { SlideThumbnailPreview } from "./SlideThumbnailPreview";
@@ -11,7 +11,7 @@ import { slideBackgroundCss } from "@/components/presentation/SlideStaticView";
 import { XIcon } from "lucide-react";
 
 /**
- * Sidebar panel for the selected slide's background: a soft color or gradient. Every change goes straight onto the slide; the small preview on top shows it too.
+ * Sidebar panel for the selected slide's background: a soft color, gradient or soft blend. Every change goes straight onto the slide; the small preview on top shows it too.
  */
 export function BackgroundPanel() {
   const closeBackgroundPanel = useEditorStore((s) => s.closeBackgroundPanel);
@@ -74,6 +74,20 @@ export function BackgroundPanel() {
               title={gradient.slice(GRADIENT_PREFIX.length).replace(",", " → ")}
               selected={slide.background === gradient} onClick={() => setSlideBackground(slide.id, { background: gradient })}>
               <span className="block h-full w-full rounded-dropdown" style={{ background: slideBackgroundCss(gradient) }} />
+            </Tile>
+          ))}
+        </div>
+      </section>
+
+      <section className="flex flex-col gap-3">
+        <PanelLabel>Soft blend</PanelLabel>
+        <div className="flex flex-wrap gap-2.5">
+          {BACKGROUND_MESHES.map((mesh) => (
+            <Tile
+              key={mesh}
+              title={mesh.slice(MESH_PREFIX.length).replaceAll(",", ", ")}
+              selected={slide.background === mesh} onClick={() => setSlideBackground(slide.id, { background: mesh })}>
+              <span className="block h-full w-full rounded-dropdown" style={{ background: slideBackgroundCss(mesh) }} />
             </Tile>
           ))}
         </div>

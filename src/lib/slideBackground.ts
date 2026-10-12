@@ -1,6 +1,6 @@
 // A slide's background: a soft color or gradient. Used by the Background panel and by the presentation importer,
 // so both offer the same choices.
-import { GRADIENT_PREFIX } from "./constants";
+import { GRADIENT_PREFIX, MESH_PREFIX } from "./constants";
 
 // Soft colors the Background panel offers. All light, so the dark text stays easy to read.
 export const BACKGROUND_COLORS = [
@@ -56,3 +56,18 @@ export const BACKGROUND_GRADIENTS = [
   ["#FECACA", "#FEF08A"],
   ["#C7D2FE", "#F5D0FE"],
 ].map(([from, to]) => `${GRADIENT_PREFIX}${from},${to}`);
+
+// Soft blends the Background panel offers: one color per corner (top-left, top-right, bottom-left,
+// bottom-right) melting into each other. Stored as "mesh:#tl,#tr,#bl,#br". All light, so the dark text stays easy to read.
+export const BACKGROUND_MESHES = [
+  ["#A8C4E6", "#FFD3DC", "#F8F9FD", "#8F9BD0"],
+  ["#FFD8B5", "#E9D5FF", "#FFF7ED", "#C4B5FD"],
+  ["#A7F3D0", "#BAE6FD", "#F0FDF4", "#93C5FD"],
+  ["#FDE68A", "#FBCFE8", "#FFF7ED", "#FDBA74"],
+  ["#DDD6FE", "#FCE7F3", "#F5F3FF", "#C7D2FE"],
+  ["#BAE6FD", "#CCFBF1", "#F0F9FF", "#A5B4FC"],
+  ["#D9F99D", "#FEF08A", "#F7FEE7", "#86EFAC"],
+  ["#FBCFE8", "#BFDBFE", "#FDF2F8", "#DDD6FE"],
+  ["#FEF3C7", "#FECDD3", "#FFFBEB", "#FDA4AF"],
+  ["#99F6E4", "#FED7AA", "#F0FDFA", "#F9A8D4"],
+].map((corners) => `${MESH_PREFIX}${corners.join(",")}`);
