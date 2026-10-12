@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { LinkPending } from "@/components/LinkPending";
 import { NavBar, navLinkClass } from "@/components/NavBar";
 import { fetchPresentation } from "@/lib/fetchPresentation";
+import { timeAgo } from "@/lib/format";
 import { usesPeopleArt } from "@/lib/peopleArt";
 import { PeopleArtGate } from "@/components/PeopleArtGate";
 import { PresentationPreview } from "./PresentationPreview";
@@ -32,8 +33,14 @@ export default async function PresentationPage({ params }: PageProps<"/presentat
           isSaved={result.isSaved}
           review={result.review}
           reviewers={result.reviewers}
+          waitingSince={result.isMine ? waitingSince(result.submission) : null}
         />
       </PeopleArtGate>
     </>
   );
+}
+
+/** When my presentation was sent to QuizMatter, e.g. "2 hr ago", while it waits. null = not waiting. */
+function waitingSince(submission: { status: string; submittedAt: number } | null): string | null {
+  return submission?.status === "submitted" ? timeAgo(submission.submittedAt, Date.now()) : null;
 }

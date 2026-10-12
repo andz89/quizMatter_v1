@@ -41,8 +41,20 @@ const PresentationView = dynamic(
  * slides replace the new presentation's sample slide, unsaved, like the Paste button does.
  * `review` opens an editor's review of someone else's QuizMatter presentation: saves go to their draft (see the
  * presentation_reviews migration).
+ * `sentBackNote` is the admin's note on my presentation that QuizMatter sent back (see the quizmatter_submissions
+ * migration), shown under the top bar.
  */
-export function Editor({ presentation, draft, review }: { presentation: Presentation; draft?: unknown; review?: EditorReview }) {
+export function Editor({
+  presentation,
+  draft,
+  review,
+  sentBackNote,
+}: {
+  presentation: Presentation;
+  draft?: unknown;
+  review?: EditorReview;
+  sentBackNote?: string;
+}) {
   // Until the presentation below is in the store, the store still holds the placeholder (or the last presentation opened).
   const isLoaded = useEditorStore((s) => s.presentation.id === presentation.id);
   const hasUnsavedChanges = useEditorStore((s) => s.presentation !== s.savedPresentation);
@@ -124,6 +136,11 @@ export function Editor({ presentation, draft, review }: { presentation: Presenta
     <div className="flex h-screen flex-col">
       <EditorTopBar />
       <ReviewBanner />
+      {sentBackNote && (
+        <p className="shrink-0 border-b border-border-default bg-highlight-soft px-4 py-2 text-sm text-text-primary">
+          QuizMatter sent this back: {sentBackNote} Save your changes, then submit it again from its card&apos;s ⋮ menu.
+        </p>
+      )}
       <div className="relative flex flex-1 overflow-hidden">
         <IconRail />
         {/* On laptops and bigger, an open panel sits beside the slides. On smaller screens it opens over them

@@ -4,13 +4,15 @@ import { loadVisibleProfiles } from "./profiles";
 import { loadPublisherNames } from "./publishers";
 import { NO_REVIEW, loadReviewers, loadReviewStatus, type Reviewer, type ReviewStatus } from "./reviewStatus";
 import { presentationSchema, type Presentation } from "./schema";
+import { loadSubmissionStatus } from "./submissions";
 
 /**
  * The whole presentation (details + every slide, in order) and who owns it, or null if there's none the user
  * can read: their own presentations, and other people's published ones. `publisherName` is the owner's display
  * name, only looked up for other people's presentations ("" if they have none). `isSaved`: it's in my "Saved"
  * row (see the saved_presentations migration). `review`: its review status, `reviewers`: its "Reviewed by" list
- * (see the presentation_reviews migration). Server-only.
+ * (see the presentation_reviews migration). `submission`: my presentation sent to QuizMatter, or null (see the
+ * quizmatter_submissions migration). Server-only.
  */
 export async function fetchPresentation(id: string): Promise<{
   presentation: Presentation;
@@ -24,9 +26,10 @@ export async function fetchPresentation(id: string): Promise<{
   isSaved: boolean;
   review: ReviewStatus;
   reviewers: Reviewer[];
+  submission: Awaited<ReturnType<typeof loadSubmissionStatus>>;
 } | null> {
   const supabase = await createClient();
-  const [result, { data: claims }, { data: saved }, review, reviewers] = await Promise.all([
+  const [result, { data: claims }, { data: saved }, review, reviewers, submission] = await Promise.all([
     loadPresentation(supabase, id),
     supabase.auth.getClaims(),
     // The database only gives back my own saved rows.
@@ -34,6 +37,8 @@ export async function fetchPresentation(id: string): Promise<{
     // If these fail, the page still opens without the review parts (the database still enforces the lock).
     loadReviewStatus(supabase, id).catch(() => NO_REVIEW),
     loadReviewers(supabase, id).catch((): Reviewer[] => []),
+    // If it fails, the page opens without it; the database still enforces the lock.
+    loadSubmissionStatus(supabase, id).catch(() => null),
   ]);
   if (!result) return null;
 
@@ -53,6 +58,7 @@ export async function fetchPresentation(id: string): Promise<{
     isSaved: saved !== null,
     review,
     reviewers,
+    submission,
   };
 }
 

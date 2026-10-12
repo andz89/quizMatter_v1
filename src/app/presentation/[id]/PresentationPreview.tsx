@@ -14,6 +14,7 @@ import { loadReviewStatus, type Reviewer, type ReviewStatus } from "@/lib/review
 import { createClient } from "@/lib/supabase/client";
 import { profileHref } from "@/lib/profiles";
 import { DETAIL_MAX_LENGTH, gradesTitle, isWebLink, type Presentation } from "@/lib/schema";
+import { SUBMISSION_LABELS } from "@/lib/submissions";
 import { pauseFeature, pausedUntilFromError, useIsPaused } from "@/lib/clickLimits";
 import { LinkPending } from "@/components/LinkPending";
 import { LinkifiedText } from "@/components/LinkifiedText";
@@ -31,6 +32,7 @@ import { SAVE_ERRORS } from "../../SaveCardButton";
  * (like YouTube's), and "Report" sends it to the admins.
  * Editors can review a shared QuizMatter presentation ("Review"); while it's under review nobody can copy it, and
  * its owner can't edit it. Everyone who reviewed it is listed under the "Published by" line.
+ * While my presentation waits for QuizMatter (see the quizmatter_submissions migration), it has no Edit.
  */
 export function PresentationPreview({
   presentation,
@@ -41,6 +43,7 @@ export function PresentationPreview({
   isSaved: savedAtStart,
   review,
   reviewers,
+  waitingSince,
 }: {
   presentation: Presentation;
   isMine: boolean;
@@ -50,6 +53,8 @@ export function PresentationPreview({
   isSaved: boolean;
   review: ReviewStatus;
   reviewers: Reviewer[];
+  // My presentation sent to QuizMatter and waiting (locked until an admin decides): when, e.g. "2 hr ago". null = not waiting.
+  waitingSince: string | null;
 }) {
   const router = useRouter();
   const [isCopying, setIsCopying] = useState(false);
@@ -180,6 +185,13 @@ export function PresentationPreview({
                 Under review
               </span>
             )}
+            {waitingSince !== null && (
+              <span
+                className={`rounded-dropdown px-2.5 py-1 text-[13px] leading-none font-semibold ${SUBMISSION_LABELS.submitted.className}`}
+              >
+                {SUBMISSION_LABELS.submitted.label}
+              </span>
+            )}
             {review.canStart && (
               <button
                 type="button"
@@ -219,7 +231,7 @@ export function PresentationPreview({
             )}
             {isMine ? (
               // Under review, only its reviewer can change it.
-              !review.isLocked && (
+              !review.isLocked && waitingSince === null && (
                 <Link href={`/presentation/${presentation.id}/edit`} className={secondaryButtonClass}>
                   Edit
                   <LinkPending />
@@ -272,6 +284,13 @@ export function PresentationPreview({
             </div>
           )}
         </div>
+
+        {waitingSince !== null && (
+          <p className="mt-3 text-sm text-text-secondary">
+            You sent this to QuizMatter {waitingSince.toLowerCase()}. You can change it again once an
+            admin decides.
+          </p>
+        )}
 
         <header className="mt-6 mb-6">
           <h1 className="text-base font-extrabold text-text-primary">{presentation.title || "Untitled presentation"}</h1>
