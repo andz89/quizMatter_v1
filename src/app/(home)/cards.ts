@@ -1,0 +1,174 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DraftSummary } from "@/lib/drafts";
+import { loadPublisherNames } from "@/lib/publishers";
+import { creditLines, detailsLabel, joinParts, slideCountLabel, timeAgo } from "@/lib/format";
+import { DAYS, GRADES, OTHER_CHOICE, SUBJECTS, WEEKS, gradesTitle, isOtherDay, isOtherGrade, isOtherSubject, isOtherWeek, parseSlide } from "@/lib/schema";
+import { contains, searchWords } from "@/lib/search";
+import type { PresentationCardData } from "../PresentationCard";
+import { changedSince, type HomeSearch } from "../homeSearch";
+
+// Each presentation's first slide only (for the card's picture), not all of them, to keep the page light.
+// reviewers: who is in its "Reviewed by" list, for the check and the Reviewer row on its card (everyone sees them).
+// Only reviewer_id and name: teachers may read just some of that table's columns (see 20261023000000_hide_review_approver.sql).
+export const CARD_COLUMNS =
+  "id, owner_id, title, grades, subject, week, day, author, is_published, from_admin, hidden_at, created_at, updated_at, slides(count), first_slide:slides(data, position), reviewers:presentation_reviewers(reviewer_id, name)";
+
+export type CardPresentation = {
+  id: string;
+  owner_id: string;
+  title: string;
+  grades: string[];
+  subject: string;
+  week: string;
+  day: string;
+  author: string;
+  is_published: boolean;
+  from_admin: boolean;
+  hidden_at: string | null;
+  created_at: string;
+  updated_at: string;
+  slides: { count: number }[];
+  first_slide: { data: unknown }[];
+  reviewers: { reviewer_id: string; name: string }[];
+};
+
+// "saved": my saved row for it (only mine come back), for sorting by when I saved it.
+export type SavedPresentation = CardPresentation & { saved?: { saved_at: string }[] };
+
+// A presentations query, whatever columns it selects.
+type PresentationQuery = ReturnType<ReturnType<SupabaseClient["from"]>["select"]>;
+
+/** The logged-in teacher's id ("" if none). */
+export async function myId(supabase: SupabaseClient): Promise<string> {
+  const { data } = await supabase.auth.getClaims();
+  return data?.claims.sub ?? "";
+}
+
+/** Every search option as filters on a presentations query (Look in, Sort and Show more are applied elsewhere). */
+export function applySearch<Q extends PresentationQuery>(query: Q, search: HomeSearch): Q {
+  const since = changedSince(search);
+  // search_text: every searched detail as one line of text (see the presentation_search_text migration). Each
+  // word must be in it somewhere, in any order: "adding fractions" finds "Fractions: adding and subtracting".
+  for (const word of searchWords(search.q)) query = query.ilike("search_text", contains(word)) as Q;
+  if (search.title) query = query.ilike("title", contains(search.title)) as Q;
+  if (search.subject === OTHER_CHOICE) query = query.neq("subject", "").not("subject", "in", inList(SUBJECTS)) as Q;
+  else if (search.subject) query = query.eq("subject", search.subject) as Q;
+  if (search.author) query = query.ilike("author", contains(search.author)) as Q;
+  // tags_text: the tags as one line of text, so part of a tag is found too (see the presentation_tags migration).
+  if (search.tags) query = query.ilike("tags_text", contains(search.tags)) as Q;
+  // None of these words anywhere.
+  for (const word of searchWords(search.not)) query = query.not("search_text", "ilike", contains(word)) as Q;
+  // Has a grade not on the list (its grades aren't all list grades); or includes this grade.
+  if (search.grade === OTHER_CHOICE) query = query.not("grades", "cd", `{${GRADES.map((grade) => `"${grade}"`).join(",")}}`) as Q;
+  else if (search.grade) query = query.contains("grades", [search.grade]) as Q;
+  if (search.week === OTHER_CHOICE) query = query.neq("week", "").not("week", "in", inList(WEEKS)) as Q;
+  else if (search.week) query = query.eq("week", search.week) as Q;
+  if (search.day === OTHER_CHOICE) query = query.neq("day", "").not("day", "in", inList(DAYS)) as Q;
+  else if (search.day) query = query.eq("day", search.day) as Q;
+  if (since) query = query.gte("updated_at", new Date(since).toISOString()) as Q;
+  return query;
+}
+
+/** The search's Sort, plus each card's first slide only. */
+export function orderBy<Q extends PresentationQuery>(query: Q, sort: HomeSearch["sort"]): Q {
+  return query
+    .order(sort === "title" ? "title" : sort === "newest" ? "created_at" : "updated_at", { ascending: sort === "title" })
+    .order("position", { referencedTable: "first_slide" })
+    .limit(1, { referencedTable: "first_slide" }) as Q;
+}
+
+/**
+ * Claude's drafts aren't in the database yet, so they're checked here the same way the database checks the rest.
+ * Drafts have no author, so an Author search leaves them out.
+ */
+export function draftMatches(draft: DraftSummary, search: HomeSearch, since: number): boolean {
+  const has = (text: string, part: string) => text.toLowerCase().includes(part.toLowerCase());
+  const details = `${draft.title} ${draft.subject} ${draft.week} ${draft.day} ${draft.curriculum} ${draft.learningCompetency} ${draft.tags}`;
+  return (
+    searchWords(search.q).every((word) => has(details, word)) &&
+    has(draft.title, search.title) &&
+    (search.subject === OTHER_CHOICE ? isOtherSubject(draft.subject) : !search.subject || draft.subject === search.subject) &&
+    (search.grade === OTHER_CHOICE ? draft.grades.some(isOtherGrade) : !search.grade || draft.grades.includes(search.grade)) &&
+    (search.week === OTHER_CHOICE ? isOtherWeek(draft.week) : !search.week || draft.week === search.week) &&
+    (search.day === OTHER_CHOICE ? isOtherDay(draft.day) : !search.day || draft.day === search.day) &&
+    has(draft.tags, search.tags) &&
+    !search.author &&
+    !searchWords(search.not).some((word) => has(details, word)) &&
+    draft.createdAt >= since
+  );
+}
+
+/** A list for the database's "in" filter: ("Grade 1","Grade 2",…). */
+function inList(list: readonly string[]): string {
+  return `(${list.map((value) => `"${value}"`).join(",")})`;
+}
+
+export function toCard(presentation: CardPresentation, href: string, now: number): PresentationCardData {
+  const slideCount = presentation.slides[0]?.count ?? 0;
+  return {
+    id: presentation.id,
+    href,
+    title: presentation.title || "Untitled presentation",
+    subject: presentation.subject,
+    meta: joinParts([detailsLabel(presentation), slideCountLabel(slideCount), timeAgo(Date.parse(presentation.updated_at), now)]),
+    metaTitle: gradesTitle(presentation.grades),
+    firstSlide: parseSlide(presentation.first_slide[0]?.data),
+    isReviewed: presentation.reviewers.length > 0,
+  };
+}
+
+/** My own presentation as a card: opens the editor; shows Published / Hidden. */
+export function myCard(p: CardPresentation, isAdmin: boolean, now: number) {
+  return {
+    ...toCard(p, `/presentation/${p.id}/edit`, now),
+    // Hidden by an admin: other teachers can't see it, even if it's published.
+    badge: p.hidden_at ? ("hidden" as const) : p.is_published ? ("published" as const) : undefined,
+    canMoveToQuizMatter: isAdmin,
+    createdAt: Date.parse(p.created_at),
+    updatedAt: Date.parse(p.updated_at),
+  };
+}
+
+/** One of Claude's drafts (not saved yet) as a card. Its slides are only a recipe, so no picture. */
+export function draftCard(draft: DraftSummary, now: number) {
+  return {
+    id: draft.id,
+    href: `/presentation/new?draft=${draft.id}`,
+    title: draft.title || "Untitled presentation",
+    subject: draft.subject,
+    meta: joinParts([detailsLabel(draft), slideCountLabel(draft.slideCount), timeAgo(draft.createdAt, now)]),
+    metaTitle: gradesTitle(draft.grades),
+    firstSlide: null,
+    badge: ({ ready: "draft", checking: "checking", unfinished: "unfinished" } as const)[draft.state],
+    createdAt: draft.createdAt,
+    updatedAt: draft.createdAt,
+  };
+}
+
+/**
+ * What cards of other people's presentations need: which ones I saved (bookmark), and the publisher's name for
+ * other teachers' ones. `toSavableCard` is someone else's presentation, which I can save (bookmark) from its card.
+ * An admin's own QuizMatter ones show in "From QuizMatter" too, but the database doesn't let anyone save their own.
+ */
+export async function loadCardContext(supabase: SupabaseClient, rows: CardPresentation[], me: string) {
+  const [savedRows, publisherNames] = await Promise.all([
+    supabase.from("saved_presentations").select("presentation_id"),
+    loadPublisherNames(supabase, rows.filter((p) => !p.from_admin).map((p) => p.owner_id)),
+  ]);
+  if (savedRows.error) throw savedRows.error;
+  const savedIds = new Set<string>(savedRows.data.map((row) => row.presentation_id));
+  const now = Date.now();
+  const toSavableCard = (p: CardPresentation): PresentationCardData => ({
+    ...toCard(p, `/presentation/${p.id}`, now),
+    credits: creditLines({
+      author: p.author,
+      fromAdmin: p.from_admin,
+      publisherName: publisherNames.get(p.owner_id),
+      reviewerNames: p.reviewers.map((reviewer) => reviewer.name),
+    }),
+    canSave: p.owner_id !== me,
+    isSaved: savedIds.has(p.id),
+    isReviewedByMe: p.reviewers.some((reviewer) => reviewer.reviewer_id === me),
+  });
+  return { savedIds, toSavableCard };
+}

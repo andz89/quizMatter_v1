@@ -56,7 +56,7 @@ const ADMIN_SORTS: { id: AdminSort; label: string }[] = [
   { id: "createdAt", label: "Newest" },
 ];
 
-type Tab = Exclude<HomeSearch["in"], "all">;
+type Tab = "mine" | "quizmatter" | "reviewed" | "saved" | "teachers";
 
 /**
  * The home page's cards, in tabs: my newest presentations, the ones admins shared with every teacher ("From
@@ -231,7 +231,7 @@ export function PresentationHome({
       onDragEnd={dropCards}
     >
       {/* Keyed by the search, so Back (or Clear search) puts the right text back in the box. */}
-      <HomeSearchForm key={searchKey} search={search} isEditor={isEditor} />
+      <HomeSearchForm key={searchKey} search={search} />
 
       {isSearching && (
         <div className="mb-6 flex items-center gap-3">
@@ -431,7 +431,7 @@ export function PresentationHome({
  * The home page's search box and its options. Enter or Search puts the search in the page link, and the server
  * looks it up in the database (page.tsx).
  */
-function HomeSearchForm({ search, isEditor }: { search: HomeSearch; isEditor: boolean }) {
+function HomeSearchForm({ search }: { search: HomeSearch }) {
   const router = useRouter();
   const [values, setValues] = useState(search);
   const [isPending, startTransition] = useTransition();
@@ -514,7 +514,7 @@ function HomeSearchForm({ search, isEditor }: { search: HomeSearch; isEditor: bo
       <SearchField label="Look in">
         <SearchSelect
           value={values.in}
-          options={isEditor ? LOOK_IN : LOOK_IN.filter(({ id }) => id !== "reviewed")}
+          options={LOOK_IN}
           onChange={(value) => set({ in: value })}
         />
       </SearchField>

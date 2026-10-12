@@ -7,14 +7,12 @@ import { SEARCH_MAX_LENGTH, WITHIN, firstValues, optionIds, searchQuery, withinS
 
 export { WITHIN };
 
+// Where /search looks. "All": every presentation shared with me (QuizMatter's and other teachers'), not my own.
 export const LOOK_IN = [
-  { id: "all", label: "All presentations" },
-  { id: "mine", label: "Mine" },
+  { id: "all", label: "All shared" },
   { id: "quizmatter", label: "From QuizMatter" },
   { id: "teachers", label: "Other teachers" },
-  { id: "saved", label: "Saved" },
-  // Editors only (PresentationHome leaves it out for everyone else).
-  { id: "reviewed", label: "My reviews" },
+  { id: "mine", label: "Mine" },
 ] as const;
 
 export const SORTS = [
@@ -22,6 +20,14 @@ export const SORTS = [
   { id: "newest", label: "Newest" },
   { id: "title", label: "A–Z" },
 ] as const;
+
+// Cards per "Show more" step (search results and Other teachers).
+export const PAGE_SIZE = 20;
+// How many cards are shown: 20, 40, 60… at most 500. Anything else falls back to 20.
+export const shownSchema = z.coerce.number().int().min(PAGE_SIZE).max(500).multipleOf(PAGE_SIZE).catch(PAGE_SIZE);
+export function parseShown(params: Record<string, string | string[] | undefined>): number {
+  return shownSchema.parse(firstValues(params).shown);
+}
 
 const text = z.string().trim().max(SEARCH_MAX_LENGTH).catch("");
 // A value from the list, or "Other" for every value not on it ("" = any).
@@ -48,6 +54,7 @@ const homeSearchSchema = z.object({
   within: z.enum(optionIds(WITHIN)).catch("any"),
   in: z.enum(optionIds(LOOK_IN)).catch("all"),
   sort: z.enum(optionIds(SORTS)).catch("updated"),
+  shown: shownSchema,
 });
 
 export type HomeSearch = z.infer<typeof homeSearchSchema>;
