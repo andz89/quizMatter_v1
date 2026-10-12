@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { BanIcon, ShieldCheckIcon, UndoIcon } from "lucide-react";
 import { Spinner } from "@/components/Spinner";
+import { ConfirmModal } from "@/components/editor/ConfirmModal";
 import { BAN_REASON_MAX_LENGTH } from "@/lib/schema";
 import { banTeacher, setEditor, unbanTeacher } from "./actions";
 
@@ -44,6 +45,8 @@ function Row({ row }: { row: TeacherRow }) {
   const [isBusy, startTransition] = useTransition();
   // The reason being typed, while the ban form is open (null = closed).
   const [reason, setReason] = useState<string | null>(null);
+  // Which question is open: removing the editor role, or unbanning.
+  const [confirming, setConfirming] = useState<"editor" | "unban" | null>(null);
 
   const ban = (e: React.FormEvent) => {
     e.preventDefault();
@@ -56,7 +59,7 @@ function Row({ row }: { row: TeacherRow }) {
   };
 
   const toggleEditor = () => {
-    if (row.isEditor && !confirm(`Remove ${row.email} as editor? A review they have open is canceled.`)) return;
+    setConfirming(null);
     startTransition(async () => {
       const error = await setEditor(row.id, !row.isEditor);
       if (error) toast.error(error);
@@ -65,7 +68,7 @@ function Row({ row }: { row: TeacherRow }) {
   };
 
   const unban = () => {
-    if (!confirm(`Unban ${row.email}? They can log in and save again.`)) return;
+    setConfirming(null);
     startTransition(async () => {
       const error = await unbanTeacher(row.id);
       if (error) toast.error(error);
@@ -94,16 +97,39 @@ function Row({ row }: { row: TeacherRow }) {
           {isBusy && <Spinner size={16} />}
           {/* Also on banned rows: removing a banned editor ends the review they left open. */}
           {reason === null && (row.isEditor || !row.ban) && (
-            <button type="button" onClick={toggleEditor} disabled={isBusy} className={smallButtonClass}>
-              <ShieldCheckIcon size={14} />
-              {row.isEditor ? "Remove editor" : "Make editor"}
-            </button>
+            <>
+              <button type="button" onClick={() => (row.isEditor ? setConfirming("editor") : toggleEditor())} disabled={isBusy} className={smallButtonClass}>
+                <ShieldCheckIcon size={14} />
+                {row.isEditor ? "Remove editor" : "Make editor"}
+              </button>
+              {confirming === "editor" && (
+                <ConfirmModal
+                  title="Remove this editor?"
+                  message={`${row.email} won't be an editor anymore. A review they have open is canceled.`}
+                  confirmLabel="Remove editor"
+                  danger
+                  onConfirm={toggleEditor}
+                  onCancel={() => setConfirming(null)}
+                />
+              )}
+            </>
           )}
           {row.ban ? (
-            <button type="button" onClick={unban} disabled={isBusy} className={smallButtonClass}>
-              <UndoIcon size={14} />
-              Unban
-            </button>
+            <>
+              <button type="button" onClick={() => setConfirming("unban")} disabled={isBusy} className={smallButtonClass}>
+                <UndoIcon size={14} />
+                Unban
+              </button>
+              {confirming === "unban" && (
+                <ConfirmModal
+                  title="Unban this teacher?"
+                  message={`${row.email} can log in and save again.`}
+                  confirmLabel="Unban"
+                  onConfirm={unban}
+                  onCancel={() => setConfirming(null)}
+                />
+              )}
+            </>
           ) : (
             !row.isAdmin &&
             reason === null && (

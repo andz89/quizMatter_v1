@@ -1,10 +1,11 @@
 "use client";
 
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { ShieldOffIcon } from "lucide-react";
 import { LinkPending } from "@/components/LinkPending";
+import { ConfirmModal } from "@/components/editor/ConfirmModal";
 import { Spinner } from "@/components/Spinner";
 import { setEditor } from "../teachers/actions";
 
@@ -41,9 +42,10 @@ export function AdminEditors({ rows }: { rows: EditorRow[] }) {
 
 function Row({ row }: { row: EditorRow }) {
   const [isBusy, startTransition] = useTransition();
+  const [isConfirming, setIsConfirming] = useState(false);
 
   const remove = () => {
-    if (!confirm(`Remove ${row.email} as editor? A review they have open is canceled.`)) return;
+    setIsConfirming(false);
     startTransition(async () => {
       const error = await setEditor(row.id, false);
       if (error) toast.error(error);
@@ -65,10 +67,22 @@ function Row({ row }: { row: EditorRow }) {
 
         <div className="flex items-center gap-2">
           {isBusy && <Spinner size={16} />}
-          <button type="button" onClick={remove} disabled={isBusy} className={removeButtonClass}>
-            <ShieldOffIcon size={14} />
-            Remove as editor
-          </button>
+          <>
+            <button type="button" onClick={() => setIsConfirming(true)} disabled={isBusy} className={removeButtonClass}>
+              <ShieldOffIcon size={14} />
+              Remove as editor
+            </button>
+            {isConfirming && (
+              <ConfirmModal
+                title="Remove this editor?"
+                message={`${row.email} won't be an editor anymore. A review they have open is canceled.`}
+                confirmLabel="Remove editor"
+                danger
+                onConfirm={remove}
+                onCancel={() => setIsConfirming(false)}
+              />
+            )}
+          </>
         </div>
       </div>
 

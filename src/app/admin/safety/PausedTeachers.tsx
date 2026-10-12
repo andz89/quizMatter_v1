@@ -1,9 +1,10 @@
 "use client";
 
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import { UndoIcon } from "lucide-react";
 import { toast } from "sonner";
 import { Spinner } from "@/components/Spinner";
+import { ConfirmModal } from "@/components/editor/ConfirmModal";
 import { releasePause } from "./actions";
 
 export type PausedRow = {
@@ -48,14 +49,12 @@ export function PausedTeachers({ rows, repeatHours }: { rows: PausedRow[]; repea
 
 function Row({ row }: { row: PausedRow }) {
   const [isBusy, startTransition] = useTransition();
+  const [isConfirming, setIsConfirming] = useState(false);
   // The next time they reach the limit bans: shown in coral, so it stands out.
   const isLastChance = row.banAfter !== null && row.streak >= row.banAfter - 1;
 
   const release = () => {
-    const question = row.isPausedNow
-      ? `Release ${row.email}? Their pause ends now (an open page catches up within a minute) and their count starts again from 0.`
-      : `Reset ${row.email}'s count? It starts again from 0.`;
-    if (!confirm(question)) return;
+    setIsConfirming(false);
     startTransition(async () => {
       const error = await releasePause(row.userId, row.feature);
       if (error) toast.error(error);
@@ -87,15 +86,26 @@ function Row({ row }: { row: PausedRow }) {
 
       <div className="flex items-center gap-2">
         {isBusy && <Spinner size={16} />}
-        <button
-          type="button"
-          onClick={release}
-          disabled={isBusy}
-          className="inline-flex items-center gap-2 rounded-dropdown border border-border-default bg-bg-surface px-2.5 py-1.5 text-[13px] font-semibold text-text-primary transition-colors hover:bg-bg-page disabled:opacity-60"
-        >
-          <UndoIcon size={14} />
-          {row.isPausedNow ? "Release" : "Reset count"}
-        </button>
+        <>
+          <button
+            type="button"
+            onClick={() => setIsConfirming(true)}
+            disabled={isBusy}
+            className="inline-flex items-center gap-2 rounded-dropdown border border-border-default bg-bg-surface px-2.5 py-1.5 text-[13px] font-semibold text-text-primary transition-colors hover:bg-bg-page disabled:opacity-60"
+          >
+            <UndoIcon size={14} />
+            {row.isPausedNow ? "Release" : "Reset count"}
+          </button>
+          {isConfirming && (
+            <ConfirmModal
+              title={row.isPausedNow ? "Release this teacher?" : "Reset their count?"}
+              message={row.isPausedNow ? `${row.email}'s pause ends now (an open page catches up within a minute) and their count starts again from 0.` : `${row.email}'s count starts again from 0.`}
+              confirmLabel={row.isPausedNow ? "Release" : "Reset count"}
+              onConfirm={release}
+              onCancel={() => setIsConfirming(false)}
+            />
+          )}
+        </>
       </div>
     </div>
   );

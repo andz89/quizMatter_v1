@@ -1,10 +1,11 @@
 "use client";
 
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { EyeIcon, EyeOffIcon, Trash2Icon } from "lucide-react";
 import { Spinner } from "@/components/Spinner";
+import { ConfirmModal } from "@/components/editor/ConfirmModal";
 import { deleteReportedPresentation, dismissReports, setHidden } from "./actions";
 
 export type ReportedRow = {
@@ -66,6 +67,8 @@ function Row({ row }: { row: ReportedRow }) {
       else toast.success(row.isHidden ? "Shown again — teachers can see it." : "Hidden — only its owner can see it now.");
     });
 
+  const [isConfirming, setIsConfirming] = useState(false);
+
   const dismiss = () =>
     startTransition(async () => {
       if (await dismissReports(row.id)) toast.success("Reports dismissed.");
@@ -73,7 +76,7 @@ function Row({ row }: { row: ReportedRow }) {
     });
 
   const remove = () => {
-    if (!confirm(`Delete "${row.title}"? Its owner loses it too. This can't be undone.`)) return;
+    setIsConfirming(false);
     startTransition(async () => {
       const error = await deleteReportedPresentation(row.id);
       if (error) toast.error(error);
@@ -109,16 +112,28 @@ function Row({ row }: { row: ReportedRow }) {
               Dismiss
             </button>
           )}
-          <button
-            type="button"
-            onClick={remove}
-            disabled={isBusy}
-            title="Delete presentation"
-            aria-label={`Delete ${row.title}`}
-            className="rounded-dropdown p-1.5 text-danger-strong transition-colors hover:bg-danger-soft disabled:opacity-60"
-          >
-            <Trash2Icon size={16} />
-          </button>
+          <>
+            <button
+              type="button"
+              onClick={() => setIsConfirming(true)}
+              disabled={isBusy}
+              title="Delete presentation"
+              aria-label={`Delete ${row.title}`}
+              className="rounded-dropdown p-1.5 text-danger-strong transition-colors hover:bg-danger-soft disabled:opacity-60"
+            >
+              <Trash2Icon size={16} />
+            </button>
+            {isConfirming && (
+              <ConfirmModal
+                title="Delete this presentation?"
+                message={`"${row.title}" is deleted for good. Its owner loses it too. This can't be undone.`}
+                confirmLabel="Delete"
+                danger
+                onConfirm={remove}
+                onCancel={() => setIsConfirming(false)}
+              />
+            )}
+          </>
         </div>
       </div>
 

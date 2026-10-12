@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { Spinner } from "@/components/Spinner";
+import { ConfirmModal } from "@/components/editor/ConfirmModal";
 import { SUBMISSION_LABELS } from "@/lib/submissions";
 import { removePresentations } from "../actions";
 import { FolderIcon, GlobeIcon, SearchIcon, Trash2Icon } from "lucide-react";
@@ -66,6 +67,7 @@ export function PresentationList({ rows, folders }: { rows: PresentationRow[]; f
   const [search, setSearch] = useState("");
   const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
   const [isDeleting, startDeleting] = useTransition();
+  const [isConfirming, setIsConfirming] = useState(false);
 
   const query = search.trim().toLowerCase();
   const shown = rows.filter(
@@ -87,8 +89,7 @@ export function PresentationList({ rows, folders }: { rows: PresentationRow[]; f
   const toggleAll = () => setCheckedIds(new Set(allChecked ? [] : checkable.map((row) => row.id)));
 
   const deleteChecked = () => {
-    const count = checked.length;
-    if (!confirm(`Delete ${count} ${count === 1 ? "presentation" : "presentations"}? This can't be undone.`)) return;
+    setIsConfirming(false);
     startDeleting(async () => {
       if (await removeRows(checked)) setCheckedIds(new Set());
       else alert("Couldn't delete some presentations. Please try again.");
@@ -158,15 +159,27 @@ export function PresentationList({ rows, folders }: { rows: PresentationRow[]; f
           >
             Clear
           </button>
-          <button
-            type="button"
-            onClick={deleteChecked}
-            disabled={isDeleting}
-            className="ml-auto flex items-center gap-2 rounded-button bg-accent btn-press px-4 py-2 text-sm font-semibold text-white hover:bg-accent-hover disabled:opacity-60"
-          >
-            {isDeleting && <Spinner size={14} />}
-            {isDeleting ? "Deleting…" : "Delete"}
-          </button>
+          <>
+            <button
+              type="button"
+              onClick={() => setIsConfirming(true)}
+              disabled={isDeleting}
+              className="ml-auto flex items-center gap-2 rounded-button bg-accent btn-press px-4 py-2 text-sm font-semibold text-white hover:bg-accent-hover disabled:opacity-60"
+            >
+              {isDeleting && <Spinner size={14} />}
+              {isDeleting ? "Deleting…" : "Delete"}
+            </button>
+            {isConfirming && (
+              <ConfirmModal
+                title={`Delete ${checked.length} ${checked.length === 1 ? "presentation" : "presentations"}?`}
+                message="They're deleted for good. This can't be undone."
+                confirmLabel="Delete"
+                danger
+                onConfirm={deleteChecked}
+                onCancel={() => setIsConfirming(false)}
+              />
+            )}
+          </>
         </div>
       )}
 
@@ -227,13 +240,13 @@ function PresentationListRow({
   isBeingDeleted: boolean;
 }) {
   const [isRemoving, startRemoving] = useTransition();
+  const [isConfirmingRemove, setIsConfirmingRemove] = useState(false);
   const isDraft = row.status === "draft";
   const href = isDraft ? `/presentation/new?draft=${row.id}` : `/presentation/${row.id}/edit`;
   const titleClass = "block truncate text-sm";
 
   const remove = () => {
-    const question = isDraft ? `Discard "${row.title}"? Claude's draft will be deleted.` : `Delete "${row.title}"? This can't be undone.`;
-    if (!confirm(question)) return;
+    setIsConfirmingRemove(false);
     startRemoving(async () => {
       if (!(await removeRows([row]))) alert("Couldn't delete the presentation. Please try again.");
     });
@@ -306,15 +319,27 @@ function PresentationListRow({
               <Spinner size={16} />
             </span>
           ) : (
-            <button
-              type="button"
-              onClick={remove}
-              title={isDraft ? "Discard draft" : "Delete presentation"}
-              aria-label={`${isDraft ? "Discard" : "Delete"} ${row.title}`}
-              className="rounded-dropdown p-1.5 text-text-primary transition-colors hover:bg-border-default"
-            >
-              <Trash2Icon size={16} />
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={() => setIsConfirmingRemove(true)}
+                title={isDraft ? "Discard draft" : "Delete presentation"}
+                aria-label={`${isDraft ? "Discard" : "Delete"} ${row.title}`}
+                className="rounded-dropdown p-1.5 text-text-primary transition-colors hover:bg-border-default"
+              >
+                <Trash2Icon size={16} />
+              </button>
+              {isConfirmingRemove && (
+                <ConfirmModal
+                  title={isDraft ? "Discard this draft?" : "Delete this presentation?"}
+                  message={isDraft ? `Claude's draft "${row.title}" will be deleted.` : `"${row.title}" is deleted for good. This can't be undone.`}
+                  confirmLabel={isDraft ? "Discard" : "Delete"}
+                  danger
+                  onConfirm={remove}
+                  onCancel={() => setIsConfirmingRemove(false)}
+                />
+              )}
+            </>
           )}
         </span>
       </div>

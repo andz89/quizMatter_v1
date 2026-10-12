@@ -4,6 +4,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { deletePhotoFile, keepPhoto, type PhotoCategory } from "@/lib/photos";
 import { PhotoThumbnail } from "@/components/editor/PhotoTile";
+import { ConfirmModal } from "@/components/editor/ConfirmModal";
 import { Spinner } from "@/components/Spinner";
 import { ViewToggle, useView, type View } from "../ViewToggle";
 import { findCleanupFiles } from "./actions";
@@ -132,9 +133,10 @@ function FileItem({ file, view, categories, onDone }: { file: CleanupFile; view:
   const [categoryId, setCategoryId] = useState(categories[0]?.id ?? "");
   const [isKeeping, setIsKeeping] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isConfirming, setIsConfirming] = useState(false);
 
   const handleDelete = async () => {
-    if (!confirm("Delete this photo forever? This can't be undone.")) return;
+    setIsConfirming(false);
     setIsDeleting(true);
     const error = await deletePhotoFile(file.src);
     if (error) {
@@ -195,16 +197,28 @@ function FileItem({ file, view, categories, onDone }: { file: CleanupFile; view:
         {isKeeping && <Spinner size={14} />}
         {isWebp ? "Keep" : "Keep in My photos"}
       </button>
-      <button
-        type="button"
-        onClick={handleDelete}
-        disabled={isKeeping || isDeleting}
-        title="Delete the file now (only if nothing uses it)"
-        className="flex shrink-0 items-center justify-center gap-2 rounded-button border border-danger px-3 py-1.5 text-sm font-semibold text-danger-strong transition-colors hover:bg-danger-soft disabled:opacity-40"
-      >
-        {isDeleting ? <Spinner size={14} /> : <Trash2Icon size={14} />}
-        Delete
-      </button>
+      <>
+        <button
+          type="button"
+          onClick={() => setIsConfirming(true)}
+          disabled={isKeeping || isDeleting}
+          title="Delete the file now (only if nothing uses it)"
+          className="flex shrink-0 items-center justify-center gap-2 rounded-button border border-danger px-3 py-1.5 text-sm font-semibold text-danger-strong transition-colors hover:bg-danger-soft disabled:opacity-40"
+        >
+          {isDeleting ? <Spinner size={14} /> : <Trash2Icon size={14} />}
+          Delete
+        </button>
+        {isConfirming && (
+          <ConfirmModal
+            title="Delete this photo?"
+            message="It's deleted forever. This can't be undone."
+            confirmLabel="Delete"
+            danger
+            onConfirm={handleDelete}
+            onCancel={() => setIsConfirming(false)}
+          />
+        )}
+      </>
     </div>
   );
 

@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { Spinner } from "@/components/Spinner";
+import { ConfirmModal } from "@/components/editor/ConfirmModal";
 import { FluidSlidePreview } from "@/components/presentation/FluidSlidePreview";
 import { CANVAS_WIDTH, CANVAS_HEIGHT, getSlideNumbers } from "@/lib/constants";
 import { joinParts } from "@/lib/format";
@@ -162,6 +163,7 @@ function Row({
   const [isRemoving, startRemoving] = useTransition();
   const [isOpening, startOpening] = useTransition();
   const [isReviewersOpen, setIsReviewersOpen] = useState(false);
+  const [isConfirming, setIsConfirming] = useState(false);
 
   const toggleShared = () =>
     startSharing(async () => {
@@ -182,10 +184,7 @@ function Row({
   const isChecking = row.claudeDraft === "checking";
 
   const remove = () => {
-    const question = isClaudeDraft
-      ? `Discard "${row.title}"? Claude's draft will be deleted.`
-      : `Delete "${row.title}"? Teachers won't see it anymore. This can't be undone.`;
-    if (!confirm(question)) return;
+    setIsConfirming(false);
     startRemoving(async () => {
       const removed = isClaudeDraft
         ? await removePresentations([], [row.id])
@@ -337,15 +336,27 @@ function Row({
             // Under review it can't be deleted (the database refuses it too).
             <span />
           ) : (
-            <button
-              type="button"
-              onClick={remove}
-              title="Delete presentation"
-              aria-label={`Delete ${row.title}`}
-              className="rounded-dropdown p-1.5 text-text-primary transition-colors hover:bg-border-default"
-            >
-              <Trash2Icon size={16} />
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={() => setIsConfirming(true)}
+                title="Delete presentation"
+                aria-label={`Delete ${row.title}`}
+                className="rounded-dropdown p-1.5 text-text-primary transition-colors hover:bg-border-default"
+              >
+                <Trash2Icon size={16} />
+              </button>
+              {isConfirming && (
+                <ConfirmModal
+                  title={isClaudeDraft ? "Discard this draft?" : "Delete this presentation?"}
+                  message={isClaudeDraft ? `Claude's draft "${row.title}" will be deleted.` : `Teachers won't see "${row.title}" anymore. This can't be undone.`}
+                  confirmLabel={isClaudeDraft ? "Discard" : "Delete"}
+                  danger
+                  onConfirm={remove}
+                  onCancel={() => setIsConfirming(false)}
+                />
+              )}
+            </>
           )}
         </span>
       </div>

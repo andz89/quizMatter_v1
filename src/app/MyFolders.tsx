@@ -5,6 +5,7 @@ import { useDndMonitor, useDraggable, useDroppable } from "@dnd-kit/core";
 import { toast } from "sonner";
 import { ArrowLeftIcon, CheckIcon, EllipsisVerticalIcon, FolderIcon, FolderPlusIcon, ListChecksIcon } from "lucide-react";
 import { Modal } from "@/components/Modal";
+import { ConfirmModal } from "@/components/editor/ConfirmModal";
 import { Spinner } from "@/components/Spinner";
 import { FOLDER_NAME_MAX, type Folder } from "@/lib/folders";
 import { createFolder, deleteFolder, moveToFolder, renameFolder } from "./folderActions";
@@ -195,6 +196,7 @@ export function FolderHeader({ folder, isMovingOut, onBack }: { folder: Folder; 
   const { setNodeRef, isOver } = useDroppable({ id: folderDropId("") });
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isRenaming, setIsRenaming] = useState(false);
+  const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
   const [isDeleting, startDeleting] = useTransition();
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -216,8 +218,7 @@ export function FolderHeader({ folder, isMovingOut, onBack }: { folder: Folder; 
   }, [isMenuOpen]);
 
   const remove = () => {
-    setIsMenuOpen(false);
-    if (!confirm(`Delete the folder "${folder.name}"? Its presentations are kept: they go back to My presentations.`)) return;
+    setIsConfirmingDelete(false);
     startDeleting(async () => {
       const error = await deleteFolder(folder.id);
       if (error) toast.error(error);
@@ -275,7 +276,14 @@ export function FolderHeader({ folder, isMovingOut, onBack }: { folder: Folder; 
             >
               Rename
             </button>
-            <button type="button" onClick={remove} className={itemClass}>
+            <button
+              type="button"
+              onClick={() => {
+                setIsMenuOpen(false);
+                setIsConfirmingDelete(true);
+              }}
+              className={itemClass}
+            >
               Delete folder
             </button>
           </div>
@@ -289,6 +297,16 @@ export function FolderHeader({ folder, isMovingOut, onBack }: { folder: Folder; 
           onSave={(name) => renameFolder(folder.id, name)}
           savedMessage="Folder renamed."
           onClose={() => setIsRenaming(false)}
+        />
+      )}
+      {isConfirmingDelete && (
+        <ConfirmModal
+          title="Delete this folder?"
+          message={`The folder "${folder.name}" is deleted. Its presentations are kept: they go back to My presentations.`}
+          confirmLabel="Delete folder"
+          danger
+          onConfirm={remove}
+          onCancel={() => setIsConfirmingDelete(false)}
         />
       )}
     </div>

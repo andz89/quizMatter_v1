@@ -2,8 +2,10 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEditorStore } from "@/lib/store";
 import { useFormatTexts } from "@/lib/useFormatTexts";
+import { ConfirmModal } from "./ConfirmModal";
 import { DetailsModal } from "./DetailsModal";
 import { SelectedElementToolbar } from "./SelectedElementToolbar";
 import { TextFormatToolbar } from "./TextFormatToolbar";
@@ -78,18 +80,40 @@ function BackToPresentationsLink() {
   // presentation's page.
   const fromAdmin = useEditorStore((s) => s.presentation.fromAdmin);
   const reviewId = useEditorStore((s) => (s.review ? s.presentation.id : null));
+  const router = useRouter();
+  const [isConfirming, setIsConfirming] = useState(false);
+  const href = reviewId ? `/presentation/${reviewId}` : fromAdmin ? "/admin/presentations" : "/";
   return (
-    <Link
-      href={reviewId ? `/presentation/${reviewId}` : fromAdmin ? "/admin/presentations" : "/"}
-      title={reviewId ? "Back to the presentation" : fromAdmin ? "QuizMatter presentations" : "My presentations"}
-      onClick={(e) => {
-        const { presentation, savedPresentation } = useEditorStore.getState();
-        if (presentation !== savedPresentation && !confirm("You have unsaved changes. Leave without saving?")) e.preventDefault();
-      }}
-      className={historyButtonClass}
-    >
-      <ChevronLeftIcon size={18} />
-    </Link>
+    <>
+      <Link
+        href={href}
+        title={reviewId ? "Back to the presentation" : fromAdmin ? "QuizMatter presentations" : "My presentations"}
+        onClick={(e) => {
+          const { presentation, savedPresentation } = useEditorStore.getState();
+          // Unsaved: stay, and ask first.
+          if (presentation === savedPresentation) return;
+          e.preventDefault();
+          setIsConfirming(true);
+        }}
+        className={historyButtonClass}
+      >
+        <ChevronLeftIcon size={18} />
+      </Link>
+      {isConfirming && (
+        <ConfirmModal
+          title="Leave without saving?"
+          message="You have unsaved changes. They're lost if you leave now."
+          confirmLabel="Leave"
+          danger
+          onConfirm={() => {
+            // An in-app move, so the browser's own "Leave page?" doesn't ask a second time.
+            setIsConfirming(false);
+            router.push(href);
+          }}
+          onCancel={() => setIsConfirming(false)}
+        />
+      )}
+    </>
   );
 }
 

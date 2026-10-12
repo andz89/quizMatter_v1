@@ -32,7 +32,8 @@ export function PresentationCardMenu({
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [isBusy, setIsBusy] = useState(false);
-  const [isConfirmingSubmit, setIsConfirmingSubmit] = useState(false);
+  // Which question is open (the menu closes first, so the box sits outside it).
+  const [confirming, setConfirming] = useState<"submit" | "delete" | "move" | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const isDraft = card.badge === "draft" || card.badge === "checking" || card.badge === "unfinished";
   // Waiting for QuizMatter: locked (see the quizmatter_submissions migration).
@@ -79,9 +80,7 @@ export function PresentationCardMenu({
   };
 
   const remove = async () => {
-    setIsOpen(false);
-    const question = isDraft ? `Remove "${card.title}"? Claude's draft will be deleted.` : `Delete "${card.title}"? This can't be undone.`;
-    if (!confirm(question)) return;
+    setConfirming(null);
     setIsBusy(true);
     // On success the page reloads its list and this card goes away.
     const ok = await removePresentations(isDraft ? [] : [card.id], isDraft ? [card.id] : []);
@@ -90,9 +89,7 @@ export function PresentationCardMenu({
   };
 
   const moveToAdminList = async () => {
-    setIsOpen(false);
-    const question = `Move "${card.title}" to QuizMatter presentations (Admin → Presentations)? It goes there as a draft: teachers only get it after you share it.`;
-    if (!confirm(question)) return;
+    setConfirming(null);
     setIsBusy(true);
     // On success the page reloads its list and this card goes away.
     const ok = await moveToQuizMatter(card.id);
@@ -102,7 +99,7 @@ export function PresentationCardMenu({
   };
 
   const submit = async () => {
-    setIsConfirmingSubmit(false);
+    setConfirming(null);
     setIsBusy(true);
     // On success the page reloads its list and the card says "Waiting for QuizMatter".
     const error = await submitToQuizMatter(card.id);
@@ -158,7 +155,14 @@ export function PresentationCardMenu({
             </button>
           )}
           {card.canMoveToQuizMatter && (
-            <button type="button" onClick={moveToAdminList} className={itemClass}>
+            <button
+              type="button"
+              onClick={() => {
+                setIsOpen(false);
+                setConfirming("move");
+              }}
+              className={itemClass}
+            >
               Move to QuizMatter
             </button>
           )}
@@ -167,7 +171,7 @@ export function PresentationCardMenu({
               type="button"
               onClick={() => {
                 setIsOpen(false);
-                setIsConfirmingSubmit(true);
+                setConfirming("submit");
               }}
               className={itemClass}
             >
@@ -175,19 +179,45 @@ export function PresentationCardMenu({
             </button>
           )}
           {!isWaiting && (
-            <button type="button" onClick={remove} className={itemClass}>
+            <button
+              type="button"
+              onClick={() => {
+                setIsOpen(false);
+                setConfirming("delete");
+              }}
+              className={itemClass}
+            >
               {isDraft ? "Remove" : "Delete"}
             </button>
           )}
         </div>
       )}
-      {isConfirmingSubmit && (
+      {confirming === "submit" && (
         <ConfirmModal
           title="Send it to QuizMatter?"
           message={`An admin will check "${card.title}". Until they decide, you can't change or delete it. If they approve it, QuizMatter gets its own copy, shared with every teacher, with you as the Author.`}
           confirmLabel="Submit"
           onConfirm={submit}
-          onCancel={() => setIsConfirmingSubmit(false)}
+          onCancel={() => setConfirming(null)}
+        />
+      )}
+      {confirming === "delete" && (
+        <ConfirmModal
+          title={isDraft ? "Remove this draft?" : "Delete this presentation?"}
+          message={isDraft ? `Claude's draft "${card.title}" will be deleted.` : `"${card.title}" is deleted for good. This can't be undone.`}
+          confirmLabel={isDraft ? "Remove" : "Delete"}
+          danger
+          onConfirm={remove}
+          onCancel={() => setConfirming(null)}
+        />
+      )}
+      {confirming === "move" && (
+        <ConfirmModal
+          title="Move it to QuizMatter?"
+          message={`"${card.title}" goes to QuizMatter presentations (Admin → Presentations) as a draft: teachers only get it after you share it.`}
+          confirmLabel="Move to QuizMatter"
+          onConfirm={moveToAdminList}
+          onCancel={() => setConfirming(null)}
         />
       )}
     </div>
