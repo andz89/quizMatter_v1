@@ -43,8 +43,9 @@ Each is a full `create or replace` of the newest version with only these additio
 
 ## Where they show
 
-- **Preview page** (`PresentationPreview.tsx`) and **review draft view** (`ReviewDraftView.tsx`): "Week" and
-  "Day" rows in the details list.
+- **Preview page** (`PresentationPreview.tsx`), the reviewer's submitted view and the admin's review page: in the
+  line under the title, where grade and subject already show (`Grade 3 · Science · Week 3 · Day 2 · 12 slides`).
+  One `detailsLabel` helper in `format.ts` builds the grade · subject · week · day part for every card and header.
 - **Card meta line** (home page, editor's Presentations panel, My presentations, Admin → Presentations), and for
   Claude's drafts too (`drafts.ts` reads them from the recipe): e.g.
   `Grade 3 · Science · Week 3 · Day 2 · 12 slides`. Empty parts are left out.
