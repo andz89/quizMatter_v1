@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ClipboardCheckIcon } from "lucide-react";
+import { ClipboardCheckIcon, InboxIcon } from "lucide-react";
 import { LinkPending } from "@/components/LinkPending";
 import { getAccount } from "@/lib/account";
 import { listDrafts, type DraftSummary } from "@/lib/drafts";
@@ -20,7 +20,7 @@ export default async function AdminPresentationsPage() {
   // The layout checks too, but a layout doesn't run again on every request, so the page checks next to its data.
   if (!account.isAdmin) notFound();
   const supabase = await createClient();
-  const [drafts, { data, error }, reviews, reviewers] = await Promise.all([
+  const [drafts, { data, error }, reviews, reviewers, submissions] = await Promise.all([
     listDrafts(account.id),
     supabase
       .from("presentations")
@@ -34,10 +34,13 @@ export default async function AdminPresentationsPage() {
     supabase.from("presentation_reviews").select("presentation_id, status, open_to_all"),
     // Everyone whose review an admin published, with the admin who approved it (the Review column).
     supabase.rpc("admin_reviewers"),
+    // Editors' presentations waiting for QuizMatter (see the quizmatter_submissions migration).
+    supabase.rpc("admin_submissions"),
   ]);
   if (error) throw error;
   if (reviews.error) throw reviews.error;
   if (reviewers.error) throw reviewers.error;
+  if (submissions.error) throw submissions.error;
   const reviewById = new Map(reviews.data.map((row) => [row.presentation_id as string, row as ReviewRow]));
   const reviewersById = new Map<string, ApprovedReviewer[]>();
   for (const row of reviewers.data as AdminReviewerRow[]) {
@@ -66,6 +69,14 @@ export default async function AdminPresentationsPage() {
         >
           <ClipboardCheckIcon size={16} />
           Under review{openReviews > 0 && ` (${openReviews})`}
+          <LinkPending />
+        </Link>
+        <Link
+          href="/admin/presentations/submissions"
+          className="inline-flex items-center gap-2 rounded-button border border-border-default bg-bg-surface px-4 py-2 text-sm font-semibold text-text-primary transition-colors hover:bg-bg-page"
+        >
+          <InboxIcon size={16} />
+          Submissions{submissions.data.length > 0 && ` (${submissions.data.length})`}
           <LinkPending />
         </Link>
         <NewPresentationButton author={QUIZMATTER_NAME} fromAdmin />

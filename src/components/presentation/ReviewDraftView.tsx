@@ -6,9 +6,18 @@ import type { Presentation, ReviewerFields } from "@/lib/schema";
 
 /**
  * A review's draft, view only: the "Reviewed by" details, the presentation's details, and every slide as a
- * picture. Used by the admin's review page and by the reviewer's page once they've submitted.
+ * picture. Used by the admin's review page and by the reviewer's page once they've submitted, and by the admin's
+ * Submissions page (`byLabel` "Submitted by": the editor who sent it to QuizMatter).
  */
-export function ReviewDraftView({ presentation, fields }: { presentation: Presentation; fields: ReviewerFields }) {
+export function ReviewDraftView({
+  presentation,
+  fields,
+  byLabel = "Reviewed by",
+}: {
+  presentation: Presentation;
+  fields: ReviewerFields;
+  byLabel?: string;
+}) {
   const slideNumbers = getSlideNumbers(presentation.slides);
   const details = [
     { label: "Description", value: presentation.description },
@@ -22,7 +31,7 @@ export function ReviewDraftView({ presentation, fields }: { presentation: Presen
     <>
       <dl className="mb-6 grid gap-4 rounded-card border border-border-default bg-bg-surface px-5 py-4 text-sm">
         <div>
-          <dt className="text-[11px] font-bold tracking-[0.05em] text-text-header uppercase">Reviewed by</dt>
+          <dt className="text-[11px] font-bold tracking-[0.05em] text-text-header uppercase">{byLabel}</dt>
           <dd className="mt-1 text-text-primary">
             <span className="font-semibold">{fields.name}</span>
             <span className="text-text-secondary">
