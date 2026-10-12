@@ -118,7 +118,11 @@ note with `reviewNoteSchema`), and every action shows a sonner toast when it wor
   page (like a locked review), with a notice: *"Submitted to QuizMatter on {date}. You can change it again once an
   admin decides."* When `sent_back`, the editor opens normally, with a notice at the top showing the admin's note
   and a "Submit again" button.
-- **My reviews page** (`/reviews`) shows **two tables**, in the same style as the tables in Admin → Safety
+- **The home tab is renamed "Reviews & submissions"** (was "My reviews", in `HomeTabs.tsx`), since it now holds
+  both. Its address moves from `/reviews` to `/reviews-submissions` (the folder `src/app/(home)/reviews` becomes
+  `src/app/(home)/reviews-submissions`; every link to `/reviews` is updated, and the CLAUDE.md "Presentation
+  Reviews" section is updated to the new name and path). Still editors only.
+- **That page** shows **two tables**, in the same style as the tables in Admin → Safety
   (uppercase `text-text-header` column headers, rows split by `border-border-default`, inside a `rounded-card`
   white card; the table scrolls sideways on narrow phones instead of breaking the page):
   - **My reviews**: `ReviewRows` (`src/app/MyReviews.tsx`) becomes a table instead of a list, one table for the
