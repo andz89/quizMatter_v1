@@ -41,6 +41,11 @@ export function withinSince(within: (typeof WITHIN)[number]["id"]): number {
  * A "contains this text" (ilike) pattern. Characters that mean something to the database (like % or a comma)
  * become _, which matches any one letter. So "50%" still finds "50%", and can't break the query.
  */
+/** The separate words of a search, e.g. "adding  fractions" → ["adding", "fractions"]. */
+export function searchWords(text: string): string[] {
+  return text.split(/\s+/).filter(Boolean);
+}
+
 export function contains(text: string): string {
   return `%${text.replace(/[%_*,()"\\]/g, "_")}%`;
 }

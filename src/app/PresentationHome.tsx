@@ -10,7 +10,7 @@ import { snapCenterToCursor } from "@dnd-kit/modifiers";
 import { toast } from "sonner";
 import { useEditorStore } from "@/lib/store";
 import type { Folder } from "@/lib/folders";
-import { GRADES, OTHER_CHOICE, SUBJECTS, isOtherSubject } from "@/lib/schema";
+import { DAYS, GRADES, OTHER_CHOICE, SUBJECTS, WEEKS, isOtherSubject } from "@/lib/schema";
 import { LinkPending } from "@/components/LinkPending";
 import { SearchField, SearchForm, SearchSelect, SearchTextInput } from "@/components/SearchForm";
 import { PresentationCard, type PresentationCardData } from "./PresentationCard";
@@ -484,6 +484,28 @@ function HomeSearchForm({ search, isEditor }: { search: HomeSearch; isEditor: bo
             { id: OTHER_CHOICE, label: OTHER_CHOICE },
           ]}
           onChange={(grade) => set({ grade })}
+        />
+      </SearchField>
+      <SearchField label="Week">
+        <SearchSelect
+          value={values.week}
+          options={[
+            { id: "", label: "Any week" },
+            ...WEEKS.map((week) => ({ id: week, label: week })),
+            { id: OTHER_CHOICE, label: OTHER_CHOICE },
+          ]}
+          onChange={(week) => set({ week })}
+        />
+      </SearchField>
+      <SearchField label="Day">
+        <SearchSelect
+          value={values.day}
+          options={[
+            { id: "", label: "Any day" },
+            ...DAYS.map((day) => ({ id: day, label: day })),
+            { id: OTHER_CHOICE, label: OTHER_CHOICE },
+          ]}
+          onChange={(day) => set({ day })}
         />
       </SearchField>
       <SearchField label="Changed within">

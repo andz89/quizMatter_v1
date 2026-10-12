@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { GRADES, OTHER_CHOICE, SUBJECTS } from "@/lib/schema";
+import { DAYS, GRADES, OTHER_CHOICE, SUBJECTS, WEEKS } from "@/lib/schema";
 import { SEARCH_MAX_LENGTH, WITHIN, firstValues, optionIds, searchQuery, withinSince } from "@/lib/search";
 
 // The home page's search lives in the page link (e.g. /?q=fractions&grade=Grade+3), so Back and shared links
@@ -24,20 +24,27 @@ export const SORTS = [
 ] as const;
 
 const text = z.string().trim().max(SEARCH_MAX_LENGTH).catch("");
+// A value from the list, or "Other" for every value not on it ("" = any).
+const listChoice = (list: readonly string[]) =>
+  z.string().refine((value) => value === "" || value === OTHER_CHOICE || list.includes(value)).catch("");
 
 // Anything odd in the link (too long, unknown value) falls back to the default instead of breaking the page.
 const homeSearchSchema = z.object({
-  // "Includes the words": found in the title, subject, week, day, author or tags.
+  // "Includes the words": each word found somewhere in the title, subject, week, day, curriculum, learning competency,
+  // author or tags, in any order.
   q: text,
   title: text,
   // A list subject, or "Other" for every subject not on the list.
   subject: z.union([z.enum(SUBJECTS), z.literal(OTHER_CHOICE), z.literal("")]).catch(""),
   author: text,
   tags: text,
-  // "Doesn't have": not in the title, subject, week, day, author or tags.
+  // "Doesn't have": none of these words in the title, subject, week, day, curriculum, learning competency, author or tags.
   not: text,
   // A list grade, or "Other" for every grade not on the list.
   grade: z.union([z.enum(GRADES), z.literal(OTHER_CHOICE), z.literal("")]).catch(""),
+  // A list week or day, or "Other" for every one not on the list.
+  week: listChoice(WEEKS),
+  day: listChoice(DAYS),
   within: z.enum(optionIds(WITHIN)).catch("any"),
   in: z.enum(optionIds(LOOK_IN)).catch("all"),
   sort: z.enum(optionIds(SORTS)).catch("updated"),

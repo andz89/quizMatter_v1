@@ -485,6 +485,8 @@ function isOwnChoice(list: readonly string[], value: string): boolean {
 
 export const isOtherGrade = (grade: string) => isOwnChoice(GRADES, grade);
 export const isOtherSubject = (subject: string) => isOwnChoice(SUBJECTS, subject);
+export const isOtherWeek = (week: string) => isOwnChoice(WEEKS, week);
+export const isOtherDay = (day: string) => isOwnChoice(DAYS, day);
 
 // A list value typed in another case ("science", "grade 3") is saved with the list's spelling ("Science",
 // "Grade 3"), so the home page's chips and search find it.

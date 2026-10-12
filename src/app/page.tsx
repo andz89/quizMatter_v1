@@ -5,8 +5,8 @@ import { createClient } from "@/lib/supabase/server";
 import { listDrafts, type DraftSummary } from "@/lib/drafts";
 import { loadPublisherNames } from "@/lib/publishers";
 import { creditLines, detailsLabel, joinParts, slideCountLabel, timeAgo } from "@/lib/format";
-import { GRADES, OTHER_CHOICE, SUBJECTS, gradesTitle, isOtherGrade, isOtherSubject, parseSlide } from "@/lib/schema";
-import { contains } from "@/lib/search";
+import { DAYS, GRADES, OTHER_CHOICE, SUBJECTS, WEEKS, gradesTitle, isOtherDay, isOtherGrade, isOtherSubject, isOtherWeek, parseSlide } from "@/lib/schema";
+import { contains, searchWords } from "@/lib/search";
 import { NewPresentationButton } from "./PresentationListButtons";
 import { PresentationHome } from "./PresentationHome";
 import type { MyReviewRow } from "./MyReviews";
@@ -79,29 +79,24 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
     let query = sections[section]();
     if (ids) query = query.in("id", ids);
     if (isSearching) {
-      if (search.q) {
-        const pattern = contains(search.q);
-        query = query.or(`title.ilike.${pattern},subject.ilike.${pattern},week.ilike.${pattern},day.ilike.${pattern},author.ilike.${pattern},tags_text.ilike.${pattern}`);
-      }
+      // search_text: every searched detail as one line of text (see the presentation_search_text migration). Each
+      // word must be in it somewhere, in any order: "adding fractions" finds "Fractions: adding and subtracting".
+      for (const word of searchWords(search.q)) query = query.ilike("search_text", contains(word));
       if (search.title) query = query.ilike("title", contains(search.title));
       if (search.subject === OTHER_CHOICE) query = query.neq("subject", "").not("subject", "in", inList(SUBJECTS));
       else if (search.subject) query = query.eq("subject", search.subject);
       if (search.author) query = query.ilike("author", contains(search.author));
       // tags_text: the tags as one line of text, so part of a tag is found too (see the presentation_tags migration).
       if (search.tags) query = query.ilike("tags_text", contains(search.tags));
-      if (search.not) {
-        const pattern = contains(search.not);
-        query = query
-          .not("title", "ilike", pattern)
-          .not("subject", "ilike", pattern)
-          .not("week", "ilike", pattern)
-          .not("day", "ilike", pattern)
-          .not("author", "ilike", pattern)
-          .not("tags_text", "ilike", pattern);
-      }
+      // None of these words anywhere.
+      for (const word of searchWords(search.not)) query = query.not("search_text", "ilike", contains(word));
       // Has a grade not on the list (its grades aren't all list grades); or includes this grade.
       if (search.grade === OTHER_CHOICE) query = query.not("grades", "cd", `{${GRADES.map((grade) => `"${grade}"`).join(",")}}`);
       else if (search.grade) query = query.contains("grades", [search.grade]);
+      if (search.week === OTHER_CHOICE) query = query.neq("week", "").not("week", "in", inList(WEEKS));
+      else if (search.week) query = query.eq("week", search.week);
+      if (search.day === OTHER_CHOICE) query = query.neq("day", "").not("day", "in", inList(DAYS));
+      else if (search.day) query = query.eq("day", search.day);
       if (since) query = query.gte("updated_at", new Date(since).toISOString());
       limit = SEARCH_LIMIT;
     }
@@ -234,15 +229,17 @@ function BlockedHome() {
  */
 function draftMatches(draft: DraftSummary, search: HomeSearch, since: number): boolean {
   const has = (text: string, part: string) => text.toLowerCase().includes(part.toLowerCase());
-  const details = `${draft.title} ${draft.subject} ${draft.week} ${draft.day} ${draft.tags}`;
+  const details = `${draft.title} ${draft.subject} ${draft.week} ${draft.day} ${draft.curriculum} ${draft.learningCompetency} ${draft.tags}`;
   return (
-    has(details, search.q) &&
+    searchWords(search.q).every((word) => has(details, word)) &&
     has(draft.title, search.title) &&
     (search.subject === OTHER_CHOICE ? isOtherSubject(draft.subject) : !search.subject || draft.subject === search.subject) &&
     (search.grade === OTHER_CHOICE ? draft.grades.some(isOtherGrade) : !search.grade || draft.grades.includes(search.grade)) &&
+    (search.week === OTHER_CHOICE ? isOtherWeek(draft.week) : !search.week || draft.week === search.week) &&
+    (search.day === OTHER_CHOICE ? isOtherDay(draft.day) : !search.day || draft.day === search.day) &&
     has(draft.tags, search.tags) &&
     !search.author &&
-    (!search.not || !has(details, search.not)) &&
+    !searchWords(search.not).some((word) => has(details, word)) &&
     draft.createdAt >= since
   );
 }
