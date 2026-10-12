@@ -1,4 +1,4 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { PostgrestFilterBuilder, SupabaseClient } from "@supabase/supabase-js";
 import type { DraftSummary } from "@/lib/drafts";
 import { loadPublisherNames } from "@/lib/publishers";
 import { creditLines, detailsLabel, joinParts, slideCountLabel, timeAgo } from "@/lib/format";
@@ -35,8 +35,9 @@ export type CardPresentation = {
 // "saved": my saved row for it (only mine come back), for sorting by when I saved it.
 export type SavedPresentation = CardPresentation & { saved?: { saved_at: string }[] };
 
-// A presentations query, whatever columns it selects.
-type PresentationQuery = ReturnType<ReturnType<SupabaseClient["from"]>["select"]>;
+// A presentations query, whatever columns it selects ("any": each select gives its rows their own type).
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type PresentationQuery = PostgrestFilterBuilder<any, any, any, any, any, any, any>;
 
 /** The logged-in teacher's id ("" if none). */
 export async function myId(supabase: SupabaseClient): Promise<string> {

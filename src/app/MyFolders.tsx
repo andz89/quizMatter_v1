@@ -11,7 +11,7 @@ import { createFolder, deleteFolder, moveToFolder, renameFolder } from "./folder
 import type { PresentationCardData } from "./PresentationCard";
 
 // A teacher's folders on the home page's "My presentations" tab (see the folders migration). Cards can be dragged
-// onto a folder tile, or onto "← My presentations" to take them out of their folder (PresentationHome's DndContext).
+// onto a folder tile, or onto "← My presentations" to take them out of their folder (MyPresentations' DndContext).
 
 /** The drop spot's id for a folder; "" = no folder ("← My presentations"). */
 export function folderDropId(folderId: string): string {
@@ -90,7 +90,7 @@ function FolderTile({ folder, isMoving, onOpen }: { folder: Folder; isMoving: bo
 /**
  * A card that can be dragged onto a folder (mouse: after moving 4px; touch: after pressing and holding). Dragging
  * a checked card takes every checked card along. `isFaded`: it's being dragged, while the copy follows the pointer
- * (PresentationHome's DragOverlay).
+ * (MyPresentations' DragOverlay).
  */
 export function DraggableCard({ card, isFaded, children }: { card: PresentationCardData; isFaded: boolean; children: ReactNode }) {
   const { setNodeRef, listeners } = useDraggable({ id: card.id, data: { card } });

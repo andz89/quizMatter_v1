@@ -2,6 +2,7 @@
 
 import { useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
+import { OTHER_CHOICE, SUBJECTS, isOtherSubject } from "@/lib/schema";
 import { PresentationCard, type PresentationCardData } from "../PresentationCard";
 import { DraggableCard } from "../MyFolders";
 
@@ -96,4 +97,45 @@ export function SavableCards({ cards, empty, removeOnUnsave = false }: { cards: 
     router.refresh();
   };
   return <Cards cards={cards.filter((card) => !removedIds.has(card.id))} empty={empty} savedIds={savedIds} onSavedChange={onSavedChange} />;
+}
+
+/** The chip a subject falls under: its own name, "Other" for one not on the list, "" for none. */
+export function subjectChip(subject: string): string {
+  return isOtherSubject(subject) ? OTHER_CHOICE : subject;
+}
+
+/**
+ * "All", then each subject the tab's cards have, then "Other", each with its count. Hidden when no card has a
+ * subject. A chip with no cards is left out, unless it's the picked one (e.g. after removing a bookmark).
+ */
+export function SubjectChips({ cards, picked, onPick }: { cards: PresentationCardData[]; picked: string; onPick: (subject: string) => void }) {
+  const counts = new Map<string, number>();
+  for (const card of cards) {
+    const chip = subjectChip(card.subject ?? "");
+    if (chip) counts.set(chip, (counts.get(chip) ?? 0) + 1);
+  }
+  if (counts.size === 0 && picked === "") return null;
+  const chips = [
+    { id: "", count: cards.length },
+    ...[...SUBJECTS, OTHER_CHOICE].map((id) => ({ id, count: counts.get(id) ?? 0 })).filter(({ id, count }) => count > 0 || id === picked),
+  ];
+
+  return (
+    <div className="mb-4 flex flex-wrap gap-1">
+      {chips.map(({ id, count }) => (
+        <button
+          key={id}
+          type="button"
+          aria-pressed={picked === id}
+          onClick={() => onPick(id)}
+          className={`flex items-center gap-2 rounded-dropdown px-2.5 py-1 text-[13px] font-semibold transition-colors ${
+            picked === id ? "bg-accent-soft text-accent" : "text-text-secondary hover:text-text-primary"
+          }`}
+        >
+          {id || "All"}
+          <span className="text-[11px]">{count}</span>
+        </button>
+      ))}
+    </div>
+  );
 }
