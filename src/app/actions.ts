@@ -5,7 +5,7 @@ import { z } from "zod";
 import { getAccount } from "@/lib/account";
 import { deleteDrafts, getDraft, type Draft } from "@/lib/drafts";
 import { fetchPresentation } from "@/lib/fetchPresentation";
-import type { Presentation } from "@/lib/schema";
+import { PUBLISH_NEEDS_CONTENT, type Presentation } from "@/lib/schema";
 import { createClient } from "@/lib/supabase/server";
 
 const idsSchema = z.array(z.string().min(1).max(100)).max(200);
@@ -64,4 +64,22 @@ export async function getDraftPresentation(id: string): Promise<Draft | null> {
   } catch {
     return null;
   }
+}
+
+/**
+ * An editor sends one of their own presentations to QuizMatter (see the quizmatter_submissions migration): it's
+ * locked until an admin approves it or sends it back. An error message, or null.
+ */
+export async function submitToQuizMatter(id: string): Promise<string | null> {
+  // Checked with zod before anything is saved (see CLAUDE.md, "Saving Data").
+  const parsed = z.string().min(1).max(100).safeParse(id);
+  if (!parsed.success) return "Couldn't submit the presentation. Please try again.";
+  if (!(await getAccount()).isEditor) return "Only editors can submit presentations to QuizMatter.";
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("submit_presentation", { target_id: parsed.data });
+  refresh();
+  if (error?.code === "QMPUB") return PUBLISH_NEEDS_CONTENT;
+  if (error?.code === "QMSUB") return "This presentation is already waiting for QuizMatter, or already in QuizMatter.";
+  return error ? "Couldn't submit the presentation. Please try again." : null;
 }

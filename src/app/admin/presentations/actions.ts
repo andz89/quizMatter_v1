@@ -104,3 +104,30 @@ export async function sendBackReview(id: string, note: string): Promise<string |
   if (error?.code === "QMRVW") return "This review isn't waiting to be published anymore.";
   return error ? "Couldn't send the review back. Please try again." : null;
 }
+
+/** Approves a submitted presentation: QuizMatter gets its own shared copy (Author = the editor). An error, or null. */
+export async function approveSubmission(id: string): Promise<string | null> {
+  const parsed = idSchema.safeParse(id);
+  if (!parsed.success || !(await getAccount()).isAdmin) return "Only admins can approve submissions.";
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("approve_submission", { target_id: parsed.data });
+  refresh();
+  if (error?.code === "QMSUB") return "This presentation isn't waiting for QuizMatter anymore.";
+  if (error?.code === "QMBRV") return "This editor is banned, so their presentation can't be approved. Send it back instead.";
+  return error ? "Couldn't approve the presentation. Please try again." : null;
+}
+
+/** Sends a submitted presentation back to its editor with a note; it unlocks. An error message, or null. */
+export async function sendBackSubmission(id: string, note: string): Promise<string | null> {
+  // Checked with zod before anything is saved (see CLAUDE.md, "Saving Data").
+  const parsed = sendBackSchema.safeParse({ id, note });
+  if (!parsed.success) return parsed.error.issues[0].message;
+  if (!(await getAccount()).isAdmin) return "Only admins can send submissions back.";
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("send_back_submission", { target_id: parsed.data.id, note: parsed.data.note });
+  refresh();
+  if (error?.code === "QMSUB") return "This presentation isn't waiting for QuizMatter anymore.";
+  return error ? "Couldn't send the presentation back. Please try again." : null;
+}

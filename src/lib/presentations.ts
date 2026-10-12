@@ -26,8 +26,8 @@ export const REFUSALS: Record<string, string> = {
   QMMAX: `You have ${MAX_PRESENTATIONS} presentations, the most allowed. Delete some to make new ones.`,
   QM429: "You're saving too fast. Wait a minute and try again.",
   QMBAN: "Your account is blocked, so you can't save. Contact QuizMatter if you think this is a mistake.",
-  // Presentation reviews (see the presentation_reviews migration).
-  QMREV: "This presentation is under review, so it can't be changed right now. Copy anything you need before leaving.",
+  // Presentation reviews and submissions (see the presentation_reviews and quizmatter_submissions migrations).
+  QMREV: "This presentation is under review or waiting for QuizMatter, so it can't be changed right now. Copy anything you need before leaving.",
   QMRVW: "Someone else is reviewing this presentation, or you can't review it right now.",
   // Publishing an empty presentation (see the share_limits migration).
   QMPUB: PUBLISH_NEEDS_CONTENT,
