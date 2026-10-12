@@ -8,17 +8,19 @@ import { XIcon } from "lucide-react";
 /**
  * A white box in the middle of the screen over a dark backdrop, with a title and ✕. Escape, a click outside
  * or ✕ closes it — except while `isBusy` (e.g. uploading), when ✕ shows the Spinner and nothing closes it.
- * Taller content scrolls inside the box.
+ * Taller content scrolls inside the box; an optional `footer` (e.g. a Save button) stays below it.
  */
 export function Modal({
   title,
   onClose,
   isBusy = false,
+  footer,
   children,
 }: {
   title: string;
   onClose: () => void;
   isBusy?: boolean;
+  footer?: ReactNode;
   children: ReactNode;
 }) {
   useEffect(() => {
@@ -52,6 +54,7 @@ export function Modal({
           </button>
         </div>
         <div className="overflow-y-auto px-5 py-4">{children}</div>
+        {footer && <div className="flex justify-end gap-3 border-t border-border-default px-5 py-3.5">{footer}</div>}
       </div>
     </div>,
     document.body

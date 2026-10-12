@@ -20,6 +20,7 @@ import {
 } from "@/lib/schema";
 import { parseTags } from "@/lib/photos";
 import { Modal } from "@/components/Modal";
+import { Spinner } from "@/components/Spinner";
 import { PanelLabel } from "./PanelControls";
 import { ChevronDownIcon, ExternalLinkIcon, XIcon } from "lucide-react";
 
@@ -35,6 +36,14 @@ export function DetailsModal({ onClose }: { onClose: () => void }) {
   const publishedBy = useLoggedInEmail();
   // A reviewer can't change the author, sharing or publisher: those stay QuizMatter's.
   const isReview = useEditorStore((s) => s.review !== null);
+  const savePresentation = useEditorStore((s) => s.savePresentation);
+  const isSaving = useEditorStore((s) => s.saveStatus === "saving");
+  const hasUnsavedChanges = useEditorStore((s) => s.presentation !== s.savedPresentation);
+
+  // The same save as the top bar's Save (and Ctrl+S); closes once it worked, stays open to retry if not.
+  const save = async () => {
+    if (await savePresentation()) onClose();
+  };
 
   const textField = (key: Exclude<keyof typeof DETAIL_MAX_LENGTH, "grade">, label: string, placeholder: string, multiline = false) => (
     <Field label={label}>
@@ -60,7 +69,22 @@ export function DetailsModal({ onClose }: { onClose: () => void }) {
   );
 
   return (
-    <Modal title="Presentation details" onClose={onClose}>
+    <Modal
+      title="Presentation details"
+      onClose={onClose}
+      isBusy={isSaving}
+      footer={
+        <button
+          type="button"
+          onClick={save}
+          disabled={isSaving || !hasUnsavedChanges}
+          className="flex items-center gap-2 rounded-button bg-accent btn-press px-4 py-2 text-sm font-semibold text-white hover:bg-accent-hover disabled:opacity-60 disabled:hover:bg-accent"
+        >
+          {isSaving && <Spinner size={14} />}
+          {isSaving ? "Saving…" : !hasUnsavedChanges ? (isReview ? "Draft saved" : "Saved") : isReview ? "Save as draft" : "Save"}
+        </button>
+      }
+    >
       <div data-keep-container-selection="true" className="flex flex-col gap-5">
         {textField("title", "Title", "Untitled presentation")}
         {textField("description", "Description", "What the presentation covers", true)}
