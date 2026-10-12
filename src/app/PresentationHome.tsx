@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useTransition, type ReactNode } from "react";
+import { useEffect, useRef, useState, useTransition, type ReactNode } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { XIcon } from "lucide-react";
+import { MenuIcon, XIcon } from "lucide-react";
 import { DndContext, DragOverlay, MouseSensor, rectIntersection, TouchSensor, useSensor, useSensors, type DragEndEvent, type DragStartEvent } from "@dnd-kit/core";
 import { snapCenterToCursor } from "@dnd-kit/modifiers";
 import { toast } from "sonner";
@@ -156,6 +156,10 @@ export function PresentationHome({
     clearChecked();
     setIsSelectMode(false);
   };
+  const pickTab = (id: Tab) => {
+    setPicked({ searchKey, tab: id, subject: "" });
+    endSelecting();
+  };
   const toggleChecked = (id: string) =>
     setCheckedIds((ids) => {
       const next = new Set(ids);
@@ -246,17 +250,16 @@ export function PresentationHome({
       )}
 
       <div className="mb-4 flex flex-wrap items-center gap-3">
-        <div role="tablist" className="flex max-w-full gap-1 overflow-x-auto rounded-button bg-bg-surface p-1">
+        {/* Phones: the tabs fold into a burger menu. */}
+        <TabMenu tabs={tabs} counts={counts} picked={tab} onPick={pickTab} />
+        <div role="tablist" className="hidden max-w-full gap-1 overflow-x-auto rounded-button bg-bg-surface p-1 sm:flex">
           {tabs.map(({ id, label }) => (
             <button
               key={id}
               type="button"
               role="tab"
               aria-selected={tab === id}
-              onClick={() => {
-                setPicked({ searchKey, tab: id, subject: "" });
-                endSelecting();
-              }}
+              onClick={() => pickTab(id)}
               className={`flex shrink-0 items-center gap-2 rounded-dropdown px-3 py-1.5 text-[13px] font-semibold transition-colors ${
                 tab === id ? "bg-accent text-white" : "text-text-secondary hover:text-text-primary"
               }`}
@@ -555,6 +558,81 @@ function Cards({
           presentationCard
         );
       })}
+    </div>
+  );
+}
+
+/**
+ * The tabs on phones: a burger button with the open tab's name and count, opening a list of every tab. Closes on a
+ * pick, a click outside, or Esc.
+ */
+function TabMenu({
+  tabs,
+  counts,
+  picked,
+  onPick,
+}: {
+  tabs: { id: Tab; label: string }[];
+  counts: Record<Tab, number>;
+  picked: Tab;
+  onPick: (id: Tab) => void;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const pickedLabel = tabs.find(({ id }) => id === picked)?.label;
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const onPointerDown = (e: PointerEvent) => {
+      if (!menuRef.current?.contains(e.target as Node)) setIsOpen(false);
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setIsOpen(false);
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [isOpen]);
+
+  return (
+    <div ref={menuRef} className="relative sm:hidden">
+      <button
+        type="button"
+        onClick={() => setIsOpen((open) => !open)}
+        aria-label="Choose a list"
+        aria-expanded={isOpen}
+        className="flex items-center gap-2 rounded-button border border-border-default bg-bg-surface px-3 py-2 text-[13px] font-semibold text-text-primary"
+      >
+        <MenuIcon size={16} />
+        {pickedLabel}
+        <span className="rounded-dropdown bg-bg-page px-1.5 text-[11px] text-text-secondary">{counts[picked]}</span>
+      </button>
+
+      {isOpen && (
+        <div role="menu" className="absolute top-full left-0 z-50 mt-1 w-56 rounded-card border border-border-default bg-bg-surface p-2">
+          {tabs.map(({ id, label }) => (
+            <button
+              key={id}
+              type="button"
+              role="menuitemradio"
+              aria-checked={picked === id}
+              onClick={() => {
+                onPick(id);
+                setIsOpen(false);
+              }}
+              className={`flex w-full items-center gap-3 rounded-dropdown px-3 py-2 text-left text-sm transition-colors ${
+                picked === id ? "bg-accent-soft font-semibold text-accent" : "text-text-primary hover:bg-accent-soft hover:text-accent"
+              }`}
+            >
+              <span className="flex-1">{label}</span>
+              <span className="rounded-dropdown bg-bg-page px-1.5 text-[11px] text-text-secondary">{counts[id]}</span>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
