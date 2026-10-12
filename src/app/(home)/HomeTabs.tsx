@@ -67,7 +67,14 @@ function TabMenu({
   counts: Record<HomeTab, number>;
   picked: HomeTab | undefined;
 }) {
+  const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
+  const [openedAt, setOpenedAt] = useState(pathname);
+  // Close the menu once the new page opens (not on the click, so the top line stays until then).
+  if (openedAt !== pathname) {
+    setOpenedAt(pathname);
+    setIsOpen(false);
+  }
   const menuRef = useRef<HTMLDivElement>(null);
   const pickedLabel = tabs.find(({ id }) => id === picked)?.label ?? "Search results";
 
@@ -108,7 +115,6 @@ function TabMenu({
               key={id}
               href={href}
               aria-current={picked === id ? "page" : undefined}
-              onClick={() => setIsOpen(false)}
               className={`flex w-full items-center gap-3 rounded-dropdown px-3 py-2 text-left text-sm transition-colors ${
                 picked === id ? "bg-accent-soft font-semibold text-accent" : "text-text-primary hover:bg-accent-soft hover:text-accent"
               }`}
