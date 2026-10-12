@@ -264,3 +264,25 @@ alter table public.presentations
   ) stored;
 
 create index presentations_search_text_trgm_idx on public.presentations using gin (search_text extensions.gin_trgm_ops);
+
+-- ─── check_presentation_review_lock: same as before (20261019000000_presentation_reviews.sql), plus search_text ──
+-- search_text (20261117000000) is worked out by the database too, so it's null in NEW here and must be left out,
+-- or hiding a presentation under review is refused.
+create or replace function public.check_presentation_review_lock()
+returns trigger
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+begin
+  if coalesce(current_setting('quizmatter.publishing_review', true), '') = 'yes' or not public.is_review_locked(old.id) then
+    return coalesce(new, old);
+  end if;
+  -- tags_text and search_text are worked out by the database (null in NEW here), so they're left out of the comparison.
+  if tg_op = 'UPDATE'
+    and (to_jsonb(new) - 'hidden_at' - 'tags_text' - 'search_text') = (to_jsonb(old) - 'hidden_at' - 'tags_text' - 'search_text') then
+    return new;
+  end if;
+  raise exception 'This presentation is under review.' using errcode = 'QMREV';
+end;
+$$;
