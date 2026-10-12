@@ -448,6 +448,7 @@ export const DETAIL_MAX_LENGTH = {
   description: 1000,
   grade: 40,
   subject: 80,
+  term: 40,
   week: 40,
   day: 40,
   curriculum: 80,
@@ -471,7 +472,8 @@ export const SUBJECTS = [
   "Mother Tongue",
 ] as const;
 
-// The school weeks and days a teacher picks from. A presentation may also have its own ("Other").
+// The school terms, weeks and days a teacher picks from. A presentation may also have its own ("Other").
+export const TERMS = Array.from({ length: 3 }, (_, i) => `Term ${i + 1}`);
 export const WEEKS = Array.from({ length: 20 }, (_, i) => `Week ${i + 1}`);
 export const DAYS = Array.from({ length: 5 }, (_, i) => `Day ${i + 1}`);
 
@@ -485,6 +487,7 @@ function isOwnChoice(list: readonly string[], value: string): boolean {
 
 export const isOtherGrade = (grade: string) => isOwnChoice(GRADES, grade);
 export const isOtherSubject = (subject: string) => isOwnChoice(SUBJECTS, subject);
+export const isOtherTerm = (term: string) => isOwnChoice(TERMS, term);
 export const isOtherWeek = (week: string) => isOwnChoice(WEEKS, week);
 export const isOtherDay = (day: string) => isOwnChoice(DAYS, day);
 
@@ -500,6 +503,7 @@ function listOrOwnSchema(list: readonly string[], maxLength: number) {
 
 const gradeSchema = listOrOwnSchema(GRADES, DETAIL_MAX_LENGTH.grade);
 export const subjectSchema = listOrOwnSchema(SUBJECTS, DETAIL_MAX_LENGTH.subject);
+export const termSchema = listOrOwnSchema(TERMS, DETAIL_MAX_LENGTH.term);
 export const weekSchema = listOrOwnSchema(WEEKS, DETAIL_MAX_LENGTH.week);
 export const daySchema = listOrOwnSchema(DAYS, DETAIL_MAX_LENGTH.day);
 
@@ -582,7 +586,8 @@ export const presentationSchema = z.preprocess(withGrades, z.object({
   // The grades it's for, e.g. ["Grade 1", "Grade 2"] (none = []).
   grades: gradesSchema,
   subject: subjectSchema,
-  // The school week and day it's for, e.g. "Week 3", "Day 2" ("" = none). Older data has none.
+  // The school term, week and day it's for, e.g. "Term 1", "Week 3", "Day 2" ("" = none). Older data has none.
+  term: termSchema.default(""),
   week: weekSchema.default(""),
   day: daySchema.default(""),
   curriculum: z.string().max(DETAIL_MAX_LENGTH.curriculum),
@@ -697,6 +702,7 @@ export type PresentationDetails = Pick<
   | "description"
   | "grades"
   | "subject"
+  | "term"
   | "week"
   | "day"
   | "curriculum"

@@ -73,6 +73,7 @@ export function createBlankPresentation(details: Partial<PresentationDetails> = 
     description: "",
     grades: [],
     subject: "",
+    term: "",
     week: "",
     day: "",
     curriculum: "",

@@ -5,9 +5,9 @@ export function joinParts(parts: (string | false | null | undefined)[]): string 
   return parts.filter(Boolean).join(" · ");
 }
 
-/** "Grade 4 · Mathematics · Week 3 · Day 2": a presentation's grades, subject, week and day, skipping empty ones. */
-export function detailsLabel({ grades, subject, week, day }: { grades: readonly string[]; subject: string; week?: string; day?: string }): string {
-  return joinParts([gradesLabel(grades), subject, week, day]);
+/** "Grade 4 · Mathematics · Term 1 · Week 3 · Day 2": a presentation's grades, subject, term, week and day, skipping empty ones. */
+export function detailsLabel({ grades, subject, term, week, day }: { grades: readonly string[]; subject: string; term?: string; week?: string; day?: string }): string {
+  return joinParts([gradesLabel(grades), subject, term, week, day]);
 }
 
 // Worked out on the server so the page shows the same text before and after it loads in the browser.
