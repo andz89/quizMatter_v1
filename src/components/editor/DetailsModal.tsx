@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { useEditorStore, isPanelEscape } from "@/lib/store";
+import { useEditorStore } from "@/lib/store";
 import { createClient } from "@/lib/supabase/client";
 import {
   DAYS,
@@ -15,32 +15,26 @@ import {
   isWebLink,
   referenceSchema,
   tagsSchema,
+  TERMS,
   WEEKS,
 } from "@/lib/schema";
 import { parseTags } from "@/lib/photos";
+import { Modal } from "@/components/Modal";
 import { PanelLabel } from "./PanelControls";
 import { ChevronDownIcon, ExternalLinkIcon, XIcon } from "lucide-react";
 
 /**
- * Sidebar panel for the presentation as a whole: title, description, grade, subject, week, day, curriculum,
- * learning competency, tags and references. All optional. Edits count as unsaved changes until Save, like any
- * other edit. Private/published (Draft/Shared on a QuizMatter presentation) is the Share button in the top bar.
+ * The modal for the presentation as a whole (opened from "Info" in the bottom bar): title, description, grade,
+ * subject, term, week, day, curriculum, learning competency, tags and references. All optional. Edits count as unsaved
+ * changes until Save, like any other edit. Private/published (Draft/Shared on a QuizMatter presentation) is the
+ * Share button in the top bar.
  */
-export function DetailsPanel() {
-  const closeDetailsPanel = useEditorStore((s) => s.closeDetailsPanel);
+export function DetailsModal({ onClose }: { onClose: () => void }) {
   const setPresentationDetails = useEditorStore((s) => s.setPresentationDetails);
   const presentation = useEditorStore((s) => s.presentation);
   const publishedBy = useLoggedInEmail();
   // A reviewer can't change the author, sharing or publisher: those stay QuizMatter's.
   const isReview = useEditorStore((s) => s.review !== null);
-
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (isPanelEscape(e)) closeDetailsPanel();
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [closeDetailsPanel]);
 
   const textField = (key: Exclude<keyof typeof DETAIL_MAX_LENGTH, "grade">, label: string, placeholder: string, multiline = false) => (
     <Field label={label}>
@@ -66,69 +60,65 @@ export function DetailsPanel() {
   );
 
   return (
-    <div
-      data-keep-container-selection="true"
-      className="flex shrink-0 flex-col gap-5 overflow-y-auto border-r border-border-default bg-bg-surface side-panel"
-    >
-      <div className="flex items-center justify-between">
-        <h2 className="text-[15px] font-extrabold text-text-primary">Presentation details</h2>
-        <button
-          type="button"
-          onClick={closeDetailsPanel}
-          title="Close (Esc)"
-          className="flex h-8 w-8 items-center justify-center rounded-dropdown text-text-primary hover:bg-bg-page"
-        >
-          <XIcon size={16} />
-        </button>
-      </div>
+    <Modal title="Presentation details" onClose={onClose}>
+      <div data-keep-container-selection="true" className="flex flex-col gap-5">
+        {textField("title", "Title", "Untitled presentation")}
+        {textField("description", "Description", "What the presentation covers", true)}
 
-      {textField("title", "Title", "Untitled presentation")}
-      {textField("description", "Description", "What the presentation covers", true)}
+        <GradesField grades={presentation.grades} onChange={(grades) => setPresentationDetails({ grades })} />
+        <ListOrOtherField
+          label="Subject"
+          list={SUBJECTS}
+          value={presentation.subject}
+          onChange={(subject) => setPresentationDetails({ subject })}
+          maxLength={DETAIL_MAX_LENGTH.subject}
+          placeholder="Type the subject, e.g. Robotics"
+        />
+        <ListOrOtherField
+          label="Term"
+          list={TERMS}
+          value={presentation.term}
+          onChange={(term) => setPresentationDetails({ term })}
+          maxLength={DETAIL_MAX_LENGTH.term}
+          placeholder="Type the term, e.g. Summer term"
+          canPickNone
+        />
+        <ListOrOtherField
+          label="Week"
+          list={WEEKS}
+          value={presentation.week}
+          onChange={(week) => setPresentationDetails({ week })}
+          maxLength={DETAIL_MAX_LENGTH.week}
+          placeholder="Type the week, e.g. Week 21"
+          canPickNone
+        />
+        <ListOrOtherField
+          label="Day"
+          list={DAYS}
+          value={presentation.day}
+          onChange={(day) => setPresentationDetails({ day })}
+          maxLength={DETAIL_MAX_LENGTH.day}
+          placeholder="Type the day, e.g. Day 6"
+          canPickNone
+        />
+        {textField("curriculum", "Curriculum", "e.g. MATATAG")}
+        {textField("learningCompetency", "Learning competency", "The competency this presentation targets, with its code", true)}
+        <TagsField tags={presentation.tags} onChange={(tags) => setPresentationDetails({ tags })} />
+        {isReview ? (
+          <Field label="Author">
+            <p className="text-sm text-text-primary">{presentation.author || "—"}</p>
+          </Field>
+        ) : (
+          textField("author", "Author", "Who wrote it: you, a book, another teacher…")
+        )}
 
-      <GradesField grades={presentation.grades} onChange={(grades) => setPresentationDetails({ grades })} />
-      <ListOrOtherField
-        label="Subject"
-        list={SUBJECTS}
-        value={presentation.subject}
-        onChange={(subject) => setPresentationDetails({ subject })}
-        maxLength={DETAIL_MAX_LENGTH.subject}
-        placeholder="Type the subject, e.g. Robotics"
-      />
-      <ListOrOtherField
-        label="Week"
-        list={WEEKS}
-        value={presentation.week}
-        onChange={(week) => setPresentationDetails({ week })}
-        maxLength={DETAIL_MAX_LENGTH.week}
-        placeholder="Type the week, e.g. Week 21"
-        canPickNone
-      />
-      <ListOrOtherField
-        label="Day"
-        list={DAYS}
-        value={presentation.day}
-        onChange={(day) => setPresentationDetails({ day })}
-        maxLength={DETAIL_MAX_LENGTH.day}
-        placeholder="Type the day, e.g. Day 6"
-        canPickNone
-      />
-      {textField("curriculum", "Curriculum", "e.g. MATATAG")}
-      {textField("learningCompetency", "Learning competency", "The competency this presentation targets, with its code", true)}
-      <TagsField tags={presentation.tags} onChange={(tags) => setPresentationDetails({ tags })} />
-      {isReview ? (
-        <Field label="Author">
-          <p className="text-sm text-text-primary">{presentation.author || "—"}</p>
+        <ReferenceLinks links={presentation.referenceLinks} onChange={(referenceLinks) => setPresentationDetails({ referenceLinks })} />
+
+        <Field label="Published by">
+          <p className="truncate text-sm text-text-primary">{isReview ? "QuizMatter" : (publishedBy ?? "—")}</p>
         </Field>
-      ) : (
-        textField("author", "Author", "Who wrote it: you, a book, another teacher…")
-      )}
-
-      <ReferenceLinks links={presentation.referenceLinks} onChange={(referenceLinks) => setPresentationDetails({ referenceLinks })} />
-
-      <Field label="Published by">
-        <p className="truncate text-sm text-text-primary">{isReview ? "QuizMatter" : (publishedBy ?? "—")}</p>
-      </Field>
-    </div>
+      </div>
+    </Modal>
   );
 }
 
@@ -221,7 +211,10 @@ function GradesField({ grades, onChange }: { grades: string[]; onChange: (grades
       if (!ref.current?.contains(e.target as Node)) setIsOpen(false);
     };
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setIsOpen(false);
+      if (e.key !== "Escape") return;
+      // Close only the list, not the whole modal.
+      e.stopPropagation();
+      setIsOpen(false);
     };
     document.addEventListener("pointerdown", onPointerDown);
     document.addEventListener("keydown", onKeyDown);
@@ -292,7 +285,7 @@ function GradesField({ grades, onChange }: { grades: string[]; onChange: (grades
 }
 
 /**
- * The subject (or week, day): one from `list`, or "Other…" with a box to type the teacher's own. A value not on the
+ * The subject (or term, week, day): one from `list`, or "Other…" with a box to type the teacher's own. A value not on the
  * list opens as "Other…" with its text in the box. None by default: "None" shows until one is picked, but isn't in
  * the list to pick back, unless `canPickNone` makes it a choice that clears the value.
  */

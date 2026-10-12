@@ -2,10 +2,10 @@
 
 import type { ReactNode } from "react";
 import { useEditorStore } from "@/lib/store";
-import { BookOpenIcon, FileTextIcon, ImageIcon, PaintBucketIcon, ShapesIcon, SparklesIcon } from "lucide-react";
+import { BookOpenIcon, ImageIcon, PaintBucketIcon, ShapesIcon, SparklesIcon } from "lucide-react";
 
 /**
- * Canva-style narrow icon bar: "Elements", "Photos", "Background", "Effects", "Details" and "Presentations" expand their sidebar panels.
+ * Canva-style narrow icon bar: "Elements", "Photos", "Background", "Effects" and "Presentations" expand their sidebar panels.
  */
 export function IconRail() {
   const isElementsPanelOpen = useEditorStore((s) => s.isElementsPanelOpen);
@@ -16,8 +16,6 @@ export function IconRail() {
   const toggleBackgroundPanel = useEditorStore((s) => s.toggleBackgroundPanel);
   const isEffectsPanelOpen = useEditorStore((s) => s.isEffectsPanelOpen);
   const toggleEffectsPanel = useEditorStore((s) => s.toggleEffectsPanel);
-  const isDetailsPanelOpen = useEditorStore((s) => s.isDetailsPanelOpen);
-  const toggleDetailsPanel = useEditorStore((s) => s.toggleDetailsPanel);
   const isPresentationsPanelOpen = useEditorStore((s) => s.isPresentationsPanelOpen);
   const togglePresentationsPanel = useEditorStore((s) => s.togglePresentationsPanel);
 
@@ -34,9 +32,6 @@ export function IconRail() {
       </RailButton>
       <RailButton label="Effects" title="Slide effects" active={isEffectsPanelOpen} onClick={toggleEffectsPanel}>
         <SparklesIcon size={22} />
-      </RailButton>
-      <RailButton label="Details" active={isDetailsPanelOpen} onClick={toggleDetailsPanel}>
-        <FileTextIcon size={22} />
       </RailButton>
       <RailButton label="Presentations" title="Slides from published presentations" active={isPresentationsPanelOpen} onClick={togglePresentationsPanel}>
         <BookOpenIcon size={22} />

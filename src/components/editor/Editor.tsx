@@ -14,7 +14,6 @@ import { PhotosPanel } from "./PhotosPanel";
 import { ColorPanel } from "./ColorPanel";
 import { BackgroundPanel } from "./BackgroundPanel";
 import { EffectsPanel } from "./EffectsPanel";
-import { DetailsPanel } from "./DetailsPanel";
 import { PresentationsPanel } from "./PresentationsPanel";
 import { SmallScreenNote } from "./SmallScreenNote";
 import { ReviewBanner } from "./ReviewControls";
@@ -54,7 +53,6 @@ export function Editor({ presentation, draft, review }: { presentation: Presenta
   const isColorPanelOpen = useEditorStore((s) => s.isColorPanelOpen);
   const isBackgroundPanelOpen = useEditorStore((s) => s.isBackgroundPanelOpen);
   const isEffectsPanelOpen = useEditorStore((s) => s.isEffectsPanelOpen);
-  const isDetailsPanelOpen = useEditorStore((s) => s.isDetailsPanelOpen);
   const isPresentationsPanelOpen = useEditorStore((s) => s.isPresentationsPanelOpen);
   const closeColorPanel = useEditorStore((s) => s.closeColorPanel);
   const selectedElementIds = useEditorStore((s) => s.selectedElementIds);
@@ -136,7 +134,6 @@ export function Editor({ presentation, draft, review }: { presentation: Presenta
           {isColorPanelOpen && <ColorPanel />}
           {isBackgroundPanelOpen && <BackgroundPanel />}
           {isEffectsPanelOpen && <EffectsPanel />}
-          {isDetailsPanelOpen && <DetailsPanel />}
           {isPresentationsPanelOpen && <PresentationsPanel />}
         </div>
         <div className="flex min-w-0 flex-1 flex-col">

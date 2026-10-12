@@ -326,7 +326,7 @@ interface EditorState {
   // Empties the question, every option's text and all slide elements; keeps the answer (text and canvas) and layout.
   clearSlide: (slideId: string) => void;
 
-  // Title and the other presentation details (grade, subject…), edited in the top bar and the Details panel.
+  // Title and the other presentation details (grade, subject…), edited in the top bar and the Info modal.
   setPresentationDetails: (patch: Partial<PresentationDetails>) => void;
   // Private/published, saved right away (the whole presentation, so others see what the teacher sees).
   // On failure it switches back. Resolves true if the save worked.
@@ -455,10 +455,6 @@ interface EditorState {
   isBackgroundPanelOpen: boolean;
   toggleBackgroundPanel: () => void;
   closeBackgroundPanel: () => void;
-
-  isDetailsPanelOpen: boolean;
-  toggleDetailsPanel: () => void;
-  closeDetailsPanel: () => void;
 
   // The Effects panel picks how slides come in when the presentation is shown full screen.
   isEffectsPanelOpen: boolean;
@@ -1356,7 +1352,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         isElementsPanelOpen: next,
         isColorPanelOpen: next ? false : state.isColorPanelOpen,
         isBackgroundPanelOpen: next ? false : state.isBackgroundPanelOpen,
-        isDetailsPanelOpen: next ? false : state.isDetailsPanelOpen,
         isEffectsPanelOpen: next ? false : state.isEffectsPanelOpen,
         isPresentationsPanelOpen: next ? false : state.isPresentationsPanelOpen,
         isPhotosPanelOpen: next ? false : state.isPhotosPanelOpen,
@@ -1373,7 +1368,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         isElementsPanelOpen: next ? false : state.isElementsPanelOpen,
         isColorPanelOpen: next ? false : state.isColorPanelOpen,
         isBackgroundPanelOpen: next ? false : state.isBackgroundPanelOpen,
-        isDetailsPanelOpen: next ? false : state.isDetailsPanelOpen,
         isEffectsPanelOpen: next ? false : state.isEffectsPanelOpen,
         isPresentationsPanelOpen: next ? false : state.isPresentationsPanelOpen,
       };
@@ -1391,7 +1385,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         colorPanelTarget: "fill",
         isElementsPanelOpen: next ? false : state.isElementsPanelOpen,
         isBackgroundPanelOpen: next ? false : state.isBackgroundPanelOpen,
-        isDetailsPanelOpen: next ? false : state.isDetailsPanelOpen,
         isEffectsPanelOpen: next ? false : state.isEffectsPanelOpen,
         isPresentationsPanelOpen: next ? false : state.isPresentationsPanelOpen,
         isPhotosPanelOpen: next ? false : state.isPhotosPanelOpen,
@@ -1407,7 +1400,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         isColorPanelOpen: next,
         isElementsPanelOpen: next ? false : state.isElementsPanelOpen,
         isBackgroundPanelOpen: next ? false : state.isBackgroundPanelOpen,
-        isDetailsPanelOpen: next ? false : state.isDetailsPanelOpen,
         isEffectsPanelOpen: next ? false : state.isEffectsPanelOpen,
         isPresentationsPanelOpen: next ? false : state.isPresentationsPanelOpen,
         isPhotosPanelOpen: next ? false : state.isPhotosPanelOpen,
@@ -1422,29 +1414,12 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         isBackgroundPanelOpen: next,
         isElementsPanelOpen: next ? false : state.isElementsPanelOpen,
         isColorPanelOpen: next ? false : state.isColorPanelOpen,
-        isDetailsPanelOpen: next ? false : state.isDetailsPanelOpen,
         isEffectsPanelOpen: next ? false : state.isEffectsPanelOpen,
         isPresentationsPanelOpen: next ? false : state.isPresentationsPanelOpen,
         isPhotosPanelOpen: next ? false : state.isPhotosPanelOpen,
       };
     }),
   closeBackgroundPanel: () => set({ isBackgroundPanelOpen: false }),
-
-  isDetailsPanelOpen: false,
-  toggleDetailsPanel: () =>
-    set((state) => {
-      const next = !state.isDetailsPanelOpen;
-      return {
-        isDetailsPanelOpen: next,
-        isEffectsPanelOpen: next ? false : state.isEffectsPanelOpen,
-        isElementsPanelOpen: next ? false : state.isElementsPanelOpen,
-        isColorPanelOpen: next ? false : state.isColorPanelOpen,
-        isBackgroundPanelOpen: next ? false : state.isBackgroundPanelOpen,
-        isPresentationsPanelOpen: next ? false : state.isPresentationsPanelOpen,
-        isPhotosPanelOpen: next ? false : state.isPhotosPanelOpen,
-      };
-    }),
-  closeDetailsPanel: () => set({ isDetailsPanelOpen: false }),
 
   isEffectsPanelOpen: false,
   toggleEffectsPanel: () =>
@@ -1455,7 +1430,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         isElementsPanelOpen: next ? false : state.isElementsPanelOpen,
         isColorPanelOpen: next ? false : state.isColorPanelOpen,
         isBackgroundPanelOpen: next ? false : state.isBackgroundPanelOpen,
-        isDetailsPanelOpen: next ? false : state.isDetailsPanelOpen,
         isPresentationsPanelOpen: next ? false : state.isPresentationsPanelOpen,
         isPhotosPanelOpen: next ? false : state.isPhotosPanelOpen,
       };
@@ -1471,7 +1445,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         isElementsPanelOpen: next ? false : state.isElementsPanelOpen,
         isColorPanelOpen: next ? false : state.isColorPanelOpen,
         isBackgroundPanelOpen: next ? false : state.isBackgroundPanelOpen,
-        isDetailsPanelOpen: next ? false : state.isDetailsPanelOpen,
         isEffectsPanelOpen: next ? false : state.isEffectsPanelOpen,
         isPhotosPanelOpen: next ? false : state.isPhotosPanelOpen,
       };
