@@ -13,7 +13,7 @@ Slides drawn without the editor: fullscreen presenting, cards, the view page, re
   25% of the screen = previous slide; the top buttons hide after 3 seconds; the next 2 slides are drawn hidden so
   they're ready; a slide change waits at most 400 ms for photos.
 - **Slide effects** (Fade, Slide, Zoom): played by `startSlideEffect` with the `motion` library (`motion/mini`), even
-  when the computer asks to reduce motion (the teacher picked one on purpose; "None" turns them off). Speed 1–5:
+  when the computer asks to reduce motion (the teacher picked one on purpose; "None" turns them off). Speed 1–5 (default 3):
   seconds in `SLIDE_EFFECT_SECONDS` / `SLIDE_FADE_SECONDS` (`constants.ts`). A new effect goes in
   `startSlideEffect` and `SLIDE_TRANSITIONS` (`schema.ts`), and gets a choice in the editor's `EffectsPanel`.
 - `PresentDraftButton.tsx`: Present for a presentation that isn't open in the editor (a review's submitted
