@@ -4,15 +4,17 @@ Read this first: it tells you where to look before you plan. Folders marked **(n
 with how that part works; it loads when you open a file there. When you plan work in one of them, read its notes
 first.
 
-- `src/app/`: the pages (Next.js app router). `(home)/` home pages (QuizMatter, Saved, Search, Teachers, Reviews &
-  submissions); `presentation/[id]/` the view page and `edit/` the editor page; `presentation/new/` opens Claude's
-  drafts; `account/`, `login/`, `signup/`, `teachers/[slug]/` (profiles); `api/` photo uploads; `oauth/` Claude's
-  login. Teachers' server actions: `actions.ts`, `folderActions.ts`, or an `actions.ts` next to the page.
+- `src/app/` **(notes)**: the teacher pages. `(home)/` home tabs (My presentations, From QuizMatter, Other
+  teachers, Saved, Reviews & submissions, search) and folders; `presentation/[id]/` the view page and `edit/` the
+  editor page; `presentation/new/` opens Claude's drafts; `account/`, `login/`, `signup/`, `teachers/[slug]/`
+  (profiles); `oauth/` Claude's login. Teachers' server actions: `actions.ts`, `folderActions.ts`, or an
+  `actions.ts` next to the page.
 - `src/app/admin/` **(notes)**: the admin pages.
+- `src/app/api/` **(notes)**: photo uploads and deletes (files in Cloudflare R2).
 - `src/components/editor/` **(notes)**: the editor. Its state and every edit: `src/lib/store.ts` (zustand).
-- `src/components/presentation/`: presenting and view-only slides (`PresentationView`, `SlideStaticView`).
-- `src/components/`: shared UI: `Spinner`, `TopLoadingBar`, `LinkPending`, `Modal`, `Logo`, `NavBar`,
-  `ClickPauseNotice`. The app's confirm box is `src/components/editor/ConfirmModal.tsx` (used on every page).
+- `src/components/presentation/` **(notes)**: presenting fullscreen (slide effects) and view-only slides.
+- `src/components/` **(notes)**: shared UI (`Spinner`, `TopLoadingBar`, `LinkPending`, `Modal`, `NavBar`, …). The
+  app's confirm box is `src/components/editor/ConfirmModal.tsx` (used on every page).
 - `src/lib/` **(notes)**: helpers, zod schemas (`schema.ts`), saving and loading.
 - `supabase/migrations/` **(notes)**: the database. Its functions and triggers hold the real rules and limits.
 - `src/pages/api/` **(notes)**: Claude's connector (MCP server). Its drafts live in Cloudflare D1 (`d1/migrations`).
@@ -27,8 +29,15 @@ into a message → sonner toast.
 **How a presentation opens:** `fetchPresentation` (`src/lib/fetchPresentation.ts`) on the server → the page picks
 edit / view / review → `Editor` → `store.loadPresentation`.
 
-**Keep the notes true:** when you change how a folder works (new file, moved logic, new rule), update its
-`CLAUDE.md` (and this map) in the same commit. Stale notes mislead the next session.
+**Every feature has notes, and they stay true (required):**
+
+- Every feature must be explained in the `CLAUDE.md` of the folder its code lives in (or here, for rules that span
+  many folders, like Reviews). A new feature = new notes in the same commit: a section in that folder's
+  `CLAUDE.md`, or a new `CLAUDE.md` for a new folder (and a line in this map).
+- When you change a feature or a folder (new file, moved logic, new rule, new limit, removed part), update its notes
+  and this map in the same commit. Delete notes about things that are gone.
+- Notes say how things work and connect, in plain English, short. Read the real code before writing them; never
+  guess. Stale notes mislead the next session.
 
 # Workflow Preferences
 
