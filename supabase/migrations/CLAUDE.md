@@ -1,0 +1,48 @@
+# supabase/migrations (the database)
+
+The database is the real guard. Its functions and triggers check who is calling and refuse what isn't allowed,
+even if the app has a bug. The app's checks (zod, hidden buttons) are only the first line.
+
+## Writing a migration
+
+- A new change = a new file, named with a later date than the last one: `YYYYMMDD000000_what_it_does.sql`. Don't
+  edit a file that's already been applied.
+- Start with a short comment saying what it changes and why, in plain English (like the files before it).
+- Functions use `set search_path = ''` and full names (`public.presentations`). Functions that must get past the
+  table rules are `security definer` and check the caller themselves (`auth.uid()`, `public.is_admin()`,
+  `public.is_editor()`). Give `execute` only to `authenticated` (`revoke … from public, anon`).
+- A limit checked here (text length, counts) must match the same limit in `src/lib/schema.ts` (or the file named
+  in the comment), so the app and the database agree. Write "Same limit as …" next to it.
+
+## Finding a function's newest version
+
+Many functions were changed again in later files (`create or replace function`). The newest version is in the
+**latest** file that defines it. Find it with a search, e.g. `create or replace function public.save_presentation`
+(today: `20261118000000_presentation_term.sql`). Always start a change from that newest version, or older fixes get
+lost.
+
+## Refusal codes
+
+A refusal raises an error with its own code. The app turns the code into a message in `REFUSALS`
+(`src/lib/presentations.ts`) or in the action that called it. Main ones:
+
+- `QM409`: someone saved a newer copy (conflict). `QM422`: a slide the app thought was saved is missing.
+- `QM429`: saving too fast. `QMMAX`: too many presentations. `QMBAN`: banned account.
+- `QMREV`: locked by a review or a submission (`is_review_locked`). `QMRVW`: review step not allowed.
+  `QMSUB`: submission not allowed. `QMPUB`: publishing an empty presentation.
+- `42501`: not allowed (wrong person). `22023`: bad input that should never get past zod.
+- `QMBLK`: a click limit paused the feature (the pause end time is in `details`), read by `pausedUntilFromError`
+  (`src/lib/clickLimits.ts`).
+
+## Where the big features live
+
+- Presentations and saving: `save_presentation` (one step: details + slides, removes deleted slides).
+- Photos and the weekly cleanup: `used_photo_srcs` (drafts' photos count as used).
+- Click limits: `20261013000000_click_limits.sql`, `20261014000000_click_auto_ban.sql`, `20261017000000_click_history.sql`.
+- Reviews: `20261019000000_presentation_reviews.sql` and the review files after it (listed in the root `CLAUDE.md`).
+- Submissions: `20261119000000_quizmatter_submissions.sql`, `20261120000000_submission_fixes.sql`,
+  `20261121000000_submission_receipts.sql`.
+- Folders: `20261028000000_folders.sql`. Teacher profiles: `20261110000000_teacher_profiles.sql`,
+  `20261112000000_profile_name_links.sql`.
+
+Claude's drafts and photo tickets are NOT here: they live in Cloudflare D1 (`d1/migrations`).

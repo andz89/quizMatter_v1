@@ -1,0 +1,46 @@
+# src/lib (helpers, data shapes, saving)
+
+## The files that matter most
+
+- `schema.ts`: the zod schemas and types for everything saved (presentation, slide, element, photo, …) and their
+  limits (`MAX_SLIDES`, text lengths, …). Every save parses with these first (see "Saving Data" in the root
+  `CLAUDE.md`). A new saved field = add it here first.
+- `store.ts`: the editor's state and every edit action (zustand). Notes in `src/components/editor/CLAUDE.md`.
+- `constants.ts`: canvas size, box ids (`QUESTION_CONTAINER_ID`, …), photo URLs, slide effect speeds, diagram limits.
+- `factories.ts`: new blank slides and presentations, `duplicateSlide`.
+- `svgLibrary.tsx` (very big): every drawing in the Elements panel and the diagram layouts. Before changing diagram
+  code here, read the Diagrams rules in `src/components/editor/CLAUDE.md`.
+- `importPresentation.ts` (very big): turns Claude's simple "recipe" JSON into real slides, working out every
+  element's size and place. `getClaudeFormat()` is the format text Claude reads.
+
+## Saving and loading
+
+- `presentations.ts`: `savePresentationToDb` → zod → the `save_presentation` database function. `REFUSALS` turns
+  the database's refusal codes (`QM409` conflict, `QMMAX`, `QM429`, `QMBAN`, `QMREV` locked, …) into messages, and
+  `SaveRefusedError` carries them. A new refusal code goes in `REFUSALS`.
+- `fetchPresentation.ts`: loads a presentation + who owns it + its review and submission status (server).
+- `reviews.ts` (reviewer's saves) / `reviewStatus.ts` (reads), `submissions.ts` (Submit to QuizMatter reads).
+- `folders.ts`, `userSettings.ts`, `profiles.ts`, `account.ts` (`getAccount`: who is logged in, `isAdmin`).
+- `supabase/`: `client.ts` (browser), `server.ts` (server, with the login cookies), `admin.ts` (secret key, server
+  only, skips the database rules: use only when there is no other way).
+
+## Other groups
+
+- Limits: `clickLimits.ts` (the one click-limit system, see root `CLAUDE.md`), `browserLimits.ts` (sign up / login
+  speed bumps kept in the browser).
+- Photos: `photos.tsx` (upload, My photos, shared photos), `photoFiles.ts` (R2 files, server), `photoTickets.ts`
+  (Claude's photo uploads), `cleanupPhotos.ts` (weekly cleanup).
+- Claude (MCP): `drafts.ts` (drafts in Cloudflare D1), `importPresentation.ts`, `photoTickets.ts`.
+- Timers: `cleanupPhotos.ts`, `cleanupAccounts.ts` (run by `worker.ts`).
+- Drawings: `svgLibrary.tsx`, `flags.tsx`, `kids.tsx`, `solids.tsx`, and the big people drawings `schoolBoy.tsx` /
+  `clipartKids.tsx`, which load only when needed (`peopleArt.ts`).
+- Text: `richText.ts` (tiptap setup, safe HTML), `format.ts` (dates, labels).
+- Editor hooks: `useEditorShortcuts`, `useMarqueeSelection`, `useElementDropTarget`, `useCanvasTextEditor`,
+  `useAutoFitText`, `useFormatTexts`.
+
+## Picture Shapes (for Claude's import)
+
+The import runs on the server, where drawings can't be measured, so `src/lib/assetShapes.json` keeps each library drawing's real shape (without the empty space around it). The import fits every picture's box to it, like the editor does. Spec: `docs/superpowers/specs/2026-10-10-picture-drawn-shapes-design.md`.
+
+- After adding or changing library art, update the file: `npm run dev`, open `/dev/asset-shapes`, download, replace `src/lib/assetShapes.json`, commit.
+- A drawing missing from the file still works, it just keeps the box it's given.

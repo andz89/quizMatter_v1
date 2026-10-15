@@ -1,0 +1,32 @@
+# src/pages/api (Claude's connector, the MCP server)
+
+`mcp.ts` is the MCP server that Claude chat connects to (a custom connector in claude.ai). It's the only file under
+`src/pages`; the rest of the app uses `src/app`.
+
+## How it works
+
+1. **Login:** Claude has no browser cookies, so it logs in with OAuth. Supabase is the login server; the teacher
+   clicks Allow on `/oauth/consent` (`src/app/oauth`), and `/.well-known/oauth-protected-resource` tells Claude where
+   to start. `src/proxy.ts` lets `/api/mcp` through without cookies. `checkLogin` reads the token and asks the
+   database `is_admin` / `is_banned`. **For now only admins can use it.**
+2. **The tools:**
+   - `get_presentation_format`: the recipe format (`getClaudeFormat()` in `src/lib/importPresentation.ts`).
+   - `read_presentation`: reads a saved presentation as a reference.
+   - `find_photos`: searches the shared photo library.
+   - `prepare_photo_upload`: makes one-time upload links (`src/lib/photoTickets.ts`); Claude then sends each file to
+     `/api/claude-photo` (`src/app/api/claude-photo/route.ts`).
+   - `send_presentation`: `buildSlides` turns the recipe into real slides and checks them. Problems go back to
+     Claude as a report to fix. If all is well, it saves a **draft** (`src/lib/drafts.ts`) and gives a link.
+   - The old names (`…_lesson…`, `…_quiz…`) still work, because old chats keep the tool list they started with.
+3. **Drafts:** they live in Cloudflare D1 (`d1/migrations`), not Supabase, and last 24 hours. The link opens
+   `/presentation/new?draft=<id>` (`src/app/presentation/new/page.tsx`), which loads it into the editor as a new
+   presentation. It is only saved for real when the teacher clicks Save. Nothing here touches saved presentations.
+
+## Rules
+
+- Everything Claude sends is checked with zod (`presentationRecipeSchema`, `claudeDetailsSchema`,
+  `claudePhotoSchema`) before it's stored (see "Saving Data" in the root `CLAUDE.md`).
+- Claude adds diagrams with `{ "text": … }` boxes only (automatic layout).
+- Picture boxes are fitted to the drawing's real shape from `src/lib/assetShapes.json` (see `src/lib/CLAUDE.md`).
+- **After adding or renaming a tool, the user must reconnect the connector in claude.ai and start a new chat**, or
+  Claude won't see it. Say so when you finish such a change.

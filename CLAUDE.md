@@ -1,3 +1,35 @@
+# Code Map (where things live)
+
+Read this first: it tells you where to look before you plan. Folders marked **(notes)** have their own `CLAUDE.md`
+with how that part works; it loads when you open a file there. When you plan work in one of them, read its notes
+first.
+
+- `src/app/`: the pages (Next.js app router). `(home)/` home pages (QuizMatter, Saved, Search, Teachers, Reviews &
+  submissions); `presentation/[id]/` the view page and `edit/` the editor page; `presentation/new/` opens Claude's
+  drafts; `account/`, `login/`, `signup/`, `teachers/[slug]/` (profiles); `api/` photo uploads; `oauth/` Claude's
+  login. Teachers' server actions: `actions.ts`, `folderActions.ts`, or an `actions.ts` next to the page.
+- `src/app/admin/` **(notes)**: the admin pages.
+- `src/components/editor/` **(notes)**: the editor. Its state and every edit: `src/lib/store.ts` (zustand).
+- `src/components/presentation/`: presenting and view-only slides (`PresentationView`, `SlideStaticView`).
+- `src/components/`: shared UI: `Spinner`, `TopLoadingBar`, `LinkPending`, `Modal`, `Logo`, `NavBar`,
+  `ClickPauseNotice`. The app's confirm box is `src/components/editor/ConfirmModal.tsx` (used on every page).
+- `src/lib/` **(notes)**: helpers, zod schemas (`schema.ts`), saving and loading.
+- `supabase/migrations/` **(notes)**: the database. Its functions and triggers hold the real rules and limits.
+- `src/pages/api/` **(notes)**: Claude's connector (MCP server). Its drafts live in Cloudflare D1 (`d1/migrations`).
+- `src/proxy.ts`: the login check before each page. `worker.ts` + `wrangler.jsonc`: Cloudflare timers (cleanups).
+- `docs/superpowers/specs/`: the designs of past features. Read the matching one before changing a big feature.
+
+**How a save works:** an edit in the editor → a store action in `store.ts` (kept for undo) → Save / Ctrl+S →
+`savePresentation` → `savePresentationToDb` (`src/lib/presentations.ts`) checks with zod (`schema.ts`) → the
+`save_presentation` database function → a refusal comes back as a code (`QM409`, `QMREV`, …) → `REFUSALS` turns it
+into a message → sonner toast.
+
+**How a presentation opens:** `fetchPresentation` (`src/lib/fetchPresentation.ts`) on the server → the page picks
+edit / view / review → `Editor` → `store.loadPresentation`.
+
+**Keep the notes true:** when you change how a folder works (new file, moved logic, new rule), update its
+`CLAUDE.md` (and this map) in the same commit. Stale notes mislead the next session.
+
 # Workflow Preferences
 
 **Always use Superpowers** (brainstorming, writing-plans, etc.) to handle the work. Don't ask first.
@@ -9,7 +41,7 @@ The plan-first rule (only when Superpowers is off): whenever a requested feature
 After implementing, do a checking step before saying the work is done:
 
 1. Run `npx tsc --noEmit` and `npm run lint`, and fix any errors in the files you changed.
-2. Read your changes again (`git diff`) next to the approved plan. Make sure every part of the plan is done, nothing extra was added, and the rules in this file were followed (zod before saving, the one Spinner, the design system, npm 10 for packages, etc.).
+2. Read your changes again (`git diff`) next to the approved plan. Make sure every part of the plan is done, nothing extra was added, and the rules in this file were followed (zod before saving, the one Spinner, the design system, npm 10 for packages, the folder `CLAUDE.md` notes still true, etc.).
 3. Tell the user what you checked and what passed or failed. Leave live testing in the browser to the user.
 
 # Installing Packages (npm version)
@@ -84,27 +116,9 @@ An editor sends one of their own presentations to QuizMatter; an admin approves 
 - **The rules live in the database functions** (`submit_presentation`, `approve_submission`, `send_back_submission`, `my_submissions`, `admin_submissions`, `submission_status`). Migration: `20261119000000_quizmatter_submissions.sql`.
 - **In the app:** reads through `src/lib/submissions.ts` (`SUBMISSION_LABELS` for the words and colors); actions `submitToQuizMatter` (`src/app/actions.ts`), `approveSubmission` / `sendBackSubmission` (admin actions). Admin pages under `src/app/admin/presentations/submissions`.
 
-# Diagrams (Flowchart, Cycle, Mind Map, Tree)
+# Diagrams and Picture Shapes
 
-The "Diagrams" group of the Elements panel. Full design: `docs/superpowers/specs/2026-10-06-diagram-box-drag-design.md`. When changing them, keep these rules:
-
-- **Each box works like a text box:** it keeps its size, its text shrinks to fit (size 12 down to 1), and a picked box has the same handles (corners keep the shape, side handles change width or height). Reuse `CORNERS` / `EDGE_HANDLES` from `src/components/editor/handles.ts`; don't make new handles.
-- **One layout, two users:** the layouts in `svgLibrary.tsx` place every box, and `getDiagramBoxes` gives those same boxes to the editor (`DiagramBoxEditor.tsx`). Never place boxes a second way in the editor, or the outline won't match the drawing.
-- **Text is typed on the slide** (double-click a box; Shift+Enter = new line, Enter/Esc/click outside = done). The panels have no text boxes, only box count, Across/Down, Tidy up, Reset (and the Tree's add/remove).
-- **A box's own place and size** (`x, y, width, height`) are saved all together or not at all; missing = its automatic spot. Limits live in `constants.ts` and are checked by `diagramBoxSchema` (zod) before saving.
-- **A box's own look** (`fill`, `border`, `borderWidth`, `textColor`, `fontSize`) is optional; missing = the diagram's Color tint and border, dark text, size 12. The toolbar's box style group and the Color panel (`boxFill` / `boxBorder` / `boxText`) change the picked box, or every box when none is picked, through `diagramStyleTargets` + `withDiagramBoxStyle`. Moving, Tidy up and new boxes keep or copy the look. Spec: `docs/superpowers/specs/2026-10-07-diagram-box-style-design.md`.
-- **"+" and × on every box** of a selected diagram (`DiagramBoxButtons.tsx`) add a box next to it or remove it. The rules per diagram (where, limits, new text, copying the look) live only in `diagramBoxActions` (`svgLibrary.tsx`); the element is kept in place with `keepInPlace`. Spec: `docs/superpowers/specs/2026-10-07-diagram-box-add-remove-design.md`.
-- **Nothing else moves on the slide** when the drawing area changes: use `keepInPlace` (dragging) or `useResizeForViewBox` (panel), which both keep the other boxes still.
-- **Text widths are measured only once the fonts have loaded** (`fontsReady` from `ElementSvg.tsx`); before that, and on the server, use the estimate, so server and browser draw the same.
-- **Picked / typing box** is UI state in the store (`pickedDiagramBox`, `editingDiagramBox`), never saved.
-- **Claude** adds diagrams with `{ "text": … }` boxes only (automatic layout).
-
-# Picture Shapes (for Claude's import)
-
-The import runs on the server, where drawings can't be measured, so `src/lib/assetShapes.json` keeps each library drawing's real shape (without the empty space around it). The import fits every picture's box to it, like the editor does. Spec: `docs/superpowers/specs/2026-10-10-picture-drawn-shapes-design.md`.
-
-- After adding or changing library art, update the file: `npm run dev`, open `/dev/asset-shapes`, download, replace `src/lib/assetShapes.json`, commit.
-- A drawing missing from the file still works, it just keeps the box it's given.
+Their rules moved next to their code: Diagrams (Flowchart, Cycle, Mind Map, Tree) in `src/components/editor/CLAUDE.md`, Picture Shapes (`assetShapes.json`, for Claude's import) in `src/lib/CLAUDE.md`. Read them before changing either.
 
 # Loading Spinner
 
