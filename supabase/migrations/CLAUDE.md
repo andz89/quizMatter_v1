@@ -10,7 +10,7 @@ even if the app has a bug. The app's checks (zod, hidden buttons) are only the f
 - Start with a short comment saying what it changes and why, in plain English (like the files before it).
 - Functions use `set search_path = ''` and full names (`public.presentations`). Functions that must get past the
   table rules are `security definer` and check the caller themselves (`auth.uid()`, `public.is_admin()`,
-  `public.is_editor()`). Give `execute` only to `authenticated` (`revoke … from public, anon`).
+  `public.is_super_admin()`, `public.is_editor()`). Give `execute` only to `authenticated` (`revoke … from public, anon`).
 - A limit checked here (text length, counts) must match the same limit in `src/lib/schema.ts` (or the file named
   in the comment), so the app and the database agree. Write "Same limit as …" next to it.
 
@@ -42,6 +42,7 @@ A refusal raises an error with its own code. The app turns the code into a messa
 - Reviews: `20261019000000_presentation_reviews.sql` and the review files after it (listed in the root `CLAUDE.md`).
 - Submissions: `20261119000000_quizmatter_submissions.sql`, `20261120000000_submission_fixes.sql`,
   `20261121000000_submission_receipts.sql`.
+- Super admin: `20261122000000_super_admin.sql`.
 - Folders: `20261028000000_folders.sql`. Teacher profiles: `20261110000000_teacher_profiles.sql`,
   `20261112000000_profile_name_links.sql`.
 

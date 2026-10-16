@@ -14,7 +14,7 @@ import { AdminTeachers, type TeacherRow } from "./AdminTeachers";
  */
 export default async function AdminTeachersPage() {
   // The layout checks too, but a layout doesn't run again on every request, so the page checks next to its data.
-  if (!(await getAccount()).isAdmin) notFound();
+  if (!(await getAccount()).isSuperAdmin) notFound();
   const admin = createAdminClient();
   if (!admin) {
     return (

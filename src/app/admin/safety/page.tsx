@@ -36,7 +36,7 @@ import { PausedTeachers, type PausedRow } from "./PausedTeachers";
  */
 export default async function AdminSafetyPage() {
   // The layout checks too, but a layout doesn't run again on every request, so the page checks next to its data.
-  if (!(await getAccount()).isAdmin) notFound();
+  if (!(await getAccount()).isSuperAdmin) notFound();
   const admin = createAdminClient();
   if (!admin) {
     return (
@@ -1112,7 +1112,7 @@ function clickLimitMore(limit: ClickLimit): More {
         `The database counts how many times each teacher uses “${name}” each day. Each teacher has their own count, and it starts again at 12:00 midnight (${zoneName(limit.daily_reset_time_zone)}).`,
         `${limit.max_clicks} a day is the limit. The ${ordinal(limit.max_clicks)} time still works; after that, only this feature stops working until midnight. Everything else in the app keeps working.`,
         limit.ban_after_pauses ? banRule(limit.ban_after_pauses) : "It never bans anyone; it only pauses.",
-        "Admins aren't counted. An admin can end a pause early with Release (above).",
+        "The super admin isn't counted. An admin can end a pause early with Release (above).",
       ],
       example: `A teacher uses “${name}” ${limit.max_clicks} times between 7:00 and 7:20 AM. The ${ordinal(limit.max_clicks)} time works. The next one is refused, its buttons grey out, and a note at the bottom of the screen says it works again at 12:00 AM.`,
       scenario: `Someone runs a script (a small program that clicks for them) that tries hundreds of times. It's stopped after ${limit.max_clicks}, and has to wait until midnight.`,
@@ -1125,7 +1125,7 @@ function clickLimitMore(limit: ClickLimit): More {
       `${limit.max_clicks} times within ${timeSpan(limit.per_seconds)} is the limit. The ${ordinal(limit.max_clicks)} time still works; after that, only this feature stops working for ${pause}. Everything else in the app keeps working.`,
       `If it happens again within ${limit.repeat_within_hours} hours of the last pause, the pause is longer: ${duration(limit.repeat_pause_minutes)}.`,
       limit.ban_after_pauses ? banRule(limit.ban_after_pauses) : "It never bans anyone; it only pauses.",
-      "Admins aren't counted. An admin can end a pause early with Release (above).",
+      "The super admin isn't counted. An admin can end a pause early with Release (above).",
     ],
     example: `A teacher uses “${name}” ${limit.max_clicks} times within ${timeSpan(limit.per_seconds)}. The ${ordinal(limit.max_clicks)} time works. The next one is refused, its buttons grey out, and a note at the bottom of the screen says the time it works again (${pause} later).`,
     scenario: `Someone runs a script (a small program that clicks for them) that clicks hundreds of times. It's stopped after ${limit.max_clicks}, and has to wait ${pause}.` + (limit.ban_after_pauses ? ` If it keeps coming back, the account is banned.` : ""),

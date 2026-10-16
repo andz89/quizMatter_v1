@@ -79,7 +79,8 @@ export default async function AdminPresentationsPage() {
           Submissions{submissions.data.length > 0 && ` (${submissions.data.length})`}
           <LinkPending />
         </Link>
-        <NewPresentationButton author={QUIZMATTER_NAME} fromAdmin />
+        {/* Plain admins make presentations from the home page or with Claude. */}
+        {account.isSuperAdmin && <NewPresentationButton author={QUIZMATTER_NAME} fromAdmin />}
       </div>
 
       <AdminPresentations rows={buildRows(data, drafts, reviewById, reviewersById)} />

@@ -32,12 +32,13 @@ export async function setShared(id: string, isShared: boolean): Promise<boolean>
 
 /**
  * Moves one of an admin's own presentations (from their home page) to Admin → Presentations, as a QuizMatter
- * presentation. It comes as a draft (not shared), so teachers only get it once the admin clicks Share. Only admins:
- * the "Only admins save admin presentations" database rule blocks anyone else too. False if it failed.
+ * presentation. It comes as a draft (not shared), so teachers only get it once the admin clicks Share. Only the
+ * super admin (a plain admin's new presentations are QuizMatter ones anyway); the "Only admins save admin
+ * presentations" database rule blocks teachers too. False if it failed.
  */
 export async function moveToQuizMatter(id: string): Promise<boolean> {
   const parsed = idSchema.safeParse(id);
-  if (!parsed.success || !(await getAccount()).isAdmin) return false;
+  if (!parsed.success || !(await getAccount()).isSuperAdmin) return false;
 
   const supabase = await createClient();
   const { data: claims } = await supabase.auth.getClaims();

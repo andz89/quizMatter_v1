@@ -10,7 +10,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 /**
  * Where Claude sends a photo for the shared photo library: POST /api/claude-photo?ticket=<id>, with the WebP file
  * as the body. The ticket (from prepare_photo_upload in /api/mcp, which only admins can call) holds the photo's
- * name, description, tags, category and source, so this needs no login — the proxy lets it through, and the
+ * name, description, tags, category and source, and who asked (saved as the photo's uploaded_by), so this needs no login — the proxy lets it through, and the
  * ticket is the permission. Claude converted the photo to WebP in its sandbox, like the admin page does in the
  * browser; the file is stored exactly as it arrives. It's ready for teachers and slides at once. The answers are
  * plain sentences, as Claude reads them.
@@ -89,7 +89,7 @@ export async function POST(request: Request) {
     await savePhotoFile(fileName, body, type);
     const { error } = await supabase
       .from("shared_photos")
-      .insert({ ...photo.data, ...info, bytes: sharedPhotoBytesSchema.parse(body.byteLength) });
+      .insert({ ...photo.data, ...info, bytes: sharedPhotoBytesSchema.parse(body.byteLength), uploaded_by: z.uuid().parse(ticket.ownerId) });
     saved = !error;
   }
   if (!saved) {

@@ -399,10 +399,13 @@ export async function saveSharedPhotoInfo(src: string, info: Partial<SharedPhoto
   return error || data.length === 0 ? "Couldn't save. Please try again." : null;
 }
 
-/** Takes a photo off the shared list. Slides that use it keep it (the file stays). Throws if it fails. */
+/** Takes a photo off the shared list. Slides that use it keep it (the file stays). Throws if it fails or wasn't removed. */
 export async function removeSharedPhoto(src: string) {
-  const { error } = await createClient().from("shared_photos").delete().eq("src", src);
+  // The removed row is asked back: the database rules skip a blocked delete (a plain admin's, of someone else's
+  // photo) without an error.
+  const { data, error } = await createClient().from("shared_photos").delete().eq("src", src).select("src");
   if (error) throw error;
+  if (data.length === 0) throw new Error("The photo wasn't removed.");
 }
 
 function toBlob(canvas: HTMLCanvasElement, type: string, quality: number) {

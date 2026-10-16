@@ -10,10 +10,10 @@ import type { CleanupFile } from "./CleanupList";
 /**
  * The "Find unused photos" button: the photo files nothing uses, which the weekly cleanup will delete, found
  * the same way the cleanup finds them (see lib/cleanupPhotos.ts), and how much is stored in all.
- * Null if it failed. Admins only (admin_used_photo_srcs() also refuses anyone else).
+ * Null if it failed. Super admin only (admin_used_photo_srcs() also refuses anyone else).
  */
 export async function findCleanupFiles(): Promise<{ files: CleanupFile[]; stored: string } | null> {
-  if (!(await getAccount()).isAdmin) return null;
+  if (!(await getAccount()).isSuperAdmin) return null;
 
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("admin_used_photo_srcs");

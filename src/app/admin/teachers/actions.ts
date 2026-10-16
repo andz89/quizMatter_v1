@@ -20,7 +20,7 @@ export async function banTeacher(userId: string, reason: string): Promise<string
   const parsed = banSchema.safeParse({ user_id: userId, reason });
   if (!parsed.success) return parsed.error.issues[0].message;
   const account = await getAccount();
-  if (!account.isAdmin) return "Only admins can ban teachers.";
+  if (!account.isSuperAdmin) return "Only the super admin can ban teachers.";
   if (parsed.data.user_id === account.id) return "You can't ban yourself.";
   const admin = createAdminClient();
   if (!admin) return "The server is missing SUPABASE_SECRET_KEY.";
@@ -66,7 +66,7 @@ export async function setEditor(userId: string, isEditor: boolean): Promise<stri
 export async function unbanTeacher(userId: string): Promise<string | null> {
   const parsed = z.uuid().safeParse(userId);
   if (!parsed.success) return "Couldn't unban this teacher.";
-  if (!(await getAccount()).isAdmin) return "Only admins can unban teachers.";
+  if (!(await getAccount()).isSuperAdmin) return "Only the super admin can unban teachers.";
   const admin = createAdminClient();
   if (!admin) return "The server is missing SUPABASE_SECRET_KEY.";
 

@@ -11,7 +11,7 @@ import { CleanupList } from "./CleanupList";
  */
 export default async function AdminCleanupPage() {
   // The layout checks too, but a layout doesn't run again on every request, so the page checks next to its data.
-  if (!(await getAccount()).isAdmin) notFound();
+  if (!(await getAccount()).isSuperAdmin) notFound();
   const supabase = await createClient();
   const { data: categories, error } = await supabase.from("photo_categories").select("id, name").order("name");
   if (error) throw error;

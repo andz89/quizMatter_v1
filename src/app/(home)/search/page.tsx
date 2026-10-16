@@ -89,7 +89,7 @@ function buildMineCards(
   mine: CardPresentation[],
   drafts: DraftSummary[],
   search: HomeSearch,
-  account: { isAdmin: boolean; isEditor: boolean },
+  account: { isSuperAdmin: boolean; isEditor: boolean },
   submissionOf: Map<string, SubmissionStatus>,
 ) {
   const now = Date.now();
@@ -98,7 +98,7 @@ function buildMineCards(
   const matchingDrafts = drafts.filter((draft) => !loadedIds.has(draft.id) && draftMatches(draft, search, since));
   return {
     cards: [...matchingDrafts.map((draft) => draftCard(draft, now)), ...mine.map((presentation) =>
-        myCard(presentation, account.isAdmin, now, { isEditor: account.isEditor, submission: submissionOf.get(presentation.id) }),
+        myCard(presentation, account.isSuperAdmin, now, { isEditor: account.isEditor, submission: submissionOf.get(presentation.id) }),
       )],
     draftCount: matchingDrafts.length,
   };

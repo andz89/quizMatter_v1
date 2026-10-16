@@ -11,7 +11,7 @@ import { createClient } from "@/lib/supabase/server";
  * With &category=<category id> it's a shared photo instead: only admins can add one, it must be WebP, and it
  * goes to the shared_photos table (for every teacher, with its file size) instead of "My photos". It also needs &source=<who owns it
  * or where it came from>, and &name=<file name> gives it its name (to show and search); both are only set the
- * first time it's shared.
+ * first time it's shared. Each shared photo remembers who uploaded it (uploaded_by, filled in by the database).
  */
 export async function POST(request: Request) {
   const supabase = await createClient();
@@ -56,7 +56,20 @@ export async function POST(request: Request) {
   const source = shared ? sharedPhotoInfoSchema.shape.source.safeParse(searchParams.get("source") ?? "") : null;
   if (source && !source.success) return Response.json({ error: source.error.issues[0].message }, { status: 400 });
 
-  // At most 30 photos a minute per teacher (admins: no limit), counted before the file takes up storage.
+  // A photo another admin already shared stays as it is (its category, name and owner), so a plain admin's upload
+  // of it is refused with a clear message. The super admin's upload moves it, as before. (The database refuses the
+  // change anyway.)
+  if (shared) {
+    const [{ data: existing }, { data: isSuperAdmin }] = await Promise.all([
+      supabase.from("shared_photos").select("uploaded_by").eq("src", shared.data.src).maybeSingle(),
+      supabase.rpc("is_super_admin"),
+    ]);
+    if (existing && existing.uploaded_by !== data.claims.sub && isSuperAdmin !== true) {
+      return Response.json({ error: "Another admin already shared this photo, so it was left as it is." }, { status: 409 });
+    }
+  }
+
+  // At most 30 photos a minute per teacher (the super admin: no limit), counted before the file takes up storage.
   const { error: rateError } = await supabase.rpc("count_write", { kind: "photos" });
   if (rateError?.code === "QMBAN") {
     return Response.json({ error: "Your account is blocked, so you can't add photos." }, { status: 403 });

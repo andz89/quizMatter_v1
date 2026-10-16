@@ -5,6 +5,10 @@ Admin-only work (things shared with every teacher, managing teachers) lives here
 - `layout.tsx` checks `getAccount().isAdmin` and shows "page not found" to everyone else, plus the header and the
   left menu (`AdminMenu.tsx`: the list of pages). A new admin page = a folder here + a line in `AdminMenu`.
 - The database still refuses non-admins on its own; the layout check only hides the pages.
+- Super admin vs plain admins (root `CLAUDE.md`, "Super Admin"): `AdminMenu` items with `superOnly` (Teachers,
+  Safety, Photo cleanup) show only for the super admin; those pages and their actions check `isSuperAdmin`.
+  Admin → Photos shows a plain admin only their own photos (`uploaded_by`) and hides Categories. `setEditor` stays
+  open to every admin (Admin → Editors uses it).
 
 ## The pages
 
@@ -15,10 +19,10 @@ Admin-only work (things shared with every teacher, managing teachers) lives here
 | ↳ Under review | `presentations/reviews/` | Review rounds: publish, send back, cancel (`[id]` = one review) |
 | ↳ Submissions | `presentations/submissions/` | Editors' submissions: approve or send back (`[id]` = one) |
 | Reports | `reports/` | Reported presentations: hide, dismiss, delete |
-| Teachers | `teachers/` | Ban / unban, give or take the editor role (`setEditor`) |
+| Teachers (super admin only) | `teachers/` | Ban / unban, give or take the editor role (`setEditor`) |
 | Editors | `editors/` | The editors with their review numbers; remove (same `setEditor`) |
-| Safety | `safety/` | Click-limit pauses (`releasePause`) and their history (`safety/history`) |
-| Photo cleanup | `cleanup/` | What the weekly photo cleanup will delete |
+| Safety (super admin only) | `safety/` | Click-limit pauses (`releasePause`) and their history (`safety/history`) |
+| Photo cleanup (super admin only) | `cleanup/` | What the weekly photo cleanup will delete |
 
 ## How an admin action is written
 

@@ -48,8 +48,8 @@ export const MAX_PRESENTATIONS = 50;
 // supabase/migrations/20261015000000_lower_saved_limit.sql.
 export const MAX_SAVED = 50;
 
-// The most saves of each kind (presentations, photos) a teacher can make in one minute (QM429; admins aren't
-// counted). Same as count_write in supabase/migrations/20261012000000_saved_limits.sql. Bookmarks use their own click
+// The most saves of each kind (presentations, photos) a teacher can make in one minute (QM429; the super admin
+// isn't counted). Same as count_write in supabase/migrations/20261012000000_saved_limits.sql. Bookmarks use their own click
 // limit instead (20261016000000_bookmarks_click_limit_only.sql). Shown on Admin → Safety.
 export const WRITES_PER_MINUTE = 30;
 

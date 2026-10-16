@@ -19,7 +19,7 @@ const itemClass = "block w-full px-3 py-1.5 text-left text-sm text-text-primary 
 
 /**
  * The "⋮" button on my presentation cards, with Edit, Present and Delete (Remove for Claude's drafts). A
- * draft Claude is still checking can only be removed. Admins also get "Move to QuizMatter" (see canMoveToQuizMatter).
+ * draft Claude is still checking can only be removed. The super admin also gets "Move to QuizMatter" (see canMoveToQuizMatter).
  * Editors also get "Submit to QuizMatter" (see canSubmit); while it waits there's no Edit or Delete.
  * `onMoveToFolder` adds "Move to folder…" (saved presentations only: Claude's drafts can't go in folders).
  */

@@ -125,6 +125,21 @@ An editor sends one of their own presentations to QuizMatter; an admin approves 
 - **The rules live in the database functions** (`submit_presentation`, `approve_submission`, `send_back_submission`, `my_submissions`, `admin_submissions`, `submission_status`). Migration: `20261119000000_quizmatter_submissions.sql`.
 - **In the app:** reads through `src/lib/submissions.ts` (`SUBMISSION_LABELS` for the words and colors); actions `submitToQuizMatter` (`src/app/actions.ts`), `approveSubmission` / `sendBackSubmission` (admin actions). Admin pages under `src/app/admin/presentations/submissions`.
 
+# Super Admin (one admin who can do everything)
+
+Admins are split in two. Full design: `docs/superpowers/specs/2026-10-16-super-admin-design.md`.
+
+- **Super admin:** `admins.is_super` (set for andzrivero89@gmail.com in `20261122000000_super_admin.sql`), asked
+  with `is_super_admin()` in the database and `getAccount().isSuperAdmin` in the app.
+- **Plain admins** (every other admin, `is_admin()` still true): Admin → Photos (only the shared photos they
+  uploaded, `shared_photos.uploaded_by`), Presentations (no "+ New presentation"), Reports, Editors. Not Teachers,
+  Safety or Photo cleanup (hidden, "page not found", actions refuse). No "Move to QuizMatter". They make categories
+  but can't rename or delete them. Their presentations (editor or Claude) are QuizMatter ones, like every admin's.
+  They follow the speed limits (`count_write`, `count_click`, the 30-day name wait), but a click limit only pauses
+  them, never bans them automatically; every admin still skips the
+  50-presentation limit (approving a submission makes a copy the admin owns).
+- A new super-admin-only rule goes in the database with `is_super_admin()`, not only in the app.
+
 # Diagrams and Picture Shapes
 
 Their rules moved next to their code: Diagrams (Flowchart, Cycle, Mind Map, Tree) in `src/components/editor/CLAUDE.md`, Picture Shapes (`assetShapes.json`, for Claude's import) in `src/lib/CLAUDE.md`. Read them before changing either.
@@ -221,6 +236,8 @@ Bright, rounded and friendly for kids, but clean enough to feel credible to teac
 - Gap between sections: 16–20px
 - Icon-to-label gap: 8–12px
 - Editor side panels (Elements, Photos, Presentations, …): the `side-panel` class (all 320px wide; 20px padding, 8px on the right next to a thin scrollbar), not their own width or `p-5`. Sideways rows in them use `ScrollRow` (`src/components/editor/ScrollRow.tsx`).
+
+<!-- BEGIN:nextjs-agent-rules -->
 
 # This is NOT the Next.js you know
 

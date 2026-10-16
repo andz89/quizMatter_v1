@@ -53,6 +53,7 @@ export function AdminPhotos({
   counts,
   matchCount,
   search,
+  isSuperAdmin,
 }: {
   photos: SharedPhotoWithInfo[];
   // Each photo's file size in bytes, by its address.
@@ -62,6 +63,8 @@ export function AdminPhotos({
   // How many photos the search found, on all pages.
   matchCount: number;
   search: PhotoSearch;
+  // Only the super admin renames or deletes categories (plain admins make new ones when uploading).
+  isSuperAdmin: boolean;
 }) {
   const router = useRouter();
   // A change shows here at once, then the page asks the server again (router.refresh) so the pages and counts
@@ -116,13 +119,15 @@ export function AdminPhotos({
         onChanged={() => router.refresh()}
         buttons={
           <>
-            <button
-              type="button"
-              onClick={() => setOpenModal("categories")}
-              className="rounded-button border border-border-default px-3.5 py-1.5 text-sm font-semibold text-text-primary transition-colors hover:bg-bg-page"
-            >
-              Categories
-            </button>
+            {isSuperAdmin && (
+              <button
+                type="button"
+                onClick={() => setOpenModal("categories")}
+                className="rounded-button border border-border-default px-3.5 py-1.5 text-sm font-semibold text-text-primary transition-colors hover:bg-bg-page"
+              >
+                Categories
+              </button>
+            )}
             <button
               type="button"
               onClick={() => setOpenModal("upload")}

@@ -12,12 +12,12 @@ const releaseHistorySchema = releaseSchema.extend({ kind: z.literal("release") }
 
 /**
  * Ends a teacher's pause on a feature now and starts their chain of pauses again from 0, so they're no longer close
- * to an automatic ban (see the click_auto_ban migration). Admins only. Returns an error message, or null if it worked.
+ * to an automatic ban (see the click_auto_ban migration). Super admin only. Returns an error message, or null if it worked.
  */
 export async function releasePause(userId: string, feature: string): Promise<string | null> {
   const parsed = releaseSchema.safeParse({ user_id: userId, feature });
   if (!parsed.success) return "Couldn't release this teacher.";
-  if (!(await getAccount()).isAdmin) return "Only admins can release teachers.";
+  if (!(await getAccount()).isSuperAdmin) return "Only the super admin can release teachers.";
   // click_rate has no policies (only the database's own functions change it), so this needs the secret key.
   const admin = createAdminClient();
   if (!admin) return "The server is missing SUPABASE_SECRET_KEY.";

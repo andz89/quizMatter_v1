@@ -10,7 +10,7 @@ import { AdminMenu } from "./AdminMenu";
  * don't learn it exists. (The database rules still block non-admins from changing anything.)
  */
 export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
-  const { isAdmin } = await getAccount();
+  const { isAdmin, isSuperAdmin } = await getAccount();
   if (!isAdmin) notFound();
 
   return (
@@ -32,7 +32,7 @@ export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
         </header>
 
         <div className="flex flex-col gap-4">
-          <AdminMenu />
+          <AdminMenu isSuperAdmin={isSuperAdmin} />
           <div className="min-w-0">{children}</div>
         </div>
       </main>

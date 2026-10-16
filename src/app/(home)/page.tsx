@@ -50,14 +50,14 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
 function buildMyCards(
   mine: CardPresentation[],
   drafts: DraftSummary[],
-  account: { isAdmin: boolean; isEditor: boolean },
+  account: { isSuperAdmin: boolean; isEditor: boolean },
   submissionOf: Map<string, SubmissionStatus>,
 ) {
   const now = Date.now();
   const savedIds = new Set(mine.map((presentation) => presentation.id));
   return [
     ...mine.map((presentation) =>
-      myCard(presentation, account.isAdmin, now, { isEditor: account.isEditor, submission: submissionOf.get(presentation.id) }),
+      myCard(presentation, account.isSuperAdmin, now, { isEditor: account.isEditor, submission: submissionOf.get(presentation.id) }),
     ),
     ...drafts.filter((draft) => !savedIds.has(draft.id)).map((draft) => draftCard(draft, now)),
     // Drafts are mixed in, so the order the database gave is sorted again here.

@@ -8,12 +8,12 @@ const bodySchema = z.object({ src: z.string().regex(new RegExp(`^${PHOTO_URL_PRE
 
 /**
  * Deletes a photo file from the R2 bucket now, for the admin page "Photo cleanup" (instead of waiting for the
- * weekly cleanup). Admins only. A photo still in use (on a slide, in a "My photos" list or shared) isn't deleted.
+ * weekly cleanup). Super admin only. A photo still in use (on a slide, in a "My photos" list or shared) isn't deleted.
  */
 export async function POST(request: Request) {
   const supabase = await createClient();
-  const { data: isAdmin } = await supabase.rpc("is_admin");
-  if (isAdmin !== true) return Response.json({ error: "Only admins can delete photos." }, { status: 403 });
+  const { data: isSuperAdmin } = await supabase.rpc("is_super_admin");
+  if (isSuperAdmin !== true) return Response.json({ error: "Only the super admin can delete photos." }, { status: 403 });
 
   const parsed = bodySchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return Response.json({ error: "This isn't one of our photos." }, { status: 400 });

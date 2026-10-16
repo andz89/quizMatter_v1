@@ -137,7 +137,7 @@ export async function mySubmissionStatuses(supabase: SupabaseClient, isEditor: b
  */
 export function myCard(
   p: CardPresentation,
-  isAdmin: boolean,
+  canMoveToQuizMatter: boolean,
   now: number,
   extra: { isEditor: boolean; submission?: SubmissionStatus },
 ) {
@@ -145,7 +145,7 @@ export function myCard(
     ...toCard(p, `/presentation/${p.id}/edit`, now),
     // Hidden by an admin: other teachers can't see it, even if it's published.
     badge: p.hidden_at ? ("hidden" as const) : p.is_published ? ("published" as const) : undefined,
-    canMoveToQuizMatter: isAdmin,
+    canMoveToQuizMatter,
     submission: extra.submission,
     canSubmit: extra.isEditor && !p.hidden_at && extra.submission !== "submitted" && extra.submission !== "approved",
     createdAt: Date.parse(p.created_at),
