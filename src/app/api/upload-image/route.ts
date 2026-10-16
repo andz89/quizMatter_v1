@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 
 /**
  * Saves a photo the browser already shrunk (see lib/photos.tsx) to the R2 bucket, adds it to the teacher's
- * "My photos" list, and returns it. Only logged-in teachers can upload. The file is named after its own
+ * "My photos" list, and returns it. For now only editors and admins can upload their own photos. The file is named after its own
  * fingerprint, so the same photo is stored once however many times it's added.
  * The browser sends the photo's size in the address: /api/upload-image?width=…&height=…
  * With &category=<category id> it's a shared photo instead: only admins can add one, it must be WebP, and it
@@ -23,6 +23,12 @@ export async function POST(request: Request) {
   if (categoryId !== null) {
     const { data: isAdmin } = await supabase.rpc("is_admin");
     if (isAdmin !== true) return Response.json({ error: "Only admins can share photos." }, { status: 403 });
+  } else {
+    // A teacher's own photo: only editors and admins can upload for now (the editor says "available soon").
+    const [{ data: isEditor }, { data: isAdmin }] = await Promise.all([supabase.rpc("is_editor"), supabase.rpc("is_admin")]);
+    if (isEditor !== true && isAdmin !== true) {
+      return Response.json({ error: "Uploading photos will be available soon." }, { status: 403 });
+    }
   }
 
   // The header is checked first so a huge upload is refused before it's read.

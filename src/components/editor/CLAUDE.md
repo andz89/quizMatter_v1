@@ -21,6 +21,11 @@ editor / view / review, and renders `Editor.tsx`, which calls `store.loadPresent
 - Side panels (all use the `side-panel` class, sideways rows use `ScrollRow`): `ElementsPanel`, `PhotosPanel`,
   `ColorPanel`, `BackgroundPanel`, `EffectsPanel`, `PresentationsPanel`. They stay open after you add something
   (don't auto-close them).
+- Teachers' own photo uploads are **for editors and admins only, for now** (`checkCanUpload` in
+  `src/lib/photos.tsx`, which asks `is_editor` / `is_admin` once). Other teachers' "My Photos" tab shows "This will
+  be available soon." with Upload and the link box greyed out, and a file dropped on a slide only shows a toast
+  (`useElementDropTarget`). Old "My photos" still show and can be added. `upload-image` refuses them too (403).
+  Admin → Photos and Claude's photo import still upload.
 - Modals: `AnswerModal`, `DetailsModal` (title, grades, subject…), `SlideGridModal`, `ConfirmModal` (the app's one
   confirm box, used on every page; never the browser's `confirm()`).
 - Review mode: `ReviewControls.tsx` (Save as draft + the ⋮ menu, and `ReviewBanner`).

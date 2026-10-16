@@ -274,6 +274,21 @@ export function checkIsAdmin(): Promise<boolean> {
   }).catch(() => false);
 }
 
+/**
+ * Whether the logged-in user can upload their own photos in the editor (pick a file, paste a link, drop a file on
+ * a slide). For now only editors and admins can; other teachers see "This will be available soon".
+ * app/api/upload-image checks the same. false if unsure.
+ */
+export function checkCanUpload(): Promise<boolean> {
+  return remember("canUpload", async () => {
+    const supabase = createClient();
+    const [editor, admin] = await Promise.all([supabase.rpc("is_editor"), supabase.rpc("is_admin")]);
+    if (editor.error) throw editor.error;
+    if (admin.error) throw admin.error;
+    return editor.data === true || admin.data === true;
+  }).catch(() => false);
+}
+
 /** The category with this name (any case), made first if it's new. Shows what went wrong and returns null if it fails. */
 export async function findOrAddCategory(name: string, categories: PhotoCategory[]): Promise<PhotoCategory | null> {
   const parsed = photoCategoryNameSchema.safeParse(name);

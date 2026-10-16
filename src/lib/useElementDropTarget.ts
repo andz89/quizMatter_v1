@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { useEditorStore } from "./store";
 import { ELEMENT_DRAG_MIME, PHOTO_DRAG_MIME } from "./constants";
-import { addPhotoToSlide, uploadPhoto } from "./photos";
+import { addPhotoToSlide, checkCanUpload, uploadPhoto } from "./photos";
 import { photoSchema } from "./schema";
 import { PHOTO_ID } from "./svgLibrary";
 
@@ -62,9 +62,12 @@ export function useElementDropTarget(slideId: string, containerId: string | null
           if (photo.success) addElement(slideId, PHOTO_ID, containerId, position, undefined, photo.data);
           return;
         }
-        // One photo at a time.
-        if (files.length > 1) toast.error("Please drop one photo at a time.");
-        else addPhotoToSlide(() => uploadPhoto(files[0]), { slideId, containerId, position });
+        // One photo at a time, and only for those who can upload (editors and admins for now).
+        checkCanUpload().then((canUpload) => {
+          if (!canUpload) toast.error("Uploading photos will be available soon.");
+          else if (files.length > 1) toast.error("Please drop one photo at a time.");
+          else addPhotoToSlide(() => uploadPhoto(files[0]), { slideId, containerId, position });
+        });
       },
     },
   };

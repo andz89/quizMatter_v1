@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useEditorStore, isPanelEscape } from "@/lib/store";
 import { toast } from "sonner";
-import { PHOTO_TYPES, addPhotoToSlide, loadMyPhotos, removeMyPhoto, uploadPhoto, uploadPhotoFromLink } from "@/lib/photos";
+import { PHOTO_TYPES, addPhotoToSlide, checkCanUpload, loadMyPhotos, removeMyPhoto, uploadPhoto, uploadPhotoFromLink } from "@/lib/photos";
 import { PHOTO_ID } from "@/lib/svgLibrary";
 import type { Photo } from "@/lib/schema";
 import { PhotoTile } from "./PhotoTile";
@@ -32,6 +32,8 @@ export function PhotosPanel() {
   // How many picked photos are still uploading, to show the Spinner on the button.
   const [uploadingFiles, setUploadingFiles] = useState(0);
   const [isAddingLink, setIsAddingLink] = useState(false);
+  // Only editors and admins can upload for now (see checkCanUpload). null until known.
+  const [canUpload, setCanUpload] = useState<boolean | null>(null);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -40,6 +42,10 @@ export function PhotosPanel() {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [closePhotosPanel]);
+
+  useEffect(() => {
+    checkCanUpload().then(setCanUpload);
+  }, []);
 
   // Loaded the first time the "My Photos" tab is opened, not with the panel.
   const isMyPhotosTab = tab === "My Photos";
@@ -150,10 +156,16 @@ export function PhotosPanel() {
             hidden
             onChange={(e) => handleFiles(e.target.files)}
           />
+          {canUpload === false && (
+            <p className="rounded-dropdown bg-highlight-soft px-3 py-2 text-xs font-semibold text-highlight-strong">
+              This will be available soon.
+            </p>
+          )}
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            className="flex items-center justify-center gap-2 rounded-card border border-transparent bg-accent-soft p-2 text-[13px] font-semibold text-text-primary transition-colors hover:border-accent"
+            disabled={!canUpload}
+            className="flex items-center justify-center gap-2 rounded-card border border-transparent bg-accent-soft p-2 text-[13px] font-semibold text-text-primary transition-colors hover:border-accent disabled:pointer-events-none disabled:opacity-40"
           >
             <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-button bg-accent text-white">
               {uploadingFiles > 0 ? <Spinner size={16} /> : <ImageIcon size={16} />}
@@ -168,18 +180,21 @@ export function PhotosPanel() {
               placeholder="Or paste a photo link"
               maxLength={2000}
               aria-label="Photo link"
-              className="min-w-0 flex-1 rounded-input border border-border-default bg-bg-surface px-3 py-2 text-sm text-text-primary outline-none placeholder:text-text-secondary focus:border-text-secondary"
+              disabled={!canUpload}
+              className="min-w-0 flex-1 rounded-input border border-border-default bg-bg-surface px-3 py-2 text-sm text-text-primary outline-none placeholder:text-text-secondary focus:border-text-secondary disabled:opacity-40"
             />
             <button
               type="submit"
-              disabled={!link.trim() || isAddingLink}
+              disabled={!canUpload || !link.trim() || isAddingLink}
               className="flex h-9 w-14 shrink-0 items-center justify-center rounded-button bg-accent btn-press text-sm font-semibold text-white disabled:opacity-40"
             >
               {isAddingLink ? <Spinner size={14} /> : "Add"}
             </button>
           </form>
 
-          <p className="text-xs text-text-secondary">You can also drag photos from your computer onto the slide.</p>
+          {canUpload && (
+            <p className="text-xs text-text-secondary">You can also drag photos from your computer onto the slide.</p>
+          )}
           <p className="text-xs text-text-secondary">Only use photos you have the right to use.</p>
 
           <div className="mt-2">
