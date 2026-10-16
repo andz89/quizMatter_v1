@@ -18,7 +18,7 @@ even if the app has a bug. The app's checks (zod, hidden buttons) are only the f
 
 Many functions were changed again in later files (`create or replace function`). The newest version is in the
 **latest** file that defines it. Find it with a search, e.g. `create or replace function public.save_presentation`
-(today: `20261118000000_presentation_term.sql`). Always start a change from that newest version, or older fixes get
+(today: `20261123000000_shared_copy.sql`). Always start a change from that newest version, or older fixes get
 lost.
 
 ## Refusal codes
@@ -43,6 +43,9 @@ A refusal raises an error with its own code. The app turns the code into a messa
 - Submissions: `20261119000000_quizmatter_submissions.sql`, `20261120000000_submission_fixes.sql`,
   `20261121000000_submission_receipts.sql`.
 - Super admin: `20261122000000_super_admin.sql`.
+- Sharing (a teacher's Publish makes a shared copy, `shared_from` = the original): `20261123000000_shared_copy.sql`
+  (`share_presentation`, `unshare_presentation`, and the `shared_copy_change` / `shared_copy_slides` guards that
+  refuse any other change to a copy).
 - Folders: `20261028000000_folders.sql`. Teacher profiles: `20261110000000_teacher_profiles.sql`,
   `20261112000000_profile_name_links.sql`.
 
