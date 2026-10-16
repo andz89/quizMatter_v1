@@ -53,7 +53,7 @@ async function loadTabCounts(supabase: SupabaseClient, me: string, isEditor: boo
   const count = () => supabase.from("presentations").select("id", { count: "exact", head: true });
   const [mine, quizmatter, teachers, saved, reviewed, myReviews, mySubmissions] = await Promise.all([
     // QuizMatter presentations an admin made are on Admin → Presentations, not in "mine".
-    count().eq("owner_id", me).eq("from_admin", false),
+    count().eq("owner_id", me).eq("from_admin", false).is("shared_from", null),
     count().eq("is_published", true).is("hidden_at", null).eq("from_admin", true),
     count().eq("is_published", true).is("hidden_at", null).eq("from_admin", false).neq("owner_id", me),
     // "!inner" keeps only presentations with a saved row, and the database only gives back my own saved rows.

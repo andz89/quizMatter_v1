@@ -204,7 +204,11 @@ export function PresentationCardMenu({
       {confirming === "delete" && (
         <ConfirmModal
           title={isDraft ? "Remove this draft?" : "Delete this presentation?"}
-          message={isDraft ? `Claude's draft "${card.title}" will be deleted.` : `"${card.title}" is deleted for good. This can't be undone.`}
+          message={
+            isDraft
+              ? `Claude's draft "${card.title}" will be deleted.`
+              : `"${card.title}" is deleted for good. This can't be undone.${card.badge === "published" || card.badge === "hidden" ? " Its shared copy is removed too: other teachers lose it." : ""}`
+          }
           confirmLabel={isDraft ? "Remove" : "Delete"}
           danger
           onConfirm={remove}

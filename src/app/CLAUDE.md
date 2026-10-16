@@ -40,10 +40,16 @@ delete, move). Limits in `src/lib/folders.ts`, checked again in `20261028000000_
 
 ## Sharing and publishing
 
-The Share card is `src/components/editor/ShareButton.tsx` (private ↔ published), saved through `setPublished` in the
-store. Rules (`20261103000000_share_limits.sql`, `20261105000000_publish_daily_reset.sql`): the `share` and
-`publish` click limits, and a presentation needs a title and one slide with something on it to be published
-(`QMPUB`, same rule as `publishableSchema`). QuizMatter (admin) presentations aren't counted.
+A teacher's Published makes a **shared copy**: its own presentation row (`shared_from` = the original), which other
+teachers see. The teacher keeps editing the original in private; "Update shared presentation" in the Share card
+(`src/components/editor/ShareButton.tsx`) copies it again (same link, bookmarks and reports). Private, or deleting
+the original, removes the copy. Only `share_presentation` / `unshare_presentation` change a copy
+(`20261123000000_shared_copy.sql`; app side: `src/lib/sharing.ts`, store `setPublished` / `updateSharedCopy`).
+My own lists leave copies out (`shared_from is null`) and show Published / Hidden from the copy (`mySharedCopies` in
+`(home)/cards.ts`); opening my copy's editor goes to the original. Limits (`20261103000000_share_limits.sql`,
+`20261105000000_publish_daily_reset.sql`): the `share` and `publish` click limits, and it needs a title and one slide
+with something on it (`QMPUB`, same rule as `publishableSchema`). QuizMatter (admin) presentations keep their
+Draft / Shared switch on the presentation itself, and aren't counted.
 
 ## Account, profiles, sign up, login
 

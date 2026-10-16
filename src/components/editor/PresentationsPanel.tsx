@@ -417,7 +417,7 @@ export function PresentationsPanel() {
   );
 }
 
-/** Published presentations (except the one being edited), each with its first slide only. */
+/** Published presentations (except the one being edited and its shared copy), each with its first slide only. */
 function publishedPresentations(supabase: SupabaseClient, presentationId: string) {
   return (
     supabase
@@ -427,6 +427,8 @@ function publishedPresentations(supabase: SupabaseClient, presentationId: string
       // Already left out by the database, except for admins.
       .is("hidden_at", null)
       .neq("id", presentationId)
+      // Nor its own shared copy (see the shared_copy migration).
+      .or(`shared_from.is.null,shared_from.neq.${presentationId}`)
       .order("position", { referencedTable: "first_slide" })
       .limit(1, { referencedTable: "first_slide" })
   );

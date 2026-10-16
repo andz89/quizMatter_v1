@@ -7,6 +7,7 @@ import { LinkPending } from "@/components/LinkPending";
 import { NavBar, navLinkClass } from "@/components/NavBar";
 import { getAccount } from "@/lib/account";
 import { loadMySubmissions } from "@/lib/submissions";
+import { mySharedCopies } from "../(home)/cards";
 import { NewPresentationButton } from "../PresentationListButtons";
 import { PresentationList, type PresentationRow } from "./PresentationList";
 
@@ -14,14 +15,16 @@ import { PresentationList, type PresentationRow } from "./PresentationList";
 export default async function AllPresentationsPage() {
   const supabase = await createClient();
   const { data: claims } = await supabase.auth.getClaims();
-  const [{ data: presentations, error }, drafts, account, folders, folderItems, submissions] = await Promise.all([
+  const [{ data: presentations, error }, drafts, account, folders, folderItems, submissions, sharedCopyOf] = await Promise.all([
     supabase
       .from("presentations")
-      .select("id, title, grades, subject, term, week, day, is_published, updated_at, slides(count)")
+      .select("id, title, grades, subject, term, week, day, updated_at, slides(count)")
       // Other teachers' published presentations are readable too, so only take mine.
       .eq("owner_id", claims?.claims.sub ?? "")
-      // QuizMatter presentations an admin made are on Admin → Presentations, not here.
+      // QuizMatter presentations an admin made are on Admin → Presentations, not here. Nor my shared copies: their
+      // originals are (see the shared_copy migration).
       .eq("from_admin", false)
+      .is("shared_from", null)
       .order("updated_at", { ascending: false }),
     // An admin's drafts from Claude become QuizMatter presentations, so they're on Admin → Presentations.
     getAccount().then((account) => (account.isAdmin ? [] : listDrafts(account.id))),
@@ -31,6 +34,8 @@ export default async function AllPresentationsPage() {
     supabase.from("folder_items").select("presentation_id, folder_id"),
     // Editors: mine sent to QuizMatter (see the quizmatter_submissions migration). Only editors can have any.
     getAccount().then((account) => (account.isEditor ? loadMySubmissions(supabase) : [])),
+    // Which of mine are published (have a shared copy).
+    mySharedCopies(supabase),
   ]);
   if (error) throw error;
   if (folders.error) throw folders.error;
@@ -43,6 +48,7 @@ export default async function AllPresentationsPage() {
     ...row,
     folderId: folderOf.get(row.id),
     isWaiting: waitingIds.has(row.id),
+    isPublished: sharedCopyOf.has(row.id),
   }));
 
   return (
@@ -77,7 +83,6 @@ type SavedPresentation = {
   term: string;
   week: string;
   day: string;
-  is_published: boolean;
   updated_at: string;
   slides: { count: number }[];
 };
@@ -95,7 +100,6 @@ function buildRows(presentations: SavedPresentation[], drafts: DraftSummary[]): 
         meta: detailsLabel(presentation),
         metaTitle: gradesTitle(presentation.grades),
         status: "saved" as const,
-        isPublished: presentation.is_published,
         slideCount: presentation.slides[0]?.count ?? 0,
         sortTime: updatedAt,
         dateLabel: timeAgo(updatedAt, now),

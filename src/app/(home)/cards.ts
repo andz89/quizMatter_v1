@@ -131,6 +131,17 @@ export async function mySubmissionStatuses(supabase: SupabaseClient, isEditor: b
   return new Map(submissions.flatMap((s) => (s.presentationId ? [[s.presentationId, s.status] as const] : [])));
 }
 
+/** My shared copies by their original's id (see the shared_copy migration): my published presentations. */
+export async function mySharedCopies(supabase: SupabaseClient): Promise<Map<string, { hiddenAt: string | null }>> {
+  const { data, error } = await supabase
+    .from("presentations")
+    .select("shared_from, hidden_at")
+    .eq("owner_id", await myId(supabase))
+    .not("shared_from", "is", null);
+  if (error) throw error;
+  return new Map(data.map((row) => [row.shared_from as string, { hiddenAt: row.hidden_at as string | null }]));
+}
+
 /**
  * My own presentation as a card: opens the editor; shows Published / Hidden, and its QuizMatter submission.
  * Editors may submit it unless it's waiting or already approved (see the quizmatter_submissions migration).
@@ -139,15 +150,16 @@ export function myCard(
   p: CardPresentation,
   canMoveToQuizMatter: boolean,
   now: number,
-  extra: { isEditor: boolean; submission?: SubmissionStatus },
+  extra: { isEditor: boolean; submission?: SubmissionStatus; sharedCopy?: { hiddenAt: string | null } },
 ) {
+  const isHidden = Boolean(p.hidden_at || extra.sharedCopy?.hiddenAt);
   return {
     ...toCard(p, `/presentation/${p.id}/edit`, now),
-    // Hidden by an admin: other teachers can't see it, even if it's published.
-    badge: p.hidden_at ? ("hidden" as const) : p.is_published ? ("published" as const) : undefined,
+    // Published = it has a shared copy. Hidden = an admin hid it (or its copy): other teachers can't see it.
+    badge: isHidden ? ("hidden" as const) : extra.sharedCopy ? ("published" as const) : undefined,
     canMoveToQuizMatter,
     submission: extra.submission,
-    canSubmit: extra.isEditor && !p.hidden_at && extra.submission !== "submitted" && extra.submission !== "approved",
+    canSubmit: extra.isEditor && !isHidden && extra.submission !== "submitted" && extra.submission !== "approved",
     createdAt: Date.parse(p.created_at),
     updatedAt: Date.parse(p.updated_at),
   };

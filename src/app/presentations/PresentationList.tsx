@@ -332,7 +332,11 @@ function PresentationListRow({
               {isConfirmingRemove && (
                 <ConfirmModal
                   title={isDraft ? "Discard this draft?" : "Delete this presentation?"}
-                  message={isDraft ? `Claude's draft "${row.title}" will be deleted.` : `"${row.title}" is deleted for good. This can't be undone.`}
+                  message={
+                    isDraft
+                      ? `Claude's draft "${row.title}" will be deleted.`
+                      : `"${row.title}" is deleted for good. This can't be undone.${row.isPublished ? " Its shared copy is removed too: other teachers lose it." : ""}`
+                  }
                   confirmLabel={isDraft ? "Discard" : "Delete"}
                   danger
                   onConfirm={remove}

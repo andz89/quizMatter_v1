@@ -7,7 +7,7 @@ import { listDrafts, type DraftSummary } from "@/lib/drafts";
 import { LinkPending } from "@/components/LinkPending";
 import { changedSince, homeSearchQuery, parseHomeSearch, type HomeSearch } from "../../homeSearch";
 import type { SubmissionStatus } from "@/lib/submissions";
-import { CARD_COLUMNS, applySearch, draftCard, draftMatches, loadCardContext, myCard, myId, mySubmissionStatuses, orderBy, type CardPresentation } from "../cards";
+import { CARD_COLUMNS, applySearch, draftCard, draftMatches, loadCardContext, myCard, myId, mySharedCopies, mySubmissionStatuses, orderBy, type CardPresentation } from "../cards";
 import { SavableCards } from "../CardGrid";
 import { ShowMore } from "../ShowMore";
 
@@ -21,25 +21,28 @@ export default async function SearchPage({ searchParams }: PageProps<"/search">)
 
   const base = supabase.from("presentations").select(CARD_COLUMNS, { count: "exact" });
   const query =
-    isMine ? base.eq("owner_id", me).eq("from_admin", false)
+    // My own: not my shared copies (their originals are here; see the shared_copy migration).
+    isMine ? base.eq("owner_id", me).eq("from_admin", false).is("shared_from", null)
     : search.in === "quizmatter" ? base.eq("is_published", true).is("hidden_at", null).eq("from_admin", true)
     : search.in === "teachers" ? base.eq("is_published", true).is("hidden_at", null).eq("from_admin", false).neq("owner_id", me)
     // All shared: QuizMatter's and other teachers' (my own aren't in it, so my copies don't sit next to the originals).
     : base.eq("is_published", true).is("hidden_at", null).or(`from_admin.eq.true,owner_id.neq.${me}`);
 
-  const [{ data, count, error }, drafts, submissionOf] = await Promise.all([
+  const [{ data, count, error }, drafts, submissionOf, sharedCopyOf] = await Promise.all([
     orderBy(applySearch(query, search), search.sort).range(0, search.shown - 1),
     // Claude's drafts are only mine; an admin's become QuizMatter presentations, so they have none here.
     isMine && !account.isAdmin ? listDrafts(account.id) : [],
     // Editors: which of mine were sent to QuizMatter, for the card's label and menu.
     mySubmissionStatuses(supabase, isMine && account.isEditor),
+    // Which of mine are published (have a shared copy), for the card's badge.
+    isMine ? mySharedCopies(supabase) : new Map<string, { hiddenAt: string | null }>(),
   ]);
   if (error) throw error;
 
   let cards;
   let draftCount = 0;
   if (isMine) {
-    const mine = buildMineCards(data, drafts, search, account, submissionOf);
+    const mine = buildMineCards(data, drafts, search, account, submissionOf, sharedCopyOf);
     cards = mine.cards;
     draftCount = mine.draftCount;
   } else {
@@ -91,6 +94,7 @@ function buildMineCards(
   search: HomeSearch,
   account: { isSuperAdmin: boolean; isEditor: boolean },
   submissionOf: Map<string, SubmissionStatus>,
+  sharedCopyOf: Map<string, { hiddenAt: string | null }>,
 ) {
   const now = Date.now();
   const since = changedSince(search);
@@ -98,7 +102,11 @@ function buildMineCards(
   const matchingDrafts = drafts.filter((draft) => !loadedIds.has(draft.id) && draftMatches(draft, search, since));
   return {
     cards: [...matchingDrafts.map((draft) => draftCard(draft, now)), ...mine.map((presentation) =>
-        myCard(presentation, account.isSuperAdmin, now, { isEditor: account.isEditor, submission: submissionOf.get(presentation.id) }),
+        myCard(presentation, account.isSuperAdmin, now, {
+          isEditor: account.isEditor,
+          submission: submissionOf.get(presentation.id),
+          sharedCopy: sharedCopyOf.get(presentation.id),
+        }),
       )],
     draftCount: matchingDrafts.length,
   };
