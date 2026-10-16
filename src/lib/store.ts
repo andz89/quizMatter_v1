@@ -36,6 +36,7 @@ import { clamp, fitInBox, getOuterEdges } from "./geometry";
 import { REFUSALS, SaveRefusedError, saveErrorMessage, savePresentationToDb } from "./presentations";
 import { saveReviewDraft } from "./reviews";
 import { checkPauses, pausedUntilFromError } from "./clickLimits";
+import { shareCopy, unshareCopy, type SharedCopy } from "./sharing";
 import { finishDraft } from "@/app/actions";
 import { isEmbedSlide } from "./embed";
 import type { Photo, PresentationDetails, Presentation, ReviewerFields, Slide, SlideType, SvgElement } from "./schema";
@@ -328,9 +329,14 @@ interface EditorState {
 
   // Title and the other presentation details (grade, subject…), edited in the top bar and the Info modal.
   setPresentationDetails: (patch: Partial<PresentationDetails>) => void;
-  // Private/published, saved right away (the whole presentation, so others see what the teacher sees).
-  // On failure it switches back. Resolves true if the save worked.
+  // A teacher's published presentation: its shared copy, which other teachers see (see the shared_copy migration).
+  // null = private. QuizMatter presentations don't have one (they use isPublished).
+  sharedCopy: SharedCopy | null;
+  // Private/published. QuizMatter: the presentation is saved with the switch (switched back on failure). A teacher:
+  // unsaved edits are saved, then the shared copy is made or removed. Resolves true if it worked.
   setPublished: (isPublished: boolean) => Promise<boolean>;
+  // "Update shared presentation": saves unsaved edits, then copies the presentation to its shared copy again.
+  updateSharedCopy: () => Promise<boolean>;
 
   resetZoom: () => void;
   setZoom: (zoom: number) => void;
@@ -512,6 +518,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         saveStatus: "idle",
         fromDraft: false,
         review: null,
+        // Editor sets it right after, from the page.
+        sharedCopy: null,
         past: [],
         future: [],
         selectedSlideId: presentation.slides[0].id,
@@ -528,6 +536,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   saveStatus: "idle",
   fromDraft: false,
   review: null,
+  sharedCopy: null,
 
   savePresentation: async ({ quiet = false } = {}) => {
     const { presentation, savedPresentation, savedAt, saveStatus, fromDraft, review } = get();
@@ -956,6 +965,23 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setPublished: async (isPublished) => {
     const { presentation, saveStatus, setPresentationDetails, savePresentation } = get();
     if (saveStatus === "saving") return false;
+    // A teacher's presentation: the shared copy is made, updated or removed (the presentation itself stays private).
+    if (!presentation.fromAdmin) {
+      if (!(await savePresentation({ quiet: true }))) return false;
+      try {
+        if (isPublished) set({ sharedCopy: await shareCopy(presentation.id) });
+        else {
+          await unshareCopy(presentation.id);
+          set({ sharedCopy: null });
+        }
+        return true;
+      } catch (error) {
+        console.error("Couldn't change the shared copy", error);
+        // Clicked too often: the notice at the bottom shows the pause, and the Share card greys out.
+        if (pausedUntilFromError(error as { code?: string; details?: string })) await checkPauses();
+        return false;
+      }
+    }
     setPresentationDetails({ isPublished });
     const switched = get().presentation;
     // Quiet: the Share button shows its own message (published / private / couldn't change it).
@@ -965,6 +991,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     else setPresentationDetails({ isPublished: presentation.isPublished });
     return false;
   },
+
+  // Same steps as Publish: the database updates the copy when there is one.
+  updateSharedCopy: () => get().setPublished(true),
 
   resetZoom: () => set({ zoom: 1 }),
   setZoom: (zoom) => set({ zoom: Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoom)) }),

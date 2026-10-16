@@ -19,6 +19,7 @@ import { SmallScreenNote } from "./SmallScreenNote";
 import { ReviewBanner } from "./ReviewControls";
 import { Spinner } from "@/components/Spinner";
 import type { Presentation } from "@/lib/schema";
+import type { SharedCopy } from "@/lib/sharing";
 
 // Only downloaded the first time they're opened, so the editor itself loads faster. While one
 // downloads, a dimmed screen with the spinner shows over the editor. Without `loading`, the whole
@@ -43,17 +44,20 @@ const PresentationView = dynamic(
  * presentation_reviews migration).
  * `sentBackNote` is the admin's note on my presentation that QuizMatter sent back (see the quizmatter_submissions
  * migration), shown under the top bar.
+ * `sharedCopy` is my presentation's shared copy, if it's published (see the shared_copy migration).
  */
 export function Editor({
   presentation,
   draft,
   review,
   sentBackNote,
+  sharedCopy,
 }: {
   presentation: Presentation;
   draft?: unknown;
   review?: EditorReview;
   sentBackNote?: string;
+  sharedCopy?: SharedCopy | null;
 }) {
   // Until the presentation below is in the store, the store still holds the placeholder (or the last presentation opened).
   const isLoaded = useEditorStore((s) => s.presentation.id === presentation.id);
@@ -77,7 +81,7 @@ export function Editor({
   useEffect(() => {
     const store = useEditorStore.getState();
     store.loadPresentation(presentation);
-    useEditorStore.setState({ review: review ?? null });
+    useEditorStore.setState({ review: review ?? null, sharedCopy: sharedCopy ?? null });
     if (draft === undefined) return;
 
     // Show the presentation's own address instead of /presentation/new?draft=…, so a reload after saving opens the
@@ -90,7 +94,7 @@ export function Editor({
     useEditorStore.setState({ fromDraft: true, savedAt: null });
     // A new presentation/draft/review object from the server (e.g. after router.refresh()) loads it again and
     // drops unsaved edits, so don't refresh the editor page while someone is editing.
-  }, [presentation, draft, review]);
+  }, [presentation, draft, review, sharedCopy]);
 
   // Closing or reloading the tab with unsaved changes makes the browser ask "Leave page?" first.
   useEffect(() => {

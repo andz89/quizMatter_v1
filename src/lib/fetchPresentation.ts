@@ -4,6 +4,7 @@ import { loadVisibleProfiles } from "./profiles";
 import { loadPublisherNames } from "./publishers";
 import { NO_REVIEW, loadReviewers, loadReviewStatus, type Reviewer, type ReviewStatus } from "./reviewStatus";
 import { presentationSchema, type Presentation } from "./schema";
+import type { SharedCopy } from "./sharing";
 import { loadSubmissionStatus } from "./submissions";
 
 /**
@@ -12,7 +13,8 @@ import { loadSubmissionStatus } from "./submissions";
  * name, only looked up for other people's presentations ("" if they have none). `isSaved`: it's in my "Saved"
  * row (see the saved_presentations migration). `review`: its review status, `reviewers`: its "Reviewed by" list
  * (see the presentation_reviews migration). `submission`: my presentation sent to QuizMatter, or null (see the
- * quizmatter_submissions migration). Server-only.
+ * quizmatter_submissions migration). `sharedFrom`: set when this is a shared copy (the original's id).
+ * `sharedCopy`: my presentation's shared copy, or null (see the shared_copy migration). Server-only.
  */
 export async function fetchPresentation(id: string): Promise<{
   presentation: Presentation;
@@ -27,9 +29,11 @@ export async function fetchPresentation(id: string): Promise<{
   review: ReviewStatus;
   reviewers: Reviewer[];
   submission: Awaited<ReturnType<typeof loadSubmissionStatus>>;
+  sharedFrom: string | null;
+  sharedCopy: SharedCopy | null;
 } | null> {
   const supabase = await createClient();
-  const [result, { data: claims }, { data: saved }, review, reviewers, submission] = await Promise.all([
+  const [result, { data: claims }, { data: saved }, review, reviewers, submission, { data: copy }] = await Promise.all([
     loadPresentation(supabase, id),
     supabase.auth.getClaims(),
     // The database only gives back my own saved rows.
@@ -39,6 +43,8 @@ export async function fetchPresentation(id: string): Promise<{
     loadReviewers(supabase, id).catch((): Reviewer[] => []),
     // If it fails, the page opens without it; the database still enforces the lock.
     loadSubmissionStatus(supabase, id).catch(() => null),
+    // My presentation's shared copy, if it's published (the database only gives back my own).
+    supabase.from("presentations").select("id, shared_at").eq("shared_from", id).maybeSingle(),
   ]);
   if (!result) return null;
 
@@ -59,6 +65,8 @@ export async function fetchPresentation(id: string): Promise<{
     review,
     reviewers,
     submission,
+    sharedFrom: result.sharedFrom,
+    sharedCopy: isMine && copy ? { id: copy.id, sharedAt: Date.parse(copy.shared_at) } : null,
   };
 }
 
@@ -69,11 +77,11 @@ export async function fetchPresentation(id: string): Promise<{
 export async function loadPresentation(
   supabase: SupabaseClient,
   id: string,
-): Promise<{ presentation: Presentation; ownerId: string } | null> {
+): Promise<{ presentation: Presentation; ownerId: string; sharedFrom: string | null } | null> {
   const { data, error } = await supabase
     .from("presentations")
     .select(
-      "id, owner_id, title, description, grades, subject, term, week, day, curriculum, learning_competency, author, reference_links, tags, transition, transition_speed, is_published, from_admin, created_at, updated_at, slides(data, position)",
+      "id, owner_id, title, description, grades, subject, term, week, day, curriculum, learning_competency, author, reference_links, tags, transition, transition_speed, is_published, from_admin, shared_from, created_at, updated_at, slides(data, position)",
     )
     .eq("id", id)
     .order("position", { referencedTable: "slides" })
@@ -104,5 +112,5 @@ export async function loadPresentation(
     updatedAt: Date.parse(data.updated_at),
     slides: data.slides.map((slide: { data: unknown }) => slide.data),
   });
-  return { presentation, ownerId: data.owner_id };
+  return { presentation, ownerId: data.owner_id, sharedFrom: data.shared_from };
 }

@@ -18,7 +18,12 @@
 - `presentations.ts`: `savePresentationToDb` → zod → the `save_presentation` database function. `REFUSALS` turns
   the database's refusal codes (`QM409` conflict, `QMMAX`, `QM429`, `QMBAN`, `QMREV` locked, …) into messages, and
   `SaveRefusedError` carries them. A new refusal code goes in `REFUSALS`.
-- `fetchPresentation.ts`: loads a presentation + who owns it + its review and submission status (server).
+- `fetchPresentation.ts`: loads a presentation + who owns it + its review and submission status (server), and
+  `sharedCopy` (my original's shared copy) / `sharedFrom` (set when this is a copy).
+- `sharing.ts`: `shareCopy(id)` (Publish and "Update shared presentation") and `unshareCopy(id)` (Private) call
+  `share_presentation` / `unshare_presentation` (zod first). A teacher's shared copy is its own presentation row
+  (`shared_from` = the original). The store keeps `sharedCopy`; `setPublished` / `updateSharedCopy` save unsaved
+  edits first. QuizMatter presentations keep the `isPublished` switch. See `20261123000000_shared_copy.sql`.
 - `reviews.ts` (reviewer's saves) / `reviewStatus.ts` (reads), `submissions.ts` (Submit to QuizMatter reads).
 - `folders.ts`, `userSettings.ts`, `profiles.ts`, `account.ts` (`getAccount`: who is logged in, `isAdmin`).
 - `supabase/`: `client.ts` (browser), `server.ts` (server, with the login cookies), `admin.ts` (secret key, server

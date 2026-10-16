@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import type { Presentation } from "@/lib/schema";
 import { usesPeopleArt } from "@/lib/peopleArt";
 import { PeopleArtGate } from "@/components/PeopleArtGate";
+import type { SharedCopy } from "@/lib/sharing";
 import type { EditorReview } from "@/lib/store";
 
 // The editor's store makes a placeholder presentation with crypto.randomUUID() at module load — rendering it
@@ -14,22 +15,25 @@ const Editor = dynamic(() => import("@/components/editor/Editor").then((mod) => 
 
 // `review`: set when an editor opens their review of someone else's QuizMatter presentation (see Editor).
 // `sentBackNote`: the admin's note on my presentation that QuizMatter sent back (see Editor).
+// `sharedCopy`: my presentation's shared copy, if it's published (see Editor).
 export function PresentationEditor({
   presentation,
   draft,
   review,
   sentBackNote,
+  sharedCopy,
 }: {
   presentation: Presentation;
   draft?: unknown;
   review?: EditorReview;
   sentBackNote?: string;
+  sharedCopy?: SharedCopy | null;
 }) {
   // A draft from Claude is only a recipe until the editor builds its slides, so it always waits for the
   // people art (Claude often puts the clipart students in).
   return (
     <PeopleArtGate needed={draft !== undefined || usesPeopleArt(presentation.slides)}>
-      <Editor presentation={presentation} draft={draft} review={review} sentBackNote={sentBackNote} />
+      <Editor presentation={presentation} draft={draft} review={review} sentBackNote={sentBackNote} sharedCopy={sharedCopy} />
     </PeopleArtGate>
   );
 }

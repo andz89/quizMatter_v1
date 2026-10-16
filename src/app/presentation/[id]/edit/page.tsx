@@ -17,13 +17,15 @@ export default async function PresentationPage({ params }: PageProps<"/presentat
   const result = await fetchPresentation(id);
   // Also covers someone else's private presentation: the database hides it, so it looks like it doesn't exist.
   if (!result) notFound();
+  // My shared copy is edited through its original ("Update shared presentation" copies it again).
+  if (result.isMine && result.sharedFrom) redirect(`/presentation/${result.sharedFrom}/edit`);
   // Waiting for QuizMatter: locked, so its owner gets the view page (it says why).
   if (result.isMine && result.submission?.status === "submitted") redirect(`/presentation/${id}`);
   // My own presentation, unless it's under review (then only its reviewer may change it).
   if (result.isMine && !result.review.isLocked) {
     // Sent back: the admin's note shows under the top bar.
     const sentBackNote = result.submission?.status === "sent_back" ? result.submission.adminNote : undefined;
-    return <PresentationEditor presentation={result.presentation} sentBackNote={sentBackNote} />;
+    return <PresentationEditor presentation={result.presentation} sentBackNote={sentBackNote} sharedCopy={result.sharedCopy} />;
   }
   // Someone else's published presentation can be viewed, not edited (saving it would be refused anyway), unless
   // I'm reviewing it.
