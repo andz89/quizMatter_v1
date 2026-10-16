@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { CheckIcon, GlobeIcon, LinkIcon, LockIcon } from "lucide-react";
+import { CheckIcon, CircleAlertIcon, GlobeIcon, LinkIcon, LockIcon, RefreshCwIcon } from "lucide-react";
 import { Modal } from "@/components/Modal";
 import { Spinner } from "@/components/Spinner";
 import { isPaused, useIsPaused } from "@/lib/clickLimits";
@@ -14,16 +14,16 @@ const TEACHER_CONFIRM = {
   published: {
     title: "Publish this presentation?",
     points: [
-      "Other teachers can find it on the Home page and open it.",
+      "Other teachers get a copy of it as it is now. They can find it on the Home page and open it.",
       "They can make their own copy of it, save it to their “Saved” list, or report it.",
-      "You can make it private again at any time. Copies other teachers already made stay with them.",
-      "Your unsaved edits are saved too.",
+      "Edits you make later stay private until you click “Update shared presentation”.",
+      "Your unsaved edits are saved first.",
     ],
   },
   private: {
     title: "Make this presentation private?",
     points: [
-      "Only you can see it now. It leaves the Home page and other teachers’ “Saved” lists.",
+      "The shared copy is removed. It leaves the Home page and other teachers’ “Saved” lists.",
       "Its link stops working for other teachers.",
       "Copies other teachers already made stay with them.",
       "Your unsaved edits are saved too.",
@@ -64,15 +64,25 @@ const ADMIN_CHOICES = [
 /**
  * The Share button in the editor's top bar (like Canva's). It opens a card to make the presentation private or
  * published (after a "Continue?" box that says what will happen; then saved right away), and to copy its link once
- * it's published. On a QuizMatter presentation the same choices are called Draft and Shared. Not shown in a review.
+ * it's published. A teacher's Published makes a shared copy (see the shared_copy migration): the card says whether
+ * the copy is up to date, and offers "Update shared presentation" when it isn't. On a QuizMatter presentation the
+ * choices are called Draft and Shared, and switch the presentation itself. Not shown in a review.
  * For teachers, switching too often pauses it for a while (the "share" and "publish" click limits, see the
  * share_limits migration), and an empty presentation can't be published. The database skips both for admins.
  */
 export function ShareButton() {
-  const isPublished = useEditorStore((s) => s.presentation.isPublished);
+  const fromAdmin = useEditorStore((s) => s.presentation.fromAdmin);
+  const sharedCopy = useEditorStore((s) => s.sharedCopy);
+  // A teacher's presentation is published when it has a shared copy; a QuizMatter one has the switch.
+  const isPublished = useEditorStore((s) => (s.presentation.fromAdmin ? s.presentation.isPublished : s.sharedCopy !== null));
+  // Has edits the shared copy doesn't have: unsaved ones, or saved after the last copy.
+  const isBehind = useEditorStore(
+    (s) => s.sharedCopy !== null && (s.presentation !== s.savedPresentation || (s.savedAt ?? 0) > s.sharedCopy.sharedAt),
+  );
+  const updateSharedCopy = useEditorStore((s) => s.updateSharedCopy);
+  const [isUpdating, setIsUpdating] = useState(false);
   const id = useEditorStore((s) => s.presentation.id);
   const isHidden = useEditorStore((s) => s.review !== null);
-  const fromAdmin = useEditorStore((s) => s.presentation.fromAdmin);
   const isSaving = useEditorStore((s) => s.saveStatus === "saving");
   const setPublished = useEditorStore((s) => s.setPublished);
   // "share" pauses both ways; "publish" only going published.
@@ -127,9 +137,23 @@ export function ShareButton() {
     else toast.success(value ? "Presentation published — other teachers can see it now." : "Presentation is private now.");
   };
 
+  const update = async () => {
+    // Checked here first, so the teacher is told at once (the database checks it too).
+    const problem = publishableSchema.safeParse(useEditorStore.getState().presentation).error;
+    if (problem) return toast.error(problem.issues[0].message);
+    setIsUpdating(true);
+    const updated = await updateSharedCopy();
+    setIsUpdating(false);
+    // Paused for switching too often: the notice at the bottom says until when.
+    if (!updated && isPaused("share")) return;
+    if (updated) toast.success("Shared copy updated — other teachers see your newest version.");
+    else toast.error("Couldn't update the shared copy. Please try again.");
+  };
+
   const copyLink = async () => {
     try {
-      await navigator.clipboard.writeText(`${window.location.origin}/presentation/${id}`);
+      // A teacher's link is the shared copy's: that's what other teachers can open.
+      await navigator.clipboard.writeText(`${window.location.origin}/presentation/${sharedCopy?.id ?? id}`);
       toast.success("Link copied.");
     } catch {
       toast.error("Couldn't copy the link. Please try again.");
@@ -186,11 +210,40 @@ export function ShareButton() {
             </p>
           )}
 
+          {sharedCopy && (
+            <div className="flex flex-col gap-2 rounded-button bg-bg-page px-3 py-2.5">
+              <p className="flex items-center gap-2 text-[13px] text-text-secondary">
+                {isBehind ? (
+                  <CircleAlertIcon size={14} className="shrink-0 text-highlight-strong" />
+                ) : (
+                  <CheckIcon size={14} className="shrink-0 text-success-strong" />
+                )}
+                {isBehind ? "You have changes the shared copy doesn’t have." : "The shared copy is up to date."}
+              </p>
+              {isBehind && (
+                <button
+                  type="button"
+                  onClick={update}
+                  disabled={isUpdating || isSaving || isSharePaused}
+                  className="inline-flex items-center justify-center gap-2 rounded-button bg-accent btn-press px-4 py-2 text-sm font-semibold text-white hover:bg-accent-hover disabled:opacity-60"
+                >
+                  {isUpdating ? <Spinner size={14} /> : <RefreshCwIcon size={14} />}
+                  Update shared presentation
+                </button>
+              )}
+            </div>
+          )}
+
           {isPublished && (
             <button
               type="button"
               onClick={copyLink}
-              className="flex items-center justify-center gap-2 rounded-button bg-accent btn-press px-4 py-2 text-sm font-semibold text-white hover:bg-accent-hover"
+              // One main button at a time: plain while "Update shared presentation" shows.
+              className={
+                isBehind
+                  ? "flex items-center justify-center gap-2 rounded-button border border-border-default px-4 py-2 text-sm font-semibold text-text-primary transition-colors hover:bg-bg-page"
+                  : "flex items-center justify-center gap-2 rounded-button bg-accent btn-press px-4 py-2 text-sm font-semibold text-white hover:bg-accent-hover"
+              }
             >
               <LinkIcon size={14} />
               Copy link
