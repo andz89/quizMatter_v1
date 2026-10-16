@@ -18,7 +18,7 @@ even if the app has a bug. The app's checks (zod, hidden buttons) are only the f
 
 Many functions were changed again in later files (`create or replace function`). The newest version is in the
 **latest** file that defines it. Find it with a search, e.g. `create or replace function public.save_presentation`
-(today: `20261124000000_shared_copy_moderation.sql`). Always start a change from that newest version, or older fixes get
+(today: `20261125000000_shared_copy_fixes.sql`). Always start a change from that newest version, or older fixes get
 lost.
 
 ## Refusal codes
@@ -47,7 +47,8 @@ A refusal raises an error with its own code. The app turns the code into a messa
   (`share_presentation`, `unshare_presentation`, and the `shared_copy_change` / `shared_copy_slides` guards that
   refuse any other change to a copy). `20261124000000_shared_copy_moderation.sql`: a hidden copy can't be made private
   or deleted by its teacher, a hidden original can't be shared, a copy can't be sent to QuizMatter, and editors
-  can't publish (the editor role removes their copies).
+  can't publish (the editor role removes their copies). `20261125000000_shared_copy_fixes.sql`: an old app tab's
+  "published" save is refused, and Move to QuizMatter removes the copy in the same step.
 - Folders: `20261028000000_folders.sql`. Teacher profiles: `20261110000000_teacher_profiles.sql`,
   `20261112000000_profile_name_links.sql`.
 

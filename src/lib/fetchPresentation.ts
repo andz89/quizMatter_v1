@@ -44,7 +44,7 @@ export async function fetchPresentation(id: string): Promise<{
     // If it fails, the page opens without it; the database still enforces the lock.
     loadSubmissionStatus(supabase, id).catch(() => null),
     // My presentation's shared copy, if it's published (the database only gives back my own).
-    supabase.from("presentations").select("id, shared_at").eq("shared_from", id).maybeSingle(),
+    supabase.from("presentations").select("id, shared_at, hidden_at").eq("shared_from", id).maybeSingle(),
   ]);
   if (!result) return null;
 
@@ -66,7 +66,7 @@ export async function fetchPresentation(id: string): Promise<{
     reviewers,
     submission,
     sharedFrom: result.sharedFrom,
-    sharedCopy: isMine && copy ? { id: copy.id, sharedAt: Date.parse(copy.shared_at) } : null,
+    sharedCopy: isMine && copy ? { id: copy.id, sharedAt: Date.parse(copy.shared_at), isHidden: copy.hidden_at !== null } : null,
   };
 }
 

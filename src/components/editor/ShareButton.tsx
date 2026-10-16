@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { CheckIcon, CircleAlertIcon, GlobeIcon, LinkIcon, LockIcon, RefreshCwIcon } from "lucide-react";
+import { CheckIcon, CircleAlertIcon, EyeOffIcon, GlobeIcon, LinkIcon, LockIcon, RefreshCwIcon } from "lucide-react";
 import { Modal } from "@/components/Modal";
 import { Spinner } from "@/components/Spinner";
 import { isPaused, useIsPaused } from "@/lib/clickLimits";
@@ -128,12 +128,12 @@ export function ShareButton() {
 
   const confirmSwitch = async (value: boolean) => {
     setIsSwitching(true);
-    const saved = await setPublished(value);
+    const problem = await setPublished(value);
     setIsSwitching(false);
     // Paused for switching too often: the box closes, and the notice at the bottom says until when.
-    if (!saved && !fromAdmin && (isPaused("share") || (value && isPaused("publish")))) return setConfirming(null);
-    // Any other failure keeps the box open, so the teacher can try again or cancel.
-    if (!saved) return toast.error("Couldn't change it. Please try again.");
+    if (problem !== null && !fromAdmin && (isPaused("share") || (value && isPaused("publish")))) return setConfirming(null);
+    // Any other failure keeps the box open and says why, so the teacher can try again or cancel.
+    if (problem !== null) return problem && toast.error(problem);
     setConfirming(null);
     if (fromAdmin) toast.success(value ? "Shared — every teacher has it now." : "Back to a draft — only you can see it.");
     else toast.success(value ? "Presentation published — other teachers can see it now." : "Presentation is private now.");
@@ -141,15 +141,14 @@ export function ShareButton() {
 
   const update = async () => {
     // Checked here first, so the teacher is told at once (the database checks it too).
-    const problem = publishableSchema.safeParse(useEditorStore.getState().presentation).error;
-    if (problem) return toast.error(problem.issues[0].message);
+    const empty = publishableSchema.safeParse(useEditorStore.getState().presentation).error;
+    if (empty) return toast.error(empty.issues[0].message);
     setIsUpdating(true);
-    const updated = await updateSharedCopy();
+    const problem = await updateSharedCopy();
     setIsUpdating(false);
-    // Paused for switching too often: the notice at the bottom says until when.
-    if (!updated && isPaused("share")) return;
-    if (updated) toast.success("Shared copy updated — other teachers see your newest version.");
-    else toast.error("Couldn't update the shared copy. Please try again.");
+    // "" = already told (a pause: the notice at the bottom says until when).
+    if (problem === null) toast.success("Shared copy updated — other teachers see your newest version.");
+    else if (problem) toast.error(problem);
   };
 
   const copyLink = async () => {
@@ -185,12 +184,14 @@ export function ShareButton() {
               const isPicked = isPublished === value;
               const isRowPaused = !isPicked && (isSharePaused || (value && isPublishPaused));
               const isEditorBlocked = value && !isPicked && !canPublish;
+              // A hidden copy stays until QuizMatter decides (the database refuses Private too).
+              const isHiddenBlocked = !value && !isPicked && Boolean(sharedCopy?.isHidden);
               return (
                 <button
                   key={label}
                   type="button"
                   onClick={() => pick(value)}
-                  disabled={isSaving || isRowPaused || isEditorBlocked}
+                  disabled={isSaving || isRowPaused || isEditorBlocked || isHiddenBlocked}
                   className={`flex items-center gap-3 rounded-button border px-3 py-2.5 text-left transition-colors disabled:cursor-default disabled:opacity-60 ${
                     isPicked ? "border-accent bg-accent-soft" : "border-transparent hover:bg-bg-page"
                   }`}
@@ -199,7 +200,11 @@ export function ShareButton() {
                   <span className="min-w-0 flex-1">
                     <span className="block text-sm font-semibold text-text-primary">{label}</span>
                     <span className="block text-[13px] text-text-secondary">
-                      {isEditorBlocked ? "Editors use “Submit to QuizMatter” on the Home page instead" : hint}
+                      {isEditorBlocked
+                        ? "Editors use “Submit to QuizMatter” on the Home page instead"
+                        : isHiddenBlocked
+                          ? "QuizMatter hid the shared copy, so it stays until they decide"
+                          : hint}
                     </span>
                   </span>
                   {isPicked && <CheckIcon size={16} className="shrink-0 text-accent" />}
@@ -217,6 +222,12 @@ export function ShareButton() {
 
           {sharedCopy && (
             <div className="flex flex-col gap-2 rounded-button bg-bg-page px-3 py-2.5">
+              {sharedCopy.isHidden && (
+                <p className="flex items-center gap-2 text-[13px] text-danger-strong">
+                  <EyeOffIcon size={14} className="shrink-0" />
+                  QuizMatter hid the shared copy. Other teachers can’t see it.
+                </p>
+              )}
               <p className="flex items-center gap-2 text-[13px] text-text-secondary">
                 {isBehind ? (
                   <CircleAlertIcon size={14} className="shrink-0 text-highlight-strong" />
@@ -239,7 +250,8 @@ export function ShareButton() {
             </div>
           )}
 
-          {isPublished && (
+          {/* A hidden copy's link doesn't open for other teachers. */}
+          {isPublished && !sharedCopy?.isHidden && (
             <button
               type="button"
               onClick={copyLink}

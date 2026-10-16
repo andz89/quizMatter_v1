@@ -42,9 +42,7 @@ export async function moveToQuizMatter(id: string): Promise<boolean> {
 
   const supabase = await createClient();
   const { data: claims } = await supabase.auth.getClaims();
-  // A QuizMatter presentation has no shared copy (its Shared switch is on the presentation itself).
-  const removed = await supabase.from("presentations").delete().eq("shared_from", parsed.data).eq("owner_id", claims?.claims.sub ?? "");
-  if (removed.error) return false;
+  // Its shared copy (if it was published) goes in the same step (see the shared_copy_fixes migration).
   const { data, error } = await supabase
     .from("presentations")
     .update({ from_admin: true, is_published: false })

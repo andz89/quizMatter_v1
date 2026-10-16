@@ -336,10 +336,12 @@ interface EditorState {
   // shared_copy_moderation migration).
   canPublish: boolean;
   // Private/published. QuizMatter: the presentation is saved with the switch (switched back on failure). A teacher:
-  // unsaved edits are saved, then the shared copy is made or removed. Resolves true if it worked.
-  setPublished: (isPublished: boolean) => Promise<boolean>;
+  // unsaved edits are saved, then the shared copy is made or removed. Resolves null if it worked, else what to tell
+  // the teacher ("" = already told, e.g. a pause shown by the notice at the bottom).
+  setPublished: (isPublished: boolean) => Promise<string | null>;
   // "Update shared presentation": saves unsaved edits, then copies the presentation to its shared copy again.
-  updateSharedCopy: () => Promise<boolean>;
+  // Resolves like setPublished.
+  updateSharedCopy: () => Promise<string | null>;
 
   resetZoom: () => void;
   setZoom: (zoom: number) => void;
@@ -968,32 +970,39 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   setPublished: async (isPublished) => {
     const { presentation, saveStatus, setPresentationDetails, savePresentation } = get();
-    if (saveStatus === "saving") return false;
+    if (saveStatus === "saving") return "It's still saving. Try again in a moment.";
     // A teacher's presentation: the shared copy is made, updated or removed (the presentation itself stays private).
     if (!presentation.fromAdmin) {
-      if (!(await savePresentation({ quiet: true }))) return false;
+      if (!(await savePresentation({ quiet: true }))) return "Couldn't save your edits, so nothing changed. Please try again.";
       try {
-        if (isPublished) set({ sharedCopy: await shareCopy(presentation.id) });
-        else {
+        if (isPublished) {
+          // An admin's hide stays on an updated copy.
+          const copy = await shareCopy(presentation.id);
+          set({ sharedCopy: { ...copy, isHidden: get().sharedCopy?.isHidden ?? false } });
+        } else {
           await unshareCopy(presentation.id);
           set({ sharedCopy: null });
         }
-        return true;
+        return null;
       } catch (error) {
         console.error("Couldn't change the shared copy", error);
         // Clicked too often: the notice at the bottom shows the pause, and the Share card greys out.
-        if (pausedUntilFromError(error as { code?: string; details?: string })) await checkPauses();
-        return false;
+        if (pausedUntilFromError(error as { code?: string; details?: string })) {
+          await checkPauses();
+          return "";
+        }
+        // A refusal says why (e.g. "QuizMatter hid the shared copy…"); anything else is most likely the connection.
+        return saveErrorMessage(error, isPublished ? "share it" : "make it private");
       }
     }
     setPresentationDetails({ isPublished });
     const switched = get().presentation;
     // Quiet: the Share button shows its own message (published / private / couldn't change it).
-    if (await savePresentation({ quiet: true })) return true;
+    if (await savePresentation({ quiet: true })) return null;
     // Switch back. With no other edits since, put the old presentation object back, so it doesn't count as unsaved.
     if (get().presentation === switched) withoutHistory(() => set({ presentation }));
     else setPresentationDetails({ isPublished: presentation.isPublished });
-    return false;
+    return "Couldn't change it. Please try again.";
   },
 
   // Same steps as Publish: the database updates the copy when there is one.

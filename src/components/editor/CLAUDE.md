@@ -12,7 +12,8 @@ editor / view / review, and renders `Editor.tsx`, which calls `store.loadPresent
   `MathToolPanels` are drop-downs inside those toolbars (`ToolPanelButton` in `PanelControls.tsx`).
 - `ShareButton.tsx` (the Share card): a teacher's Published = a shared copy (store `sharedCopy`). It says "up to
   date" or "You have changes the shared copy doesn't have" (unsaved edits, or saved after `sharedCopy.sharedAt`),
-  with "Update shared presentation". Editors get Published greyed out (store `canPublish`). QuizMatter presentations
+  with "Update shared presentation". When QuizMatter hid the copy (`sharedCopy.isHidden`) it says so, and Private and
+  Copy link are off. Refusals show the database's own reason. Editors get Published greyed out (store `canPublish`). QuizMatter presentations
   keep the Draft / Shared switch.
 - `Workspace.tsx`: the scrolling list of slides (drag to reorder with `@dnd-kit`). Each slide is a
   `SlideWorkspaceItem` = `SlideToolbar` + `SlideCanvas`. It also draws `AnswerArea` (the answer of a short-answer,
