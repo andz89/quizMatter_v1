@@ -87,6 +87,8 @@ export function ShareButton() {
   const setPublished = useEditorStore((s) => s.setPublished);
   // "share" pauses both ways; "publish" only going published.
   const isSharePaused = useIsPaused("share") && !fromAdmin;
+  // Editors send their own presentations to QuizMatter instead (the database refuses them too).
+  const canPublish = useEditorStore((s) => s.canPublish || s.presentation.fromAdmin);
   const isPublishPaused = useIsPaused("publish") && !fromAdmin;
   const [isOpen, setIsOpen] = useState(false);
   // The choice waiting in the "Continue?" box (null = no box).
@@ -182,12 +184,13 @@ export function ShareButton() {
             {CHOICES.map(({ value, label, hint, Icon }) => {
               const isPicked = isPublished === value;
               const isRowPaused = !isPicked && (isSharePaused || (value && isPublishPaused));
+              const isEditorBlocked = value && !isPicked && !canPublish;
               return (
                 <button
                   key={label}
                   type="button"
                   onClick={() => pick(value)}
-                  disabled={isSaving || isRowPaused}
+                  disabled={isSaving || isRowPaused || isEditorBlocked}
                   className={`flex items-center gap-3 rounded-button border px-3 py-2.5 text-left transition-colors disabled:cursor-default disabled:opacity-60 ${
                     isPicked ? "border-accent bg-accent-soft" : "border-transparent hover:bg-bg-page"
                   }`}
@@ -195,7 +198,9 @@ export function ShareButton() {
                   <Icon size={16} className="shrink-0 text-text-primary" />
                   <span className="min-w-0 flex-1">
                     <span className="block text-sm font-semibold text-text-primary">{label}</span>
-                    <span className="block text-[13px] text-text-secondary">{hint}</span>
+                    <span className="block text-[13px] text-text-secondary">
+                      {isEditorBlocked ? "Editors use “Submit to QuizMatter” on the Home page instead" : hint}
+                    </span>
                   </span>
                   {isPicked && <CheckIcon size={16} className="shrink-0 text-accent" />}
                 </button>

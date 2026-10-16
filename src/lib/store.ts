@@ -332,6 +332,9 @@ interface EditorState {
   // A teacher's published presentation: its shared copy, which other teachers see (see the shared_copy migration).
   // null = private. QuizMatter presentations don't have one (they use isPublished).
   sharedCopy: SharedCopy | null;
+  // False for editors: they send presentations to QuizMatter instead of publishing them (see the
+  // shared_copy_moderation migration).
+  canPublish: boolean;
   // Private/published. QuizMatter: the presentation is saved with the switch (switched back on failure). A teacher:
   // unsaved edits are saved, then the shared copy is made or removed. Resolves true if it worked.
   setPublished: (isPublished: boolean) => Promise<boolean>;
@@ -537,6 +540,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   fromDraft: false,
   review: null,
   sharedCopy: null,
+  canPublish: true,
 
   savePresentation: async ({ quiet = false } = {}) => {
     const { presentation, savedPresentation, savedAt, saveStatus, fromDraft, review } = get();

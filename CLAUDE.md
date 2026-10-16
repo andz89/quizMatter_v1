@@ -51,7 +51,7 @@ After implementing, do a checking step before saying the work is done:
 
 1. Run `npx tsc --noEmit` and `npm run lint`, and fix any errors in the files you changed.
 2. Read your changes again (`git diff`) next to the approved plan. Make sure every part of the plan is done, nothing extra was added, and the rules in this file were followed (zod before saving, the one Spinner, the design system, npm 10 for packages, the folder `CLAUDE.md` notes still true, etc.).
-3. Tell the user what you checked and what passed or failed. Leave live testing in the browser to the user.
+3. Tell the user what you checked and what passed or failed.
 
 # Installing Packages (npm version)
 
@@ -121,6 +121,9 @@ An editor sends one of their own presentations to QuizMatter; an admin approves 
 
 - **Copy on approval:** `approve_submission` copies the presentation and its slides in one step: a shared QuizMatter presentation (`from_admin`), owned by the approving admin, Author = the editor. The editor keeps their original.
 - **Receipts:** each `presentation_submissions` row has its own `id`; an approved one stays after the editor deletes the original (`presentation_id` becomes empty) and is traced by `copy_id`. Sent-back and canceled ones go with their original. See `20261121000000_submission_receipts.sql`.
+- **Editors don't publish:** they send their presentations here instead. `share_presentation` refuses editors, the
+  Share card greys out Published, and giving the editor role removes their shared copies
+  (`20261124000000_shared_copy_moderation.sql`). A shared copy itself can't be submitted.
 - **Locked while waiting:** a `submitted` row in `presentation_submissions` counts in `is_review_locked`, so the review lock triggers refuse changes (`QMREV`). No Withdraw. Approved can't be submitted again.
 - **The rules live in the database functions** (`submit_presentation`, `approve_submission`, `send_back_submission`, `my_submissions`, `admin_submissions`, `submission_status`). Migration: `20261119000000_quizmatter_submissions.sql`.
 - **In the app:** reads through `src/lib/submissions.ts` (`SUBMISSION_LABELS` for the words and colors); actions `submitToQuizMatter` (`src/app/actions.ts`), `approveSubmission` / `sendBackSubmission` (admin actions). Admin pages under `src/app/admin/presentations/submissions`.

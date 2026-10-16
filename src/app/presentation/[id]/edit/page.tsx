@@ -25,7 +25,16 @@ export default async function PresentationPage({ params }: PageProps<"/presentat
   if (result.isMine && !result.review.isLocked) {
     // Sent back: the admin's note shows under the top bar.
     const sentBackNote = result.submission?.status === "sent_back" ? result.submission.adminNote : undefined;
-    return <PresentationEditor presentation={result.presentation} sentBackNote={sentBackNote} sharedCopy={result.sharedCopy} />;
+    // Editors send their presentations to QuizMatter instead of publishing them (see the shared_copy_moderation migration).
+    const canPublish = !(await getAccount()).isEditor;
+    return (
+      <PresentationEditor
+        presentation={result.presentation}
+        sentBackNote={sentBackNote}
+        sharedCopy={result.sharedCopy}
+        canPublish={canPublish}
+      />
+    );
   }
   // Someone else's published presentation can be viewed, not edited (saving it would be refused anyway), unless
   // I'm reviewing it.

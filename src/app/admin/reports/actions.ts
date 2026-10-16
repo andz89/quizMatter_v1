@@ -36,13 +36,22 @@ export async function dismissReports(id: string): Promise<boolean> {
   return !error;
 }
 
-/** Deletes a reported presentation for good (its slides and reports go with it). An error message, or null. */
+/**
+ * Deletes a reported presentation for good (its slides and reports go with it). An error message, or null. A
+ * teacher's shared copy goes with its original, so the teacher can't just publish it again (see the
+ * shared_copy_moderation migration).
+ */
 export async function deleteReportedPresentation(id: string): Promise<string | null> {
   const parsed = idSchema.safeParse(id);
   if (!parsed.success || !(await getAccount()).isAdmin) return "Couldn't delete it. Please try again.";
 
   const supabase = await createClient();
-  const { data, error } = await supabase.from("presentations").delete().eq("id", parsed.data).select("id");
+  const { data: row } = await supabase.from("presentations").select("shared_from").eq("id", parsed.data).maybeSingle();
+  const { data, error } = await supabase
+    .from("presentations")
+    .delete()
+    .eq("id", row?.shared_from ?? parsed.data)
+    .select("id");
   refresh();
   // Locked (see the presentation_reviews and quizmatter_submissions migrations): it has to be let go first.
   if (error?.code === "QMREV") {

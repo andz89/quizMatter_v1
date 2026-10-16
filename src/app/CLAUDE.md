@@ -43,7 +43,10 @@ delete, move). Limits in `src/lib/folders.ts`, checked again in `20261028000000_
 A teacher's Published makes a **shared copy**: its own presentation row (`shared_from` = the original), which other
 teachers see. The teacher keeps editing the original in private; "Update shared presentation" in the Share card
 (`src/components/editor/ShareButton.tsx`) copies it again (same link, bookmarks and reports). Private, or deleting
-the original, removes the copy. Only `share_presentation` / `unshare_presentation` change a copy
+the original, removes the copy. Editors can't publish (they Submit to QuizMatter; the edit page passes `canPublish`). An admin's hide sticks: a hidden
+copy can't be made private, and Admin → Reports
+"Delete for good" on a copy deletes its original too (`20261124000000_shared_copy_moderation.sql`,
+`admin/reports/actions.ts`). Only `share_presentation` / `unshare_presentation` change a copy
 (`20261123000000_shared_copy.sql`; app side: `src/lib/sharing.ts`, store `setPublished` / `updateSharedCopy`).
 My own lists leave copies out (`shared_from is null`) and show Published / Hidden from the copy (`mySharedCopies` in
 `(home)/cards.ts`); opening my copy's editor goes to the original. Limits (`20261103000000_share_limits.sql`,
