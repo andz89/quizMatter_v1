@@ -29,7 +29,8 @@ A refusal raises an error with its own code. The app turns the code into a messa
 - `QM409`: someone saved a newer copy (conflict). `QM422`: a slide the app thought was saved is missing.
 - `QM429`: saving too fast. `QMMAX`: too many presentations. `QMBAN`: banned account.
 - `QMREV`: locked by a review or a submission (`is_review_locked`). `QMRVW`: review step not allowed.
-  `QMSUB`: submission not allowed. `QMPUB`: publishing an empty presentation.
+  `QMSUB`: submission not allowed. `QMPUB`: publishing an empty presentation. `QMPHL`: removing a photo that is
+  in a presentation or review waiting for QuizMatter (`photo_waiting_for_approval`).
 - `42501`: not allowed (wrong person). `22023`: bad input that should never get past zod.
 - `QMBLK`: a click limit paused the feature (the pause end time is in `details`), read by `pausedUntilFromError`
   (`src/lib/clickLimits.ts`).
@@ -38,6 +39,13 @@ A refusal raises an error with its own code. The app turns the code into a messa
 
 - Presentations and saving: `save_presentation` (one step: details + slides, removes deleted slides).
 - Photos and the weekly cleanup: `used_photo_srcs` (drafts' photos count as used).
+- Editor photos (`20261126000000_editor_photos.sql`): an editor's WebP upload also becomes a shared photo with
+  `is_public = false` ("From editors" category), hidden from teachers and `search_shared_photos`. It turns public
+  for good when a live QuizMatter presentation uses it (triggers on `slide_photos` and `presentations`).
+  `20261127000000_editor_photo_fixes.sql`: the "My photos" lock only stops the person whose own submission or
+  review is waiting; a waiting photo passes to another editor with the same file; new editors' old photos are
+  added; `slide_photos (src)` index. `20261128000000_fix_photo_lock.sql`: the lock trigger reads the owner with
+  `to_jsonb(old)`, since `shared_photos` has no `user_id`.
 - Click limits: `20261013000000_click_limits.sql`, `20261014000000_click_auto_ban.sql`, `20261017000000_click_history.sql`.
 - Reviews: `20261019000000_presentation_reviews.sql` and the review files after it (listed in the root `CLAUDE.md`).
 - Submissions: `20261119000000_quizmatter_submissions.sql`, `20261120000000_submission_fixes.sql`,
