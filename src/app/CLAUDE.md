@@ -14,7 +14,7 @@ The pages teachers use outside the editor. Other folders here have their own not
 | From QuizMatter | `quizmatter/` | What admins shared, a row per subject |
 | Other teachers | `teachers/` | Other teachers' published ones, 20 at a time ("Show more") |
 | Saved | `saved/` | Presentations I bookmarked (`MAX_SAVED` at most) |
-| Reviews & submissions | `reviews-submissions/` | Editors only: `MyReviews.tsx`, `MySubmissions.tsx` |
+| Reviews & submissions | `reviews-submissions/` | Editors only, two tables: Reviews (`MyReviews.tsx`: open, canceled, and "Published" for live ones I reviewed) and Submissions (`MySubmissions.tsx`) |
 | (search) | `search/` | Search results; the search lives in the page link (`homeSearch.ts`), so Back and shared links keep it |
 
 - `(home)/cards.ts` loads the cards (first slide only, to keep the page light) and turns rows into card data.

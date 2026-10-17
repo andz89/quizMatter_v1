@@ -4,14 +4,15 @@ import { LinkPending } from "@/components/LinkPending";
 export type MyReviewRow = {
   presentation_id: string;
   title: string;
-  status: "reviewing" | "submitted" | "canceled";
+  // "published": a live QuizMatter presentation I reviewed (from presentation_reviewers, not my_reviews()).
+  status: "reviewing" | "submitted" | "canceled" | "published";
   admin_note: string | null;
   canceled_by_admin: boolean;
 };
 
 /**
- * An editor's reviews in the Reviews & submissions tab, as a table: open ones and canceled ones (until someone
- * starts a new round). The title opens its page (Continue review is there).
+ * An editor's reviews in the Reviews & submissions tab, as a table: open ones, canceled ones (until someone starts a
+ * new round), then the live ones my review went into. The title opens its page (Continue review is there).
  */
 export function ReviewsTable({ rows }: { rows: MyReviewRow[] }) {
   return (
@@ -29,7 +30,7 @@ export function ReviewsTable({ rows }: { rows: MyReviewRow[] }) {
           {rows.map((row) => {
             const status = reviewStatus(row);
             return (
-              <tr key={row.presentation_id} className="border-b border-border-default last:border-b-0">
+              <tr key={`${row.status}-${row.presentation_id}`} className="border-b border-border-default last:border-b-0">
                 <td className="max-w-64 px-5 py-3">
                   <Link
                     href={`/presentation/${row.presentation_id}`}
@@ -59,6 +60,7 @@ export function ReviewsTable({ rows }: { rows: MyReviewRow[] }) {
 
 // The round's label and color.
 function reviewStatus(row: MyReviewRow) {
+  if (row.status === "published") return { label: "Published", className: "bg-success-soft text-success-strong" };
   if (row.status === "canceled") {
     return {
       label: row.canceled_by_admin ? "Canceled by QuizMatter" : "Canceled by you",
