@@ -33,7 +33,9 @@
 
 - Limits: `clickLimits.ts` (the one click-limit system, see root `CLAUDE.md`), `browserLimits.ts` (sign up / login
   speed bumps kept in the browser).
-- Photos: `photos.tsx` (upload, My photos, shared photos), `photoFiles.ts` (R2 files, server), `photoTickets.ts`
+- Photos: `photos.tsx` (upload, My photos, shared photos; `isPhotoLocked` / `PHOTO_LOCKED_MESSAGE` for `QMPHL`, a
+  photo in something waiting for QuizMatter can't be removed; the editor's Photos panel shows only public shared
+  photos, even to admins), `photoFiles.ts` (R2 files, server), `photoTickets.ts`
   (Claude's photo uploads), `cleanupPhotos.ts` (weekly cleanup).
 - Claude (MCP): `drafts.ts` (drafts in Cloudflare D1), `importPresentation.ts`, `photoTickets.ts`.
 - Timers: `cleanupPhotos.ts`, `cleanupAccounts.ts` (run by `worker.ts`).

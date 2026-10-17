@@ -61,11 +61,14 @@ export async function POST(request: Request) {
   // change anyway.)
   if (shared) {
     const [{ data: existing }, { data: isSuperAdmin }] = await Promise.all([
-      supabase.from("shared_photos").select("uploaded_by").eq("src", shared.data.src).maybeSingle(),
+      supabase.from("shared_photos").select("uploaded_by, is_public").eq("src", shared.data.src).maybeSingle(),
       supabase.rpc("is_super_admin"),
     ]);
     if (existing && existing.uploaded_by !== data.claims.sub && isSuperAdmin !== true) {
-      return Response.json({ error: "Another admin already shared this photo, so it was left as it is." }, { status: 409 });
+      const error = existing.is_public
+        ? "Another admin already shared this photo, so it was left as it is."
+        : "An editor uploaded this photo. It's waiting in Admin → Photos for the super admin.";
+      return Response.json({ error }, { status: 409 });
     }
   }
 
@@ -85,8 +88,11 @@ export async function POST(request: Request) {
   const { error } = shared
     ? await supabase
         .from("shared_photos")
-        // Its file size too, for the admin page.
-        .upsert({ ...shared.data, bytes: sharedPhotoBytesSchema.parse(body.byteLength), created_at }, { onConflict: "src" })
+        // Its file size too, for the admin page. An admin sharing it makes an editor's waiting photo public.
+        .upsert(
+          { ...shared.data, bytes: sharedPhotoBytesSchema.parse(body.byteLength), created_at, is_public: true },
+          { onConflict: "src" },
+        )
     : await supabase.from("photos").upsert({ ...photo.data, user_id: data.claims.sub, created_at }, { onConflict: "user_id,src" });
   if (error) return Response.json({ error: "Couldn't upload the photo. Please try again." }, { status: 500 });
   // The name and source are only set when the photo has none: uploading it again keeps what an admin may have

@@ -7,10 +7,13 @@ import { SEARCH_MAX_LENGTH, WITHIN, firstValues, optionIds, searchQuery } from "
 // How many photos one page of the list shows.
 export const PHOTOS_PER_PAGE = 20;
 
-export const MISSING = [
+// Photos that still need an admin's work: no description, no source, or an editor's photo still waiting (no teacher
+// can see it yet, see the editor_photos migration).
+export const NEEDS_WORK = [
   { id: "any", label: "Anything" },
   { id: "description", label: "No description" },
   { id: "source", label: "No source" },
+  { id: "waiting", label: "Waiting (editor's photo)" },
 ] as const;
 
 export const PHOTO_SORTS = [
@@ -33,7 +36,8 @@ const photoSearchSchema = z.object({
   // "Doesn't have": not in the file name, description, tags or source.
   not: text,
   category: z.union([z.uuid(), z.literal("")]).catch(""),
-  missing: z.enum(optionIds(MISSING)).catch("any"),
+  // Called "missing" in the page link since before Waiting was added, so old links still work.
+  missing: z.enum(optionIds(NEEDS_WORK)).catch("any"),
   within: z.enum(optionIds(WITHIN)).catch("any"),
   sort: z.enum(optionIds(PHOTO_SORTS)).catch("newest"),
   page: z.coerce.number().int().min(1).max(100_000).catch(1),

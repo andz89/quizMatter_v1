@@ -176,6 +176,14 @@ export async function loadMyPhotos(): Promise<Photo[]> {
   return data;
 }
 
+// A photo in a presentation or review waiting for QuizMatter can't be removed by anyone (the database refuses with
+// QMPHL, see the editor_photos migration).
+export const PHOTO_LOCKED_MESSAGE = "This photo is in a presentation waiting for QuizMatter, so it can't be removed yet.";
+
+export function isPhotoLocked(error: unknown): boolean {
+  return typeof error === "object" && error !== null && "code" in error && error.code === "QMPHL";
+}
+
 /** Takes a photo off the teacher's list. Slides that use it keep it (the file stays). Throws if it fails. */
 export async function removeMyPhoto(src: string) {
   const { error } = await createClient().from("photos").delete().eq("src", src);
@@ -221,11 +229,12 @@ export function loadPhotoCategoriesInUse(): Promise<PhotoCategory[]> {
     const [categories, counts] = await Promise.all([
       supabase.from("photo_categories").select("id, name").order("name"),
       // A category only has a row here if it has photos.
-      supabase.from("shared_photo_counts").select("category_id"),
+      supabase.from("shared_photo_counts").select("category_id, photos, waiting"),
     ]);
     if (categories.error) throw categories.error;
     if (counts.error) throw counts.error;
-    const inUse = new Set(counts.data.map((row) => row.category_id));
+    // Only public photos count: admins can read editors' waiting ones too, but the panel leaves them out.
+    const inUse = new Set(counts.data.filter((row) => row.photos > row.waiting).map((row) => row.category_id));
     return categories.data.filter((c) => inUse.has(c.id));
   });
 }
@@ -250,7 +259,9 @@ async function fetchSharedPhotoPage(
   from: number,
   count: number
 ): Promise<SharedPhotoWithInfo[]> {
-  let query = createClient().from("shared_photos_search").select(SHARED_PHOTO_COLUMNS);
+  // Admins can read editors' waiting photos too (Admin → Photos), but the panel shows only public ones, so a waiting
+  // photo isn't put on a slide before the super admin names and files it (see the editor_photos migration).
+  let query = createClient().from("shared_photos_search").select(SHARED_PHOTO_COLUMNS).eq("is_public", true);
   for (const word of search.split(/\s+/).filter(Boolean)) {
     const pattern = contains(word);
     query = query.or(`file_name.ilike.${pattern},description.ilike.${pattern},tags_text.ilike.${pattern},category_name.ilike.${pattern}`);

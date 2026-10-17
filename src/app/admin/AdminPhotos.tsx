@@ -11,6 +11,8 @@ import {
   findOrAddCategory,
   loadSharedPhotoInfo,
   moveSharedPhoto,
+  PHOTO_LOCKED_MESSAGE,
+  isPhotoLocked,
   parseTags,
   removeSharedPhoto,
   renameCategory,
@@ -30,7 +32,7 @@ import { SearchField, SearchForm, SearchSelect, SearchTextInput } from "@/compon
 import { Spinner } from "@/components/Spinner";
 import { WITHIN } from "@/lib/search";
 import { formatBytes, joinParts } from "@/lib/format";
-import { DEFAULT_PHOTO_SEARCH, MISSING, PHOTO_SORTS, PHOTOS_PER_PAGE, photoSearchHref, type PhotoSearch } from "./photoSearch";
+import { DEFAULT_PHOTO_SEARCH, NEEDS_WORK, PHOTO_SORTS, PHOTOS_PER_PAGE, photoSearchHref, type PhotoSearch } from "./photoSearch";
 import { ViewToggle, useView, type View } from "./ViewToggle";
 import { ChevronLeftIcon, ChevronRightIcon, ImageIcon, XIcon } from "lucide-react";
 
@@ -39,8 +41,9 @@ const byName = (a: PhotoCategory, b: PhotoCategory) => a.name.localeCompare(b.na
 const INPUT_CLASS =
   "rounded-input border border-border-default bg-bg-surface px-3 py-2 text-sm text-text-primary outline-none placeholder:text-text-secondary focus:border-text-secondary";
 
-// For the filter buttons: how many shared photos there are, in each category, and missing a description or source.
-export type PhotoCounts = { total: number; byCategory: Record<string, number>; noDescription: number; noSource: number };
+// For the filter buttons: how many shared photos there are, in each category, missing a description or source, and
+// waiting (editors' photos no teacher can see yet, see the editor_photos migration).
+export type PhotoCounts = { total: number; byCategory: Record<string, number>; noDescription: number; noSource: number; waiting: number };
 
 /**
  * Admin → Photos: one page of the shared photos the search found (page.tsx asks the database), with buttons that
@@ -49,6 +52,7 @@ export type PhotoCounts = { total: number; byCategory: Record<string, number>; n
 export function AdminPhotos({
   photos: serverPhotos,
   fileSizes,
+  waitingSrcs,
   categories: serverCategories,
   counts,
   matchCount,
@@ -58,6 +62,8 @@ export function AdminPhotos({
   photos: SharedPhotoWithInfo[];
   // Each photo's file size in bytes, by its address.
   fileSizes: Record<string, number>;
+  // The addresses of this page's waiting photos (an editor's, not public until a live QuizMatter presentation uses it).
+  waitingSrcs: string[];
   categories: PhotoCategory[];
   counts: PhotoCounts;
   // How many photos the search found, on all pages.
@@ -110,6 +116,7 @@ export function AdminPhotos({
       <PhotosCard
         photos={photos}
         fileSizes={fileSizes}
+        waitingSrcs={waitingSrcs}
         categories={categories}
         counts={counts}
         matchCount={matchCount}
@@ -648,16 +655,17 @@ function CategoryRow({
   );
 }
 
-// Filter buttons (Sunny) for photos still missing something: no description yet, or no source (required, but
-// photos shared before it was added have none).
+// Filter buttons (Sunny) for photos that still need work: no description yet, no source (required, but photos shared
+// before it was added have none), or an editor's photo still waiting.
 /**
  * One page of the shared photos the search found, with the search box, buttons to filter by category (or the
- * ones missing a description or source), and Previous / Next. Each one can be renamed, move to another category,
+ * ones that still need work: no description, no source, or waiting), and Previous / Next. Each one can be renamed, move to another category,
  * get a description, tags and source, or come off the list.
  */
 function PhotosCard({
   photos,
   fileSizes,
+  waitingSrcs,
   categories,
   counts,
   matchCount,
@@ -669,6 +677,7 @@ function PhotosCard({
 }: {
   photos: SharedPhotoWithInfo[];
   fileSizes: Record<string, number>;
+  waitingSrcs: string[];
   categories: PhotoCategory[];
   counts: PhotoCounts;
   matchCount: number;
@@ -715,6 +724,14 @@ function PhotosCard({
       change: { category: "", missing: "source" },
       isMissing: true,
     },
+    {
+      key: "waiting",
+      name: "Waiting",
+      count: counts.waiting,
+      isOn: !search.category && search.missing === "waiting",
+      change: { category: "", missing: "waiting" },
+      isMissing: true,
+    },
   ];
 
   // Both change the list at once, and put it back if saving fails.
@@ -745,9 +762,9 @@ function PhotosCard({
       await removeSharedPhoto(shared.photo.src);
       toast.success("Photo removed from shared photos.");
       onChanged();
-    } catch {
+    } catch (error) {
       setPhotos((all) => [shared, ...all]);
-      toast.error("Couldn't remove the photo. Please try again.");
+      toast.error(isPhotoLocked(error) ? PHOTO_LOCKED_MESSAGE : "Couldn't remove the photo. Please try again.");
     }
   };
 
@@ -757,6 +774,7 @@ function PhotosCard({
       view={view}
       shared={shared}
       bytes={fileSizes[shared.photo.src]}
+      isWaiting={waitingSrcs.includes(shared.photo.src)}
       categories={categories}
       isMoving={movingSrcs.has(shared.photo.src)}
       onMove={(categoryId) => handleMove(shared, categoryId)}
@@ -927,8 +945,8 @@ function PhotoSearchForm({ search, categories }: { search: PhotoSearch; categori
           onChange={(category) => set({ category })}
         />
       </SearchField>
-      <SearchField label="Missing">
-        <SearchSelect value={values.missing} options={MISSING} onChange={(missing) => set({ missing })} />
+      <SearchField label="Needs work">
+        <SearchSelect value={values.missing} options={NEEDS_WORK} onChange={(missing) => set({ missing })} />
       </SearchField>
       <SearchField label="Added within">
         <SearchSelect value={values.within} options={WITHIN} onChange={(within) => set({ within })} />
@@ -952,6 +970,7 @@ function SharedPhotoItem({
   view,
   shared,
   bytes,
+  isWaiting,
   categories,
   isMoving,
   onMove,
@@ -962,6 +981,7 @@ function SharedPhotoItem({
   shared: SharedPhotoWithInfo;
   // Unknown if its file wasn't found.
   bytes: number | undefined;
+  isWaiting: boolean;
   categories: PhotoCategory[];
   isMoving: boolean;
   onMove: (categoryId: string) => void;
@@ -971,6 +991,7 @@ function SharedPhotoItem({
   const picture = (
     <div className={`relative overflow-hidden rounded-dropdown border border-border-default bg-bg-page ${view === "list" ? "h-12 w-12" : "aspect-square"}`}>
       <PhotoThumbnail src={shared.photo.src} alt={shared.description} className="h-full w-full object-contain" />
+      {isWaiting && view === "grid" && <WaitingPill className="absolute bottom-1.5 left-1.5" />}
       {isMoving && (
         <span className="absolute inset-0 flex items-center justify-center bg-bg-surface/60">
           <Spinner size={view === "list" ? 16 : 20} />
@@ -1021,6 +1042,7 @@ function SharedPhotoItem({
         <div className="flex min-w-0 flex-col gap-1.5 sm:contents">
           {fields}
           <div className="flex flex-wrap items-center gap-1.5 text-xs sm:flex-col sm:items-start sm:gap-0">
+            {isWaiting && <WaitingPill className="mb-1" />}
             <span className="font-semibold text-text-primary">{size ?? "—"}</span>
             <span className="text-text-secondary">{dimensions}</span>
           </div>
@@ -1038,6 +1060,18 @@ function SharedPhotoItem({
       {fields}
       <p className="text-xs text-text-secondary">{joinParts([size, dimensions])}</p>
     </div>
+  );
+}
+
+// An editor's photo no teacher can see yet.
+function WaitingPill({ className }: { className: string }) {
+  return (
+    <span
+      title="Teachers can't see it until a QuizMatter presentation that uses it is live"
+      className={`w-fit rounded-dropdown bg-highlight-soft px-2 py-0.5 text-[11px] font-semibold text-highlight-strong ${className}`}
+    >
+      Waiting
+    </span>
   );
 }
 

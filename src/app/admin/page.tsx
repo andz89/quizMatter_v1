@@ -27,7 +27,7 @@ export default async function AdminPhotosPage({ searchParams }: PageProps<"/admi
     findPhotos(supabase, search, ownerId).range(first, first + PHOTOS_PER_PAGE - 1),
     // For the filter buttons: how many photos each category has, and how many miss a description or source.
     (() => {
-      const query = supabase.from("shared_photo_counts").select("category_id, photos, no_description, no_source");
+      const query = supabase.from("shared_photo_counts").select("category_id, photos, no_description, no_source, waiting");
       return ownerId ? query.eq("uploaded_by", ownerId) : query;
     })(),
     supabase.from("photo_categories").select("id, name").order("name"),
@@ -43,20 +43,24 @@ export default async function AdminPhotosPage({ searchParams }: PageProps<"/admi
 
   const fileSizes: Record<string, number> = {};
   for (const { src, bytes } of photos.data) if (bytes) fileSizes[src] = bytes;
+  // Editors' photos no teacher can see yet (see the editor_photos migration).
+  const waitingSrcs = photos.data.filter((row) => !row.is_public).map((row) => row.src);
 
-  const counts: PhotoCounts = { total: 0, byCategory: {}, noDescription: 0, noSource: 0 };
+  const counts: PhotoCounts = { total: 0, byCategory: {}, noDescription: 0, noSource: 0, waiting: 0 };
   for (const row of perCategory.data) {
     // One row per category and uploader, so they're added up.
     counts.byCategory[row.category_id] = (counts.byCategory[row.category_id] ?? 0) + row.photos;
     counts.total += row.photos;
     counts.noDescription += row.no_description;
     counts.noSource += row.no_source;
+    counts.waiting += row.waiting;
   }
 
   return (
     <AdminPhotos
       photos={photos.data.map(toSharedPhoto)}
       fileSizes={fileSizes}
+      waitingSrcs={waitingSrcs}
       categories={categories.data}
       counts={counts}
       matchCount={photos.count ?? 0}
@@ -69,7 +73,7 @@ export default async function AdminPhotosPage({ searchParams }: PageProps<"/admi
 /** The shared photos this search finds, in its order, with how many there are in all (or only that, with `countOnly`). */
 function findPhotos(supabase: Supabase, search: PhotoSearch, ownerId: string | null, countOnly = false) {
   // With each photo's file size, which only this page needs (see SHARED_PHOTO_COLUMNS).
-  let query = supabase.from("shared_photos_search").select(`${SHARED_PHOTO_COLUMNS}, bytes`, { count: "exact", head: countOnly });
+  let query = supabase.from("shared_photos_search").select(`${SHARED_PHOTO_COLUMNS}, bytes, is_public`, { count: "exact", head: countOnly });
   if (ownerId) query = query.eq("uploaded_by", ownerId);
   // Every word must be somewhere, like the old search on this page.
   for (const word of search.q.split(/\s+/).filter(Boolean)) {
@@ -89,6 +93,7 @@ function findPhotos(supabase: Supabase, search: PhotoSearch, ownerId: string | n
   if (search.category) query = query.eq("category_id", search.category);
   if (search.missing === "description") query = query.eq("description", "");
   if (search.missing === "source") query = query.eq("source", "");
+  if (search.missing === "waiting") query = query.eq("is_public", false);
   const since = withinSince(search.within);
   if (since) query = query.gte("created_at", new Date(since).toISOString());
 

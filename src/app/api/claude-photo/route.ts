@@ -59,14 +59,15 @@ export async function POST(request: Request) {
   const src = PHOTO_URL_PREFIX + fileName;
 
   // The same photo is already shared: it's left as it is (an admin may have changed its details). Its size comes
-  // back so it can go on slides.
+  // back so it can go on slides. An editor's photo still waiting (see the editor_photos migration) is shared
+  // properly below instead: with Claude's details, and public.
   const { data: existing, error: existingError } = await supabase
     .from("shared_photos")
-    .select("file_name, width, height")
+    .select("file_name, width, height, is_public")
     .eq("src", src)
     .maybeSingle();
   if (existingError) return answer(500, "Couldn't add the photo. Send it again.");
-  if (existing) {
+  if (existing?.is_public) {
     await deletePhotoTicket(ticketId.data);
     return answer(200, `This photo is already in the library, as "${existing.file_name}". Nothing was changed.`, {
       src,
@@ -87,9 +88,10 @@ export async function POST(request: Request) {
   let saved = false;
   if (photo.success) {
     await savePhotoFile(fileName, body, type);
-    const { error } = await supabase
-      .from("shared_photos")
-      .insert({ ...photo.data, ...info, bytes: sharedPhotoBytesSchema.parse(body.byteLength), uploaded_by: z.uuid().parse(ticket.ownerId) });
+    const row = { ...photo.data, ...info, bytes: sharedPhotoBytesSchema.parse(body.byteLength), uploaded_by: z.uuid().parse(ticket.ownerId) };
+    const { error } = existing
+      ? await supabase.from("shared_photos").update({ ...row, is_public: true }).eq("src", src)
+      : await supabase.from("shared_photos").insert(row);
     saved = !error;
   }
   if (!saved) {

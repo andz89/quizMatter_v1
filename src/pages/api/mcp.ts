@@ -288,7 +288,9 @@ async function checkPhotos(slides: Slide[]): Promise<string[]> {
   const { data, error } = await supabase
     .from("shared_photos")
     .select("src, width, height")
-    .in("src", [...new Set(used.map((photo) => photo.src))]);
+    .in("src", [...new Set(used.map((photo) => photo.src))])
+    // An editor's photo still waiting for QuizMatter isn't in the library yet (see the editor_photos migration).
+    .eq("is_public", true);
   if (error) return ["Couldn't check the photos. Send again, or leave them out."];
 
   const known = new Map(data.map((photo) => [photo.src, photo]));

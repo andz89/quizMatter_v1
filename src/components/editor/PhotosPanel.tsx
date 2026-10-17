@@ -3,7 +3,17 @@
 import { useEffect, useRef, useState } from "react";
 import { useEditorStore, isPanelEscape } from "@/lib/store";
 import { toast } from "sonner";
-import { PHOTO_TYPES, addPhotoToSlide, checkCanUpload, loadMyPhotos, removeMyPhoto, uploadPhoto, uploadPhotoFromLink } from "@/lib/photos";
+import {
+  PHOTO_LOCKED_MESSAGE,
+  PHOTO_TYPES,
+  addPhotoToSlide,
+  checkCanUpload,
+  isPhotoLocked,
+  loadMyPhotos,
+  removeMyPhoto,
+  uploadPhoto,
+  uploadPhotoFromLink,
+} from "@/lib/photos";
 import { PHOTO_ID } from "@/lib/svgLibrary";
 import type { Photo } from "@/lib/schema";
 import { PhotoTile } from "./PhotoTile";
@@ -64,9 +74,9 @@ export function PhotosPanel() {
     setMyPhotos((list) => (Array.isArray(list) ? list.filter((p) => p.src !== photo.src) : list));
     try {
       await removeMyPhoto(photo.src);
-    } catch {
+    } catch (error) {
       setMyPhotos(previous);
-      toast.error("Couldn't remove the photo. Please try again.");
+      toast.error(isPhotoLocked(error) ? PHOTO_LOCKED_MESSAGE : "Couldn't remove the photo. Please try again.");
     }
   };
 
