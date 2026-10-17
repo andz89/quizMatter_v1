@@ -37,6 +37,7 @@ import { REFUSALS, SaveRefusedError, saveErrorMessage, savePresentationToDb } fr
 import { saveReviewDraft } from "./reviews";
 import { checkPauses, pausedUntilFromError } from "./clickLimits";
 import { shareCopy, unshareCopy, type SharedCopy } from "./sharing";
+import type { SubmissionStatus } from "./submissions";
 import { finishDraft } from "@/app/actions";
 import { isEmbedSlide } from "./embed";
 import type { Photo, PresentationDetails, Presentation, ReviewerFields, Slide, SlideType, SvgElement } from "./schema";
@@ -335,6 +336,9 @@ interface EditorState {
   // False for editors: they send presentations to QuizMatter instead of publishing them (see the
   // shared_copy_moderation migration).
   canPublish: boolean;
+  // An editor's own presentation sent to QuizMatter before: "sent_back" (the Share card says Submit again),
+  // "approved" (can't be sent again), "canceled", or null (never sent). A waiting one never opens in the editor.
+  submission: SubmissionStatus | null;
   // Private/published. QuizMatter: the presentation is saved with the switch (switched back on failure). A teacher:
   // unsaved edits are saved, then the shared copy is made or removed. Resolves null if it worked, else what to tell
   // the teacher ("" = already told, e.g. a pause shown by the notice at the bottom).
@@ -543,6 +547,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   review: null,
   sharedCopy: null,
   canPublish: true,
+  submission: null,
 
   savePresentation: async ({ quiet = false } = {}) => {
     const { presentation, savedPresentation, savedAt, saveStatus, fromDraft, review } = get();

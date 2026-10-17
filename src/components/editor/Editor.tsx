@@ -17,9 +17,11 @@ import { EffectsPanel } from "./EffectsPanel";
 import { PresentationsPanel } from "./PresentationsPanel";
 import { SmallScreenNote } from "./SmallScreenNote";
 import { ReviewBanner } from "./ReviewControls";
+import { SentBackBanner } from "./SentBackBanner";
 import { Spinner } from "@/components/Spinner";
 import type { Presentation } from "@/lib/schema";
 import type { SharedCopy } from "@/lib/sharing";
+import type { SubmissionStatus } from "@/lib/submissions";
 
 // Only downloaded the first time they're opened, so the editor itself loads faster. While one
 // downloads, a dimmed screen with the spinner shows over the editor. Without `loading`, the whole
@@ -46,6 +48,7 @@ const PresentationView = dynamic(
  * migration), shown under the top bar.
  * `sharedCopy` is my presentation's shared copy, if it's published (see the shared_copy migration). `canPublish` is
  * false for editors: they send presentations to QuizMatter instead (see the shared_copy_moderation migration).
+ * `submission` is my presentation's Submit to QuizMatter status, if it was ever sent (the Share card uses it).
  */
 export function Editor({
   presentation,
@@ -54,6 +57,7 @@ export function Editor({
   sentBackNote,
   sharedCopy,
   canPublish = true,
+  submission,
 }: {
   presentation: Presentation;
   draft?: unknown;
@@ -61,6 +65,7 @@ export function Editor({
   sentBackNote?: string;
   sharedCopy?: SharedCopy | null;
   canPublish?: boolean;
+  submission?: SubmissionStatus;
 }) {
   // Until the presentation below is in the store, the store still holds the placeholder (or the last presentation opened).
   const isLoaded = useEditorStore((s) => s.presentation.id === presentation.id);
@@ -84,7 +89,7 @@ export function Editor({
   useEffect(() => {
     const store = useEditorStore.getState();
     store.loadPresentation(presentation);
-    useEditorStore.setState({ review: review ?? null, sharedCopy: sharedCopy ?? null, canPublish });
+    useEditorStore.setState({ review: review ?? null, sharedCopy: sharedCopy ?? null, canPublish, submission: submission ?? null });
     if (draft === undefined) return;
 
     // Show the presentation's own address instead of /presentation/new?draft=…, so a reload after saving opens the
@@ -97,7 +102,7 @@ export function Editor({
     useEditorStore.setState({ fromDraft: true, savedAt: null });
     // A new presentation/draft/review object from the server (e.g. after router.refresh()) loads it again and
     // drops unsaved edits, so don't refresh the editor page while someone is editing.
-  }, [presentation, draft, review, sharedCopy, canPublish]);
+  }, [presentation, draft, review, sharedCopy, canPublish, submission]);
 
   // Closing or reloading the tab with unsaved changes makes the browser ask "Leave page?" first.
   useEffect(() => {
@@ -143,11 +148,7 @@ export function Editor({
     <div className="flex h-screen flex-col">
       <EditorTopBar />
       <ReviewBanner />
-      {sentBackNote && (
-        <p className="shrink-0 border-b border-border-default bg-highlight-soft px-4 py-2 text-sm text-text-primary">
-          QuizMatter sent this back: {sentBackNote} Save your changes, then submit it again from its card&apos;s ⋮ menu.
-        </p>
-      )}
+      {sentBackNote && <SentBackBanner note={sentBackNote} hint="Save your changes, then submit it again from Share." />}
       <div className="relative flex flex-1 overflow-hidden">
         <IconRail />
         {/* On laptops and bigger, an open panel sits beside the slides. On smaller screens it opens over them

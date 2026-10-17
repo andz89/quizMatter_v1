@@ -1,10 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { CheckIcon, CircleAlertIcon, EyeOffIcon, GlobeIcon, LinkIcon, LockIcon, RefreshCwIcon } from "lucide-react";
+import { CheckIcon, CircleAlertIcon, EyeOffIcon, GlobeIcon, LinkIcon, LockIcon, RefreshCwIcon, SendIcon } from "lucide-react";
+import { submitToQuizMatter } from "@/app/actions";
 import { Modal } from "@/components/Modal";
 import { Spinner } from "@/components/Spinner";
+import { TopLoadingBar } from "@/components/TopLoadingBar";
 import { isPaused, useIsPaused } from "@/lib/clickLimits";
 import { publishableSchema } from "@/lib/schema";
 import { useEditorStore } from "@/lib/store";
@@ -69,6 +72,8 @@ const ADMIN_CHOICES = [
  * choices are called Draft and Shared, and switch the presentation itself. Not shown in a review.
  * For teachers, switching too often pauses it for a while (the "share" and "publish" click limits, see the
  * share_limits migration), and an empty presentation can't be published. The database skips both for admins.
+ * Editors can't publish: their card has "Submit to QuizMatter" instead (same as the card's ⋮ menu, see the
+ * quizmatter_submissions migration), which saves unsaved edits first, then opens the (now locked) view page.
  */
 export function ShareButton() {
   const fromAdmin = useEditorStore((s) => s.presentation.fromAdmin);
@@ -90,6 +95,12 @@ export function ShareButton() {
   // Editors send their own presentations to QuizMatter instead (the database refuses them too).
   const canPublish = useEditorStore((s) => s.canPublish || s.presentation.fromAdmin);
   const isPublishPaused = useIsPaused("publish") && !fromAdmin;
+  const isEditor = !canPublish && !fromAdmin;
+  const submission = useEditorStore((s) => s.submission);
+  const savePresentation = useEditorStore((s) => s.savePresentation);
+  const router = useRouter();
+  const [isSubmitConfirming, setIsSubmitConfirming] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
   // The choice waiting in the "Continue?" box (null = no box).
   const [confirming, setConfirming] = useState<boolean | null>(null);
@@ -151,6 +162,31 @@ export function ShareButton() {
     else if (problem) toast.error(problem);
   };
 
+  const askSubmit = () => {
+    // Checked here first, so the editor is told before the "Continue?" box (the database checks it too).
+    const empty = publishableSchema.safeParse(useEditorStore.getState().presentation).error;
+    if (empty) return toast.error(empty.issues[0].message);
+    setIsOpen(false);
+    setIsSubmitConfirming(true);
+  };
+
+  const submit = async () => {
+    setIsSubmitting(true);
+    // QuizMatter gets what the editor sees, so unsaved edits are saved first.
+    if (!(await savePresentation({ quiet: true }))) {
+      setIsSubmitting(false);
+      return toast.error("Couldn't save your changes, so it wasn't sent. Please try again.");
+    }
+    const error = await submitToQuizMatter(id);
+    if (error) {
+      setIsSubmitting(false);
+      return toast.error(error);
+    }
+    toast.success("Sent to QuizMatter. You'll see their answer in Reviews & submissions.");
+    // It's locked now, so it opens view only (the box stays busy until the page changes).
+    router.replace(`/presentation/${id}`);
+  };
+
   const copyLink = async () => {
     try {
       // A teacher's link is the shared copy's: that's what other teachers can open.
@@ -201,7 +237,7 @@ export function ShareButton() {
                     <span className="block text-sm font-semibold text-text-primary">{label}</span>
                     <span className="block text-[13px] text-text-secondary">
                       {isEditorBlocked
-                        ? "Editors use “Submit to QuizMatter” on the Home page instead"
+                        ? "Editors send their presentations to QuizMatter instead"
                         : isHiddenBlocked
                           ? "QuizMatter hid the shared copy, so it stays until they decide"
                           : hint}
@@ -219,6 +255,24 @@ export function ShareButton() {
               notice at the bottom says until when.
             </p>
           )}
+
+          {isEditor &&
+            (submission === "approved" ? (
+              <p className="flex items-center gap-2 text-[13px] text-text-secondary">
+                <CheckIcon size={14} className="shrink-0 text-success-strong" />
+                This presentation is in QuizMatter.
+              </p>
+            ) : (
+              <button
+                type="button"
+                onClick={askSubmit}
+                disabled={isSaving}
+                className="inline-flex items-center justify-center gap-2 rounded-button bg-accent btn-press px-4 py-2 text-sm font-semibold text-white hover:bg-accent-hover disabled:opacity-60"
+              >
+                <SendIcon size={14} />
+                {submission === "sent_back" ? "Submit again" : "Submit to QuizMatter"}
+              </button>
+            ))}
 
           {sharedCopy && (
             <div className="flex flex-col gap-2 rounded-button bg-bg-page px-3 py-2.5">
@@ -267,6 +321,36 @@ export function ShareButton() {
             </button>
           )}
         </div>
+      )}
+
+      {isSubmitConfirming && (
+        <Modal title="Send it to QuizMatter?" onClose={() => setIsSubmitConfirming(false)} isBusy={isSubmitting}>
+          <ul className="flex list-disc flex-col gap-2 pl-5 text-sm text-text-primary">
+            <li>An admin will check it. Until they decide, you can&apos;t change or delete it.</li>
+            <li>If they approve it, QuizMatter gets its own copy, shared with every teacher, with you as the Author.</li>
+            <li>Your unsaved edits are saved first.</li>
+          </ul>
+          <div className="mt-5 flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setIsSubmitConfirming(false)}
+              disabled={isSubmitting}
+              className="rounded-button border border-border-default px-4 py-2 text-sm font-semibold text-text-primary transition-colors hover:bg-bg-page disabled:opacity-60 disabled:hover:bg-transparent"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={submit}
+              disabled={isSubmitting}
+              className="inline-flex items-center gap-2 rounded-button bg-accent btn-press px-4 py-2 text-sm font-semibold text-white hover:bg-accent-hover disabled:opacity-60"
+            >
+              {isSubmitting && <Spinner size={14} />}
+              Submit
+            </button>
+          </div>
+          {isSubmitting && <TopLoadingBar />}
+        </Modal>
       )}
 
       {confirming !== null && (

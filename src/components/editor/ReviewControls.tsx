@@ -12,6 +12,7 @@ import { saveErrorMessage } from "@/lib/presentations";
 import { stopReview, submitReview } from "@/lib/reviews";
 import type { ReviewerFields } from "@/lib/schema";
 import { useEditorStore } from "@/lib/store";
+import { SentBackBanner } from "./SentBackBanner";
 
 /**
  * The reviewer's ⋮ button in the editor's top bar (next to Save as draft). It opens a menu with "Submit for
@@ -172,11 +173,7 @@ function SubmitForm({ reviewer, onClose }: { reviewer: ReviewerFields; onClose: 
 export function ReviewBanner() {
   const note = useEditorStore((s) => s.review?.note);
   if (!note) return null;
-  return (
-    <p className="shrink-0 border-b border-border-default bg-highlight-soft px-4 py-2 text-sm text-text-primary">
-      QuizMatter sent this back: {note}
-    </p>
-  );
+  return <SentBackBanner note={note} />;
 }
 
 const menuItemClass =

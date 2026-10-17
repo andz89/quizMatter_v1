@@ -33,6 +33,7 @@ export default async function PresentationPage({ params }: PageProps<"/presentat
         sentBackNote={sentBackNote}
         sharedCopy={result.sharedCopy}
         canPublish={canPublish}
+        submission={result.submission?.status}
       />
     );
   }
