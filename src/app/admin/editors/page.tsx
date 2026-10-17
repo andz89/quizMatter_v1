@@ -41,6 +41,15 @@ export default async function AdminEditorsPage() {
   if (published.error) throw published.error;
   if (open.error) throw open.error;
 
+  // What each editor made: their presentations (not shared copies, like their own lists) and uploaded photos.
+  const editorIds = editors.data.map((row) => row.user_id as string);
+  const [made, photos] = await Promise.all([
+    admin.from("presentations").select("owner_id").in("owner_id", editorIds).is("shared_from", null),
+    admin.from("photos").select("user_id").in("user_id", editorIds),
+  ]);
+  if (made.error) throw made.error;
+  if (photos.error) throw photos.error;
+
   return (
     <AdminEditors
       rows={buildRows(
@@ -50,6 +59,8 @@ export default async function AdminEditorsPage() {
         bans.data.map((row) => row.user_id as string),
         published.data as { reviewer_id: string; reviewed_on: string }[],
         open.data as unknown as OpenRound[],
+        made.data.map((row) => row.owner_id as string),
+        photos.data.map((row) => row.user_id as string),
       )}
     />
   );
@@ -70,6 +81,9 @@ function buildRows(
   bannedIds: string[],
   published: { reviewer_id: string; reviewed_on: string }[],
   openRounds: OpenRound[],
+  // One owner id per presentation, one user id per photo.
+  presentationOwners: string[],
+  photoOwners: string[],
 ): EditorRow[] {
   const emails = new Map(users.map((user) => [user.id, user.email ?? ""]));
   const names = new Map(settings.map((row) => [row.user_id, row.display_name ?? ""]));
@@ -85,6 +99,8 @@ function buildRows(
         null,
       );
       const round = openRounds.find((row) => row.reviewer_id === editor.user_id);
+      const presentationCount = presentationOwners.filter((id) => id === editor.user_id).length;
+      const photoCount = photoOwners.filter((id) => id === editor.user_id).length;
       return {
         id: editor.user_id,
         email: emails.get(editor.user_id) ?? "",
@@ -93,6 +109,8 @@ function buildRows(
           `Editor since ${timeAgo(Date.parse(editor.added_at), now)}`,
           `${reviews.length} published ${reviews.length === 1 ? "review" : "reviews"}`,
           lastReview && `Last review ${timeAgo(Date.parse(lastReview), now)}`,
+          `${presentationCount} ${presentationCount === 1 ? "presentation" : "presentations"}`,
+          `${photoCount} ${photoCount === 1 ? "photo" : "photos"}`,
         ]),
         isBanned: banned.has(editor.user_id),
         openRound: round

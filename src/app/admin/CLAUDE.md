@@ -14,13 +14,13 @@ Admin-only work (things shared with every teacher, managing teachers) lives here
 
 | Menu | Folder | What it does |
 |---|---|---|
-| Photos | `page.tsx`, `AdminPhotos.tsx`, `photoSearch.ts` | Shared photo library and its categories |
+| Photos | `page.tsx`, `AdminPhotos.tsx`, `photoSearch.ts` | Shared photo library and its categories. Editors' uploads show as **Waiting** (pill + filter) until a live QuizMatter presentation uses them; editable like the rest |
 | Presentations | `presentations/` | QuizMatter presentations, sharing, moving a teacher's one to QuizMatter |
 | ↳ Under review | `presentations/reviews/` | Review rounds: publish, send back, cancel (`[id]` = one review) |
 | ↳ Submissions | `presentations/submissions/` | Editors' submissions: approve or send back (`[id]` = one) |
 | Reports | `reports/` | Reported presentations: hide, dismiss, delete |
 | Teachers (super admin only) | `teachers/` | Ban / unban, give or take the editor role (`setEditor`) |
-| Editors | `editors/` | The editors with their review numbers; remove (same `setEditor`) |
+| Editors | `editors/` | The editors with their review numbers and how many presentations / photos they made; remove (same `setEditor`). The name opens `[id]`: view only, their presentations (not shared copies) with each one's Submit to QuizMatter status, their reviews (published ones from `presentation_reviewers`, plus each presentation's latest round from `presentation_reviews`, which keeps no older rounds), and their uploaded photos (`photos`; file name, category, tags, … only if the photo is also a shared one, else the stored file's name and "—"; Status = Waiting / Public from `shared_photos.is_public`) |
 | Safety (super admin only) | `safety/` | Click-limit pauses (`releasePause`) and their history (`safety/history`) |
 | Photo cleanup (super admin only) | `cleanup/` | What the weekly photo cleanup will delete |
 

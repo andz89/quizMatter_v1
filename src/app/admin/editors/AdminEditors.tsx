@@ -14,7 +14,7 @@ export type EditorRow = {
   email: string;
   // Display name ("" if not set).
   name: string;
-  // "Editor since 3 weeks ago · 5 published reviews · Last review 2 days ago".
+  // "Editor since 3 weeks ago · 5 published reviews · Last review 2 days ago · 4 presentations · 12 photos".
   meta: string;
   isBanned: boolean;
   // The review round they have open, if any.
@@ -58,7 +58,14 @@ function Row({ row }: { row: EditorRow }) {
       <div className="flex flex-wrap items-center gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="truncate text-sm font-semibold text-text-primary">{row.email}</span>
+            {/* Opens their profile: what they made. */}
+            <Link
+              href={`/admin/editors/${row.id}`}
+              className="truncate text-sm font-semibold text-text-primary hover:text-accent hover:underline"
+            >
+              {row.email}
+              <LinkPending />
+            </Link>
             {row.name && <span className="text-sm text-text-secondary">{row.name}</span>}
             {row.isBanned && <span className={`${pillClass} bg-danger-soft text-danger-strong`}>Banned</span>}
           </div>
