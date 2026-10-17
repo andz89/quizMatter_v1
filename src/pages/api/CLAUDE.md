@@ -15,6 +15,12 @@
    - `find_photos`: searches the shared photo library.
    - `prepare_photo_upload`: makes one-time upload links (`src/lib/photoTickets.ts`); Claude then sends each file to
      `/api/claude-photo` (`src/app/api/claude-photo/route.ts`).
+   - `find_photos_needing_details` + `save_photo_details`: Claude fills in shared photos' file name, description,
+     tags and category (e.g. editors' waiting photos). The find tool narrows by `which` (no description / waiting /
+     any) and `words` (file name, tags or category, e.g. a marker file name like "todo-frogs"), a few at a time, and
+     sends each picture (a 640 px copy, `loadPicture`). Saves run as the admin, so the database rules decide: a plain
+     admin only gets and changes their own photos. Never the source or `is_public`. Categories:
+     `src/lib/photoCategories.ts` (shared with `/api/claude-photo`). Checked with `claudePhotoFillSchema`.
    - `send_presentation`: `buildSlides` turns the recipe into real slides and checks them. Problems go back to
      Claude as a report to fix. If all is well, it saves a **draft** (`src/lib/drafts.ts`) and gives a link.
    - The old names (`…_lesson…`, `…_quiz…`) still work, because old chats keep the tool list they started with.

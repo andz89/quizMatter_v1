@@ -166,6 +166,10 @@ export const claudePhotoSchema = sharedPhotoInfoSchema.extend({
 });
 export type ClaudePhotoDetails = z.infer<typeof claudePhotoSchema>;
 
+// Details Claude fills in on a shared photo that's already there (save_photo_details in /api/mcp): the same as above
+// without the source (Claude can't know who owns a photo by looking at it; an admin adds it), plus which photo.
+export const claudePhotoFillSchema = claudePhotoSchema.omit({ source: true }).extend({ src: photoSchema.shape.src.endsWith(".webp") });
+
 const diagramBoxPosition = z.number().min(-DIAGRAM_BOX_POSITION_MAX).max(DIAGRAM_BOX_POSITION_MAX);
 
 // A diagram box's own color: a plain #RRGGBB (the Color panel's solid colors).

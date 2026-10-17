@@ -1,10 +1,10 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
 import { imageSize } from "image-size";
 import { z } from "zod";
 import { MAX_STORED_PHOTO_BYTES, PHOTO_MAX_SIDE, PHOTO_URL_PREFIX } from "@/lib/constants";
 import { photoFileName, readPhotoType, savePhotoFile } from "@/lib/photoFiles";
 import { deletePhotoTicket, getPhotoTicket } from "@/lib/photoTickets";
-import { claudePhotoSchema, photoCategoryNameSchema, sharedPhotoBytesSchema, sharedPhotoSchema } from "@/lib/schema";
+import { findOrCreateCategory } from "@/lib/photoCategories";
+import { claudePhotoSchema, sharedPhotoBytesSchema, sharedPhotoSchema } from "@/lib/schema";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 /**
@@ -103,31 +103,6 @@ export async function POST(request: Request) {
   const kb = Math.round(body.byteLength / 1024);
   const added = `Added "${info.file_name}" (${size.width}×${size.height} px, ${kb} KB) to "${category}"`;
   return answer(200, `${added}. It can go on slides now.`, { src, width: size.width, height: size.height });
-}
-
-/**
- * The category with this name (not minding capitals), made if there's none yet: its id, and whether it was just
- * made. Null if it failed.
- */
-async function findOrCreateCategory(
-  supabase: SupabaseClient,
-  name: string,
-): Promise<{ id: string; isNew: boolean } | null> {
-  const find = async () => {
-    const { data } = await supabase.from("photo_categories").select("id, name");
-    const id = data?.find((c) => c.name.toLowerCase() === name.toLowerCase())?.id;
-    return id ? { id, isNew: false } : null;
-  };
-  const found = await find();
-  if (found) return found;
-  const { data, error } = await supabase
-    .from("photo_categories")
-    .insert({ name: photoCategoryNameSchema.parse(name) })
-    .select("id")
-    .single();
-  // Two photos in the same new category can arrive together: then the other one just made it.
-  if (error?.code === "23505") return find();
-  return data ? { id: data.id, isNew: true } : null;
 }
 
 function answer(status: number, message: string, extra?: object) {

@@ -6,9 +6,11 @@ import { z } from "zod";
 import { buildSlides, getClaudeFormat, claudeDetailsSchema } from "@/lib/importPresentation";
 import { replaceDraft, saveDraft } from "@/lib/drafts";
 import { loadPresentation } from "@/lib/fetchPresentation";
-import { PHOTO_MAX_SIDE } from "@/lib/constants";
+import { PHOTO_MAX_SIDE, thumbnailUrl } from "@/lib/constants";
+import { findOrCreateCategory } from "@/lib/photoCategories";
+import { contains } from "@/lib/search";
 import { createPhotoTickets } from "@/lib/photoTickets";
-import { claudePhotoSchema, type Photo, type Presentation, type Slide } from "@/lib/schema";
+import { claudePhotoFillSchema, claudePhotoSchema, type Photo, type Presentation, type Slide } from "@/lib/schema";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 /**
@@ -136,6 +138,104 @@ function createServer(appUrl: string, userId: string, supabase: SupabaseClient) 
     },
   );
 
+  server.registerTool(
+    "find_photos_needing_details",
+    {
+      description:
+        "Finds photos in quizMatter's shared photo library that still need a file name, description, tags or category " +
+        "(e.g. photos editors uploaded, which wait hidden from teachers until QuizMatter uses them), and shows you each " +
+        "picture. Look at each one, then save its details with save_photo_details. Ask again for the next ones until none " +
+        "are left (or the user's count is reached). Narrow it down the way the user says: `which` and `words`. " +
+        "Never change or guess the source (who owns the photo): it's shown so you can tell the user which ones still miss it.",
+      inputSchema: {
+        which: z
+          .enum(["missing_description", "waiting", "any"])
+          .default("missing_description")
+          .describe(
+            '"missing_description": no description yet. "waiting": editors\' photos teachers can\'t see yet. "any": only `words` decides.',
+          ),
+        words: z
+          .string()
+          .trim()
+          .max(100)
+          .default("")
+          .describe('Optional: a word in the file name, tags or category, e.g. a marker the user typed as the file name ("todo-frogs").'),
+        count: z.number().int().min(1).max(10).default(5).describe("How many photos to show at once (10 at most)."),
+      },
+      annotations: { readOnlyHint: true },
+    },
+    async ({ which, words, count }) => {
+      // A plain admin can only change the photos they uploaded (the database rules), so they only get those.
+      const { data: isSuperAdmin } = await supabase.rpc("is_super_admin");
+      let query = supabase
+        .from("shared_photos_search")
+        .select("src, file_name, description, tags, source, category_name, is_public", { count: "exact" });
+      if (isSuperAdmin !== true) query = query.eq("uploaded_by", userId);
+      if (which === "missing_description") query = query.eq("description", "");
+      if (which === "waiting") query = query.eq("is_public", false);
+      for (const word of words.split(/\s+/).filter(Boolean)) {
+        const pattern = contains(word);
+        query = query.or(`file_name.ilike.${pattern},tags_text.ilike.${pattern},category_name.ilike.${pattern}`);
+      }
+      const [photos, categories] = await Promise.all([
+        query.order("created_at").order("src").limit(count),
+        supabase.from("photo_categories").select("name").order("name"),
+      ]);
+      if (photos.error || categories.error) {
+        return { isError: true, content: [{ type: "text", text: "Couldn't load the photos. Try again." }] };
+      }
+      if (photos.data.length === 0) return { content: [{ type: "text", text: "No photos match: nothing left to fill in." }] };
+
+      const header = [
+        `${photos.count ?? photos.data.length} photo(s) match; here are ${photos.data.length}.`,
+        `Categories: ${categories.data.map((c) => c.name).join(", ")}`,
+        "For each photo: a short file name without an extension, what it shows, up to 10 tags, and a category (reuse one when it fits).",
+      ].join("\n");
+      const content: ({ type: "text"; text: string } | { type: "image"; data: string; mimeType: string })[] = [
+        { type: "text", text: header },
+      ];
+      for (const photo of photos.data) {
+        // Its src (to save it), what it has now, and is_public (false = still waiting for QuizMatter).
+        content.push({ type: "text", text: JSON.stringify(photo) });
+        const picture = await loadPicture(photo.src);
+        content.push(picture ?? { type: "text", text: "(This picture couldn't be loaded; skip it.)" });
+      }
+      return { content };
+    },
+  );
+
+  server.registerTool(
+    "save_photo_details",
+    {
+      description:
+        "Saves the file name, description, tags and category you gave photos from find_photos_needing_details " +
+        "(it doesn't change the source, or whether teachers can see the photo). A new category name makes a new category.",
+      inputSchema: { photos: z.array(claudePhotoFillSchema).min(1).max(10).describe("One entry per photo, with its src.") },
+    },
+    async ({ photos }) => {
+      const lines: string[] = [];
+      for (const { src, category, ...info } of photos) {
+        const found = await findOrCreateCategory(supabase, category);
+        if (!found) {
+          lines.push(`${src}: couldn't make the category "${category}", so it wasn't saved.`);
+          continue;
+        }
+        // As the admin: the database only lets them change photos they're allowed to (a plain admin: their own).
+        const { data, error } = await supabase
+          .from("shared_photos")
+          .update({ ...info, category_id: found.id })
+          .eq("src", src)
+          .select("src");
+        lines.push(
+          error || !data?.length
+            ? `${src}: not saved (not found, or you can't change this photo).`
+            : `${src}: saved as "${info.file_name}" in "${category}".`,
+        );
+      }
+      return { content: [{ type: "text", text: lines.join("\n") }] };
+    },
+  );
+
   for (const name of ["send_presentation", "send_lesson", "send_quiz"]) {
     server.registerTool(
       name,
@@ -219,6 +319,20 @@ function createServer(appUrl: string, userId: string, supabase: SupabaseClient) 
  * Checks Claude's login token (the one Supabase gave it after the user clicked Allow). The user's id and whether
  * they're an admin, or null if the token is missing, wrong or expired, or the user is banned (Admin → Teachers).
  */
+/** A photo for Claude to look at: a 640 px copy (Cloudflare makes it), or null if it can't be loaded. */
+async function loadPicture(src: string): Promise<{ type: "image"; data: string; mimeType: string } | null> {
+  try {
+    const response = await fetch(thumbnailUrl(src, 640), { headers: { Accept: "image/webp,image/jpeg" } });
+    if (!response.ok) return null;
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    let binary = "";
+    for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+    return { type: "image", data: btoa(binary), mimeType: response.headers.get("content-type")?.split(";")[0] || "image/webp" };
+  } catch {
+    return null;
+  }
+}
+
 async function checkLogin(token: string): Promise<{ id: string; isAdmin: boolean; supabase: SupabaseClient } | null> {
   // Acts as that user, so is_admin() answers for them.
   const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
