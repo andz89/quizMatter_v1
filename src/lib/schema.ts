@@ -514,17 +514,18 @@ export const daySchema = listOrOwnSchema(DAYS, DETAIL_MAX_LENGTH.day);
 // Every list grade plus one of the teacher's own. Same limit as the multiple_grades migration.
 export const MAX_GRADES = GRADES.length + 1;
 
-/** Where a grade sits in the list (its own grades go last). */
-function gradeOrder(grade: string): number {
-  const index = (GRADES as readonly string[]).indexOf(grade);
-  return index === -1 ? GRADES.length : index;
+/** Where a value sits for sorting by a list (DAYS, GRADES, SUBJECTS, …): the teacher's own values after it, empty last. */
+export function listOrder(list: readonly string[], value: string): number {
+  if (value === "") return list.length + 1;
+  const index = list.indexOf(value);
+  return index === -1 ? list.length : index;
 }
 
 // A presentation's grades: in list order, no repeats or empty ones, and at most one of the teacher's own.
 export const gradesSchema = z
   .array(gradeSchema)
   .max(MAX_GRADES)
-  .transform((grades) => [...new Set(grades.filter((grade) => grade !== ""))].sort((a, b) => gradeOrder(a) - gradeOrder(b)))
+  .transform((grades) => [...new Set(grades.filter((grade) => grade !== ""))].sort((a, b) => listOrder(GRADES, a) - listOrder(GRADES, b)))
   .refine((grades) => grades.filter(isOtherGrade).length <= 1, "A presentation can have only one grade of its own.");
 
 /** Older data has one `grade` (text) instead of `grades`: read it as a one-item list. */
@@ -539,7 +540,7 @@ export function withGrades<T>(details: T): T {
  * and the teacher's own last ("Grade 4, College"). "" for none.
  */
 export function gradesLabel(grades: readonly string[]): string {
-  const listed = grades.map(gradeOrder).filter((index) => index < GRADES.length).sort((a, b) => a - b);
+  const listed = grades.map((grade) => listOrder(GRADES, grade)).filter((index) => index < GRADES.length).sort((a, b) => a - b);
   // Runs of neighbors, e.g. [1, 2, 3] and [5].
   const runs: number[][] = [];
   for (const index of listed) {
@@ -560,7 +561,7 @@ export function gradesLabel(grades: readonly string[]): string {
 /** Tooltip for a grades label that shortens Kindergarten to "K": every grade in full. Otherwise undefined. */
 export function gradesTitle(grades: readonly string[]): string | undefined {
   return grades.filter((grade) => !isOtherGrade(grade)).length > 1 && grades.includes(GRADES[0])
-    ? [...grades].sort((a, b) => gradeOrder(a) - gradeOrder(b)).join(", ")
+    ? [...grades].sort((a, b) => listOrder(GRADES, a) - listOrder(GRADES, b)).join(", ")
     : undefined;
 }
 

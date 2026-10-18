@@ -124,11 +124,14 @@ like", up to 6 presentation cards.
 
 - A helper that gives a live QuizMatter presentation's editor (the approved submission's `submitter_id` by `copy_id`),
   or nothing for an admin-made one.
-- `lesson_week(target_id)`: the week list for an editor-made live QuizMatter presentation, checked as above, plus the
-  editor's name and profile slug (if visible). No rows for an admin-made one. Returns the rows the list needs (id,
-  title, day, first slide data), never anyone's email or the submission rows.
-- `maker_presentations(slug)`: the profile list (editor-made only). Respects `profile_is_visible`.
-- `suggested_presentations(target_id)`: the suggestions, with the save count used only for sorting.
+- `lesson_week(target_id)` (internal): the week list for an editor-made live QuizMatter presentation, checked as above,
+  plus the editor's name and profile slug. No rows for an admin-made one, or when the viewer may not see the editor's
+  profile. Returns only presentation ids, never anyone's email or the submission rows; the app reads the cards from
+  `presentations` afterwards, so the table's own read rules still apply.
+- `lesson_extras(target_id)`: what the view page calls: the week list and the suggestions in one call (the save count
+  is used only for sorting). Built in `20261130000000_lesson_extras.sql`; it replaced a separate
+  `suggested_presentations`.
+- `editor_presentations(slug)`: the profile list (editor-made only). Respects `profile_is_visible`.
 - All `security definer`, `set search_path = ''`, execute only for `authenticated`, as the other read functions.
 - These are reads only, so no zod-before-saving step. The inputs (ids, slug) are checked with zod in the app before
   the call, like `loadTeacherProfile` does with the slug.

@@ -17,7 +17,7 @@ export type TeacherProfile = {
 
 // A link name: lowercase letters and digits in groups joined by "-" (what profile_slug makes), at most the display
 // name's length.
-const profileSlugSchema = z.string().max(DISPLAY_NAME_MAX_LENGTH).regex(/^[a-z0-9]+(-[a-z0-9]+)*$/);
+export const profileSlugSchema = z.string().max(DISPLAY_NAME_MAX_LENGTH).regex(/^[a-z0-9]+(-[a-z0-9]+)*$/);
 
 /** The profile, or null if no teacher has this link (or it's an admin the viewer may not see). Throws if it fails. */
 export async function loadTeacherProfile(supabase: SupabaseClient, slug: string): Promise<TeacherProfile | null> {

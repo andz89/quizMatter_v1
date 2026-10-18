@@ -109,6 +109,40 @@ function inList(list: readonly string[]): string {
   return `(${list.map((value) => `"${value}"`).join(",")})`;
 }
 
+/**
+ * These presentations as card rows (first slide only), in the order of `ids`. One the user can't read (the database
+ * decides) is left out, and so is a batch whose lookup fails. Read 50 at a time, so the request's link stays short.
+ */
+export async function loadCardRows(supabase: SupabaseClient, ids: string[]): Promise<CardPresentation[]> {
+  const batches = Array.from({ length: Math.ceil(ids.length / 50) }, (_, i) => ids.slice(i * 50, i * 50 + 50));
+  const results = await Promise.all(
+    batches.map((batch) =>
+      supabase
+        .from("presentations")
+        .select(CARD_COLUMNS)
+        .in("id", batch)
+        .order("position", { referencedTable: "first_slide" })
+        .limit(1, { referencedTable: "first_slide" }),
+    ),
+  );
+  const byId = new Map(results.flatMap(({ data }) => (data ?? []) as unknown as CardPresentation[]).map((row) => [row.id, row]));
+  return ids.flatMap((id) => byId.get(id) ?? []);
+}
+
+/**
+ * Cards of QuizMatter presentations (or other people's), like the home tabs: Author / Publisher / Reviewer rows and the
+ * Save (bookmark) button. If the saved lookup fails, plain cards without them.
+ */
+export async function toSavableCards(supabase: SupabaseClient, rows: CardPresentation[]): Promise<PresentationCardData[]> {
+  try {
+    const { toSavableCard } = await loadCardContext(supabase, rows, await myId(supabase));
+    return rows.map(toSavableCard);
+  } catch {
+    const now = Date.now();
+    return rows.map((row) => toCard(row, `/presentation/${row.id}`, now));
+  }
+}
+
 export function toCard(presentation: CardPresentation, href: string, now: number): PresentationCardData {
   const slideCount = presentation.slides[0]?.count ?? 0;
   return {

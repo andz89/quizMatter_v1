@@ -33,6 +33,13 @@ delete, move). Limits in `src/lib/folders.ts`, checked again in `20261028000000_
 - `[id]/page.tsx`: the view page (mostly other teachers' published ones): `PresentationPreview.tsx` with Prev/Next,
   "Make a copy" (saves a private copy and opens it), Save (bookmark), and `ReportButton.tsx` (goes to Admin →
   Reports). Actions in `[id]/actions.ts`.
+- On a live QuizMatter presentation the view page also shows, from `src/lib/lessons.ts` (database:
+  `lesson_extras`, one call): `[id]/LessonWeek.tsx`, "This week's lessons by <editor>" (the same editor's
+  lessons with the same subject, term and week and a grade in common, every day and version; curriculum ignored) and
+  "See all <editor>'s presentations" (their profile); and `[id]/Suggestions.tsx`, "You may also like" (up to 6 with
+  the same subject and a grade in common, most saved first). The maker is the editor of the approved submission
+  (`copy_id`), never the Author text. Lessons an admin made get only the suggestions. Suggestion and profile cards
+  use `SavableCardGrid.tsx` (the bookmark works there too).
 - `[id]/edit/page.tsx`: decides who gets what: my own → editor; locked by review or submission → view; my review →
   the editor in review mode, or `ReviewSubmittedView` once submitted. `PresentationEditor.tsx` loads the editor
   without server rendering (the store makes random ids, which would not match).
@@ -60,6 +67,8 @@ Draft / Shared switch on the presentation itself, and aren't counted.
 - `account/`: display name (kept 30 days once changed; `display_name` click limit), personal details and bio,
   password (`AccountForms.tsx`). Rules and limits: `src/lib/userSettings.ts`.
 - `teachers/[slug]/`: a teacher's public profile, from `src/lib/profiles.ts` (never the contact number or email).
+  Below it, the QuizMatter presentations they made as an editor (`editor_presentations`, `src/lib/lessons.ts`), by
+  subject, then first grade.
 - `signup/`: Turnstile check (`src/components/Turnstile.tsx`), blocked throwaway emails
   (`src/lib/blockedEmailDomains.ts`), browser speed bumps (`src/lib/browserLimits.ts`), and a limit per internet
   address in the database (`20261108000000_sign_up_limit.sql`). The email link opens `auth/confirm/route.ts`.

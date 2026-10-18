@@ -22,7 +22,10 @@ import { Spinner } from "@/components/Spinner";
 import { TopLoadingBar } from "@/components/TopLoadingBar";
 import { FluidSlidePreview } from "@/components/presentation/FluidSlidePreview";
 import { PresentDraftButton } from "@/components/presentation/PresentDraftButton";
+import type { PresentationCardData } from "../../PresentationCard";
+import { LessonWeek, type LessonWeekData } from "./LessonWeek";
 import { ReportButton } from "./ReportButton";
+import { Suggestions } from "./Suggestions";
 import { setPresentationSaved } from "./actions";
 import { SAVE_ERRORS } from "../../SaveCardButton";
 
@@ -33,6 +36,8 @@ import { SAVE_ERRORS } from "../../SaveCardButton";
  * Editors can review a shared QuizMatter presentation ("Review"); while it's under review nobody can copy it, and
  * its owner can't edit it. Everyone who reviewed it is listed under the "Published by" line.
  * While my presentation waits for QuizMatter (see the quizmatter_submissions migration), it has no Edit.
+ * A live QuizMatter presentation also gets its editor's lessons for that week and "You may also like" (see the
+ * lesson_week migration).
  */
 export function PresentationPreview({
   presentation,
@@ -44,6 +49,8 @@ export function PresentationPreview({
   review,
   reviewers,
   waitingSince,
+  lessonWeek,
+  suggestions,
 }: {
   presentation: Presentation;
   isMine: boolean;
@@ -55,6 +62,9 @@ export function PresentationPreview({
   reviewers: Reviewer[];
   // My presentation sent to QuizMatter and waiting (locked until an admin decides): when, e.g. "2 hr ago". null = not waiting.
   waitingSince: string | null;
+  // null = not a live QuizMatter presentation an editor made.
+  lessonWeek: LessonWeekData | null;
+  suggestions: PresentationCardData[];
 }) {
   const router = useRouter();
   const [isCopying, setIsCopying] = useState(false);
@@ -317,6 +327,8 @@ export function PresentationPreview({
           </div>
         </header>
 
+        {lessonWeek && <LessonWeek week={lessonWeek} currentId={presentation.id} />}
+
         {(details.length > 0 || presentation.tags.length > 0 || presentation.referenceLinks.length > 0) && (
           <dl className="mb-8 grid gap-4 rounded-card border border-border-default bg-bg-surface px-5 py-4 text-sm">
             {details.map((detail) => (
@@ -357,6 +369,8 @@ export function PresentationPreview({
             )}
           </dl>
         )}
+
+        <Suggestions cards={suggestions} />
       </section>
 
       {(isCopying || isStartingReview) && <TopLoadingBar />}

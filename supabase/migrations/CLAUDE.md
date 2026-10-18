@@ -57,6 +57,11 @@ A refusal raises an error with its own code. The app turns the code into a messa
   or deleted by its teacher, a hidden original can't be shared, a copy can't be sent to QuizMatter, and editors
   can't publish (the editor role removes their copies). `20261125000000_shared_copy_fixes.sql`: an old app tab's
   "published" save is refused, and Move to QuizMatter removes the copy in the same step.
+- This week's lessons, suggestions and editor profile lists: `20261129000000_lesson_week.sql` (`lesson_editor`,
+  `lesson_week`, `editor_presentations`) and `20261130000000_lesson_extras.sql` (`lesson_extras`: the week list and
+  the suggestions in one call, the only one the view page makes; `editor_presentations` checks the profile once).
+  They return only ids. A lesson's maker is its approved submission's editor (`lesson_editor`, by `copy_id`), never
+  the Author text; admin-made lessons have none.
 - Folders: `20261028000000_folders.sql`. Teacher profiles: `20261110000000_teacher_profiles.sql`,
   `20261112000000_profile_name_links.sql`.
 
