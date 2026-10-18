@@ -48,12 +48,10 @@ export function ToolPanelButton({
 
   // Measured before paint, so the panel never flashes in the wrong place. The panel opens below the
   // button when it fits. If not, it moves up to sit 25px below the top of the box that cuts it off
-  // (e.g. the scrolling slide area).
+  // (e.g. the scrolling slide area). A closed or open-above panel doesn't use panelTop, and each opening measures
+  // it again before paint, so an old value never shows.
   useLayoutEffect(() => {
-    if (!isOpen || openAbove) {
-      setPanelTop(null);
-      return;
-    }
+    if (!isOpen || openAbove) return;
     const panel = panelRef.current;
     const button = buttonRef.current;
     if (!panel || !button) return;
