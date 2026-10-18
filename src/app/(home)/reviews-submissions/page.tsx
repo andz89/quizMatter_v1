@@ -36,10 +36,13 @@ export default async function ReviewsSubmissionsPage() {
   if (myReviews.error) throw myReviews.error;
   if (reviewed.error) throw reviewed.error;
 
-  // Open and canceled rounds first, then the published ones (newest first).
+  // Open and canceled rounds first, then my published updates, then the published reviews (newest first). A lesson
+  // with my published update isn't listed as Published twice (an old review of mine may have put me in its list).
+  const rounds = myReviews.data as MyReviewRow[];
+  const updated = new Set(rounds.filter((row) => row.status === "published").map((row) => row.presentation_id));
   const reviews: MyReviewRow[] = [
-    ...(myReviews.data as MyReviewRow[]),
-    ...reviewed.data.map((p) => ({
+    ...rounds,
+    ...reviewed.data.filter((p) => !updated.has(p.id)).map((p) => ({
       presentation_id: p.id,
       title: p.title,
       status: "published" as const,

@@ -33,7 +33,8 @@ import { SAVE_ERRORS } from "../../SaveCardButton";
  * A presentation's slides (one at a time, with Prev/Next) and its details, view only. "Make a copy" saves a private
  * copy for me and opens it in the editor. "Save" bookmarks someone else's presentation to my home page's "Saved" row
  * (like YouTube's), and "Report" sends it to the admins.
- * Editors can review a shared QuizMatter presentation ("Review"); while it's under review nobody can copy it, and
+ * Editors can review a shared QuizMatter presentation ("Review"; its own editor gets "Update this lesson", see the
+ * author_updates migration); while it's under review nobody can copy it, and
  * its owner can't edit it. Everyone who reviewed it is listed under the "Published by" line.
  * While my presentation waits for QuizMatter (see the quizmatter_submissions migration), it has no Edit.
  * A live QuizMatter presentation also gets its editor's lessons for that week and "You may also like" (see the
@@ -136,7 +137,11 @@ export function PresentationPreview({
     setIsStartingReview(true);
     try {
       await startReview(presentation.id);
-      toast.success("You're reviewing this presentation now. Teachers keep seeing it as it is.");
+      toast.success(
+        review.isAuthor
+          ? "You're updating this lesson now. Teachers keep seeing it as it is until QuizMatter publishes your update."
+          : "You're reviewing this presentation now. Teachers keep seeing it as it is.",
+      );
       // isStartingReview stays true, so the spinner and top line keep showing until the editor opens.
       router.push(`/presentation/${presentation.id}/edit`);
     } catch (error) {
@@ -212,14 +217,14 @@ export function PresentationPreview({
                 className={`inline-flex items-center gap-2 ${secondaryButtonClass}`}
               >
                 {isStartingReview ? <Spinner size={14} /> : <ClipboardCheckIcon size={16} />}
-                Review
+                {review.isAuthor ? "Update this lesson" : "Review"}
               </button>
             )}
             {/* Submitted: the link opens the view-only page, so it says so. */}
             {review.isMine && (
               <Link href={`/presentation/${presentation.id}/edit`} className={`inline-flex items-center gap-2 ${secondaryButtonClass}`}>
                 {review.status === "submitted" ? <EyeIcon size={16} /> : <ClipboardCheckIcon size={16} />}
-                {review.status === "submitted" ? "See submitted version" : "Continue review"}
+                {review.status === "submitted" ? "See submitted version" : review.isAuthorUpdate ? "Continue update" : "Continue review"}
                 <LinkPending />
               </Link>
             )}

@@ -11,9 +11,21 @@ export type ReviewStatus = {
   isLocked: boolean;
   isMine: boolean;
   canStart: boolean;
+  // The latest round is the lesson's own editor updating it ("Update", see the author_updates migration).
+  isAuthorUpdate: boolean;
+  // I made this lesson (my approved submission): I can always start an update.
+  isAuthor: boolean;
 };
 
-export const NO_REVIEW: ReviewStatus = { status: null, reviewerName: "", isLocked: false, isMine: false, canStart: false };
+export const NO_REVIEW: ReviewStatus = {
+  status: null,
+  reviewerName: "",
+  isLocked: false,
+  isMine: false,
+  canStart: false,
+  isAuthorUpdate: false,
+  isAuthor: false,
+};
 
 /** One entry of a presentation's "Reviewed by" list. `reviewerId` links to their profile page. */
 export type Reviewer = ReviewerFields & { reviewerId: string };
@@ -26,6 +38,8 @@ export async function loadReviewStatus(supabase: SupabaseClient, id: string): Pr
     is_locked: boolean;
     is_mine: boolean;
     can_start: boolean;
+    is_author_update: boolean;
+    is_author: boolean;
   }>();
   if (error) throw error;
   if (!data) return NO_REVIEW;
@@ -35,6 +49,8 @@ export async function loadReviewStatus(supabase: SupabaseClient, id: string): Pr
     isLocked: data.is_locked,
     isMine: data.is_mine,
     canStart: data.can_start,
+    isAuthorUpdate: data.is_author_update,
+    isAuthor: data.is_author,
   };
 }
 

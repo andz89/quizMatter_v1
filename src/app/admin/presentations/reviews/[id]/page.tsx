@@ -20,7 +20,7 @@ export default async function AdminReviewPage({ params }: PageProps<"/admin/pres
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("presentation_reviews")
-    .select("status, draft, submitted_fields")
+    .select("status, draft, submitted_fields, is_author_update")
     .eq("presentation_id", id)
     .maybeSingle();
   if (error) throw error;
@@ -57,7 +57,12 @@ export default async function AdminReviewPage({ params }: PageProps<"/admin/pres
         </div>
       </header>
 
-      <ReviewDraftView presentation={presentation} fields={fields} />
+      {/* The lesson's own editor updating it (see the author_updates migration): no Reviewer row once published. */}
+      <ReviewDraftView
+        presentation={presentation}
+        fields={fields}
+        byLabel={data.is_author_update ? "Update by the author" : undefined}
+      />
     </PeopleArtGate>
   );
 }

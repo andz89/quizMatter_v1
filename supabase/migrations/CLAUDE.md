@@ -65,6 +65,9 @@ A refusal raises an error with its own code. The app turns the code into a messa
 - Editors' Author and Make a copy's source: `20261201000000_editor_author_and_copy_source.sql` (`set_editor_author`
   makes an editor's own presentations' Author their name on every save; `approve_submission` always uses the
   editor's name; `copied_from`, set by `save_presentation` on the first save only and kept by `keep_copied_from`).
+- Author updates (a lesson's own editor changes it through a review round): `20261202000000_author_updates.sql`
+  (`is_author_update`; newest `start_review`, `review_status`, `publish_review`, `admin_reviews`) and
+  `20261203000000_author_update_published.sql` (newest `my_reviews`: also my published updates, latest round only).
 - Folders: `20261028000000_folders.sql`. Teacher profiles: `20261110000000_teacher_profiles.sql`,
   `20261112000000_profile_name_links.sql`.
 

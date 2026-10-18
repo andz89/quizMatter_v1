@@ -3,7 +3,7 @@ import { getAccount } from "@/lib/account";
 import Link from "next/link";
 import { ChevronLeftIcon } from "lucide-react";
 import { LinkPending } from "@/components/LinkPending";
-import { timeAgo } from "@/lib/format";
+import { formatDate, timeAgo } from "@/lib/format";
 import { createClient } from "@/lib/supabase/server";
 import { CancelReviewButton } from "./CancelReviewButton";
 
@@ -15,6 +15,8 @@ type ReviewRow = {
   started_at: string;
   submitted_at: string | null;
   ended_at: string | null;
+  // The lesson's own editor updating it (see the author_updates migration).
+  is_author_update: boolean;
 };
 
 const STATUS = {
@@ -74,6 +76,9 @@ export default async function AdminReviewsPage() {
                     <p className="truncate text-sm font-semibold text-text-primary">{title}</p>
                   )}
                   <p className="mt-0.5 truncate text-[13px] text-text-secondary">
+                    {row.is_author_update && (
+                      <span className="font-semibold text-accent">Update by the author ({row.updatedOn}) · </span>
+                    )}
                     {row.reviewer_name} · {row.when}
                   </p>
                 </div>
@@ -90,12 +95,16 @@ export default async function AdminReviewsPage() {
   );
 }
 
-/** Each row with when its status began, e.g. "Submitted 2 hr ago". */
-function withWhen(rows: ReviewRow[]): (ReviewRow & { when: string })[] {
+/** Each row with when its status began, e.g. "Submitted 2 hr ago", and its date, e.g. "Oct 18, 2026". */
+function withWhen(rows: ReviewRow[]): (ReviewRow & { when: string; updatedOn: string })[] {
   const now = Date.now();
   return rows.map((row) => {
     const at = row.status === "submitted" ? row.submitted_at : row.status === "canceled" ? row.ended_at : row.started_at;
     const verb = row.status === "submitted" ? "Submitted" : row.status === "canceled" ? "Canceled" : "Started";
-    return { ...row, when: at ? `${verb} ${timeAgo(Date.parse(at), now)}` : verb };
+    return {
+      ...row,
+      when: at ? `${verb} ${timeAgo(Date.parse(at), now)}` : verb,
+      updatedOn: formatDate(Date.parse(row.submitted_at ?? row.started_at)),
+    };
   });
 }

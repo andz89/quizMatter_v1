@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { LinkPending } from "@/components/LinkPending";
+import { formatDate } from "@/lib/format";
 
 export type MyReviewRow = {
   presentation_id: string;
@@ -8,6 +9,12 @@ export type MyReviewRow = {
   status: "reviewing" | "submitted" | "canceled" | "published";
   admin_note: string | null;
   canceled_by_admin: boolean;
+  // My update of my own lesson, not a review (see the author_updates migrations), with when it was started,
+  // submitted and published (ended_at). A published one comes from my_reviews() too (its latest round only).
+  is_author_update?: boolean;
+  started_at?: string;
+  submitted_at?: string | null;
+  ended_at?: string | null;
 };
 
 /**
@@ -39,6 +46,7 @@ export function ReviewsTable({ rows }: { rows: MyReviewRow[] }) {
                     {row.title || "Untitled presentation"}
                     <LinkPending />
                   </Link>
+                  {row.is_author_update && <p className="text-[13px] text-text-secondary">{updateLine(row)}</p>}
                 </td>
                 <td className="px-3 py-3">
                   <span
@@ -56,6 +64,13 @@ export function ReviewsTable({ rows }: { rows: MyReviewRow[] }) {
       </table>
     </div>
   );
+}
+
+/** "Update · submitted Oct 18, 2026" ("started …" before it's submitted, "published …" once it's live). */
+function updateLine(row: MyReviewRow): string {
+  const at = row.status === "published" ? row.ended_at : row.status === "submitted" ? row.submitted_at : row.started_at;
+  const verb = row.status === "published" ? "published" : row.status === "submitted" ? "submitted" : "started";
+  return at ? `Update · ${verb} ${formatDate(Date.parse(at))}` : "Update";
 }
 
 // The round's label and color.
