@@ -36,6 +36,8 @@ export function DetailsModal({ onClose }: { onClose: () => void }) {
   const publishedBy = useLoggedInEmail();
   // A reviewer can't change the author, sharing or publisher: those stay QuizMatter's.
   const isReview = useEditorStore((s) => s.review !== null);
+  // An editor's own presentation (editors can't publish, see ShareButton).
+  const isEditor = useEditorStore((s) => !s.canPublish && !s.presentation.fromAdmin);
   const savePresentation = useEditorStore((s) => s.savePresentation);
   const isSaving = useEditorStore((s) => s.saveStatus === "saving");
   const hasUnsavedChanges = useEditorStore((s) => s.presentation !== s.savedPresentation);
@@ -131,6 +133,11 @@ export function DetailsModal({ onClose }: { onClose: () => void }) {
         {isReview ? (
           <Field label="Author">
             <p className="text-sm text-text-primary">{presentation.author || "—"}</p>
+          </Field>
+        ) : isEditor ? (
+          // An editor's own presentations always have them as the Author (the database sets it on every save).
+          <Field label="Author">
+            <p className="text-sm text-text-primary">{presentation.author || "You (added when you save)"}</p>
           </Field>
         ) : (
           textField("author", "Author", "Who wrote it: you, a book, another teacher…")

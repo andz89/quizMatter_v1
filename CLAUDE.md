@@ -119,7 +119,10 @@ Editors (teachers an admin trusts) review shared QuizMatter presentations; an ad
 
 An editor sends one of their own presentations to QuizMatter; an admin approves it or sends it back with a note. Full design: `docs/superpowers/specs/2026-10-12-quizmatter-submissions-design.md`. Keep these rules:
 
-- **Copy on approval:** `approve_submission` copies the presentation and its slides in one step: a shared QuizMatter presentation (`from_admin`), owned by the approving admin, Author = the editor. The editor keeps their original.
+- **Copy on approval:** `approve_submission` copies the presentation and its slides in one step: a shared QuizMatter presentation (`from_admin`), owned by the approving admin, Author = the editor (always their name, never what the Author field says). The editor keeps their original.
+- **Editors' Author and "Copied from":** an editor's own presentations always have the editor as Author (the
+  `set_editor_author` trigger; their Details box shows it locked). Make a copy saves `copied_from` (set once), and the
+  admin's submission page shows "Copied from <title>" with a link. See `20261201000000_editor_author_and_copy_source.sql`.
 - **Editor photos:** every editor upload waits in Admin → Photos (not public) until a live QuizMatter presentation uses
   it: approving their submission or publishing their review makes it public. A photo in a presentation or review
   waiting for QuizMatter can't be removed by anyone (`QMPHL`). See

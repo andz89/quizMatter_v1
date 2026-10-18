@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ChevronLeftIcon } from "lucide-react";
+import { ChevronLeftIcon, CopyIcon } from "lucide-react";
 import { LinkPending } from "@/components/LinkPending";
 import { PeopleArtGate } from "@/components/PeopleArtGate";
 import { PresentDraftButton } from "@/components/presentation/PresentDraftButton";
@@ -30,6 +30,7 @@ export default async function AdminSubmissionPage({ params }: PageProps<"/admin/
   const submission = (data as SubmissionRow[]).find((row) => row.presentation_id === id);
   if (!submission || !result) notFound();
   const { presentation } = result;
+  const copiedFrom = await loadCopiedFrom(supabase, id);
 
   return (
     <PeopleArtGate needed={usesPeopleArt(presentation.slides)}>
@@ -48,6 +49,22 @@ export default async function AdminSubmissionPage({ params }: PageProps<"/admin/
           <p title={gradesTitle(presentation.grades)} className="mt-0.5 text-sm text-text-secondary">
             {joinParts([detailsLabel(presentation), slideCountLabel(presentation.slides.length)])}
           </p>
+          {copiedFrom && (
+            <p className="mt-2 inline-flex items-center gap-2 rounded-dropdown bg-accent-soft px-2.5 py-1 text-[13px] font-semibold text-accent">
+              <CopyIcon size={14} />
+              {copiedFrom.title === null ? (
+                "Copied from a presentation that was deleted"
+              ) : (
+                <>
+                  Copied from
+                  <Link href={`/presentation/${copiedFrom.id}`} target="_blank" className="underline">
+                    {copiedFrom.title || "Untitled presentation"}
+                    <LinkPending />
+                  </Link>
+                </>
+              )}
+            </p>
+          )}
         </div>
         <div className="ml-auto flex flex-wrap items-center gap-2">
           {/* It's locked while it waits, so this is exactly what Approve copies. */}
@@ -66,4 +83,21 @@ export default async function AdminSubmissionPage({ params }: PageProps<"/admin/
       />
     </PeopleArtGate>
   );
+}
+
+/**
+ * The presentation this one was made from with Make a copy, if any (see the editor_author_and_copy_source migration):
+ * its id and title, or title null when it was deleted since. Admins can read every presentation. null = not a copy
+ * (or one made before copies were tracked), or the lookup failed.
+ */
+async function loadCopiedFrom(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  id: string,
+): Promise<{ id: string; title: string | null } | null> {
+  const { data } = await supabase.from("presentations").select("copied_from").eq("id", id).maybeSingle();
+  const sourceId = data?.copied_from as string | null | undefined;
+  if (!sourceId) return null;
+  const { data: source, error } = await supabase.from("presentations").select("title").eq("id", sourceId).maybeSingle();
+  if (error) return null;
+  return { id: sourceId, title: source ? (source.title as string) : null };
 }

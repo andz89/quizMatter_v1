@@ -31,8 +31,8 @@ delete, move). Limits in `src/lib/folders.ts`, checked again in `20261028000000_
 ## A presentation's pages: `presentation/`
 
 - `[id]/page.tsx`: the view page (mostly other teachers' published ones): `PresentationPreview.tsx` with Prev/Next,
-  "Make a copy" (saves a private copy and opens it), Save (bookmark), and `ReportButton.tsx` (goes to Admin →
-  Reports). Actions in `[id]/actions.ts`.
+  "Make a copy" (saves a private copy and opens it, remembering `copied_from`; an editor's copy gets them as
+  Author), Save (bookmark), and `ReportButton.tsx` (goes to Admin → Reports). Actions in `[id]/actions.ts`.
 - On a live QuizMatter presentation the view page also shows, from `src/lib/lessons.ts` (database:
   `lesson_extras`, one call): `[id]/LessonWeek.tsx`, "This week's lessons by <editor>" (the same editor's
   lessons with the same subject, term and week and a grade in common, every day and version; curriculum ignored) and

@@ -6,6 +6,7 @@ import {
   MAX_SLIDES,
   PUBLISH_NEEDS_CONTENT,
   TOO_MANY_SLIDES_MESSAGE,
+  idSchema,
   presentationSchema,
   type Presentation,
   type Slide,
@@ -64,7 +65,17 @@ const slideIdsSchema = z
  */
 export async function savePresentationToDb(
   presentation: Presentation,
-  { baseUpdatedAt = null, savedSlides }: { baseUpdatedAt?: number | null; savedSlides?: Slide[] } = {},
+  {
+    baseUpdatedAt = null,
+    savedSlides,
+    copiedFrom,
+  }: {
+    baseUpdatedAt?: number | null;
+    savedSlides?: Slide[];
+    // Make a copy: the presentation it was copied from (kept only on the first save, see the
+    // editor_author_and_copy_source migration).
+    copiedFrom?: string;
+  } = {},
 ): Promise<number> {
   const unchanged = new Set(savedSlides);
   // Empty reference rows (added but not filled in) are dropped, not saved.
@@ -74,7 +85,10 @@ export async function savePresentationToDb(
   // count is checked first, on every slide (only changed slides are in `slides`).
   const slideIds = slideIdsSchema.parse(presentation.slides.map((slide) => slide.id));
   const { data, error } = await createClient().rpc("save_presentation", {
-    presentation: presentationSchema.parse({ ...presentation, referenceLinks, slides }),
+    presentation: {
+      ...presentationSchema.parse({ ...presentation, referenceLinks, slides }),
+      copiedFrom: copiedFrom && idSchema.parse(copiedFrom),
+    },
     slide_ids: slideIds,
     base_updated_at: baseUpdatedAt,
   });
@@ -85,7 +99,7 @@ export async function savePresentationToDb(
     throw new SaveRefusedError(TOO_MANY_SLIDES_MESSAGE);
   }
   // A slide thought to be saved isn't in the database: save again with every slide.
-  if (error?.code === "QM422" && savedSlides) return savePresentationToDb(presentation, { baseUpdatedAt });
+  if (error?.code === "QM422" && savedSlides) return savePresentationToDb(presentation, { baseUpdatedAt, copiedFrom });
   if (error) throw error;
   return data;
 }

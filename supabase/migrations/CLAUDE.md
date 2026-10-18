@@ -18,7 +18,7 @@ even if the app has a bug. The app's checks (zod, hidden buttons) are only the f
 
 Many functions were changed again in later files (`create or replace function`). The newest version is in the
 **latest** file that defines it. Find it with a search, e.g. `create or replace function public.save_presentation`
-(today: `20261125000000_shared_copy_fixes.sql`). Always start a change from that newest version, or older fixes get
+(today: `20261201000000_editor_author_and_copy_source.sql`). Always start a change from that newest version, or older fixes get
 lost.
 
 ## Refusal codes
@@ -62,6 +62,9 @@ A refusal raises an error with its own code. The app turns the code into a messa
   the suggestions in one call, the only one the view page makes; `editor_presentations` checks the profile once).
   They return only ids. A lesson's maker is its approved submission's editor (`lesson_editor`, by `copy_id`), never
   the Author text; admin-made lessons have none.
+- Editors' Author and Make a copy's source: `20261201000000_editor_author_and_copy_source.sql` (`set_editor_author`
+  makes an editor's own presentations' Author their name on every save; `approve_submission` always uses the
+  editor's name; `copied_from`, set by `save_presentation` on the first save only and kept by `keep_copied_from`).
 - Folders: `20261028000000_folders.sql`. Teacher profiles: `20261110000000_teacher_profiles.sql`,
   `20261112000000_profile_name_links.sql`.
 

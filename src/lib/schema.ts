@@ -57,7 +57,7 @@ export const WRITES_PER_MINUTE = 30;
 // drawings are at most 20,000 characters), so they only stop broken or huge data. Like MAX_SLIDES, lowering one
 // could stop an old presentation from opening.
 const MAX_ELEMENTS = 1000;
-const idSchema = z.string().max(100);
+export const idSchema = z.string().max(100);
 const colorSchema = z.string().max(100);
 const plainTextSchema = z.string().max(5_000);
 const htmlSchema = z.string().max(50_000);

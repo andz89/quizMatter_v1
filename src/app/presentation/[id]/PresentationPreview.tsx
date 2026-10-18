@@ -114,11 +114,13 @@ export function PresentationPreview({
     }
     const now = Date.now();
     // Slide ids can stay: a slide's id only has to be unique inside its own presentation.
-    // "Copy of …" so it's easy to tell apart from the original. `author` stays: it credits who wrote the content.
+    // "Copy of …" so it's easy to tell apart from the original. `author` stays: it credits who wrote the content
+    // (an editor's copy gets the editor as Author from the database instead, see the editor_author_and_copy_source
+    // migration, which also keeps where it was copied from for the admin's Submissions page).
     const title = `Copy of ${presentation.title || "Untitled presentation"}`.slice(0, DETAIL_MAX_LENGTH.title);
     const copy = { ...presentation, id: createId(), title, isPublished: false, fromAdmin: false, createdAt: now, updatedAt: now };
     try {
-      await savePresentationToDb(copy);
+      await savePresentationToDb(copy, { copiedFrom: presentation.id });
       // isCopying stays true, so the spinner and top line keep showing until the editor opens.
       router.push(`/presentation/${copy.id}/edit`);
     } catch (error) {
