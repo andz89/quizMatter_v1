@@ -29,6 +29,9 @@
 - `folders.ts`, `userSettings.ts`, `profiles.ts`, `account.ts` (`getAccount`: who is logged in, `isAdmin`).
 - `supabase/`: `client.ts` (browser), `server.ts` (server, with the login cookies), `admin.ts` (secret key, server
   only, skips the database rules: use only when there is no other way).
+  `listAllUsers` there pages through every account (1,000 at a time); Admin → Teachers and Editors use it.
+- `adminActions.ts`: `ADMIN_ACTION_LABELS` (the words for the Admin log), `AdminAction` and `adminActionSchema`. Its keys
+  must match the `action` check on `admin_actions` in `20261208000000_admin_log.sql`: add a new one in both places.
 
 ## Other groups
 
