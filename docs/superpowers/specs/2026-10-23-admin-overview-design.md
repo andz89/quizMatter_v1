@@ -117,17 +117,17 @@ Actions logged:
 
 | Action | Where it's written |
 |---|---|
-| publish review, send back review, cancel review | `publish_review`, `send_back_review`, `admin_cancel_review` |
-| approve submission, send back submission | `approve_submission`, `send_back_submission` |
-| open / close to all editors | `set_review_open` |
+| publish review, send back review, cancel review | trigger on `presentation_reviews` status changes made by an admin (so the functions themselves don't change) |
+| approve submission, send back submission | trigger on `presentation_submissions` status changes made by an admin |
+| open / close to all editors | same `presentation_reviews` trigger, when `open_to_all` changes |
 | share / unshare QuizMatter presentation | trigger on `presentations` when `is_published` changes on a `from_admin` one (`setShared` writes it directly) |
 | move to QuizMatter | trigger on `presentations` when `from_admin` turns on |
 | hide / unhide (reports) | trigger on `presentations` when `hidden_at` changes |
 | dismiss reports | trigger on `presentation_reports` delete by an admin (once per presentation, not per report row) |
 | delete presentation | trigger on `presentations` delete by an admin (also covers deleting a reported one) |
-| ban / unban teacher | new rpcs `admin_ban` / `admin_unban` (see below; automatic bans aren't admin actions) |
+| ban / unban teacher | rpcs `log_ban` / `log_unban` after the step worked (see below; automatic bans aren't admin actions) |
 | give / take editor role | trigger on `editors` insert / delete |
-| release a click pause | where `releasePause` writes (builder checks: it uses the secret key, so `is_admin()` is false there — log from the action by calling an rpc that checks `is_super_admin()` first, or pass the admin's id; pick the one that keeps the log written by the database) |
+| release a click pause | rpc `log_click_release` after the release worked (the release itself uses the secret key) |
 | photo category create / rename / delete; shared photo delete | triggers on `photo_categories` / `shared_photos` |
 
 **One click = one log row (my call).** Rows the database removes as a side effect of a logged step (a deleted
@@ -136,10 +136,12 @@ moves to QuizMatter) are not logged. The main step sets a flag for its transacti
 (`set_config('quizmatter.admin_logged', 'yes', true)`, like the existing `quizmatter.*` flags) and the other
 triggers skip while it is set; trigger-logged steps like a presentation delete set it in their `before` trigger.
 
-**Bans log only when they fully worked (my call).** Ban and unban move into two rpcs (`admin_ban`, `admin_unban`)
-that change `banned_users` and write the log in one step; `banTeacher` / `unbanTeacher` call them, and the rollback
-after a failed Supabase login ban uses a plain delete that doesn't log (no `banned_users` trigger logging). Banning
-someone already banned logs "ban updated" with the new reason.
+**Bans log only when they fully worked (my call).** `banned_users` gets no logging trigger. After the whole step
+worked (row and Supabase login ban), `banTeacher` / `unbanTeacher` call `log_ban(target)` / `log_unban(target)`.
+These rpcs refuse unless `is_super_admin()`, and the database checks the fact itself: `log_ban` needs the
+`banned_users` row to exist and takes the reason from it; `log_unban` needs it gone. A failed ban's rollback is never
+logged. Banning someone already banned logs "ban updated". `releasePause` does the same with
+`log_click_release(target, feature)` (super admin only).
 
 Deleting an admin's own non-QuizMatter presentation in the editor is a normal teacher action: the delete trigger logs
 only `from_admin` presentations or presentations the admin doesn't own **(my call)**. Account deletes moved by
