@@ -33,7 +33,7 @@ import { Spinner } from "@/components/Spinner";
 import { WITHIN } from "@/lib/search";
 import { formatBytes, joinParts } from "@/lib/format";
 import { DEFAULT_PHOTO_SEARCH, NEEDS_WORK, PHOTO_SORTS, PHOTOS_PER_PAGE, photoSearchHref, type PhotoSearch } from "./photoSearch";
-import { ViewToggle, useView, type View } from "./ViewToggle";
+import { ViewToggle, useView, type View } from "../ViewToggle";
 import { ChevronLeftIcon, ChevronRightIcon, ImageIcon, XIcon } from "lucide-react";
 
 const byName = (a: PhotoCategory, b: PhotoCategory) => a.name.localeCompare(b.name);
@@ -696,7 +696,7 @@ function PhotosCard({
   const pageCount = Math.max(1, Math.ceil(matchCount / PHOTOS_PER_PAGE));
   // A link to this search with some options changed, back on page 1 unless it says otherwise.
   const hrefWith = (change: Partial<PhotoSearch>) => photoSearchHref({ ...search, page: 1, ...change });
-  const isSearching = hrefWith({ sort: DEFAULT_PHOTO_SEARCH.sort }) !== "/admin";
+  const isSearching = hrefWith({ sort: DEFAULT_PHOTO_SEARCH.sort }) !== "/admin/photos";
 
   // Quick filters: each sets the search's Category or Missing option, and keeps the rest of the search.
   const chips: { key: string; name: string; count: number; isOn: boolean; change: Partial<PhotoSearch>; isMissing?: boolean }[] = [
@@ -826,7 +826,7 @@ function PhotosCard({
               ))}
             {isSearching && (
               <Link
-                href="/admin"
+                href="/admin/photos"
                 scroll={false}
                 className="ml-auto flex items-center gap-2 rounded-dropdown px-2.5 py-1 text-[13px] font-semibold text-text-secondary hover:text-text-primary"
               >
@@ -913,7 +913,7 @@ function PhotoSearchForm({ search, categories }: { search: PhotoSearch; categori
       query={values.q}
       onQueryChange={(q) => set({ q })}
       placeholder="Search photos"
-      hasOptions={photoSearchHref({ ...values, q: "", page: 1 }) !== "/admin"}
+      hasOptions={photoSearchHref({ ...values, q: "", page: 1 }) !== "/admin/photos"}
       isPending={isPending}
       // The top line and spinner show at once, and stay until the server sends the results.
       onSearch={(q) => startTransition(() => router.push(photoSearchHref({ ...values, q, page: 1 }), { scroll: false }))}

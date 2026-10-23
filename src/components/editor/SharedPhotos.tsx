@@ -29,7 +29,7 @@ const photoTitle = (shared: SharedPhotoWithInfo) =>
  * The photos admins shared with every teacher, to click or drag onto the slide. Like Canva: the photos used last on
  * top, then one row per category with its newest photos, and "See all" for the whole category. `search` (the panel's search bar) finds them by
  * file name, description, tags and category (inside the open category, if one is open).
- * Admins manage them on the admin page (/admin); here they only get a link to it.
+ * Admins manage them on the admin page (/admin/photos); here they only get a link to it.
  */
 export function SharedPhotos({ search }: { search: string }) {
   // Categories that have photos. null while loading.
@@ -56,7 +56,7 @@ export function SharedPhotos({ search }: { search: string }) {
     <div className="mt-2 flex flex-col gap-4">
       {isAdmin && (
         // A new tab, so the presentation being edited stays open.
-        <a href="/admin" target="_blank" className="self-start text-[13px] font-semibold text-accent hover:underline">
+        <a href="/admin/photos" target="_blank" className="self-start text-[13px] font-semibold text-accent hover:underline">
           Manage shared photos →
         </a>
       )}

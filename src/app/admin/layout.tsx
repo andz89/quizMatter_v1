@@ -3,7 +3,8 @@ import { notFound } from "next/navigation";
 import { LinkPending } from "@/components/LinkPending";
 import { NavBar, navLinkClass } from "@/components/NavBar";
 import { getAccount } from "@/lib/account";
-import { AdminMenu } from "./AdminMenu";
+import { createClient } from "@/lib/supabase/server";
+import { AdminMenu, type TodoCounts } from "./AdminMenu";
 
 /**
  * Every admin page: a header and a left menu. Anyone who isn't an admin gets "page not found", so teachers
@@ -12,6 +13,11 @@ import { AdminMenu } from "./AdminMenu";
 export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
   const { isAdmin, isSuperAdmin } = await getAccount();
   if (!isAdmin) notFound();
+
+  // What's waiting for an admin, shown as pills in the menu. If this fails, the menu just shows no pills.
+  const supabase = await createClient();
+  const { data } = await supabase.rpc("admin_todo_counts").single<TodoCounts>();
+  const counts = { reviews: data?.reviews ?? 0, submissions: data?.submissions ?? 0, reports: data?.reports ?? 0 };
 
   return (
     <>
@@ -32,7 +38,7 @@ export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
         </header>
 
         <div className="flex flex-col gap-4">
-          <AdminMenu isSuperAdmin={isSuperAdmin} />
+          <AdminMenu isSuperAdmin={isSuperAdmin} counts={counts} />
           <div className="min-w-0">{children}</div>
         </div>
       </main>

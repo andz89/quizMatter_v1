@@ -13,7 +13,7 @@ type Supabase = Awaited<ReturnType<typeof createClient>>;
  * which ones, and only one page of them is loaded. A plain admin sees only the photos they uploaded; the super
  * admin sees them all. (layout.tsx checks the user is an admin.)
  */
-export default async function AdminPhotosPage({ searchParams }: PageProps<"/admin">) {
+export default async function AdminPhotosPage({ searchParams }: PageProps<"/admin/photos">) {
   // The layout checks too, but a layout doesn't run again on every request, so the page checks next to its data.
   const account = await getAccount();
   if (!account.isAdmin) notFound();

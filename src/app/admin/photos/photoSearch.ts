@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { SEARCH_MAX_LENGTH, WITHIN, firstValues, optionIds, searchQuery } from "@/lib/search";
 
-// Admin → Photos' search lives in the page link (e.g. /admin?q=frog&page=2), so Back and shared links bring the
+// Admin → Photos' search lives in the page link (e.g. /admin/photos?q=frog&page=2), so Back and shared links bring the
 // same search back. The server reads it and asks the database (page.tsx); this file is shared by both sides.
 
 // How many photos one page of the list shows.
@@ -51,7 +51,7 @@ export function parsePhotoSearch(params: Record<string, string | string[] | unde
   return photoSearchSchema.parse(firstValues(params));
 }
 
-/** The page link for this search ("/admin" when nothing is searched). */
+/** The page link for this search ("/admin/photos" when nothing is searched). */
 export function photoSearchHref(search: PhotoSearch): string {
-  return `/admin${searchQuery(search, DEFAULT_PHOTO_SEARCH)}`;
+  return `/admin/photos${searchQuery(search, DEFAULT_PHOTO_SEARCH)}`;
 }
