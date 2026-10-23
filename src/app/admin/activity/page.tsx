@@ -23,7 +23,7 @@ type Row = {
 // A bad value in the address is ignored.
 const adminSchema = z.uuid().optional().catch(undefined);
 const actionSchema = adminActionSchema.optional().catch(undefined);
-const pageSchema = z.coerce.number().int().min(1).catch(1);
+const pageSchema = z.coerce.number().int().min(1).max(100000).catch(1);
 
 const selectClass = "rounded-input border border-border-default bg-bg-surface px-3 py-2 text-sm text-text-primary";
 const headerClass = "px-4 py-3 text-[11px] font-bold tracking-[0.05em] text-text-header uppercase";
@@ -56,14 +56,19 @@ export default async function AdminActivityPage({ searchParams }: PageProps<"/ad
   const page = pageSchema.parse(params.page);
 
   const supabase = await createClient();
-  let query = supabase.from("admin_actions").select("*").order("created_at", { ascending: false });
+  let query = supabase.from("admin_actions").select("*").order("created_at", { ascending: false }).order("id", { ascending: false });
   if (admin) query = query.eq("admin_id", admin);
   if (action) query = query.eq("action", action);
   // One extra row tells us whether there is a next page.
   const from = (page - 1) * PAGE_SIZE;
   const [log, names] = await Promise.all([
     query.range(from, from + PAGE_SIZE),
-    supabase.from("admin_actions").select("admin_id, admin_name").not("admin_id", "is", null),
+    // Reads the newest rows only (the API caps how many rows one read returns).
+    supabase
+      .from("admin_actions")
+      .select("admin_id, admin_name")
+      .not("admin_id", "is", null)
+      .order("created_at", { ascending: false }),
   ]);
   if (log.error) throw log.error;
   if (names.error) throw names.error;

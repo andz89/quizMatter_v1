@@ -1,5 +1,5 @@
 // Pieces shared by the searches that live in the page link and ask the database: the home page's presentation
-// search (src/app/homeSearch.ts) and Admin → Photos (src/app/admin/photoSearch.ts).
+// search (src/app/homeSearch.ts) and Admin → Photos (src/app/admin/photos/photoSearch.ts).
 
 export const SEARCH_MAX_LENGTH = 100;
 

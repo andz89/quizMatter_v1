@@ -69,7 +69,7 @@ export function AdminMenu({ isSuperAdmin, counts }: { isSuperAdmin: boolean; cou
       >
         {label}
         {number > 0 && (
-          <span className="rounded-dropdown bg-highlight-soft px-1.5 text-xs font-bold text-highlight-strong">{number}</span>
+          <span className="rounded-dropdown bg-highlight-soft px-2 py-0.5 text-[12px] font-semibold text-highlight-strong">{number}</span>
         )}
         <LinkPending />
       </Link>

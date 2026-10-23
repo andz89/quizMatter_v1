@@ -9,7 +9,8 @@ first.
   editor page; `presentation/new/` opens Claude's drafts; `account/`, `login/`, `signup/`, `teachers/[slug]/`
   (profiles); `oauth/` Claude's login. Teachers' server actions: `actions.ts`, `folderActions.ts`, or an
   `actions.ts` next to the page.
-- `src/app/admin/` **(notes)**: the admin pages.
+- `src/app/admin/` **(notes)**: the admin pages (Overview, the menu
+  with counts, Admin log).
 - `src/app/api/` **(notes)**: photo uploads and deletes (files in Cloudflare R2).
 - `src/components/editor/` **(notes)**: the editor. Its state and every edit: `src/lib/store.ts` (zustand).
 - `src/components/presentation/` **(notes)**: presenting fullscreen (slide effects) and view-only slides.
