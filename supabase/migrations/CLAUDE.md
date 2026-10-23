@@ -70,6 +70,11 @@ A refusal raises an error with its own code. The app turns the code into a messa
 - Author updates (a lesson's own editor changes it through a review round): `20261202000000_author_updates.sql`
   (`is_author_update`; newest `start_review`, `review_status`, `publish_review`, `admin_reviews`) and
   `20261203000000_author_update_published.sql` (newest `my_reviews`: also my published updates, latest round only).
+- Admin overview: `20261207000000_admin_overview.sql`. `activity_events` (a row per like, save or report, written by
+  the `record_activity_event` trigger on `presentation_likes`, `saved_presentations`, `presentation_reports`; kept when
+  the like is taken back; no one reads it directly). `admin_overview(days)` (days 7, 30 or 90, else `22023`; admins
+  only, `42501`) gives one row per series per UTC day; sign-ups, logins, pauses and bans only for the super admin.
+  `admin_todo_counts()` gives what waits: submitted reviews, submitted submissions, presentations with a report.
 - Folders: `20261028000000_folders.sql`. Teacher profiles: `20261110000000_teacher_profiles.sql`,
   `20261112000000_profile_name_links.sql`.
 
