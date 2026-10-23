@@ -75,6 +75,20 @@ A refusal raises an error with its own code. The app turns the code into a messa
   the like is taken back; no one reads it directly). `admin_overview(days)` (days 7, 30 or 90, else `22023`; admins
   only, `42501`) gives one row per series per UTC day; sign-ups, logins, pauses and bans only for the super admin.
   `admin_todo_counts()` gives what waits: submitted reviews, submitted submissions, presentations with a report.
+- Admin log: `20261208000000_admin_log.sql`. `admin_actions` (one row per admin step; only the super admin reads it,
+  nobody changes it; keys match `ADMIN_ACTION_LABELS` in `src/lib/adminActions.ts`). Rows are written only by
+  `log_admin_action` (not callable from the API; logs only when `is_admin()`), from `log_*` triggers on
+  `presentation_reviews`, `presentation_submissions`, `presentations`, `presentation_reports` (one row per
+  presentation, a statement trigger), `editors`, `photo_categories`, `shared_photos`. One click = one row: the first
+  log sets the flag `quizmatter.admin_logged` and the other triggers skip, so side effects (a deleted presentation's
+  reports and shared copy, the copies or reviews the editor role removes) aren't logged; the logging triggers are
+  `before` triggers so they run first, except an `after insert` one on `presentation_reviews` (`set_review_open`
+  making a new row open logs "opened"; "before insert" would fire on its upsert even when it only updates). The
+  `editors` trigger skips an insert for someone already an editor (`setEditor`'s upsert). A presentation delete
+  logs each row of a multi-delete and skips rows removed by a cascade (`pg_trigger_depth() > 1`). Bans, unbans
+  and pause releases change things the database can't see, so the app calls `log_ban` (needs the `banned_users`
+  row, else `P0002`; "ban updated" if already banned), `log_unban` (needs it gone) and `log_click_release` after
+  they worked (super admin only, `42501`).
 - Folders: `20261028000000_folders.sql`. Teacher profiles: `20261110000000_teacher_profiles.sql`,
   `20261112000000_profile_name_links.sql`.
 
