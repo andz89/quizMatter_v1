@@ -11,6 +11,8 @@ even if the app has a bug. The app's checks (zod, hidden buttons) are only the f
 - Functions use `set search_path = ''` and full names (`public.presentations`). Functions that must get past the
   table rules are `security definer` and check the caller themselves (`auth.uid()`, `public.is_admin()`,
   `public.is_super_admin()`, `public.is_editor()`). Give `execute` only to `authenticated` (`revoke … from public, anon`).
+- A trigger function (returns `trigger`) is never called from the API: `revoke execute … from public, anon, authenticated`
+  right after creating it. Triggers still run. The 15 existing ones were revoked in `20261206000000_revoke_trigger_helpers.sql`.
 - A limit checked here (text length, counts) must match the same limit in `src/lib/schema.ts` (or the file named
   in the comment), so the app and the database agree. Write "Same limit as …" next to it.
 

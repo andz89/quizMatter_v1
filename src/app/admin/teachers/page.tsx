@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { getAccount } from "@/lib/account";
 import type { User } from "@supabase/supabase-js";
 import { joinParts, timeAgo } from "@/lib/format";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient, listAllUsers } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { educationLine } from "@/lib/profiles";
 import { AdminTeachers, type TeacherRow } from "./AdminTeachers";
@@ -26,8 +26,7 @@ export default async function AdminTeachersPage() {
 
   const supabase = await createClient();
   const [users, bans, admins, editors, settings] = await Promise.all([
-    // One page of 1,000 is plenty for now (teachers who sign up count too).
-    admin.auth.admin.listUsers({ perPage: 1000 }),
+    listAllUsers(admin),
     supabase.from("banned_users").select("user_id, reason, banned_at, is_automatic"),
     admin.from("admins").select("user_id"),
     admin.from("editors").select("user_id"),
@@ -35,7 +34,6 @@ export default async function AdminTeachersPage() {
       .from("user_settings")
       .select("user_id, display_name, first_name, last_name, contact_number, education_level, education_field"),
   ]);
-  if (users.error) throw users.error;
   if (bans.error) throw bans.error;
   if (admins.error) throw admins.error;
   if (editors.error) throw editors.error;
@@ -44,7 +42,7 @@ export default async function AdminTeachersPage() {
   return (
     <AdminTeachers
       rows={buildRows(
-        users.data.users,
+        users,
         bans.data as Ban[],
         admins.data.map((row) => row.user_id as string),
         editors.data.map((row) => row.user_id as string),

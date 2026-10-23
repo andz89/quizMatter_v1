@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { getAccount } from "@/lib/account";
 import type { User } from "@supabase/supabase-js";
 import { joinParts, timeAgo } from "@/lib/format";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient, listAllUsers } from "@/lib/supabase/admin";
 import { AdminEditors, type EditorRow } from "./AdminEditors";
 
 /**
@@ -23,8 +23,7 @@ export default async function AdminEditorsPage() {
   }
 
   const [users, editors, settings, bans, published, open] = await Promise.all([
-    // Teachers are added by hand, so one page of 1,000 is plenty.
-    admin.auth.admin.listUsers({ perPage: 1000 }),
+    listAllUsers(admin),
     admin.from("editors").select("user_id, added_at"),
     admin.from("user_settings").select("user_id, display_name"),
     admin.from("banned_users").select("user_id"),
@@ -34,7 +33,6 @@ export default async function AdminEditorsPage() {
       .select("presentation_id, reviewer_id, status, presentations(title)")
       .in("status", ["reviewing", "submitted"]),
   ]);
-  if (users.error) throw users.error;
   if (editors.error) throw editors.error;
   if (settings.error) throw settings.error;
   if (bans.error) throw bans.error;
@@ -53,7 +51,7 @@ export default async function AdminEditorsPage() {
   return (
     <AdminEditors
       rows={buildRows(
-        users.data.users,
+        users,
         editors.data as { user_id: string; added_at: string }[],
         settings.data as { user_id: string; display_name: string | null }[],
         bans.data.map((row) => row.user_id as string),
