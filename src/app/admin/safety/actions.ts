@@ -4,6 +4,7 @@ import { refresh } from "next/cache";
 import { z } from "zod";
 import { getAccount } from "@/lib/account";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { createClient } from "@/lib/supabase/server";
 
 // Checked with zod before anything is saved (see CLAUDE.md, "Saving Data").
 const releaseSchema = z.object({ user_id: z.uuid(), feature: z.string().min(1).max(50) });
@@ -37,5 +38,7 @@ export async function releasePause(userId: string, feature: string): Promise<str
 
   // Shown on the History tab. The release itself already worked, so a failure here only leaves it out.
   await admin.from("click_history").insert(releaseHistorySchema.parse({ ...parsed.data, kind: "release" }));
+  // Shown in Admin → Admin log (same rule: the release already worked).
+  await (await createClient()).rpc("log_click_release", { target: parsed.data.user_id, feature: parsed.data.feature });
   return null;
 }

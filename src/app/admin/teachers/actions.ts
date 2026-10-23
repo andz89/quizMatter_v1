@@ -38,6 +38,8 @@ export async function banTeacher(userId: string, reason: string): Promise<string
     refresh();
     return "Couldn't ban this teacher. Please try again.";
   }
+  // Shown in Admin → Admin log. The ban already worked, so a failure here only leaves it out.
+  await supabase.rpc("log_ban", { target: parsed.data.user_id });
   refresh();
   return null;
 }
@@ -74,6 +76,7 @@ export async function unbanTeacher(userId: string): Promise<string | null> {
   if (authError) return "Couldn't unban this teacher. Please try again.";
   const supabase = await createClient();
   const { error } = await supabase.from("banned_users").delete().eq("user_id", parsed.data);
+  if (!error) await supabase.rpc("log_unban", { target: parsed.data });
   refresh();
   return error ? "Couldn't unban this teacher. Please try again." : null;
 }
