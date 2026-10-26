@@ -6202,7 +6202,7 @@ export const DEFAULT_ELEMENT_SIZE = 260;
 // assetId of a custom drawing (e.g. one Claude drew) — not in the library; the element's `svg` holds it.
 export const CUSTOM_SVG_ID = "custom-svg";
 
-// assetId of a photo the teacher uploaded or added from a link — not in the library; the element's `image` holds it.
+// assetId of a photo the teacher uploaded — not in the library; the element's `image` holds it.
 export const PHOTO_ID = "photo";
 
 /**

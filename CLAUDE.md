@@ -5,7 +5,7 @@ with how that part works; it loads when you open a file there. When you plan wor
 first.
 
 - `src/app/` **(notes)**: the teacher pages. `(home)/` home tabs (My presentations, From QuizMatter, Other
-  teachers, Saved, Reviews & submissions, search) and folders; `presentation/[id]/` the view page and `edit/` the
+  teachers, Saved, Liked, Reviews & submissions, search) and folders; `presentation/[id]/` the view page and `edit/` the
   editor page; `presentation/new/` opens Claude's drafts; `account/`, `login/`, `signup/`, `teachers/[slug]/`
   (profiles); `oauth/` Claude's login. Teachers' server actions: `actions.ts`, `folderActions.ts`, or an
   `actions.ts` next to the page.
@@ -94,6 +94,10 @@ Keep the code:
 
 Validate all input data with zod before saving it to Supabase — from the editor, forms, Claude (the MCP server), or anywhere else. Parse it with the matching zod schema right before the insert/update/rpc call, and don't save anything that fails. Put limits (like maximum text length) in the zod schema, so they're checked in one place.
 
+Changing the saved shape of a presentation or slide (a new field, a renamed one, a removed value) follows the rules
+in `src/lib/CLAUDE.md`, "Changing the saved shape": upgrade old data in `upgradeSlide` / `upgradePresentation`, bump
+`DATA_VERSION`, and run Admin → Data check before deploying.
+
 # Click Limits (pausing a feature clicked too fast)
 
 There is ONE system for pausing a feature when a teacher clicks it too fast (e.g. bookmarks: 20 clicks in 25 seconds → paused 10 minutes, or 1 hour if it happens again within 24 hours). Reuse it; never build a second one. To add a feature:
@@ -121,6 +125,9 @@ Editors (teachers an admin trusts) review shared QuizMatter presentations; an ad
   and leaves `last_reviewer_id` / `open_to_all` as they were; the author's page keeps their latest published update
   ("Update · published <date>", from `my_reviews`). See `20261202000000_author_updates.sql` and
   `20261203000000_author_update_published.sql`.
+- **A deleted reviewer's "Reviewed by" stays:** the `presentation_reviewers` row keeps its saved name, email and
+  date; `reviewer_id` becomes empty, so the name shows without a profile link
+  (`20261205000000_account_delete_keeps_quizmatter.sql`).
 - **Photos in drafts count as used** in `used_photo_srcs`, so the weekly photo cleanup keeps them. Keep that if the cleanup changes.
 
 # Submit to QuizMatter (editors offer their own presentations)
@@ -136,6 +143,9 @@ An editor sends one of their own presentations to QuizMatter; an admin approves 
   waiting for QuizMatter can't be removed by anyone (`QMPHL`). See
   `docs/superpowers/specs/2026-10-17-editor-photos-design.md` and `20261126000000_editor_photos.sql`.
 - **Receipts:** each `presentation_submissions` row has its own `id`; an approved one stays after the editor deletes the original (`presentation_id` becomes empty) and is traced by `copy_id`. Sent-back and canceled ones go with their original. See `20261121000000_submission_receipts.sql`.
+  An approved one also stays when the editor's account is deleted (`submitter_id` becomes empty; the lesson then has
+  no maker for `lesson_editor`), while their other submissions are removed
+  (`20261205000000_account_delete_keeps_quizmatter.sql`).
 - **Editors don't publish:** they send their presentations here instead. `share_presentation` refuses editors, the
   Share card greys out Published, and giving the editor role removes their shared copies
   (`20261124000000_shared_copy_moderation.sql`). A shared copy itself can't be submitted.
@@ -157,6 +167,9 @@ Admins are split in two. Full design: `docs/superpowers/specs/2026-10-16-super-a
   them, never bans them automatically; every admin still skips the
   50-presentation limit (approving a submission makes a copy the admin owns).
 - A new super-admin-only rule goes in the database with `is_super_admin()`, not only in the app.
+- **Deleting an admin's account** (Supabase dashboard) first moves their QuizMatter presentations to the super admin,
+  so teachers keep them; deleting a super admin who owns some, with no other super admin, is refused
+  (`before_account_delete`, `20261205000000_account_delete_keeps_quizmatter.sql`).
 
 # Diagrams and Picture Shapes
 

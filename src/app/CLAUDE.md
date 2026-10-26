@@ -14,6 +14,7 @@ The pages teachers use outside the editor. Other folders here have their own not
 | From QuizMatter | `quizmatter/` | What admins shared, a row per subject |
 | Other teachers | `teachers/` | Other teachers' published ones, 20 at a time ("Show more") |
 | Saved | `saved/` | Presentations I bookmarked (`MAX_SAVED` at most) |
+| Liked | `liked/` | Presentations I liked, newest liked first. Not shown to admins (they can't like) |
 | Reviews & submissions | `reviews-submissions/` | Editors only, two tables: Reviews (`MyReviews.tsx`: open, canceled, and "Published" for live ones I reviewed) and Submissions (`MySubmissions.tsx`) |
 | (search) | `search/` | Search results; the search lives in the page link (`homeSearch.ts`), so Back and shared links keep it |
 
@@ -21,6 +22,9 @@ The pages teachers use outside the editor. Other folders here have their own not
   `CardGrid.tsx` lays them out and handles Present from a card.
 - `PresentationCard.tsx`: one card. `PresentationCardMenu.tsx`: its ⋮ menu (Edit, Present, Delete; admins: Move to
   QuizMatter; editors: Submit to QuizMatter). `SaveCardButton.tsx`: the bookmark on other people's cards.
+  `LikeCardButton.tsx`: the heart with the like count, left of the bookmark (teachers and editors, someone else's
+  presentation; `likes` in `CARD_COLUMNS`, my likes in `loadCardContext`). Where I can't like (admins), the count
+  shows next to the details line instead.
 - `PresentationListButtons.tsx`: New presentation (makes a blank one, saves it at once, opens the editor).
 
 ## Folders
@@ -33,6 +37,10 @@ delete, move). Limits in `src/lib/folders.ts`, checked again in `20261028000000_
 - `[id]/page.tsx`: the view page (mostly other teachers' published ones): `PresentationPreview.tsx` with Prev/Next,
   "Make a copy" (saves a private copy and opens it, remembering `copied_from`; an editor's copy gets them as
   Author), Save (bookmark), and `ReportButton.tsx` (goes to Admin → Reports). Actions in `[id]/actions.ts`.
+- Likes: `[id]/LikeButton.tsx` on a published presentation's view page. Teachers and editors like someone else's
+  (`setPresentationLiked` → `set_liked`, zod first; the `like` click limit); admins and the owner only see the
+  count. Who liked what is private (people read only their own likes); everyone sees the count. Database:
+  `20261204000000_presentation_likes.sql`.
 - On a live QuizMatter presentation the view page also shows, from `src/lib/lessons.ts` (database:
   `lesson_extras`, one call): `[id]/LessonWeek.tsx`, "This week's lessons by <editor>" (the same editor's
   lessons with the same subject, term and week and a grade in common, every day and version; curriculum ignored) and

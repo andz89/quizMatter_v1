@@ -1,4 +1,5 @@
 import type { PostgrestFilterBuilder, SupabaseClient } from "@supabase/supabase-js";
+import { getAccount } from "@/lib/account";
 import type { DraftSummary } from "@/lib/drafts";
 import { loadPublisherNames } from "@/lib/publishers";
 import { creditLines, detailsLabel, joinParts, slideCountLabel, timeAgo } from "@/lib/format";
@@ -11,8 +12,9 @@ import { changedSince, type HomeSearch } from "../homeSearch";
 // Each presentation's first slide only (for the card's picture), not all of them, to keep the page light.
 // reviewers: who is in its "Reviewed by" list, for the check and the Reviewer row on its card (everyone sees them).
 // Only reviewer_id and name: teachers may read just some of that table's columns (see 20261023000000_hide_review_approver.sql).
+// likes: how many likes it has (no row = none yet; see the presentation_likes migration).
 export const CARD_COLUMNS =
-  "id, owner_id, title, grades, subject, term, week, day, author, is_published, from_admin, hidden_at, created_at, updated_at, slides(count), first_slide:slides(data, position), reviewers:presentation_reviewers(reviewer_id, name)";
+  "id, owner_id, title, grades, subject, term, week, day, author, is_published, from_admin, hidden_at, created_at, updated_at, slides(count), first_slide:slides(data, position), reviewers:presentation_reviewers(reviewer_id, name), likes:presentation_like_counts(total)";
 
 export type CardPresentation = {
   id: string;
@@ -31,11 +33,16 @@ export type CardPresentation = {
   updated_at: string;
   slides: { count: number }[];
   first_slide: { data: unknown }[];
-  reviewers: { reviewer_id: string; name: string }[];
+  reviewers: { reviewer_id: string | null; name: string }[];
+  // One row at most (presentation_id is its key): the database sends it as an object, the types guess a list.
+  likes: { total: number }[] | { total: number } | null;
 };
 
 // "saved": my saved row for it (only mine come back), for sorting by when I saved it.
 export type SavedPresentation = CardPresentation & { saved?: { saved_at: string }[] };
+
+// "liked": my like row for it (only mine come back), for sorting by when I liked it.
+export type LikedPresentation = CardPresentation & { liked?: { liked_at: string }[] };
 
 // A presentations query, whatever columns it selects ("any": each select gives its rows their own type).
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -154,6 +161,7 @@ export function toCard(presentation: CardPresentation, href: string, now: number
     metaTitle: gradesTitle(presentation.grades),
     firstSlide: parseSlide(presentation.first_slide[0]?.data),
     isReviewed: presentation.reviewers.length > 0,
+    likeCount: [presentation.likes ?? []].flat()[0]?.total ?? 0,
   };
 }
 
@@ -216,16 +224,22 @@ export function draftCard(draft: DraftSummary, now: number) {
 }
 
 /**
- * What cards of other people's presentations need: which ones I saved (bookmark), and the publisher's name for
- * other teachers' ones. `toSavableCard` is someone else's presentation, which I can save (bookmark) from its card.
+ * What cards of other people's presentations need: which ones I saved (bookmark) and liked, and the publisher's name
+ * for other teachers' ones. `toSavableCard` is someone else's presentation, which I can save (bookmark) and like
+ * (not admins: they only see the count) from its card.
  * An admin's own QuizMatter ones show in "From QuizMatter" too, but the database doesn't let anyone save their own.
  */
 export async function loadCardContext(supabase: SupabaseClient, rows: CardPresentation[], me: string) {
-  const [savedRows, publisherNames] = await Promise.all([
+  const [savedRows, likedRows, publisherNames, account] = await Promise.all([
     supabase.from("saved_presentations").select("presentation_id"),
+    // The database only gives back my own likes.
+    supabase.from("presentation_likes").select("presentation_id"),
     loadPublisherNames(supabase, rows.filter((p) => !p.from_admin).map((p) => p.owner_id)),
+    getAccount(),
   ]);
   if (savedRows.error) throw savedRows.error;
+  if (likedRows.error) throw likedRows.error;
+  const likedIds = new Set<string>(likedRows.data.map((row) => row.presentation_id));
   const savedIds = new Set<string>(savedRows.data.map((row) => row.presentation_id));
   const now = Date.now();
   const toSavableCard = (p: CardPresentation): PresentationCardData => ({
@@ -238,6 +252,8 @@ export async function loadCardContext(supabase: SupabaseClient, rows: CardPresen
     }),
     canSave: p.owner_id !== me,
     isSaved: savedIds.has(p.id),
+    canLike: p.owner_id !== me && p.is_published && !account.isAdmin,
+    isLiked: likedIds.has(p.id),
     isReviewedByMe: p.reviewers.some((reviewer) => reviewer.reviewer_id === me),
   });
   return { savedIds, toSavableCard };

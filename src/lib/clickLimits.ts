@@ -8,6 +8,7 @@ import { createClient } from "./supabase/client";
  */
 export const CLICK_FEATURES = {
   saved: { pausedText: "Saving presentations" },
+  like: { pausedText: "Liking presentations" },
   share: { pausedText: "Sharing presentations" },
   publish: { pausedText: "Publishing presentations" },
   create: { pausedText: "Making new presentations" },

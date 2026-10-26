@@ -33,6 +33,21 @@
 - `adminActions.ts`: `ADMIN_ACTION_LABELS` (the words for the Admin log), `AdminAction` and `adminActionSchema`. Its keys
   must match the `action` check on `admin_actions` in `20261208000000_admin_log.sql`: add a new one in both places.
 
+## Changing the saved shape
+
+Saved presentations and slides must keep opening after every change, and old editor tabs must not save over newer
+data. Spec: `docs/superpowers/specs/2026-10-23-stable-presentation-data-design.md`. Rules:
+
+- A new field is optional or has a default: old slides don't have it.
+- Never rename or remove a field, or a value from a list (shape types, transitions…). Add the new one, and turn the
+  old into the new in `upgradeSlide` / `upgradePresentation` (`schema.ts`). They run inside the schemas, so every
+  parse upgrades. Recognize the old shape by looking at it, with a comment saying what and from when.
+- Never give an existing field a new meaning: add a new field.
+- Never lower a limit without first fixing the saved data over it (a migration).
+- Bump `DATA_VERSION` (`schema.ts`) whenever the saved shape changes: the database then refuses saves from older
+  tabs (`QMOLD`), which keep their work (`keptWork.ts`). Before deploying, run Admin → Data check locally
+  (`npm run dev`) and fix the upgrade until nothing is listed.
+
 ## Other groups
 
 - Limits: `clickLimits.ts` (the one click-limit system, see root `CLAUDE.md`), `browserLimits.ts` (sign up / login

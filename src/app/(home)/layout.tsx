@@ -10,7 +10,7 @@ import { myId } from "./cards";
 import { HomeSearchForm } from "./HomeSearchForm";
 import { HomeTabs, type HomeTab } from "./HomeTabs";
 
-/** Shared by every home page (/, /quizmatter, /reviews-submissions, /saved, /teachers, /search): title, search box and tabs. */
+/** Shared by every home page (/, /quizmatter, /reviews-submissions, /saved, /liked, /teachers, /search): title, search box and tabs. */
 export default async function HomeLayout({ children }: { children: ReactNode }) {
   const account = await getAccount();
   // Banned (Admin → Teachers): every home page only says so, until Supabase's ban ends their login (see proxy.ts).
@@ -37,7 +37,7 @@ export default async function HomeLayout({ children }: { children: ReactNode }) 
           <HomeSearchForm />
         </Suspense>
         <div className="mb-4">
-          <HomeTabs counts={counts} isEditor={account.isEditor} />
+          <HomeTabs counts={counts} isEditor={account.isEditor} isAdmin={account.isAdmin} />
         </div>
         {children}
       </main>
@@ -51,7 +51,7 @@ export default async function HomeLayout({ children }: { children: ReactNode }) 
  */
 async function loadTabCounts(supabase: SupabaseClient, me: string, isEditor: boolean): Promise<Record<HomeTab, number>> {
   const count = () => supabase.from("presentations").select("id", { count: "exact", head: true });
-  const [mine, quizmatter, teachers, saved, reviewed, myReviews, mySubmissions] = await Promise.all([
+  const [mine, quizmatter, teachers, saved, liked, reviewed, myReviews, mySubmissions] = await Promise.all([
     // QuizMatter presentations an admin made are on Admin → Presentations, not in "mine".
     count().eq("owner_id", me).eq("from_admin", false).is("shared_from", null),
     count().eq("is_published", true).is("hidden_at", null).eq("from_admin", true),
@@ -60,6 +60,13 @@ async function loadTabCounts(supabase: SupabaseClient, me: string, isEditor: boo
     supabase
       .from("presentations")
       .select("id, saved_presentations!inner(presentation_id)", { count: "exact", head: true })
+      .eq("is_published", true)
+      .is("hidden_at", null)
+      .neq("owner_id", me),
+    // Same for my likes (see the presentation_likes migration).
+    supabase
+      .from("presentations")
+      .select("id, presentation_likes!inner(presentation_id)", { count: "exact", head: true })
       .eq("is_published", true)
       .is("hidden_at", null)
       .neq("owner_id", me),
@@ -77,13 +84,14 @@ async function loadTabCounts(supabase: SupabaseClient, me: string, isEditor: boo
     // Editors: my presentations sent to QuizMatter (see the quizmatter_submissions migration).
     isEditor ? supabase.rpc("my_submissions") : { data: [] as { id: string }[], error: null },
   ]);
-  for (const result of [mine, quizmatter, teachers, saved, reviewed, myReviews, mySubmissions]) if (result.error) throw result.error;
+  for (const result of [mine, quizmatter, teachers, saved, liked, reviewed, myReviews, mySubmissions]) if (result.error) throw result.error;
 
   return {
     mine: mine.count ?? 0,
     quizmatter: quizmatter.count ?? 0,
     teachers: teachers.count ?? 0,
     saved: saved.count ?? 0,
+    liked: liked.count ?? 0,
     // A presentation I'm reviewing again is in two parts, but counts once (and my submissions are other presentations).
     reviewed: new Set([
       ...(reviewed.data ?? []).map((row) => row.id as string),

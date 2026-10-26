@@ -2,6 +2,7 @@ import { z, ZodError } from "zod";
 import { createClient } from "./supabase/client";
 import { pausedUntilFromError } from "./clickLimits";
 import {
+  DATA_VERSION,
   MAX_PRESENTATIONS,
   MAX_SLIDES,
   PUBLISH_NEEDS_CONTENT,
@@ -15,9 +16,15 @@ import {
 /** A save the database refused on purpose. `message` tells the user why. */
 export class SaveRefusedError extends Error {
   // isConflict: someone saved a newer copy (another tab or device) since this one was opened or saved.
-  constructor(message: string, readonly isConflict = false) {
+  // isOutdated: newer app code saved it (QMOLD), so this tab's older code must reload first (see keptWork.ts).
+  constructor(message: string, readonly isConflict = false, readonly isOutdated = false) {
     super(message);
   }
+}
+
+/** The SaveRefusedError for a refusal code the app knows (see REFUSALS), else null. */
+export function refusalFromCode(code: string): SaveRefusedError | null {
+  return REFUSALS[code] ? new SaveRefusedError(REFUSALS[code], code === "QM409", code === "QMOLD") : null;
 }
 
 // The database's error codes for refused saves (see the supabase/migrations), and what the user is told. Also
@@ -27,6 +34,8 @@ export const REFUSALS: Record<string, string> = {
   QMMAX: `You have ${MAX_PRESENTATIONS} presentations, the most allowed. Delete some to make new ones.`,
   QM429: "You're saving too fast. Wait a minute and try again.",
   QMBAN: "Your account is blocked, so you can't save. Contact QuizMatter if you think this is a mistake.",
+  // Saved by newer app code (see the data_version migration).
+  QMOLD: "QuizMatter was updated. Reload the page to keep editing.",
   // Presentation reviews and submissions (see the presentation_reviews and quizmatter_submissions migrations).
   QMREV: "This presentation is under review or waiting for QuizMatter, so it can't be changed right now. Copy anything you need before leaving.",
   QMRVW: "Someone else is reviewing this presentation, or you can't review it right now.",
@@ -91,8 +100,10 @@ export async function savePresentationToDb(
     },
     slide_ids: slideIds,
     base_updated_at: baseUpdatedAt,
+    app_version: DATA_VERSION,
   });
-  if (error && REFUSALS[error.code]) throw new SaveRefusedError(REFUSALS[error.code], error.code === "QM409");
+  const refusal = error && refusalFromCode(error.code);
+  if (refusal) throw refusal;
   // The database's slide-count check (same limit as slideIdsSchema). Its code, 22023, is shared with checks that
   // only fail on a bug, so the message tells them apart.
   if (error?.code === "22023" && error.message.startsWith("A presentation needs")) {

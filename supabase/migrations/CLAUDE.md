@@ -34,12 +34,21 @@ A refusal raises an error with its own code. The app turns the code into a messa
   `QMSUB`: submission not allowed. `QMPUB`: publishing an empty presentation. `QMPHL`: removing a photo that is
   in a presentation or review waiting for QuizMatter (`photo_waiting_for_approval`).
 - `42501`: not allowed (wrong person). `22023`: bad input that should never get past zod.
+- `QMOLD`: the save came from older app code (`app_version`) than the presentation's `data_version` (or the review
+  draft's `draft_version`). The app keeps the unsaved work in the browser and asks for a reload.
 - `QMBLK`: a click limit paused the feature (the pause end time is in `details`), read by `pausedUntilFromError`
   (`src/lib/clickLimits.ts`).
 
 ## Where the big features live
 
 - Presentations and saving: `save_presentation` (one step: details + slides, removes deleted slides).
+- Data version: `20261209000000_data_version.sql`. `presentations.data_version` and
+  `presentation_reviews.draft_version` keep the highest app `DATA_VERSION` that saved them. `save_presentation`,
+  `save_review_draft` and `submit_review` take `app_version` (default 0) and refuse a lower one (`QMOLD`, checked
+  before `QM409`; drafts through `check_review_version`). `publish_review` and `approve_submission` carry the version
+  to the presentation they write. A new function that writes slides from app data must do the same. Its section 0
+  also catches up `20261102000000_review_auto_reviewer.sql`, which never reached the live database (old
+  `submit_review`, and the `background` column still there); don't run that old file again.
 - Photos and the weekly cleanup: `used_photo_srcs` (drafts' photos count as used).
 - Editor photos (`20261126000000_editor_photos.sql`): an editor's WebP upload also becomes a shared photo with
   `is_public = false` ("From editors" category), hidden from teachers and `search_shared_photos`. It turns public
@@ -70,6 +79,10 @@ A refusal raises an error with its own code. The app turns the code into a messa
 - Author updates (a lesson's own editor changes it through a review round): `20261202000000_author_updates.sql`
   (`is_author_update`; newest `start_review`, `review_status`, `publish_review`, `admin_reviews`) and
   `20261203000000_author_update_published.sql` (newest `my_reviews`: also my published updates, latest round only).
+- Likes: `20261204000000_presentation_likes.sql`. `presentation_likes` (who liked what, read only your own) and
+  `presentation_like_counts` (the count, kept by the `count_like` trigger, readable by whoever can read the
+  presentation), so a like never touches the presentations row. Changed only through `set_liked` (refuses admins,
+  your own, private or hidden ones; counts the `like` click).
 - Admin overview: `20261207000000_admin_overview.sql`. `activity_events` (a row per like, save or report, written by
   the `record_activity_event` trigger on `presentation_likes`, `saved_presentations`, `presentation_reports`; kept when
   the like is taken back; no one reads it directly). `admin_overview(days)` (days 7, 30 or 90, else `22023`; admins
@@ -89,6 +102,12 @@ A refusal raises an error with its own code. The app turns the code into a messa
   and pause releases change things the database can't see, so the app calls `log_ban` (needs the `banned_users`
   row, else `P0002`; "ban updated" if already banned), `log_unban` (needs it gone) and `log_click_release` after
   they worked (super admin only, `42501`).
+- Deleting an account (only from the Supabase dashboard, or the daily cleanup of unconfirmed ones):
+  `20261205000000_account_delete_keeps_quizmatter.sql`. The `before_account_delete` trigger on `auth.users` moves
+  the account's QuizMatter presentations to the super admin (refused if there's no other super admin), and removes
+  their non-approved submissions. Approved receipts and "Reviewed by" rows stay, with an empty
+  `submitter_id` / `reviewer_id` (`on delete set null`). Everything else of the account goes with it (`on delete
+  cascade`): its own presentations, shared copies, folders, photos rows, likes, saved, reports, limits.
 - Folders: `20261028000000_folders.sql`. Teacher profiles: `20261110000000_teacher_profiles.sql`,
   `20261112000000_profile_name_links.sql`.
 

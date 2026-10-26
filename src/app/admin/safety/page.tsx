@@ -442,20 +442,6 @@ export default async function AdminSafetyPage() {
           }}
         />
         <Item
-          name="Photo links checked"
-          where="Server + Cloudflare"
-          rule={`Adding a photo from a link: https only, public internet addresses only, JPG, PNG or WebP only, ${megabytes(MAX_PHOTO_FILE_BYTES)} at most, and 10 seconds at most. Only for logged-in teachers`}
-          sees="“This link isn't a JPG, PNG or WebP photo.” or “Couldn't get a photo from this link.”"
-          more={{
-            what: [
-              "When a teacher pastes a photo link, QuizMatter's server downloads it for them. It only goes to public internet addresses (a Cloudflare setting), so it can't be pointed at private networks.",
-              `It stops as soon as the file passes ${megabytes(MAX_PHOTO_FILE_BYTES)} or takes longer than 10 seconds, and only accepts real photo types.`,
-            ],
-            example: "Ana pastes a link to a picture of the solar system. The server fetches it, and it's added like any uploaded photo.",
-            scenario: "Someone pastes the address of a computer inside a company network, hoping QuizMatter's server will fetch private data for them. The server only reaches the public internet, so it fails.",
-          }}
-        />
-        <Item
           name="Photo uploads checked"
           where="Server"
           rule={`Only logged-in teachers can upload, and the server reads the start of each file to make sure it really is a JPG, PNG or WebP photo (not just named like one). ${megabytes(MAX_STORED_PHOTO_BYTES)} at most. Only admins can add photos to the shared library`}

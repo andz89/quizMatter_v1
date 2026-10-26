@@ -35,6 +35,7 @@ import {
 import { clamp, fitInBox, getOuterEdges } from "./geometry";
 import { REFUSALS, SaveRefusedError, saveErrorMessage, savePresentationToDb } from "./presentations";
 import { saveReviewDraft } from "./reviews";
+import { forgetKeptWork, keepUnsavedWork, takeKeptWork } from "./keptWork";
 import { checkPauses, pausedUntilFromError } from "./clickLimits";
 import { shareCopy, unshareCopy, type SharedCopy } from "./sharing";
 import type { SubmissionStatus } from "./submissions";
@@ -273,6 +274,12 @@ interface EditorState {
   // Saves the whole presentation and shows a toast (not when `quiet`). Resolves true if it's saved (or had
   // nothing new to save), false if it failed or another save is still running.
   savePresentation: (options?: { quiet?: boolean }) => Promise<boolean>;
+  // True after a save was refused because newer app code saved this presentation (QMOLD): the unsaved work was kept
+  // in the browser (keptWork.ts) and the editor asks for a reload.
+  isOutdated: boolean;
+  setOutdated: (isOutdated: boolean) => void;
+  // After the editor opens a presentation: puts back unsaved work kept before a reload (see isOutdated), if any.
+  restoreKeptWork: () => void;
   // Undo/redo history of the presentation content only (not selection, zoom or open panels). Filled
   // automatically by the store subscription at the bottom of this file.
   past: Presentation[];
@@ -449,7 +456,7 @@ interface EditorState {
   isElementsPanelOpen: boolean;
   toggleElementsPanel: () => void;
   closeElementsPanel: () => void;
-  // The Photos panel uploads photos, or adds them from a link.
+  // The Photos panel uploads photos.
   isPhotosPanelOpen: boolean;
   togglePhotosPanel: () => void;
   closePhotosPanel: () => void;
@@ -527,6 +534,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         saveStatus: "idle",
         fromDraft: false,
         review: null,
+        isOutdated: false,
         // Editor sets it right after, from the page.
         sharedCopy: null,
         past: [],
@@ -548,6 +556,33 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   sharedCopy: null,
   canPublish: true,
   submission: null,
+  isOutdated: false,
+  setOutdated: (isOutdated) => set({ isOutdated }),
+
+  restoreKeptWork: () => {
+    const { presentation, review } = get();
+    const kept = takeKeptWork(presentation, review !== null);
+    if (!kept) return;
+    // savedPresentation (and savedAt) stay the ones just loaded, so the kept work counts as unsaved and saves over
+    // the newer save. Someone always saved since (that's what refused it), so keeping the old save time would only
+    // make the next save a conflict, and the reload it asks for would lose the work. One undo step goes back to the
+    // presentation as it opened (set here, not by the history subscription, which joins quick changes into one step
+    // and would skip it when the editor loads twice in a row, as in React's dev mode).
+    withoutHistory(() => set({ presentation: kept, past: [presentation], future: [], selectedSlideId: kept.slides[0].id }));
+    toast.success("Your changes from before the update are back. Saving them replaces what was saved since.", {
+      // One toast, even when the editor loads twice (React's dev mode).
+      id: "kept-work",
+      duration: Infinity,
+      action: {
+        label: "Throw away",
+        onClick: () => {
+          forgetKeptWork(kept.id);
+          // Only while nothing else was edited since: later edits stay.
+          if (get().presentation === kept) get().undo();
+        },
+      },
+    });
+  },
 
   savePresentation: async ({ quiet = false } = {}) => {
     const { presentation, savedPresentation, savedAt, saveStatus, fromDraft, review } = get();
@@ -570,12 +605,22 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       // Claude's draft is now a saved presentation, so the draft goes: Claude's next send makes a new draft
       // (with a new link) instead of updating one nobody can open anymore. If this fails, the save still counts.
       if (fromDraft) finishDraft(presentation.id).catch(() => {});
+      // Work kept before an app update is in this save, so its toast (with "Throw away") goes too.
+      forgetKeptWork(presentation.id);
+      toast.dismiss("kept-work");
       if (!quiet) toast.success(review ? "Draft saved. Teachers still see the old version." : "Presentation saved.");
       // Edits made while saving aren't in the database yet, so they still count as unsaved.
       if (isStillOpen()) set({ savedPresentation: presentation, savedAt: newSavedAt, saveStatus: "idle", fromDraft: false });
       return true;
     } catch (error) {
       console.error("Couldn't save the presentation", error);
+      // Newer app code saved it: keep the work in the browser and ask for a reload (Editor shows the box), which
+      // gives it back with the new code.
+      if (error instanceof SaveRefusedError && error.isOutdated) {
+        keepUnsavedWork({ presentation, savedPresentation, isReview: review !== null });
+        if (isStillOpen()) set({ saveStatus: "error", isOutdated: true });
+        return false;
+      }
       // Sharing or publishing clicked too often: the database paused one. Both give the same refusal, so ask which;
       // the notice at the bottom shows it and the Share card greys out.
       if (pausedUntilFromError(error as { code?: string; details?: string })) await checkPauses();
@@ -978,7 +1023,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     if (saveStatus === "saving") return "It's still saving. Try again in a moment.";
     // A teacher's presentation: the shared copy is made, updated or removed (the presentation itself stays private).
     if (!presentation.fromAdmin) {
-      if (!(await savePresentation({ quiet: true }))) return "Couldn't save your edits, so nothing changed. Please try again.";
+      if (!(await savePresentation({ quiet: true }))) {
+        // "" = already told: the "QuizMatter was updated" box shows.
+        return get().isOutdated ? "" : "Couldn't save your edits, so nothing changed. Please try again.";
+      }
       try {
         if (isPublished) {
           // An admin's hide stays on an updated copy.
@@ -1007,7 +1055,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     // Switch back. With no other edits since, put the old presentation object back, so it doesn't count as unsaved.
     if (get().presentation === switched) withoutHistory(() => set({ presentation }));
     else setPresentationDetails({ isPublished: presentation.isPublished });
-    return "Couldn't change it. Please try again.";
+    return get().isOutdated ? "" : "Couldn't change it. Please try again.";
   },
 
   // Same steps as Publish: the database updates the copy when there is one.

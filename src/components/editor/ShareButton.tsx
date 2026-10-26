@@ -175,6 +175,8 @@ export function ShareButton() {
     // QuizMatter gets what the editor sees, so unsaved edits are saved first.
     if (!(await savePresentation({ quiet: true }))) {
       setIsSubmitting(false);
+      // The "QuizMatter was updated" box already says what to do.
+      if (useEditorStore.getState().isOutdated) return;
       return toast.error("Couldn't save your changes, so it wasn't sent. Please try again.");
     }
     const error = await submitToQuizMatter(id);

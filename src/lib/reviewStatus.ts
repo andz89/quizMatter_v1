@@ -27,8 +27,9 @@ export const NO_REVIEW: ReviewStatus = {
   isAuthor: false,
 };
 
-/** One entry of a presentation's "Reviewed by" list. `reviewerId` links to their profile page. */
-export type Reviewer = ReviewerFields & { reviewerId: string };
+/** One entry of a presentation's "Reviewed by" list. `reviewerId` links to their profile page; null once their
+ * account is deleted (the row stays, see 20261205000000_account_delete_keeps_quizmatter.sql). */
+export type Reviewer = ReviewerFields & { reviewerId: string | null };
 
 /** The review status, with the server or browser client. Throws if the lookup fails. */
 export async function loadReviewStatus(supabase: SupabaseClient, id: string): Promise<ReviewStatus> {

@@ -18,6 +18,7 @@ import { PresentationsPanel } from "./PresentationsPanel";
 import { SmallScreenNote } from "./SmallScreenNote";
 import { ReviewBanner } from "./ReviewControls";
 import { SentBackBanner } from "./SentBackBanner";
+import { ConfirmModal } from "./ConfirmModal";
 import { Spinner } from "@/components/Spinner";
 import type { Presentation } from "@/lib/schema";
 import type { SharedCopy } from "@/lib/sharing";
@@ -70,6 +71,8 @@ export function Editor({
   // Until the presentation below is in the store, the store still holds the placeholder (or the last presentation opened).
   const isLoaded = useEditorStore((s) => s.presentation.id === presentation.id);
   const hasUnsavedChanges = useEditorStore((s) => s.presentation !== s.savedPresentation);
+  const isOutdated = useEditorStore((s) => s.isOutdated);
+  const setOutdated = useEditorStore((s) => s.setOutdated);
   const isPresenting = useEditorStore((s) => s.isPresenting);
   const isGridViewOpen = useEditorStore((s) => s.isGridViewOpen);
   const isElementsPanelOpen = useEditorStore((s) => s.isElementsPanelOpen);
@@ -90,7 +93,11 @@ export function Editor({
     const store = useEditorStore.getState();
     store.loadPresentation(presentation);
     useEditorStore.setState({ review: review ?? null, sharedCopy: sharedCopy ?? null, canPublish, submission: submission ?? null });
-    if (draft === undefined) return;
+    if (draft === undefined) {
+      // Unsaved work kept before an app update's reload (see keptWork.ts) comes back now.
+      store.restoreKeptWork();
+      return;
+    }
 
     // Show the presentation's own address instead of /presentation/new?draft=…, so a reload after saving opens the
     // saved presentation instead of another new copy.
@@ -104,13 +111,14 @@ export function Editor({
     // drops unsaved edits, so don't refresh the editor page while someone is editing.
   }, [presentation, draft, review, sharedCopy, canPublish, submission]);
 
-  // Closing or reloading the tab with unsaved changes makes the browser ask "Leave page?" first.
+  // Closing or reloading the tab with unsaved changes makes the browser ask "Leave page?" first. Not after an app
+  // update refused a save: the work is kept in the browser, and the reload gives it back.
   useEffect(() => {
-    if (!hasUnsavedChanges) return;
+    if (!hasUnsavedChanges || isOutdated) return;
     const handleBeforeUnload = (e: BeforeUnloadEvent) => e.preventDefault();
     window.addEventListener("beforeunload", handleBeforeUnload);
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
-  }, [hasUnsavedChanges]);
+  }, [hasUnsavedChanges, isOutdated]);
 
   // A file dropped outside the slide's drop spots would make the browser open it, leaving the editor.
   useEffect(() => {
@@ -169,6 +177,16 @@ export function Editor({
       <SmallScreenNote />
       {isGridViewOpen && <SlideGridModal />}
       {isPresenting && <PresentationView />}
+      {isOutdated && (
+        <ConfirmModal
+          title="QuizMatter was updated"
+          message="Reload to keep editing. Your changes are safe."
+          confirmLabel="Reload"
+          onConfirm={() => window.location.reload()}
+          // The work stays kept; the next save asks again.
+          onCancel={() => setOutdated(false)}
+        />
+      )}
     </div>
   );
 }

@@ -12,7 +12,6 @@ import {
   loadMyPhotos,
   removeMyPhoto,
   uploadPhoto,
-  uploadPhotoFromLink,
 } from "@/lib/photos";
 import { PHOTO_ID } from "@/lib/svgLibrary";
 import type { Photo } from "@/lib/schema";
@@ -24,7 +23,7 @@ import { ImageIcon, SearchIcon, XIcon } from "lucide-react";
 const TABS = ["Photos", "My Photos"] as const;
 
 /**
- * Adds photos. The "My Photos" tab: pick from the computer (several at once is fine) or paste a link, and
+ * Adds photos. The "My Photos" tab: pick from the computer (several at once is fine), and
  * below, what the teacher uploaded before, to click or drag onto the slide again. Photos can also be dragged
  * from the computer straight onto the slide (see useElementDropTarget). The "Photos" tab has the photos admins
  * shared with every teacher, in a row per category, and a search bar that filters them (see SharedPhotos).
@@ -38,10 +37,8 @@ export function PhotosPanel() {
   // The "My photos" list, newest first. null while loading; "failed" if it couldn't load.
   const [myPhotos, setMyPhotos] = useState<Photo[] | null | "failed">(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [link, setLink] = useState("");
   // How many picked photos are still uploading, to show the Spinner on the button.
   const [uploadingFiles, setUploadingFiles] = useState(0);
-  const [isAddingLink, setIsAddingLink] = useState(false);
   // Only editors and admins can upload for now (see checkCanUpload). null until known.
   const [canUpload, setCanUpload] = useState<boolean | null>(null);
 
@@ -91,17 +88,6 @@ export function PhotosPanel() {
     }
     // Cleared so picking the same file again still counts as a change.
     if (fileInputRef.current) fileInputRef.current.value = "";
-  };
-
-  const handleLinkSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const url = link.trim();
-    if (!url || isAddingLink) return;
-    setIsAddingLink(true);
-    const photo = await addPhotoToSlide(() => uploadPhotoFromLink(url));
-    if (photo) setLink("");
-    showAtTop(photo);
-    setIsAddingLink(false);
   };
 
   return (
@@ -182,25 +168,6 @@ export function PhotosPanel() {
             </span>
             Upload photo
           </button>
-
-          <form onSubmit={handleLinkSubmit} className="flex items-center gap-1">
-            <input
-              value={link}
-              onChange={(e) => setLink(e.target.value)}
-              placeholder="Or paste a photo link"
-              maxLength={2000}
-              aria-label="Photo link"
-              disabled={!canUpload}
-              className="min-w-0 flex-1 rounded-input border border-border-default bg-bg-surface px-3 py-2 text-sm text-text-primary outline-none placeholder:text-text-secondary focus:border-text-secondary disabled:opacity-40"
-            />
-            <button
-              type="submit"
-              disabled={!canUpload || !link.trim() || isAddingLink}
-              className="flex h-9 w-14 shrink-0 items-center justify-center rounded-button bg-accent btn-press text-sm font-semibold text-white disabled:opacity-40"
-            >
-              {isAddingLink ? <Spinner size={14} /> : "Add"}
-            </button>
-          </form>
 
           {canUpload && (
             <p className="text-xs text-text-secondary">You can also drag photos from your computer onto the slide.</p>

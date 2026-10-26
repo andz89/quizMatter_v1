@@ -6,13 +6,12 @@ fingerprint, so the same photo is stored once however many times it's added. Fil
 | Route | Who | What it does |
 |---|---|---|
 | `upload-image/` | Editors and admins (for now; other teachers get 403) | Saves a photo the browser already shrunk, adds it to the teacher's "My photos", returns it. With `category`, an admin's shared photo instead (saves who uploaded it, `uploaded_by`; a plain admin's upload of a photo someone else shared is refused with 409 and the photo stays as it is) |
-| `fetch-image/` | Logged-in teachers | Downloads a photo from a pasted link and hands it to the browser (most sites block the browser from reading their images). Public addresses only |
 | `claude-photo/` | Claude, with a ticket | Saves a photo Claude sends for the shared library. The one-time ticket (`src/lib/photoTickets.ts`, made by `prepare_photo_upload` in `/api/mcp`) holds its details and who asked (saved as `uploaded_by`), so no login is needed; the proxy lets it through |
 | `delete-photo/` | Super admin | Deletes an unused photo file now (Admin → Photo cleanup). A photo still in use is never deleted |
 
 ## How a teacher's photo gets added
 
-1. The browser shrinks it (`src/lib/photos.tsx`: `uploadPhoto`, or `uploadPhotoFromLink` via `fetch-image`). Only
+1. The browser shrinks it (`src/lib/photos.tsx`: `uploadPhoto`). Only
    WebP or JPEG files are kept (`readPhotoType`).
 2. `upload-image` saves it to R2 and to "My photos".
 3. `addPhotoToSlide` puts it on the slide.

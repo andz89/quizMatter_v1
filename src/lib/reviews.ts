@@ -1,12 +1,13 @@
 import { createClient } from "./supabase/client";
-import { REFUSALS, SaveRefusedError } from "./presentations";
-import { presentationSchema, reviewedOnSchema, savedPresentationSchema, todayIso, type Presentation } from "./schema";
+import { SaveRefusedError, refusalFromCode } from "./presentations";
+import { DATA_VERSION, presentationSchema, reviewedOnSchema, savedPresentationSchema, todayIso, type Presentation } from "./schema";
 
 // The reviewer's steps (see the presentation_reviews migration). Each is checked with zod right before the
 // database call (see CLAUDE.md, "Saving Data"), and throws a SaveRefusedError with a message for refusals.
 
 function throwIfRefused(error: { code: string; message: string } | null) {
-  if (error && REFUSALS[error.code]) throw new SaveRefusedError(REFUSALS[error.code], error.code === "QM409");
+  const refusal = error && refusalFromCode(error.code);
+  if (refusal) throw refusal;
   if (error?.code === "22023" && error.message.startsWith("A presentation needs")) throw new SaveRefusedError(error.message);
   if (error) throw error;
 }
@@ -30,6 +31,7 @@ export async function saveReviewDraft(presentation: Presentation, baseUpdatedAt:
     target_id: presentation.id,
     review_draft: parseDraft(presentation),
     base_updated_at: baseUpdatedAt,
+    app_version: DATA_VERSION,
   });
   throwIfRefused(error);
   return data;
@@ -46,6 +48,7 @@ export async function submitReview(presentation: Presentation, baseUpdatedAt: nu
     review_draft: parseDraft(presentation),
     reviewed_on: reviewedOnSchema.parse(todayIso()),
     base_updated_at: baseUpdatedAt,
+    app_version: DATA_VERSION,
   });
   throwIfRefused(error);
 }

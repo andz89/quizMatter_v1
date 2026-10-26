@@ -14,7 +14,8 @@ import { loadSubmissionStatus } from "./submissions";
  * row (see the saved_presentations migration). `review`: its review status, `reviewers`: its "Reviewed by" list
  * (see the presentation_reviews migration). `submission`: my presentation sent to QuizMatter, or null (see the
  * quizmatter_submissions migration). `sharedFrom`: set when this is a shared copy (the original's id).
- * `sharedCopy`: my presentation's shared copy, or null (see the shared_copy migration). Server-only.
+ * `sharedCopy`: my presentation's shared copy, or null (see the shared_copy migration). `likeCount` and `isLiked`
+ * (I liked it): see the presentation_likes migration. Server-only.
  */
 export async function fetchPresentation(id: string): Promise<{
   presentation: Presentation;
@@ -26,6 +27,8 @@ export async function fetchPresentation(id: string): Promise<{
   profileSlugs: Record<string, string>;
   publisherName: string;
   isSaved: boolean;
+  likeCount: number;
+  isLiked: boolean;
   review: ReviewStatus;
   reviewers: Reviewer[];
   submission: Awaited<ReturnType<typeof loadSubmissionStatus>>;
@@ -33,11 +36,15 @@ export async function fetchPresentation(id: string): Promise<{
   sharedCopy: SharedCopy | null;
 } | null> {
   const supabase = await createClient();
-  const [result, { data: claims }, { data: saved }, review, reviewers, submission, { data: copy }] = await Promise.all([
+  const [result, { data: claims }, { data: saved }, { data: likes }, { data: liked }, review, reviewers, submission, { data: copy }] = await Promise.all([
     loadPresentation(supabase, id),
     supabase.auth.getClaims(),
     // The database only gives back my own saved rows.
     supabase.from("saved_presentations").select("presentation_id").eq("presentation_id", id).maybeSingle(),
+    // If these fail, the page opens with 0 likes, not liked.
+    supabase.from("presentation_like_counts").select("total").eq("presentation_id", id).maybeSingle(),
+    // The database only gives back my own likes.
+    supabase.from("presentation_likes").select("presentation_id").eq("presentation_id", id).maybeSingle(),
     // If these fail, the page still opens without the review parts (the database still enforces the lock).
     loadReviewStatus(supabase, id).catch(() => NO_REVIEW),
     loadReviewers(supabase, id).catch((): Reviewer[] => []),
@@ -52,7 +59,7 @@ export async function fetchPresentation(id: string): Promise<{
   const isMine = ownerId === claims?.claims.sub;
   const [publisherNames, profileSlugs] = await Promise.all([
     isMine ? new Map<string, string>() : loadPublisherNames(supabase, [ownerId]),
-    loadVisibleProfiles(supabase, [ownerId, ...reviewers.map((reviewer) => reviewer.reviewerId)]),
+    loadVisibleProfiles(supabase, [ownerId, ...reviewers.flatMap((reviewer) => reviewer.reviewerId ?? [])]),
   ]);
   const publisherName = publisherNames.get(ownerId) ?? "";
   return {
@@ -62,6 +69,8 @@ export async function fetchPresentation(id: string): Promise<{
     profileSlugs: Object.fromEntries(profileSlugs),
     publisherName,
     isSaved: saved !== null,
+    likeCount: likes?.total ?? 0,
+    isLiked: liked !== null,
     review,
     reviewers,
     submission,
@@ -80,17 +89,27 @@ export async function loadPresentation(
 ): Promise<{ presentation: Presentation; ownerId: string; sharedFrom: string | null } | null> {
   const { data, error } = await supabase
     .from("presentations")
-    .select(
-      "id, owner_id, title, description, grades, subject, term, week, day, curriculum, learning_competency, author, reference_links, tags, transition, transition_speed, is_published, from_admin, shared_from, created_at, updated_at, slides(data, position)",
-    )
+    .select(PRESENTATION_COLUMNS)
     .eq("id", id)
     .order("position", { referencedTable: "slides" })
     .maybeSingle();
   if (error) throw error;
   if (!data) return null;
 
-  // Checked against the schema, so a slide saved in an older/broken shape fails here instead of inside the editor.
-  const presentation = presentationSchema.parse({
+  // Checked against the schema (which upgrades older shapes first), so a slide saved in a broken shape fails here
+  // instead of inside the editor. Admin → Data check finds these before a deploy.
+  const presentation = presentationSchema.parse(rowToPresentationInput(data));
+  return { presentation, ownerId: data.owner_id, sharedFrom: data.shared_from };
+}
+
+/** The presentation columns (and its slides) read to open one. Order the slides by position. */
+export const PRESENTATION_COLUMNS =
+  "id, owner_id, title, description, grades, subject, term, week, day, curriculum, learning_competency, author, reference_links, tags, transition, transition_speed, is_published, from_admin, shared_from, created_at, updated_at, slides(data, position)";
+
+/** A presentations row (PRESENTATION_COLUMNS) in the app's shape, ready for presentationSchema. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function rowToPresentationInput(data: any): unknown {
+  return {
     id: data.id,
     title: data.title,
     description: data.description,
@@ -111,6 +130,5 @@ export async function loadPresentation(
     createdAt: Date.parse(data.created_at),
     updatedAt: Date.parse(data.updated_at),
     slides: data.slides.map((slide: { data: unknown }) => slide.data),
-  });
-  return { presentation, ownerId: data.owner_id, sharedFrom: data.shared_from };
+  };
 }

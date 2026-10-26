@@ -50,6 +50,16 @@ editor / view / review, and renders `Editor.tsx`, which calls `store.loadPresent
   never saved.
 - `savePresentation` saves (Save button, Ctrl+S): `saveReviewDraft` in review mode, else `savePresentationToDb`.
   It shows a sonner toast for success and for failure.
+- **Kept work after an app update:** when a save (or a review's Submit) is refused because newer app code saved the
+  presentation (`QMOLD`, `SaveRefusedError.isOutdated`), the unsaved presentation goes into this browser's storage
+  (`src/lib/keptWork.ts`, key `qm-unsaved:<id>`) and `isOutdated` makes `Editor` show "QuizMatter was updated" with
+  Reload (no "Leave page?" then; a quiet save before Share/Submit shows no second message). After the reload,
+  `Editor` calls `restoreKeptWork`: only what was changed since the last save comes back, upgraded (changed slides
+  and details; untouched slides, the publish switch and save times stay as just loaded, so they aren't sent again
+  in the old shape), only in the same mode (owner's editor or review draft) and within 7 days. It's one undo step,
+  unsaved, against the just-loaded save time, so saving replaces what the newer code saved (the toast says so and
+  has "Throw away"). The old save time would always conflict, and that conflict's reload would lose the work. The
+  kept copy stays in storage until a save or submit of that presentation works (`forgetKeptWork`).
 
 ## Helpers this folder uses (in `src/lib`)
 

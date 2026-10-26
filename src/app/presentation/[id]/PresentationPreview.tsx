@@ -24,6 +24,7 @@ import { FluidSlidePreview } from "@/components/presentation/FluidSlidePreview";
 import { PresentDraftButton } from "@/components/presentation/PresentDraftButton";
 import type { PresentationCardData } from "../../PresentationCard";
 import { LessonWeek, type LessonWeekData } from "./LessonWeek";
+import { LikeButton } from "./LikeButton";
 import { ReportButton } from "./ReportButton";
 import { Suggestions } from "./Suggestions";
 import { setPresentationSaved } from "./actions";
@@ -32,7 +33,8 @@ import { SAVE_ERRORS } from "../../SaveCardButton";
 /**
  * A presentation's slides (one at a time, with Prev/Next) and its details, view only. "Make a copy" saves a private
  * copy for me and opens it in the editor. "Save" bookmarks someone else's presentation to my home page's "Saved" row
- * (like YouTube's), and "Report" sends it to the admins.
+ * (like YouTube's), the heart likes it (teachers and editors; everyone sees the count), and "Report" sends it to the
+ * admins.
  * Editors can review a shared QuizMatter presentation ("Review"; its own editor gets "Update this lesson", see the
  * author_updates migration); while it's under review nobody can copy it, and
  * its owner can't edit it. Everyone who reviewed it is listed under the "Published by" line.
@@ -47,6 +49,9 @@ export function PresentationPreview({
   profileSlugs,
   publisherName,
   isSaved: savedAtStart,
+  likeCount,
+  isLiked,
+  canLike,
   review,
   reviewers,
   waitingSince,
@@ -59,6 +64,9 @@ export function PresentationPreview({
   profileSlugs: Record<string, string>;
   publisherName: string;
   isSaved: boolean;
+  likeCount: number;
+  isLiked: boolean;
+  canLike: boolean;
   review: ReviewStatus;
   reviewers: Reviewer[];
   // My presentation sent to QuizMatter and waiting (locked until an admin decides): when, e.g. "2 hr ago". null = not waiting.
@@ -228,6 +236,15 @@ export function PresentationPreview({
                 <LinkPending />
               </Link>
             )}
+            {presentation.isPublished && (
+              <LikeButton
+                presentationId={presentation.id}
+                likeCount={likeCount}
+                isLiked={isLiked}
+                canLike={canLike}
+                className={secondaryButtonClass}
+              />
+            )}
             {!isMine && <ReportButton presentationId={presentation.id} className={secondaryButtonClass} />}
             {!isMine && (
               <button
@@ -389,9 +406,10 @@ export function PresentationPreview({
 const secondaryButtonClass =
   "justify-center text-center rounded-button border border-border-default bg-bg-surface px-4 py-2 text-sm font-semibold text-text-primary transition-colors hover:border-text-secondary disabled:opacity-60";
 
-/** A publisher's or reviewer's name: a link to their profile, or plain text when it has none (a hidden admin's). */
-function ProfileName({ id, name, slugs }: { id: string; name: string; slugs: Record<string, string> }) {
-  const slug = slugs[id];
+/** A publisher's or reviewer's name: a link to their profile, or plain text when it has none (a hidden admin's, or
+ * a deleted account's: no id). */
+function ProfileName({ id, name, slugs }: { id: string | null; name: string; slugs: Record<string, string> }) {
+  const slug = id ? slugs[id] : undefined;
   if (!slug) return <span className="font-semibold text-text-primary">{name}</span>;
   return (
     <Link href={profileHref(slug)} className="font-semibold text-accent hover:underline">

@@ -1,7 +1,7 @@
 "use server";
 
 import { pausedUntilFromError } from "@/lib/clickLimits";
-import { reportSchema, savedPresentationSchema } from "@/lib/schema";
+import { likedPresentationSchema, reportSchema, savedPresentationSchema } from "@/lib/schema";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -46,4 +46,28 @@ export async function setPresentationSaved(
   if (pausedUntil) return { status: "paused", pausedUntil };
   if (error) return { status: "failed" };
   return data === "done" || data === "limit" || data === "banned" ? { status: data } : { status: "failed" };
+}
+
+/**
+ * Likes someone else's published presentation, or takes the like back with `isLiked` false. The database
+ * (set_liked) only takes presentations I can see that aren't mine, and refuses admins. Clicking too fast pauses
+ * liking for a while ("paused", with `pausedUntil`; see the presentation_likes migration).
+ */
+export async function setPresentationLiked(
+  presentationId: string,
+  isLiked: boolean,
+): Promise<{ status: "done" | "banned" | "paused" | "failed"; pausedUntil?: number }> {
+  // Checked with zod before it's saved (see CLAUDE.md, "Saving Data").
+  const liked = likedPresentationSchema.safeParse({ presentation_id: presentationId });
+  if (!liked.success) return { status: "failed" };
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("set_liked", {
+    presentation_id: liked.data.presentation_id,
+    is_liked: isLiked,
+  });
+  const pausedUntil = pausedUntilFromError(error);
+  if (pausedUntil) return { status: "paused", pausedUntil };
+  if (error) return { status: "failed" };
+  return data === "done" || data === "banned" ? { status: data } : { status: "failed" };
 }

@@ -4,13 +4,14 @@ Admin-only work (things shared with every teacher, managing teachers) lives here
 
 - `layout.tsx` checks `getAccount().isAdmin` and shows "page not found" to everyone else, plus the header and the
   left menu (`AdminMenu.tsx`: the list of pages). A new admin page = a folder here + a line in `AdminMenu`.
-- The menu has Overview on top, then groups: **To do** (Under review, Submissions, Reports), **Library**
-  (Presentations, Photos, Photo cleanup), **People** (Teachers, Editors, Safety), and Admin log on its own. The To do
+- The admin pages use the full screen width. From `lg` the menu is a column on the left (it stays in place as
+  you scroll); below that it is one row above the page that scrolls sideways. The menu has Overview on top, then groups, each a card with its label in violet: **Waiting for you** (Under review, Submissions, Reports), **Library**
+  (Presentations, Photos, Photo cleanup), **People** (Teachers, Editors, Safety), and Admin log on its own. The Waiting for you
   items show a yellow count pill when something waits. `layout.tsx` reads the numbers with the `admin_todo_counts`
   rpc (if it fails, no pills) and passes them to `AdminMenu`; `page.tsx` (Overview) reads the same rpc.
 - The database still refuses non-admins on its own; the layout check only hides the pages.
 - Super admin vs plain admins (root `CLAUDE.md`, "Super Admin"): `AdminMenu` items with `superOnly` (Teachers,
-  Safety, Photo cleanup, Admin log) show only for the super admin; those pages and their actions check `isSuperAdmin`.
+  Safety, Photo cleanup, Admin log, Data check) show only for the super admin; those pages and their actions check `isSuperAdmin`.
   Admin → Photos shows a plain admin only their own photos (`uploaded_by`) and hides Categories. `setEditor` stays
   open to every admin (Admin → Editors uses it).
 
@@ -29,6 +30,7 @@ Admin-only work (things shared with every teacher, managing teachers) lives here
 | Safety (super admin only) | `safety/` | Click-limit pauses (`releasePause`) and their history (`safety/history`) |
 | Photo cleanup (super admin only) | `cleanup/` | What the weekly photo cleanup will delete |
 | Admin log (super admin only) | `activity/` | Every admin action from the `admin_actions` table, newest first, 50 a page; filter by admin and action (`?admin=`, `?action=`, `?page=`). Words for the actions: `src/lib/adminActions.ts` |
+| Data check (super admin only) | `data-check/` | "Check saved data": reads every presentation (50 at a time) and review draft with the secret-key client, parses each like the editor opens it (`rowToPresentationInput` + `presentationSchema`, which upgrades old shapes), and lists the ones that fail (slide number, zod's message). Only reads. Run it locally (`npm run dev`) before deploying a change to the saved shape (see `src/lib/CLAUDE.md`) |
 
 ## How an admin action is written
 

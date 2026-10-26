@@ -1,11 +1,12 @@
 import Link from "next/link";
-import { CheckIcon } from "lucide-react";
+import { CheckIcon, HeartIcon } from "lucide-react";
 import { CANVAS_WIDTH, CANVAS_HEIGHT, getSlideNumbers } from "@/lib/constants";
 import { Spinner } from "@/components/Spinner";
 import { FluidSlidePreview } from "@/components/presentation/FluidSlidePreview";
 import type { Slide } from "@/lib/schema";
 import { SUBMISSION_LABELS, type SubmissionStatus } from "@/lib/submissions";
 import { PresentationCardMenu } from "./PresentationCardMenu";
+import { LikeCardButton } from "./LikeCardButton";
 import { SaveCardButton } from "./SaveCardButton";
 
 export type PresentationCardData = {
@@ -40,6 +41,12 @@ export type PresentationCardData = {
   isReviewed?: boolean;
   // An editor's own published review of it: the check then says "You reviewed this".
   isReviewedByMe?: boolean;
+  // How many likes it has (see the presentation_likes migration): shown next to the details line when there are any.
+  likeCount?: number;
+  // Adds the heart button left of the bookmark (a teacher or editor, someone else's presentation), with the count
+  // in it instead. `isLiked` = I liked it.
+  canLike?: boolean;
+  isLiked?: boolean;
 };
 
 /**
@@ -129,7 +136,15 @@ export function PresentationCard({
             {line}
           </p>
         ))}
-        <p title={card.metaTitle} className="truncate text-xs text-text-secondary">{card.meta}</p>
+        <div className="flex items-center gap-2 text-xs text-text-secondary">
+          <p title={card.metaTitle} className="min-w-0 flex-1 truncate">{card.meta}</p>
+          {!card.canLike && !!card.likeCount && (
+            <span title={card.likeCount === 1 ? "1 like" : `${card.likeCount} likes`} className="flex shrink-0 items-center gap-1">
+              <HeartIcon size={12} />
+              {card.likeCount}
+            </span>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -174,6 +189,14 @@ export function PresentationCard({
         </button>
       )}
       {showMenu && <PresentationCardMenu card={card} onMoveToFolder={onMoveToFolder} />}
+      {card.canLike && (
+        <LikeCardButton
+          presentationId={card.id}
+          title={card.title}
+          likeCount={card.likeCount ?? 0}
+          isLiked={card.isLiked ?? false}
+        />
+      )}
       {card.canSave && onSavedChange && (
         <SaveCardButton
           presentationId={card.id}

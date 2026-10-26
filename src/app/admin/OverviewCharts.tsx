@@ -56,32 +56,64 @@ function buildBars(rows: OverviewRow[], days: number) {
   return bars;
 }
 
-/** One card per series: its title, the total for the range, and a bar for each day (or week). Plain server markup. */
+/**
+ * One card per series: its title, the total for the range, and a bar for each day (or week). Hovering a bar shows
+ * its date and number; the tallest bar shows its number, and the first and last dates sit under the bars.
+ * Plain server markup (the hover is CSS only).
+ */
 export function OverviewCharts({ rows, days, isSuperAdmin }: { rows: OverviewRow[]; days: number; isSuperAdmin: boolean }) {
   return (
     <>
+      <p className="mb-3 text-sm text-text-secondary">
+        Each bar is one {days < 90 ? "day" : "week"}. Taller means more. Point at a bar to see its number.
+      </p>
       <div className="grid gap-4 sm:grid-cols-2">
         {CHARTS.map(({ series, title, note }) => {
-          const own = rows.filter((row) => row.series === series);
           if (PEOPLE.includes(series) && !isSuperAdmin) return null;
-          const bars = buildBars(own, days);
+          const bars = buildBars(rows.filter((row) => row.series === series), days);
           const max = Math.max(...bars.map((bar) => bar.total));
           const sum = bars.reduce((all, bar) => all + bar.total, 0);
+          // Only the first tallest bar gets its number written on it.
+          const peak = bars.findIndex((bar) => bar.total === max);
           return (
             <div key={series} className="rounded-card border border-border-default bg-bg-surface px-5 py-4">
               <div className="flex items-baseline justify-between gap-3">
                 <h3 className="text-[11px] font-bold tracking-[0.05em] text-text-header uppercase">{title}</h3>
                 <span className="font-heading text-2xl font-extrabold text-text-primary">{sum}</span>
               </div>
-              <div className="mt-3 flex h-24 items-end gap-px border-b border-border-default">
-                {bars.map((bar) => (
-                  <div
-                    key={bar.key}
-                    title={`${bar.text}: ${bar.total}`}
-                    className="min-w-0 flex-1 rounded-t-[4px] bg-accent"
-                    style={{ height: bar.total > 0 ? `${Math.max((bar.total / max) * 100, 4)}%` : 0 }}
-                  />
-                ))}
+              {sum === 0 ? (
+                <div className="mt-3 flex h-24 items-center justify-center border-b border-border-default text-sm text-text-secondary">
+                  Nothing yet in this time.
+                </div>
+              ) : (
+                <div className="mt-3 flex h-24 items-end gap-[2px] border-b border-border-default pt-5">
+                  {bars.map((bar, index) => (
+                    // The whole column is the hover target, so thin bars are easy to point at.
+                    <div key={bar.key} className="group relative flex h-full min-w-0 flex-1 flex-col justify-end">
+                      <div
+                        className="relative shrink-0 rounded-t-[4px] bg-accent group-hover:bg-accent-hover"
+                        style={{ height: bar.total > 0 ? `${Math.max((bar.total / max) * 100, 4)}%` : 0 }}
+                      >
+                        {index === peak && (
+                          <span className="absolute inset-x-0 bottom-full pb-0.5 text-center text-[11px] font-semibold text-text-primary group-hover:invisible">
+                            {bar.total}
+                          </span>
+                        )}
+                      </div>
+                      <span
+                        className={`pointer-events-none absolute -top-2 z-10 hidden -translate-y-full whitespace-nowrap rounded-dropdown border border-border-default bg-bg-surface px-2 py-1 text-xs text-text-primary group-hover:block ${
+                          index < bars.length / 3 ? "left-0" : index > (bars.length * 2) / 3 ? "right-0" : "left-1/2 -translate-x-1/2"
+                        }`}
+                      >
+                        {bar.text}: <strong>{bar.total}</strong>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="mt-1 flex justify-between text-[11px] text-text-secondary">
+                <span>{bars[0].text}</span>
+                <span>{days < 90 ? "Today" : "This week"}</span>
               </div>
               {note && <p className="mt-2 text-xs text-text-secondary">{note}</p>}
             </div>

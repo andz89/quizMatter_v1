@@ -12,7 +12,7 @@ type Item = { href: string; label: string; superOnly?: boolean; count?: keyof To
 // `count` is the number of things waiting, shown as a small pill when it is more than 0.
 const GROUPS: { label: string; items: Item[] }[] = [
   {
-    label: "To do",
+    label: "Waiting for you",
     items: [
       { href: "/admin/presentations/reviews", label: "Under review", count: "reviews" },
       { href: "/admin/presentations/submissions", label: "Submissions", count: "submissions" },
@@ -25,6 +25,7 @@ const GROUPS: { label: string; items: Item[] }[] = [
       { href: "/admin/presentations", label: "Presentations" },
       { href: "/admin/photos", label: "Photos" },
       { href: "/admin/cleanup", label: "Photo cleanup", superOnly: true },
+      { href: "/admin/data-check", label: "Data check", superOnly: true },
     ],
   },
   {
@@ -51,7 +52,7 @@ const isCurrent = (pathname: string | null, href: string) => {
   return true;
 };
 
-/** The admin pages' menu, in groups above the page. The page you're on is highlighted. */
+/** The admin pages' menu: a column on the left of the page, in groups. The page you're on is highlighted. */
 export function AdminMenu({ isSuperAdmin, counts }: { isSuperAdmin: boolean; counts: TodoCounts }) {
   const pathname = usePathname();
 
@@ -61,15 +62,15 @@ export function AdminMenu({ isSuperAdmin, counts }: { isSuperAdmin: boolean; cou
       <Link
         key={href}
         href={href}
-        className={`flex shrink-0 items-center gap-2 whitespace-nowrap rounded-button px-3 py-2 text-sm transition-colors ${
+        className={`flex shrink-0 items-center justify-between gap-2 whitespace-nowrap rounded-button px-3 py-2 text-sm transition-colors ${
           isCurrent(pathname, href)
-            ? "bg-bg-surface font-semibold text-text-primary shadow-[0_0_0_1px_var(--border-default)]"
-            : "text-text-secondary hover:text-text-primary"
+            ? "bg-accent-soft font-semibold text-accent"
+            : "text-text-secondary hover:bg-bg-page hover:text-text-primary"
         }`}
       >
         {label}
         {number > 0 && (
-          <span className="rounded-dropdown bg-highlight-soft px-2 py-0.5 text-[12px] font-semibold text-highlight-strong">{number}</span>
+          <span className="rounded-dropdown bg-highlight px-2 py-0.5 text-[12px] font-semibold text-text-primary">{number}</span>
         )}
         <LinkPending />
       </Link>
@@ -81,17 +82,22 @@ export function AdminMenu({ isSuperAdmin, counts }: { isSuperAdmin: boolean; cou
     .filter((group) => group.items.length > 0);
 
   return (
-    // Below `sm`: one row that scrolls sideways, groups split by a line. From `sm`: each group under its label.
-    <nav className="flex gap-1 overflow-x-auto p-px sm:flex-wrap sm:gap-x-6 sm:gap-y-3 sm:overflow-visible">
+    // Below `lg`: one row above the page that scrolls sideways, groups split by a line, no labels.
+    // From `lg`: a column on the left; each named group is a card with its label on top.
+    <nav className="flex gap-1 overflow-x-auto p-px lg:flex-col lg:gap-3 lg:overflow-visible">
       {groups.map((group, index) => (
         <div
           key={index}
-          className={`flex shrink-0 flex-col gap-1 sm:gap-1 ${index > 0 ? "border-l border-border-default pl-1 sm:border-l-0 sm:pl-0" : ""}`}
+          className={`flex shrink-0 gap-1 lg:flex-col ${index > 0 ? "border-l border-border-default pl-1 lg:pl-0" : ""} ${
+            group.label ? "lg:rounded-card lg:border lg:border-border-default lg:bg-bg-surface lg:p-2" : "lg:border-l-0"
+          }`}
         >
-          <span className="hidden px-3 text-[11px] font-bold uppercase tracking-[0.05em] text-text-header sm:block">
-            {group.label || "\u00a0"}
-          </span>
-          <div className="flex gap-1">{group.items.map(renderItem)}</div>
+          {group.label && (
+            <span className="hidden px-3 pt-1 pb-1 text-[11px] font-bold uppercase tracking-[0.05em] text-accent lg:block">
+              {group.label}
+            </span>
+          )}
+          {group.items.map(renderItem)}
         </div>
       ))}
     </nav>

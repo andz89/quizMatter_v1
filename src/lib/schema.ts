@@ -310,7 +310,7 @@ export const svgElementSchema = z.object({
   // Only used by custom drawings (assetId CUSTOM_SVG_ID, e.g. drawn by Claude): the SVG markup. Shown
   // as an image, so nothing inside it can run.
   svg: svgSchema.optional(),
-  // Only used by photos (assetId PHOTO_ID) a teacher uploaded or added from a link: the copy in our own
+  // Only used by photos (assetId PHOTO_ID) a teacher uploaded: the copy in our own
   // storage, and the photo's real size (to keep its shape). Only our own storage is allowed.
   image: photoSchema.optional(),
   // Mirrored left to right (flipX) or top to bottom (flipY). Only the picture is mirrored, not the box.
@@ -351,7 +351,22 @@ export function embedLinkSchema(kind: EmbedKind) {
     });
 }
 
-export const slideSchema = z.object({
+// The version of the saved shape (presentation details and slides). Every save sends it, and the database refuses
+// a save from a lower version than the one that last saved that presentation (QMOLD), so an editor tab running
+// older code can't drop fields it doesn't know. Bump it whenever the saved shape changes: see "Changing the saved
+// shape" in src/lib/CLAUDE.md.
+export const DATA_VERSION = 0;
+
+/**
+ * Turns a saved slide of any older shape into today's shape, before the schema checks it. Each step recognizes the
+ * old shape by looking at it, with a comment saying what it was and from when. (One older fix runs after the check
+ * instead: short-answer pictures moving out of their shape box, in slideSchema's transform below.)
+ */
+export function upgradeSlide(data: unknown): unknown {
+  return data;
+}
+
+export const slideSchema = z.preprocess(upgradeSlide, z.object({
   id: idSchema,
   // choice = 4 options to pick from; true-false = 2 options ("True" and "False", editable), kept in the
   // first 2 option slots (the other 2 stay empty and hidden); short-answer = no options, the teacher types the correct answer;
@@ -425,7 +440,7 @@ export const slideSchema = z.object({
     { message: "A true-or-false answer must be True or False.", path: ["correctOptionId"] }
   )
   // Older short-answer slides kept their pictures in a shape box; they now sit on the slide itself.
-  .transform((slide) => ({ ...slide, elements: moveShortAnswerPicturesToSlide(slide) }));
+  .transform((slide) => ({ ...slide, elements: moveShortAnswerPicturesToSlide(slide) })));
 
 // The grades a teacher picks from. A presentation can have several (Grade 1 and Grade 2), plus one of its own
 // ("Other", e.g. "College"), or none.
@@ -535,6 +550,16 @@ export function withGrades<T>(details: T): T {
   return { ...rest, grades: typeof grade === "string" && grade !== "" ? [grade] : [] } as T;
 }
 
+/** Turns saved presentation data of any older shape into today's shape, before the schema checks it (see upgradeSlide). */
+export function upgradePresentation(data: unknown): unknown {
+  // Before several grades (one `grade`).
+  const details = withGrades(data);
+  if (typeof details !== "object" || details === null) return details;
+  // Before Term, and before Week and Day: none.
+  const { term = "", week = "", day = "" } = details as { term?: unknown; week?: unknown; day?: unknown };
+  return { ...details, term, week, day };
+}
+
 /**
  * Grades for people to read, neighbors joined: "Grades 1–3", "Grades 1–2, 5", "Grades K–2, 5" (K = Kindergarten),
  * and the teacher's own last ("Grade 4, College"). "" for none.
@@ -582,8 +607,8 @@ export const referenceSchema = z
   .refine((reference) => !reference.includes("://") || isWebLink(reference), "A link must start with http:// or https://");
 export const MAX_REFERENCE_LINKS = 20;
 
-// Older saved data (review drafts, an editor tab opened before several grades) has one `grade`: see withGrades.
-export const presentationSchema = z.preprocess(withGrades, z.object({
+// Older saved data is turned into today's shape first: see upgradePresentation.
+export const presentationSchema = z.preprocess(upgradePresentation, z.object({
   id: idSchema,
   title: z.string().max(DETAIL_MAX_LENGTH.title),
   // Presentation details, all optional ("" when not filled in).
@@ -591,10 +616,10 @@ export const presentationSchema = z.preprocess(withGrades, z.object({
   // The grades it's for, e.g. ["Grade 1", "Grade 2"] (none = []).
   grades: gradesSchema,
   subject: subjectSchema,
-  // The school term, week and day it's for, e.g. "Term 1", "Week 3", "Day 2" ("" = none). Older data has none.
-  term: termSchema.default(""),
-  week: weekSchema.default(""),
-  day: daySchema.default(""),
+  // The school term, week and day it's for, e.g. "Term 1", "Week 3", "Day 2" ("" = none).
+  term: termSchema,
+  week: weekSchema,
+  day: daySchema,
   curriculum: z.string().max(DETAIL_MAX_LENGTH.curriculum),
   learningCompetency: z.string().max(DETAIL_MAX_LENGTH.learningCompetency),
   // Who wrote the content: the teacher, a book, another teacher… Not who published it — that's the
@@ -656,6 +681,11 @@ export const reportSchema = z.object({
 
 // A presentation a teacher saved (the saved_presentations table, the home page's "Saved" row).
 export const savedPresentationSchema = z.object({
+  presentation_id: idSchema.min(1),
+});
+
+// A presentation a teacher or editor liked (the presentation_likes table, set_liked).
+export const likedPresentationSchema = z.object({
   presentation_id: idSchema.min(1),
 });
 

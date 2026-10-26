@@ -31,15 +31,18 @@ export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
         </span>
       </NavBar>
 
-      <main className="mx-auto w-full max-w-6xl px-4 py-8 sm:py-10">
+      <main className="w-full px-4 py-8 sm:px-6 sm:py-10 lg:px-8">
         <header className="mb-6">
           <h1 className="text-2xl font-extrabold text-text-primary">Admin</h1>
           <p className="mt-1 text-sm text-text-secondary">Things only admins can change, for every teacher.</p>
         </header>
 
-        <div className="flex flex-col gap-4">
-          <AdminMenu isSuperAdmin={isSuperAdmin} counts={counts} />
-          <div className="min-w-0">{children}</div>
+        {/* From `lg` the menu is a column on the left; below that it's a row above the page. */}
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:gap-8">
+          <div className="shrink-0 lg:sticky lg:top-6 lg:w-52">
+            <AdminMenu isSuperAdmin={isSuperAdmin} counts={counts} />
+          </div>
+          <div className="min-w-0 flex-1">{children}</div>
         </div>
       </main>
     </>

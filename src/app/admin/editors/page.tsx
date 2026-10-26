@@ -55,7 +55,7 @@ export default async function AdminEditorsPage() {
         editors.data as { user_id: string; added_at: string }[],
         settings.data as { user_id: string; display_name: string | null }[],
         bans.data.map((row) => row.user_id as string),
-        published.data as { reviewer_id: string; reviewed_on: string }[],
+        published.data as { reviewer_id: string | null; reviewed_on: string }[],
         open.data as unknown as OpenRound[],
         made.data.map((row) => row.owner_id as string),
         photos.data.map((row) => row.user_id as string),
@@ -77,7 +77,7 @@ function buildRows(
   editors: { user_id: string; added_at: string }[],
   settings: { user_id: string; display_name: string | null }[],
   bannedIds: string[],
-  published: { reviewer_id: string; reviewed_on: string }[],
+  published: { reviewer_id: string | null; reviewed_on: string }[],
   openRounds: OpenRound[],
   // One owner id per presentation, one user id per photo.
   presentationOwners: string[],

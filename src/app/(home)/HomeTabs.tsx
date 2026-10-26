@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import { MenuIcon } from "lucide-react";
 import { LinkPending } from "@/components/LinkPending";
 
-export type HomeTab = "mine" | "quizmatter" | "reviewed" | "saved" | "teachers";
+export type HomeTab = "mine" | "quizmatter" | "reviewed" | "saved" | "liked" | "teachers";
 
 // The home page's tabs, in this order.
 const TABS: { id: HomeTab; label: string; href: string }[] = [
@@ -15,14 +15,16 @@ const TABS: { id: HomeTab; label: string; href: string }[] = [
   // Editors only.
   { id: "reviewed", label: "Reviews & submissions", href: "/reviews-submissions" },
   { id: "saved", label: "Saved", href: "/saved" },
+  // Not for admins (they can't like).
+  { id: "liked", label: "Liked", href: "/liked" },
   { id: "teachers", label: "Other teachers", href: "/teachers" },
 ];
 
 /** The home page's tabs, each a link to its own page. The open one comes from the address ("/search" has none). */
-export function HomeTabs({ counts, isEditor }: { counts: Record<HomeTab, number>; isEditor: boolean }) {
+export function HomeTabs({ counts, isEditor, isAdmin }: { counts: Record<HomeTab, number>; isEditor: boolean; isAdmin: boolean }) {
   const pathname = usePathname();
   const picked = TABS.find((tab) => tab.href === pathname)?.id;
-  const tabs = TABS.filter((tab) => isEditor || tab.id !== "reviewed");
+  const tabs = TABS.filter((tab) => (isEditor || tab.id !== "reviewed") && (!isAdmin || tab.id !== "liked"));
 
   return (
     <>

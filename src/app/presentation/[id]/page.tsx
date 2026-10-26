@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { LinkPending } from "@/components/LinkPending";
 import { NavBar, navLinkClass } from "@/components/NavBar";
+import { getAccount } from "@/lib/account";
 import { fetchPresentation } from "@/lib/fetchPresentation";
 import { timeAgo } from "@/lib/format";
 import { loadLessonExtras } from "@/lib/lessons";
@@ -17,7 +18,7 @@ import { PresentationPreview } from "./PresentationPreview";
 /** A presentation to look at, not edit: mostly other teachers' published presentations (opened from the home page). */
 export default async function PresentationPage({ params }: PageProps<"/presentation/[id]">) {
   const { id } = await params;
-  const result = await fetchPresentation(id);
+  const [result, account] = await Promise.all([fetchPresentation(id), getAccount()]);
   // Someone else's private presentation is hidden by the database, so it looks like it doesn't exist.
   if (!result) notFound();
   const { presentation } = result;
@@ -40,6 +41,10 @@ export default async function PresentationPage({ params }: PageProps<"/presentat
           profileSlugs={result.profileSlugs}
           publisherName={result.publisherName}
           isSaved={result.isSaved}
+          likeCount={result.likeCount}
+          isLiked={result.isLiked}
+          // Teachers and editors like other people's published presentations; admins only see the count.
+          canLike={!result.isMine && presentation.isPublished && !account.isAdmin}
           review={result.review}
           reviewers={result.reviewers}
           waitingSince={result.isMine ? waitingSince(result.submission) : null}

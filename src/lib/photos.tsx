@@ -19,7 +19,7 @@ import { useEditorStore } from "./store";
 import { createClient } from "./supabase/client";
 import { PHOTO_ID } from "./svgLibrary";
 
-// Photos teachers add to slides, from their computer or from a link. Either way the browser shrinks the
+// Photos teachers add to slides from their computer. The browser shrinks the
 // photo and saves the copy in our own storage (see app/api/upload-image), so it never breaks later. Each
 // upload is also added to the teacher's "My photos" list (the photos table), to add again without uploading.
 
@@ -116,20 +116,6 @@ async function sendPhoto(shrunk: ShrunkPhoto, shared?: { categoryId: string; sou
   const photo = photoSchema.safeParse(result);
   if (!response.ok || !photo.success) throw new PhotoError(result?.error ?? "Couldn't upload the photo. Please try again.");
   return photo.data;
-}
-
-/** Gets the photo a link points to (through our server — see app/api/fetch-image), then uploads it. */
-export async function uploadPhotoFromLink(url: string): Promise<Photo> {
-  const response = await fetch("/api/fetch-image", {
-    method: "POST",
-    body: JSON.stringify({ url }),
-    headers: { "Content-Type": "application/json" },
-  });
-  if (!response.ok) {
-    const result = await response.json().catch(() => null);
-    throw new PhotoError(result?.error ?? "Couldn't get a photo from this link.");
-  }
-  return uploadPhoto(await response.blob());
 }
 
 // Whether a teacher's photo is uploading now: teachers add one photo at a time.
@@ -286,7 +272,7 @@ export function checkIsAdmin(): Promise<boolean> {
 }
 
 /**
- * Whether the logged-in user can upload their own photos in the editor (pick a file, paste a link, drop a file on
+ * Whether the logged-in user can upload their own photos in the editor (pick a file, drop a file on
  * a slide). For now only editors and admins can; other teachers see "This will be available soon".
  * app/api/upload-image checks the same. false if unsure.
  */
