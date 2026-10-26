@@ -2,7 +2,6 @@ import { Children, type ReactNode } from "react";
 import { notFound } from "next/navigation";
 import { ChevronDownIcon, ShieldIcon } from "lucide-react";
 import { getAccount } from "@/lib/account";
-import { BLOCKED_EMAIL_DOMAINS } from "@/lib/blockedEmailDomains";
 import { LOGIN_LIMIT, SIGN_UP_LIMIT, SIGN_UPS_PER_ADDRESS, type BrowserLimit } from "@/lib/browserLimits";
 import { KEEP_UNCONFIRMED_DAYS } from "@/lib/cleanupAccounts";
 import { KEEP_NEW_FILES_MS } from "@/lib/cleanupPhotos";
@@ -17,6 +16,7 @@ import {
   NAME_MAX_LENGTH,
   PASSWORD_MAX_LENGTH,
   PASSWORD_MIN_LENGTH,
+  THROWAWAY_EMAIL_MESSAGE,
 } from "@/lib/userSettings";
 import { MAX_PHOTO_FILE_BYTES, MAX_STORED_PHOTO_BYTES } from "@/lib/constants";
 import { PHOTO_TICKET_LIFETIME_MS } from "@/lib/photoTickets";
@@ -50,13 +50,15 @@ export default async function AdminSafetyPage() {
   if (limits.error) throw limits.error;
   const clickLimits = limits.data as ClickLimit[];
 
-  const [banned, autoBanned, pausedRows] = await Promise.all([
+  const [banned, autoBanned, blockedDomains, pausedRows] = await Promise.all([
     admin.from("banned_users").select("user_id", { count: "exact", head: true }),
     admin.from("banned_users").select("user_id", { count: "exact", head: true }).eq("is_automatic", true),
+    admin.from("blocked_email_domains").select("domain", { count: "exact", head: true }),
     buildPausedRows(admin, clickLimits),
   ]);
   if (banned.error) throw banned.error;
   if (autoBanned.error) throw autoBanned.error;
+  if (blockedDomains.error) throw blockedDomains.error;
 
   const banningLimits = clickLimits.filter((limit) => limit.ban_after_pauses);
   // Teachers, not rows: one teacher paused on two features counts once.
@@ -67,8 +69,8 @@ export default async function AdminSafetyPage() {
   return (
     <div className="flex flex-col gap-5">
       <p className="text-sm text-text-secondary">
-        Everything that stops misuse of QuizMatter, and what the teacher sees when it happens. Admins aren&apos;t
-        counted by the speed limits.
+        Everything that stops misuse of QuizMatter, and what the teacher sees when it happens. Plain admins
+        follow the speed limits too; only the super admin skips them.
       </p>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -501,16 +503,17 @@ export default async function AdminSafetyPage() {
         />
         <Item
           name="Throwaway emails refused"
-          where="Sign up page"
-          rule={`${BLOCKED_EMAIL_DOMAINS.size} common throwaway email services (like mailinator.com and yopmail.com) are refused. The list is in src/lib/blockedEmailDomains.ts`}
-          sees="“Please use your real email address (school or personal), not a throwaway one.”"
+          where="Sign up page + database (Supabase hook)"
+          rule={`${blockedDomains.count ?? 0} common throwaway email services (like mailinator.com and yopmail.com) are refused. The list is the blocked_email_domains table in the database (add one in the Supabase dashboard: Table Editor)`}
+          sees={`“${THROWAWAY_EMAIL_MESSAGE}”`}
           more={{
             what: [
-              "Throwaway email sites give anyone an inbox for a few minutes, with no sign up. They make fake accounts easy, so the sign up form refuses the best-known ones.",
-              "It's a short list on purpose: the full lists have over 100,000 sites and would make the page slow. Add a site to the list if fake sign ups keep coming from it.",
+              "Throwaway email sites give anyone an inbox for a few minutes, with no sign up. They make fake accounts easy, so QuizMatter refuses the best-known ones.",
+              "The sign up form reads the list and says no at once. Just before Supabase makes the account, the database (the hook_before_user_created function) checks the same list, so a script that skips the form is refused too.",
+              "It's a short list on purpose: the full lists have over 100,000 sites and would make the page slow. Add a site to the list if fake sign ups keep coming from it: it works at once, with no new version of the app.",
             ],
             example: "Ben tries to sign up with test123@mailinator.com and sees the message. He uses his school email instead, and it works.",
-            scenario: "Someone makes 20 throwaway inboxes to confirm 20 fake accounts. The form refuses those addresses before anything is sent.",
+            scenario: "Someone makes 20 throwaway inboxes to confirm 20 fake accounts. Those addresses are refused before any account is made or any email is sent, even from a script.",
           }}
         />
         <Item
@@ -520,7 +523,7 @@ export default async function AdminSafetyPage() {
           sees="“Too many accounts were made from this internet connection. Please try again in an hour.”"
           more={{
             what: [
-              "Just before Supabase makes a new account, it asks the database (the hook_before_user_created function), which writes down the internet address and counts how many sign ups came from it in the last hour.",
+              "Just before Supabase makes a new account, it asks the database (the hook_before_user_created function), which first refuses a throwaway email (before anything is counted), then writes down the internet address and counts how many sign ups came from it in the last hour.",
               "Supabase runs it itself, so clearing the browser, another browser or a script can't skip it. Logins aren't counted.",
               `Teachers on the same Wi-Fi share one internet address, so a school shares ${SIGN_UPS_PER_ADDRESS} an hour. A bigger group signing up together has to spread it over more than an hour.`,
             ],

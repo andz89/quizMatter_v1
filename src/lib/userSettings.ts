@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { isBlockedEmail } from "./blockedEmailDomains";
 import { createClient } from "./supabase/client";
 import { ELEMENT_PANEL_CATEGORIES, type ElementCategory } from "./svgLibrary";
 
@@ -74,25 +73,37 @@ export const profileSchema = z.object({
   bio: z.string().trim().max(BIO_MAX_LENGTH, `Use at most ${BIO_MAX_LENGTH} characters for your bio.`),
 });
 
-// Sign up doesn't ask for a bio (added later on the Account page) or a display name (made from the first + last
-// name by handle_new_user, 20261113000000_display_name_rules.sql).
-export const signUpSchema = profileSchema
-  .omit({ bio: true })
-  .extend({
-    email: z
-      .email("Enter a real email address.")
-      .refine((email) => !isBlockedEmail(email), "Please use your real email address (school or personal), not a throwaway one."),
-    password: passwordSchema,
-    confirmPassword: z.string(),
-  })
-  .refine((fields) => fields.password === fields.confirmPassword, {
-    error: "The two passwords don't match.",
-    path: ["confirmPassword"],
-  });
+// The refusal for an email at a throwaway email service (e.g. "x@mailinator.com"). The database's sign up hook
+// (hook_before_user_created, 20261210000400_blocked_email_domains.sql) refuses with the same words.
+export const THROWAWAY_EMAIL_MESSAGE = "Please use your real email address (school or personal), not a throwaway one.";
+
+/**
+ * The sign up form's rules. blockedDomains: the throwaway email services from the database's blocked_email_domains
+ * table (the sign up page reads them on the server), so the form says no at once. The sign up hook checks the same
+ * list, so a script can't skip it. Sign up doesn't ask for a bio (added later on the Account page) or a display name
+ * (made from the first + last name by handle_new_user, 20261113000000_display_name_rules.sql).
+ */
+export function signUpSchema(blockedDomains: string[]) {
+  const blocked = new Set(blockedDomains);
+  return profileSchema
+    .omit({ bio: true })
+    .extend({
+      email: z
+        .email("Enter a real email address.")
+        // What comes after the last "@", in small letters (the list is in small letters).
+        .refine((email) => !blocked.has(email.slice(email.lastIndexOf("@") + 1).toLowerCase()), THROWAWAY_EMAIL_MESSAGE),
+      password: passwordSchema,
+      confirmPassword: z.string(),
+    })
+    .refine((fields) => fields.password === fields.confirmPassword, {
+      error: "The two passwords don't match.",
+      path: ["confirmPassword"],
+    });
+}
 
 // What the forms hold: plain text in every box ("" in the dropdown until a level is picked).
 export type ProfileFields = { [K in keyof z.input<typeof profileSchema>]: string };
-export type SignUpFields = { [K in keyof z.input<typeof signUpSchema>]: string };
+export type SignUpFields = { [K in keyof z.input<ReturnType<typeof signUpSchema>>]: string };
 
 /** The Elements panel categories the signed-in user starred. Empty if they have none yet. Throws if it fails. */
 export async function loadFavoriteCategories(): Promise<ElementCategory[]> {
@@ -135,13 +146,13 @@ export async function saveDisplayName(name: string): Promise<DisplayNameResult> 
  * Makes a new account. Supabase emails a link to confirm it; the teacher can log in only after clicking it. The
  * details ride along as user metadata, and the handle_new_user trigger (20261113000000_display_name_rules.sql) copies
  * them into user_settings and makes the display name from the first + last name. If the email already has an
- * account, Supabase answers the same way and sends nothing, so strangers can't find out who has one. Throws if it
- * fails.
+ * account, Supabase answers the same way and sends nothing, so strangers can't find out who has one.
+ * blockedDomains: the throwaway email services (see signUpSchema). Throws if it fails.
  */
-export async function signUp(fields: SignUpFields, captchaToken: string) {
+export async function signUp(fields: SignUpFields, captchaToken: string, blockedDomains: string[]) {
   // Checked with zod first (see CLAUDE.md, "Saving Data"): bad data throws here and is never saved.
   const { email, password, firstName, lastName, contactNumber, educationLevel, educationField } =
-    signUpSchema.parse(fields);
+    signUpSchema(blockedDomains).parse(fields);
   const { error } = await createClient().auth.signUp({
     email,
     password,

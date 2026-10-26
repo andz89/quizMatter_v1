@@ -122,7 +122,7 @@ export function DevRequestCounter() {
         {...dragHandlers}
         onClick={() => !wasDraggedRef.current && setIsOpen(true)}
         style={placeStyle}
-        className={`${place} z-50 flex cursor-grab touch-none items-center gap-2 rounded-dropdown border border-border-default bg-bg-surface px-3 py-1.5 text-[13px] font-semibold text-text-primary`}
+        className={`${place} z-40 flex cursor-grab touch-none items-center gap-2 rounded-dropdown border border-border-default bg-bg-surface px-3 py-1.5 text-[13px] font-semibold text-text-primary`}
       >
         <ActivityIcon size={14} className="text-accent" />
         Requests: {requests.length} · {sinceClick}
@@ -151,7 +151,7 @@ export function DevRequestCounter() {
         ref={(el) => {
           boxRef.current = el;
         }}
-        className="fixed inset-4 z-50 flex flex-col gap-4 rounded-card border border-border-default bg-bg-surface px-5 py-4 text-text-primary"
+        className="fixed inset-4 z-40 flex flex-col gap-4 rounded-card border border-border-default bg-bg-surface px-5 py-4 text-text-primary"
       >
         <div className="flex items-center gap-2">
           <ActivityIcon size={16} className="text-accent" />
@@ -217,7 +217,7 @@ export function DevRequestCounter() {
         boxRef.current = el;
       }}
       style={placeStyle}
-      className={`${place} z-50 w-80 max-w-[calc(100vw-2rem)] rounded-card border border-border-default bg-bg-surface px-4 py-3 text-text-primary`}
+      className={`${place} z-40 w-80 max-w-[calc(100vw-2rem)] rounded-card border border-border-default bg-bg-surface px-4 py-3 text-text-primary`}
     >
       {/* The top bar is the handle for dragging the box anywhere on the page. */}
       <div {...dragHandlers} className="flex cursor-grab touch-none items-center gap-2">

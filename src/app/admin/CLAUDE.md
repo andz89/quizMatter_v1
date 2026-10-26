@@ -6,31 +6,38 @@ Admin-only work (things shared with every teacher, managing teachers) lives here
   left menu (`AdminMenu.tsx`: the list of pages). A new admin page = a folder here + a line in `AdminMenu`.
 - The admin pages use the full screen width. From `lg` the menu is a column on the left (it stays in place as
   you scroll); below that it is one row above the page that scrolls sideways. The menu has Overview on top, then groups, each a card with its label in violet: **Waiting for you** (Under review, Submissions, Reports), **Library**
-  (Presentations, Photos, Photo cleanup), **People** (Teachers, Editors, Safety), and Admin log on its own. The Waiting for you
-  items show a yellow count pill when something waits. `layout.tsx` reads the numbers with the `admin_todo_counts`
-  rpc (if it fails, no pills) and passes them to `AdminMenu`; `page.tsx` (Overview) reads the same rpc.
+  (Presentations, Photos, Photo cleanup, Data check), **People** (Teachers, Editors, Safety), and Admin log on its own. The Waiting for you
+  items show a yellow count pill when something waits. The numbers come from `getTodoCounts` (`todoCounts.ts`: the
+  `admin_todo_counts` rpc wrapped in React `cache`, so the layout and the page share one call per request).
+  `layout.tsx` passes them to `AdminMenu` (if the call fails, no pills); Overview's "Waiting for you" and the
+  Presentations page's "Under review (N)" and "Submissions (N)" show the same numbers. Under review counts the rounds
+  waiting for an admin (submitted), the ones the Under review list marks "Waiting for you", not the ones still being
+  reviewed.
 - The database still refuses non-admins on its own; the layout check only hides the pages.
 - Super admin vs plain admins (root `CLAUDE.md`, "Super Admin"): `AdminMenu` items with `superOnly` (Teachers,
   Safety, Photo cleanup, Admin log, Data check) show only for the super admin; those pages and their actions check `isSuperAdmin`.
-  Admin → Photos shows a plain admin only their own photos (`uploaded_by`) and hides Categories. `setEditor` stays
-  open to every admin (Admin → Editors uses it).
+  Admin → Photos shows a plain admin only their own photos (`uploaded_by`) and hides Categories. `setEditor`: only
+  the super admin gives the role (never to an admin or a banned teacher); any admin takes it away (Admin → Editors
+  uses it). `setShared` changes only a plain admin's own QuizMatter presentations (the super admin: any).
+  `deleteReportedPresentation` deletes only a reported or hidden one. The database holds the same limits
+  (`20261210000100_plain_admin_limits.sql`, root `CLAUDE.md` "Super Admin"), so these checks are only the first line.
 
 ## The pages
 
 | Menu | Folder | What it does |
 |---|---|---|
-| Overview | `page.tsx`, `OverviewCharts.tsx` | The first page. What waits for you (the To do counts, linked), then bars per day for the last 7 / 30 / 90 days (`?days=`) from the `admin_overview` rpc (reads `activity_events` and the real tables; the people charts, the logins, signups, pauses and bans, come back only for the super admin). The super admin also sees the latest admin actions |
-| Photos | `photos/` (`page.tsx`, `AdminPhotos.tsx`, `photoSearch.ts`) | Shared photo library and its categories. Editors' uploads show as **Waiting** (pill + filter) until a live QuizMatter presentation uses them; editable like the rest |
-| Presentations | `presentations/` | QuizMatter presentations, sharing, moving a teacher's one to QuizMatter |
+| Overview | `page.tsx`, `OverviewCharts.tsx` | The first page. What waits for you (the To do counts, linked), then bars per day for the last 7 / 30 / 90 days (`?days=`) from the `admin_overview` rpc (reads `activity_events` and the real tables; the people charts, the logins, signups, pauses and bans, come back only for the super admin). A chart that counts only rows still there (deleted presentations, unpublished copies, deleted accounts, each presentation's latest submission or review round) says so in its note under the bars. Reviews submitted counts each round on the day it was first submitted, so a sent-back round still counts (`first_submitted_at`, `20261210000500_admin_overview_counts.sql`). The super admin also sees the latest admin actions |
+| Photos | `photos/` (`page.tsx`, `AdminPhotos.tsx`, `photoSearch.ts`) | Shared photo library and its categories. Editors' uploads show as **Waiting** (pill + filter) until a live QuizMatter presentation uses them; editable like the rest. The photo's ✕ asks first (`ConfirmModal`); if removing fails it goes back at its old place. The "From editors" category can't be renamed or deleted (its field is read-only, delete is off; the database refuses too) |
+| Presentations | `presentations/` | QuizMatter presentations, sharing, moving a teacher's one to QuizMatter. Its "Under review (N)" and "Submissions (N)" buttons show the menu's numbers (`getTodoCounts`) |
 | ↳ Under review | `presentations/reviews/` | Review rounds: publish, send back, cancel (`[id]` = one review) |
 | ↳ Submissions | `presentations/submissions/` | Editors' submissions: approve or send back (`[id]` = one) |
-| Reports | `reports/` | Reported presentations: hide, dismiss, delete |
-| Teachers (super admin only) | `teachers/` | Ban / unban, give or take the editor role (`setEditor`) |
-| Editors | `editors/` | The editors with their review numbers and how many presentations / photos they made; remove (same `setEditor`). The name opens `[id]`: view only, their presentations (not shared copies) with each one's Submit to QuizMatter status, their reviews (published ones from `presentation_reviewers`, plus each presentation's latest round from `presentation_reviews`, which keeps no older rounds), and their uploaded photos (`photos`; file name, category, tags, … only if the photo is also a shared one, else the stored file's name and "—"; Status = Waiting / Public from `shared_photos.is_public`) |
+| Reports | `reports/` | Reported presentations: hide, dismiss (only the reports the admin saw: the action gets the newest report's time and deletes up to it), delete (only a reported or hidden one; a teacher's shared copy is deleted through its original) |
+| Teachers (super admin only) | `teachers/` | Ban / unban (a ban by hand is never marked automatic; if Supabase's step fails, a ban that already existed stays), give or take the editor role (`setEditor`). "Make editor" asks first (their published copies are removed) and doesn't show on admin or banned rows. Every account comes from `listAllUsers`; their settings and the bans are read 1,000 rows at a time (`readAll`, Supabase sends at most 1,000 per request), so none go missing |
+| Editors | `editors/` | The editors with their review numbers and how many presentations / photos they made; remove (same `setEditor`). Their emails and numbers come from the database in one call (`admin_editors` rpc, asked as the logged-in admin; never a list of every account or one request per account); names, bans and open rounds are read only for the editors (`.in(...)`). The name opens `[id]` (its one email: `auth.admin.getUserById`): view only, their presentations (not shared copies) with each one's Submit to QuizMatter status, their reviews (published ones from `presentation_reviewers`, plus each presentation's latest round from `presentation_reviews`, which keeps no older rounds), and their uploaded photos (`photos`; file name, category, tags, … and Status = Waiting / Public from `shared_photos.is_public` only if the photo is a shared one they hold, `uploaded_by` = them, found by their id; else the stored file's name and a dash in the other cells, also for a file someone else shared first) |
 | Safety (super admin only) | `safety/` | Click-limit pauses (`releasePause`) and their history (`safety/history`) |
 | Photo cleanup (super admin only) | `cleanup/` | What the weekly photo cleanup will delete |
-| Admin log (super admin only) | `activity/` | Every admin action from the `admin_actions` table, newest first, 50 a page; filter by admin and action (`?admin=`, `?action=`, `?page=`). Words for the actions: `src/lib/adminActions.ts` |
-| Data check (super admin only) | `data-check/` | "Check saved data": reads every presentation (50 at a time) and review draft with the secret-key client, parses each like the editor opens it (`rowToPresentationInput` + `presentationSchema`, which upgrades old shapes), and lists the ones that fail (slide number, zod's message). Only reads. Run it locally (`npm run dev`) before deploying a change to the saved shape (see `src/lib/CLAUDE.md`) |
+| Admin log (super admin only) | `activity/` | Every admin action from the `admin_actions` table, newest first, 50 a page; filter by admin and action (`?admin=`, `?action=`, `?page=`; the filter is a `next/form` `Form` with `FormPending` inside, so the top line shows even though only the search changes). Words for the actions: `src/lib/adminActions.ts` |
+| Data check (super admin only) | `data-check/` | "Check saved data": reads every presentation (50 at a time) and review draft with the secret-key client, parses each like the editor opens it (`rowToPresentationInput` + `presentationSchema`, which upgrades old shapes), and lists the ones that fail (slide number, zod's message). Only reads. Works only in development (`NODE_ENV === "development"`): on the live site the page says to run it on your computer and the action refuses. A review draft's row links to its review page when the round is submitted, else to the Under review list. Run it with `npm run dev` before deploying a change to the saved shape (see `src/lib/CLAUDE.md`) |
 
 ## How an admin action is written
 

@@ -7,8 +7,12 @@
 
 1. **Login:** Claude has no browser cookies, so it logs in with OAuth. Supabase is the login server; the teacher
    clicks Allow on `/oauth/consent` (`src/app/oauth`), and `/.well-known/oauth-protected-resource` tells Claude where
-   to start. `src/proxy.ts` lets `/api/mcp` through without cookies. `checkLogin` reads the token and asks the
-   database `is_admin` / `is_banned`. **For now only admins can use it.**
+   to start. The consent page shows where the login code goes (the redirect address, e.g. `claude.ai`), and Allow
+   works only when it's on Claude's own sites, `claude.ai` or `claude.com` over https (`ALLOWED_REDIRECT_HOSTS` in
+   `src/app/oauth/consent/allowedApps.ts`; `answerConsent` checks again). An app picks its own name, so the name
+   proves nothing. `src/proxy.ts` lets `/api/mcp` through without cookies. `checkLogin` reads the token and asks the
+   database `is_admin` / `is_banned`; if it can't tell whether the user is banned, it refuses. **For now only admins
+   can use it.**
 2. **The tools:**
    - `get_presentation_format`: the recipe format (`getClaudeFormat()` in `src/lib/importPresentation.ts`).
    - `read_presentation`: reads a saved presentation as a reference.
@@ -21,8 +25,9 @@
      sends each picture (a 640 px copy, `loadPicture`). Saves run as the admin, so the database rules decide: a plain
      admin only gets and changes their own photos. Never the source or `is_public`. Categories:
      `src/lib/photoCategories.ts` (shared with `/api/claude-photo`). Checked with `claudePhotoFillSchema`.
-   - `send_presentation`: `buildSlides` turns the recipe into real slides and checks them. Problems go back to
-     Claude as a report to fix. If all is well, it saves a **draft** (`src/lib/drafts.ts`) and gives a link.
+   - `send_presentation`: `buildSlides` turns the recipe into real slides and checks them (the recipe schema, then
+     `slideProblems` in `schema.ts` runs `slideSchema` on each built slide, so a too-long text is caught now like a
+     save would). Problems go back to Claude as a report to fix. If all is well, it saves a **draft** (`src/lib/drafts.ts`) and gives a link.
    - The old names (`…_lesson…`, `…_quiz…`) still work, because old chats keep the tool list they started with.
 3. **Drafts:** they live in Cloudflare D1 (`d1/migrations`), not Supabase, and last 24 hours. The link opens
    `/presentation/new?draft=<id>` (`src/app/presentation/new/page.tsx`), which loads it into the editor as a new

@@ -28,7 +28,7 @@ export type PresentationCardData = {
   badge?: "draft" | "published" | "hidden" | "checking" | "unfinished";
   // "Author: …", "Publisher: …", "Reviewer: …" rows on other people's and QuizMatter's presentations (see creditLines).
   credits?: string[];
-  // Adds "Move to QuizMatter" to the card's menu (an admin's own saved presentations only).
+  // Adds "Move to QuizMatter" to the card's menu (the super admin's own saved presentations only).
   canMoveToQuizMatter?: boolean;
   // Sent to QuizMatter (see the quizmatter_submissions migration): a second label next to the status.
   submission?: SubmissionStatus;

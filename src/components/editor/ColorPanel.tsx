@@ -4,10 +4,18 @@ import { useEffect } from "react";
 import { useEditorState } from "@tiptap/react";
 import { useEditorStore } from "@/lib/store";
 import { useFormatTexts } from "@/lib/useFormatTexts";
-import { DEFAULT_TEXT_COLOR, formatChain } from "@/lib/richText";
+import { formatChain } from "@/lib/richText";
 import { diagramStyleTargets, getDiagramBoxes, getElementAsset, withDiagramBoxStyle } from "@/lib/svgLibrary";
 import { toCssBackground } from "./ElementSvg";
-import { BORDER_WIDTH_DEFAULT, BORDER_WIDTH_MAX, DIAGRAM_BORDER_WIDTH, DIAGRAM_NONE, GRADIENT_PREFIX, SIDE_CONTAINER_ID } from "@/lib/constants";
+import {
+  BORDER_WIDTH_DEFAULT,
+  BORDER_WIDTH_MAX,
+  DEFAULT_TEXT_COLOR,
+  DIAGRAM_BORDER_WIDTH,
+  DIAGRAM_NONE,
+  GRADIENT_PREFIX,
+  SIDE_CONTAINER_ID,
+} from "@/lib/constants";
 import { PanelSlider } from "./PanelControls";
 import { XIcon } from "lucide-react";
 

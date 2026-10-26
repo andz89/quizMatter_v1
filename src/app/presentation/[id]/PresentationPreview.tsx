@@ -8,12 +8,12 @@ import { BookmarkIcon, ChevronLeftIcon, ChevronRightIcon, ClipboardCheckIcon, Ey
 import { CANVAS_WIDTH, CANVAS_HEIGHT, getSlideNumbers } from "@/lib/constants";
 import { createId } from "@/lib/id";
 import { creditLines, detailsLabel, formatDay, joinParts, slideCountLabel } from "@/lib/format";
-import { SaveRefusedError, saveErrorMessage, savePresentationToDb } from "@/lib/presentations";
+import { REFUSALS, SaveRefusedError, saveErrorMessage, savePresentationToDb } from "@/lib/presentations";
 import { startReview } from "@/lib/reviews";
 import { loadReviewStatus, type Reviewer, type ReviewStatus } from "@/lib/reviewStatus";
 import { createClient } from "@/lib/supabase/client";
 import { profileHref } from "@/lib/profiles";
-import { DETAIL_MAX_LENGTH, gradesTitle, isWebLink, type Presentation } from "@/lib/schema";
+import { DETAIL_MAX_LENGTH, gradesTitle, isNewerThanApp, isWebLink, type Presentation } from "@/lib/schema";
 import { SUBMISSION_LABELS } from "@/lib/submissions";
 import { pauseFeature, pausedUntilFromError, useIsPaused } from "@/lib/clickLimits";
 import { LinkPending } from "@/components/LinkPending";
@@ -105,11 +105,17 @@ export function PresentationPreview({
     try {
       const supabase = createClient();
       // The database hides someone else's private presentation, so finding nothing means it's private now.
-      const { data: stillVisible, error } = await supabase.from("presentations").select("id").eq("id", presentation.id).maybeSingle();
+      const { data: stillVisible, error } = await supabase.from("presentations").select("id, data_version").eq("id", presentation.id).maybeSingle();
       if (!error && !stillVisible) {
         toast.error("This presentation is private now, so it can't be copied.");
         setIsCopying(false);
         router.refresh();
+        return;
+      }
+      // Saved by newer app code than this tab runs: copying it here would drop fields this tab doesn't know.
+      if (stillVisible && isNewerThanApp(stillVisible.data_version)) {
+        toast.error(REFUSALS.QMOLD);
+        setIsCopying(false);
         return;
       }
       if ((await loadReviewStatus(supabase, presentation.id)).isLocked) {
@@ -161,8 +167,16 @@ export function PresentationPreview({
 
   const toggleSaved = async () => {
     setIsSaving(true);
-    const { status, pausedUntil } = await setPresentationSaved(presentation.id, !isSaved);
-    setIsSaving(false);
+    let result;
+    try {
+      result = await setPresentationSaved(presentation.id, !isSaved);
+    } catch {
+      toast.error("Couldn't change it. Please try again.");
+      return;
+    } finally {
+      setIsSaving(false);
+    }
+    const { status, pausedUntil } = result;
     if (status === "done") {
       setIsSaved(!isSaved);
       toast.success(isSaved ? "Removed from Saved." : "Saved. Find it in “Saved” on your home page.");

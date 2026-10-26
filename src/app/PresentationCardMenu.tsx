@@ -69,7 +69,7 @@ export function PresentationCardMenu({
     setIsBusy(false);
     if (!presentation || presentation.slides.length === 0 || !artLoaded) {
       if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
-      alert(presentation?.slides.length === 0 ? "This presentation has no slides yet." : "Couldn't open the presentation. Please try again.");
+      toast.error(presentation?.slides.length === 0 ? "This presentation has no slides yet." : "Couldn't open the presentation. Please try again.");
       return;
     }
     // The presentation view reads the editor's store, so the presentation goes in there first.
@@ -85,7 +85,8 @@ export function PresentationCardMenu({
     // On success the page reloads its list and this card goes away.
     const ok = await removePresentations(isDraft ? [] : [card.id], isDraft ? [card.id] : []);
     setIsBusy(false);
-    if (!ok) alert("Couldn't delete the presentation. Please try again.");
+    if (ok) toast.success("Presentation deleted.");
+    else toast.error("Couldn't delete the presentation. Please try again.");
   };
 
   const moveToAdminList = async () => {

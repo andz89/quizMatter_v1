@@ -315,10 +315,6 @@ function createServer(appUrl: string, userId: string, supabase: SupabaseClient) 
   return server;
 }
 
-/**
- * Checks Claude's login token (the one Supabase gave it after the user clicked Allow). The user's id and whether
- * they're an admin, or null if the token is missing, wrong or expired, or the user is banned (Admin → Teachers).
- */
 /** A photo for Claude to look at: a 640 px copy (Cloudflare makes it), or null if it can't be loaded. */
 async function loadPicture(src: string): Promise<{ type: "image"; data: string; mimeType: string } | null> {
   try {
@@ -333,6 +329,11 @@ async function loadPicture(src: string): Promise<{ type: "image"; data: string; 
   }
 }
 
+/**
+ * Checks Claude's login token (the one Supabase gave it after the user clicked Allow). The user's id and whether
+ * they're an admin, or null if the token is missing, wrong or expired, or the user is banned (Admin → Teachers).
+ * If the database can't say whether they're banned, it's null too (refused, to be safe).
+ */
 async function checkLogin(token: string): Promise<{ id: string; isAdmin: boolean; supabase: SupabaseClient } | null> {
   // Acts as that user, so is_admin() answers for them.
   const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
@@ -341,8 +342,11 @@ async function checkLogin(token: string): Promise<{ id: string; isAdmin: boolean
   });
   const { data } = await supabase.auth.getClaims(token);
   if (!data) return null;
-  const [{ data: isAdmin }, { data: isBanned }] = await Promise.all([supabase.rpc("is_admin"), supabase.rpc("is_banned")]);
-  if (isBanned === true) return null;
+  const [{ data: isAdmin }, { data: isBanned, error: bannedError }] = await Promise.all([
+    supabase.rpc("is_admin"),
+    supabase.rpc("is_banned"),
+  ]);
+  if (bannedError || isBanned !== false) return null;
   return { id: data.claims.sub, isAdmin: isAdmin === true, supabase };
 }
 

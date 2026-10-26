@@ -41,7 +41,11 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  // Every page, but not Next's own files, images, or what Claude calls without a browser login: the MCP server and
-  // its OAuth signpost (the MCP server checks Claude's own login token) and Claude's photo uploads (a one-time link).
-  matcher: ["/((?!api/mcp|api/claude-photo|\\.well-known|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
+  // Every page, but not Next's own files, the real static files (the icon files and what is in public/), or what
+  // Claude calls without a browser login: the MCP server and its OAuth signpost (the MCP server checks Claude's own
+  // login token) and Claude's photo uploads (a one-time link). A page address that only ends in ".png" still gets
+  // the login check. Add a new file in public/ here too.
+  matcher: [
+    "/((?!api/mcp|api/claude-photo|\\.well-known|_next/static|_next/image|favicon\\.ico$|icon\\.svg$|(?:file|globe|next|vercel|window)\\.svg$).*)",
+  ],
 };

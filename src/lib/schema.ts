@@ -10,6 +10,7 @@ import {
   DIAGRAM_NONE,
   DIAGRAM_SHAPES,
   DIAGRAM_TEXT_MAX,
+  DEFAULT_TEXT_COLOR,
   FACTOR_TREE_BOXES,
   FACTOR_TREE_LEVELS,
   FLOWCHART_STEPS,
@@ -17,6 +18,9 @@ import {
   TREE_BRANCHES,
   TREE_LEAVES_MAX,
   CANVAS_HEIGHT,
+  GRADIENT_PREFIX,
+  MESH_PREFIX,
+  RADIAL_PREFIX,
   CANVAS_WIDTH,
   MAX_STORED_PHOTO_BYTES,
   MIN_QUESTION_HEIGHT,
@@ -48,8 +52,9 @@ export const MAX_PRESENTATIONS = 50;
 // supabase/migrations/20261015000000_lower_saved_limit.sql.
 export const MAX_SAVED = 50;
 
-// The most saves of each kind (presentations, photos) a teacher can make in one minute (QM429; the super admin
-// isn't counted). Same as count_write in supabase/migrations/20261012000000_saved_limits.sql. Bookmarks use their own click
+// The most saves of each kind a teacher can make in one minute (QM429; the super admin isn't counted): presentations
+// (with their slides), photo uploads ('photos'), and photos rows written to the table ('photo_rows'). Same as
+// count_write, newest in supabase/migrations/20261210000300_direct_write_limits.sql. Bookmarks use their own click
 // limit instead (20261016000000_bookmarks_click_limit_only.sql). Shown on Admin → Safety.
 export const WRITES_PER_MINUTE = 30;
 
@@ -58,7 +63,23 @@ export const WRITES_PER_MINUTE = 30;
 // could stop an old presentation from opening.
 const MAX_ELEMENTS = 1000;
 export const idSchema = z.string().max(100);
-const colorSchema = z.string().max(100);
+
+// One color: hex (#rgb, #rgba, #rrggbb, #rrggbbaa), rgb() / rgba() with only numbers in it, or "transparent".
+const ONE_COLOR = String.raw`(?:#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\([0-9., %]*\)|transparent)`;
+const SAFE_COLOR = new RegExp(
+  `^(?:${ONE_COLOR}|${DIAGRAM_NONE}|(?:${GRADIENT_PREFIX}|${MESH_PREFIX}|${RADIAL_PREFIX})${ONE_COLOR}(?: *, *${ONE_COLOR})*)$`,
+);
+
+/**
+ * Whether a stored color is one the app writes: one color, "none", or a gradient / soft blend of colors
+ * ("gradient:#from,#to", "radial:…", "mesh:…"). Anything else (like url(…), which would load an outside picture
+ * into a CSS background) is refused by the schema, cleaned out by upgradeSlide, and never drawn.
+ */
+export function isSafeColor(value: string): boolean {
+  return SAFE_COLOR.test(value);
+}
+
+const colorSchema = z.string().max(100).refine(isSafeColor, "This isn't a color the app can show.");
 const plainTextSchema = z.string().max(5_000);
 const htmlSchema = z.string().max(50_000);
 const svgSchema = z.string().max(200_000);
@@ -357,13 +378,43 @@ export function embedLinkSchema(kind: EmbedKind) {
 // shape" in src/lib/CLAUDE.md.
 export const DATA_VERSION = 0;
 
+// True when a presentation was saved by newer app code than this tab runs. Copying it here would drop fields this tab
+// doesn't know, so copy paths check this first (the database refuses it too, with QMOLD).
+export function isNewerThanApp(dataVersion: number): boolean {
+  return dataVersion > DATA_VERSION;
+}
+
 /**
  * Turns a saved slide of any older shape into today's shape, before the schema checks it. Each step recognizes the
  * old shape by looking at it, with a comment saying what it was and from when. (One older fix runs after the check
  * instead: short-answer pictures moving out of their shape box, in slideSchema's transform below.)
  */
 export function upgradeSlide(data: unknown): unknown {
-  return data;
+  if (typeof data !== "object" || data === null) return data;
+  const slide: Record<string, unknown> = { ...data };
+  // "lesson" is blank's old name, from before the rename: a browser tab opened before it can still send it.
+  if (slide.type === "lesson") slide.type = "blank";
+  // Before 2026-10-26 the color fields (colorSchema) took any text, so a crafted one could hide url(…) in a
+  // background. One that isn't a color the app writes is left out (= none); an element's color becomes the default
+  // text color instead, since it can't be left out.
+  for (const field of ["background", "shapeBoxFill", "shapeBoxBorder"]) {
+    if (isUnsafeColor(slide[field])) delete slide[field];
+  }
+  if (Array.isArray(slide.elements)) slide.elements = slide.elements.map(cleanElementColors);
+  return slide;
+}
+
+function isUnsafeColor(value: unknown): boolean {
+  return typeof value === "string" && !isSafeColor(value);
+}
+
+/** An element with its unsafe colors cleaned out (see upgradeSlide). */
+function cleanElementColors(element: unknown): unknown {
+  if (typeof element !== "object" || element === null) return element;
+  const cleaned: Record<string, unknown> = { ...element };
+  if (isUnsafeColor(cleaned.color)) cleaned.color = DEFAULT_TEXT_COLOR;
+  if (isUnsafeColor(cleaned.borderColor)) delete cleaned.borderColor;
+  return cleaned;
 }
 
 export const slideSchema = z.preprocess(upgradeSlide, z.object({
@@ -375,12 +426,8 @@ export const slideSchema = z.preprocess(upgradeSlide, z.object({
   // title = a blank slide that starts with a title and a description text box (still a free canvas).
   // video / embed-slides / image = a video, a slide deck (Google Slides, Canva) or a picture from
   // another site, filling the slide (no elements, no answer).
-  // Missing = "choice" (older presentations). "lesson" is blank's old name: a browser tab opened before
-  // the rename can still send it.
-  type: z.preprocess(
-    (type) => (type === "lesson" ? "blank" : type),
-    z.enum(["choice", "true-false", "short-answer", "custom", "blank", "title", ...EMBED_SLIDE_TYPES]).optional()
-  ),
+  // Missing = "choice" (older presentations). ("lesson", blank's old name, is turned into "blank" by upgradeSlide.)
+  type: z.enum(["choice", "true-false", "short-answer", "custom", "blank", "title", ...EMBED_SLIDE_TYPES]).optional(),
   // Embed slides only: the link they show (already turned into the viewer or picture address, and
   // checked against the slide's kind below). Missing = nothing added yet.
   embedUrl: z.string().max(MAX_EMBED_URL_LENGTH).optional(),
@@ -749,3 +796,25 @@ export type PresentationDetails = Pick<
   | "transitionSpeed"
   | "isPublished"
 >;
+
+/**
+ * Checks built slides with slideSchema, like a save would, and gives one plain message per problem
+ * ("Slide 3: the question is too long (at most 5000 characters)."). Used for Claude's drafts, so it hears about a
+ * problem when it sends them, not later as a failed save.
+ */
+export function slideProblems(slides: unknown[]): string[] {
+  return slides.flatMap((slide, i) => {
+    const result = slideSchema.safeParse(slide);
+    if (result.success) return [];
+    return result.error.issues.map((issue) => {
+      // Path words: ["options", 0, "text"] -> "options 1 text"; a top-level "question" -> "the question".
+      const field = issue.path.map((part) => (typeof part === "number" ? part + 1 : part)).join(" ");
+      const what = field ? `the ${field}` : "the slide";
+      const problem =
+        issue.code === "too_big" && issue.origin === "string"
+          ? `is too long (at most ${issue.maximum} characters)`
+          : issue.message;
+      return `Slide ${i + 1}: ${what} ${problem}.`;
+    });
+  });
+}

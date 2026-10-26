@@ -6,8 +6,8 @@ import { getAccount } from "@/lib/account";
 import { ADMIN_ACTION_LABELS, type AdminAction } from "@/lib/adminActions";
 import { formatDate } from "@/lib/format";
 import { createClient } from "@/lib/supabase/server";
-import type { TodoCounts } from "./AdminMenu";
 import { OverviewCharts, type OverviewRow } from "./OverviewCharts";
+import { getTodoCounts } from "./todoCounts";
 
 const RANGES = [7, 30, 90];
 // Anything but 7, 30 or 90 shows 30 days.
@@ -34,7 +34,8 @@ export default async function AdminOverviewPage({ searchParams }: PageProps<"/ad
 
   const supabase = await createClient();
   const [todo, overview, recent] = await Promise.all([
-    supabase.rpc("admin_todo_counts").single<TodoCounts>(),
+    // The same call as the menu's pills (cached for the request).
+    getTodoCounts(),
     supabase.rpc("admin_overview", { days }),
     isSuperAdmin
       ? supabase

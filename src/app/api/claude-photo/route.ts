@@ -10,8 +10,9 @@ import { createAdminClient } from "@/lib/supabase/admin";
 /**
  * Where Claude sends a photo for the shared photo library: POST /api/claude-photo?ticket=<id>, with the WebP file
  * as the body. The ticket (from prepare_photo_upload in /api/mcp, which only admins can call) holds the photo's
- * name, description, tags, category and source, and who asked (saved as the photo's uploaded_by), so this needs no login — the proxy lets it through, and the
- * ticket is the permission. Claude converted the photo to WebP in its sandbox, like the admin page does in the
+ * name, description, tags, category and source, and who asked (saved as the photo's uploaded_by), so this needs no
+ * login — the proxy lets it through, and the ticket is the permission (its owner must still be an admin, and not
+ * banned, when the file arrives). Claude converted the photo to WebP in its sandbox, like the admin page does in the
  * browser; the file is stored exactly as it arrives. It's ready for teachers and slides at once. The answers are
  * plain sentences, as Claude reads them.
  */
@@ -49,6 +50,18 @@ export async function POST(request: Request) {
   const supabase = createAdminClient();
   if (!supabase) return answer(500, "The photo library isn't available right now. Try again later.");
 
+  // The ticket can be up to an hour old, so whoever asked for it must still be an admin, and not banned, now.
+  // (This client skips the database rules, so it's checked here.)
+  const notAllowed = "The account that asked for this upload link can't add photos anymore (it isn't an admin, or it's blocked), so nothing was added.";
+  const ownerId = z.uuid().safeParse(ticket.ownerId);
+  if (!ownerId.success) return answer(403, notAllowed);
+  const [{ data: owner, error: ownerError }, { data: ban, error: banError }] = await Promise.all([
+    supabase.from("admins").select("is_super").eq("user_id", ownerId.data).maybeSingle(),
+    supabase.from("banned_users").select("user_id").eq("user_id", ownerId.data).maybeSingle(),
+  ]);
+  if (ownerError || banError) return answer(500, "Couldn't add the photo. Send it again.");
+  if (!owner || ban) return answer(403, notAllowed);
+
   // Checked with zod right before it's saved (see CLAUDE.md, "Saving Data").
   const details = claudePhotoSchema.safeParse(ticket.details);
   if (!details.success) return answer(400, `The photo's details are wrong: ${details.error.issues[0].message}`);
@@ -60,7 +73,7 @@ export async function POST(request: Request) {
 
   // The same photo is already shared: it's left as it is (an admin may have changed its details). Its size comes
   // back so it can go on slides. An editor's photo still waiting (see the editor_photos migration) is shared
-  // properly below instead: with Claude's details, and public.
+  // properly below instead, with Claude's details, and public, but only for the super admin (like upload-image).
   const { data: existing, error: existingError } = await supabase
     .from("shared_photos")
     .select("file_name, width, height, is_public")
@@ -75,6 +88,10 @@ export async function POST(request: Request) {
       height: existing.height,
     });
   }
+  if (existing && !owner.is_super) {
+    await deletePhotoTicket(ticketId.data);
+    return answer(409, "An editor uploaded this photo. It's waiting in Admin → Photos for the super admin.");
+  }
 
   // The ticket is used up here, before anything is saved, so the same link sent twice at once adds only one photo.
   if (!(await deletePhotoTicket(ticketId.data))) {
@@ -88,7 +105,7 @@ export async function POST(request: Request) {
   let saved = false;
   if (photo.success) {
     await savePhotoFile(fileName, body, type);
-    const row = { ...photo.data, ...info, bytes: sharedPhotoBytesSchema.parse(body.byteLength), uploaded_by: z.uuid().parse(ticket.ownerId) };
+    const row = { ...photo.data, ...info, bytes: sharedPhotoBytesSchema.parse(body.byteLength), uploaded_by: ownerId.data };
     const { error } = existing
       ? await supabase.from("shared_photos").update({ ...row, is_public: true }).eq("src", src)
       : await supabase.from("shared_photos").insert(row);

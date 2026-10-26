@@ -130,7 +130,7 @@ export function ArrangePanel({ slideId, box, elements }: ArrangePanelProps) {
                   key={option}
                   type="button"
                   onClick={() => setAlignTo(option)}
-                  className={`rounded-[6px] px-2 py-0.5 text-xs font-semibold capitalize ${
+                  className={`rounded-dropdown px-2 py-0.5 text-xs font-semibold capitalize ${
                     alignTo === option ? "bg-accent text-white" : "text-text-secondary hover:text-text-primary"
                   }`}
                 >

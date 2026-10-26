@@ -59,6 +59,8 @@ function buildRows(reportRecords: ReportRecord[], hiddenRecords: HiddenRecord[],
       meta: ownerLine(names.get(report.presentation.owner_id)),
       isHidden: report.presentation.hidden_at !== null,
       reports: [],
+      // The reports come newest first, so the first one seen is the newest.
+      newestReportAt: report.created_at,
     };
     row.reports.push({
       reason: REPORT_REASON_LABELS[report.reason],
@@ -78,6 +80,7 @@ function buildRows(reportRecords: ReportRecord[], hiddenRecords: HiddenRecord[],
       meta: joinParts([ownerLine(names.get(presentation.owner_id)), `Hidden ${timeAgo(Date.parse(presentation.hidden_at), now)}`]),
       isHidden: true,
       reports: [],
+      newestReportAt: "",
     }));
 
   return { reportedRows, hiddenRows };

@@ -4,7 +4,8 @@ Slides drawn without the editor: fullscreen presenting, cards, the view page, re
 
 - `SlideStaticView.tsx`: draws one slide, view only, at full size (1280×720). The one way to draw a slide outside
   the editor, so a slide looks the same everywhere. Also has the background helpers (`getSlideBackgroundStyle`,
-  `slideBackgroundCss`), the shape box frame and `QuestionNumberBadge`, which the editor reuses.
+  `slideBackgroundCss`; they draw nothing for a color `isSafeColor` refuses, see `src/lib/CLAUDE.md`), the shape box
+  frame and `QuestionNumberBadge`, which the editor reuses.
   `revealAnswer` shows the right answer; `liveEmbed` plays a video / slide deck (only on the slide being shown).
 - `FluidSlidePreview.tsx`: a slide shrunk to fit its box's width (cards, lists, panels). Use it for any small
   picture of a slide; don't scale slides another way.

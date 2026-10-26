@@ -26,15 +26,23 @@ export async function banTeacher(userId: string, reason: string): Promise<string
   if (!admin) return "The server is missing SUPABASE_SECRET_KEY.";
 
   const supabase = await createClient();
-  const { error } = await supabase.from("banned_users").upsert(parsed.data);
+  // Someone already banned keeps their ban if Supabase's step fails below, so remember whether the row was there.
+  const { data: existing, error: readError } = await supabase
+    .from("banned_users")
+    .select("user_id")
+    .eq("user_id", parsed.data.user_id)
+    .maybeSingle();
+  if (readError) return "Couldn't ban this teacher. Please try again.";
+  // A ban by hand is never marked automatic (even when it replaces an automatic one).
+  const { error } = await supabase.from("banned_users").upsert({ ...parsed.data, is_automatic: false });
   if (error) {
     refresh();
     return error.code === "42501" ? "Admins can't be banned." : "Couldn't ban this teacher. Please try again.";
   }
   const { error: authError } = await admin.auth.admin.updateUserById(parsed.data.user_id, { ban_duration: FOREVER });
   if (authError) {
-    // Don't leave half a ban.
-    await supabase.from("banned_users").delete().eq("user_id", parsed.data.user_id);
+    // Don't leave half a ban, but never drop one that was already there.
+    if (!existing) await supabase.from("banned_users").delete().eq("user_id", parsed.data.user_id);
     refresh();
     return "Couldn't ban this teacher. Please try again.";
   }
@@ -47,20 +55,27 @@ export async function banTeacher(userId: string, reason: string): Promise<string
 const editorSchema = z.object({ user_id: z.uuid(), isEditor: z.boolean() });
 
 /**
- * Gives a teacher the editor role (they can review QuizMatter presentations) or takes it away. Taking it away
- * cancels any review they have open. Returns an error message, or null if it worked.
+ * Gives a teacher the editor role (they can review QuizMatter presentations) or takes it away. Only the super admin
+ * gives it (it removes the teacher's published copies), never to an admin or a banned teacher; any admin takes it
+ * away (Admin → Editors), which cancels any review they have open. The database checks the same (see the
+ * plain_admin_limits migration). Returns an error message, or null if it worked.
  */
 export async function setEditor(userId: string, isEditor: boolean): Promise<string | null> {
   // Checked with zod before anything is saved (see CLAUDE.md, "Saving Data").
   const parsed = editorSchema.safeParse({ user_id: userId, isEditor });
   if (!parsed.success) return "Couldn't change the editor role.";
-  if (!(await getAccount()).isAdmin) return "Only admins can change the editor role.";
+  const account = await getAccount();
+  if (!account.isAdmin) return "Only admins can change the editor role.";
+  if (parsed.data.isEditor && !account.isSuperAdmin) return "Only the super admin can make editors.";
 
   const supabase = await createClient();
+  // Someone who is already an editor stays as they are ("on conflict do nothing": nobody may change a row).
   const { error } = parsed.data.isEditor
-    ? await supabase.from("editors").upsert({ user_id: parsed.data.user_id })
+    ? await supabase.from("editors").upsert({ user_id: parsed.data.user_id }, { ignoreDuplicates: true })
     : await supabase.from("editors").delete().eq("user_id", parsed.data.user_id);
   refresh();
+  // The database refuses an admin or a banned teacher ("Make editor" is hidden on those rows).
+  if (parsed.data.isEditor && error?.code === "42501") return "Admins and banned teachers can't be editors.";
   return error ? "Couldn't change the editor role. Please try again." : null;
 }
 

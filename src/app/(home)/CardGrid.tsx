@@ -150,18 +150,31 @@ export function subjectChip(subject: string): string {
 }
 
 /**
- * "All", then each subject the tab's cards have, then "Other", each with its count. Hidden when no card has a
+ * "All", then each subject the tab's cards have (or `serverCounts` has), then "Other", each with its count. Hidden when no card has a
  * subject. A chip with no cards is left out, unless it's the picked one (e.g. after removing a bookmark).
  */
-export function SubjectChips({ cards, picked, onPick }: { cards: PresentationCardData[]; picked: string; onPick: (subject: string) => void }) {
-  const counts = new Map<string, number>();
-  for (const card of cards) {
-    const chip = subjectChip(card.subject ?? "");
-    if (chip) counts.set(chip, (counts.get(chip) ?? 0) + 1);
+export function SubjectChips({
+  cards,
+  serverCounts,
+  picked,
+  onPick,
+}: {
+  cards: PresentationCardData[];
+  // When the page doesn't have every card (From QuizMatter), the counts it read from the database.
+  serverCounts?: { total: number; bySubject: Map<string, number> };
+  picked: string;
+  onPick: (subject: string) => void;
+}) {
+  const counts = serverCounts?.bySubject ?? new Map<string, number>();
+  if (!serverCounts) {
+    for (const card of cards) {
+      const chip = subjectChip(card.subject ?? "");
+      if (chip) counts.set(chip, (counts.get(chip) ?? 0) + 1);
+    }
   }
   if (counts.size === 0 && picked === "") return null;
   const chips = [
-    { id: "", count: cards.length },
+    { id: "", count: serverCounts?.total ?? cards.length },
     ...[...SUBJECTS, OTHER_CHOICE].map((id) => ({ id, count: counts.get(id) ?? 0 })).filter(({ id, count }) => count > 0 || id === picked),
   ];
 

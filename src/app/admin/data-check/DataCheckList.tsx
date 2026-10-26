@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { SearchIcon } from "lucide-react";
+import { LinkPending } from "@/components/LinkPending";
 import { Spinner } from "@/components/Spinner";
 import { checkSavedData, type DataProblem } from "./actions";
 
@@ -60,8 +61,18 @@ export function DataCheckList() {
                 className={`grid min-h-13 ${PROBLEM_COLUMNS} items-center gap-4 border-b border-border-default px-4 py-2 text-sm last:border-b-0`}
               >
                 <div className="min-w-0">
-                  <Link href={`/presentation/${problem.id}`} className="font-semibold text-accent hover:underline">
+                  <Link
+                    href={
+                      !problem.isReviewDraft
+                        ? `/presentation/${problem.id}`
+                        : problem.isSubmitted
+                          ? `/admin/presentations/reviews/${problem.id}`
+                          : "/admin/presentations/reviews"
+                    }
+                    className="font-semibold text-accent hover:underline"
+                  >
                     {problem.title || "Untitled presentation"}
+                    <LinkPending />
                   </Link>
                   {problem.isReviewDraft && <span className="ml-2 text-[13px] text-text-secondary">(review draft)</span>}
                 </div>

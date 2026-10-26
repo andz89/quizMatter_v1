@@ -8,11 +8,11 @@ import { Modal } from "@/components/Modal";
 import { ConfirmModal } from "./ConfirmModal";
 import { Spinner } from "@/components/Spinner";
 import { TopLoadingBar } from "@/components/TopLoadingBar";
-import { forgetKeptWork, keepUnsavedWork } from "@/lib/keptWork";
+import { forgetKeptWork } from "@/lib/keptWork";
 import { SaveRefusedError, saveErrorMessage } from "@/lib/presentations";
 import { stopReview, submitReview } from "@/lib/reviews";
 import type { ReviewerFields } from "@/lib/schema";
-import { useEditorStore } from "@/lib/store";
+import { forgetLastSave, useEditorStore } from "@/lib/store";
 import { SentBackBanner } from "./SentBackBanner";
 
 /**
@@ -54,8 +54,10 @@ export function ReviewControls() {
     try {
       await stopReview(presentation.id);
       toast.success("Review stopped. Nothing was changed.");
-      // Nothing left to save, so leaving doesn't ask "Leave without saving?".
+      // Nothing left to save, so leaving doesn't save the thrown-away work (see saveBeforeLeaving), and a new review
+      // in this tab doesn't open the thrown-away draft (see lastSaveOf).
       useEditorStore.setState({ savedPresentation: presentation, review: null });
+      forgetLastSave(presentation.id);
       router.push(`/presentation/${presentation.id}`);
     } catch (error) {
       toast.error(saveErrorMessage(error, "stop the review"));
@@ -126,20 +128,21 @@ function SubmitForm({ reviewer, onClose }: { reviewer: ReviewerFields; onClose: 
 
   const send = async (e: React.FormEvent) => {
     e.preventDefault();
-    const { presentation, savedPresentation, savedAt } = useEditorStore.getState();
+    const { presentation, savedAt } = useEditorStore.getState();
     setIsSending(true);
     try {
       await submitReview(presentation, savedAt);
       forgetKeptWork(presentation.id);
       toast.success("Thanks! QuizMatter will publish this presentation in 1–2 days.");
-      // Saved with the submit, so leaving doesn't ask "Leave without saving?".
+      // Saved with the submit, so leaving doesn't save it again (see saveBeforeLeaving).
       useEditorStore.setState({ savedPresentation: presentation });
       router.push(`/presentation/${presentation.id}`);
     } catch (error) {
       // Newer app code saved it: keep the draft in the browser and ask for a reload, like a refused save.
       if (error instanceof SaveRefusedError && error.isOutdated) {
-        keepUnsavedWork({ presentation, savedPresentation, isReview: true });
-        useEditorStore.getState().setOutdated(true);
+        const store = useEditorStore.getState();
+        store.keepWorkNow();
+        store.setOutdated(true);
         onClose();
         return;
       }

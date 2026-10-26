@@ -5,6 +5,7 @@ notes.
 
 - `Spinner.tsx`: the one spinner. `TopLoadingBar.tsx`: the one top loading line. `LinkPending.tsx`: put inside a
   `<Link>` to show both at once on click (see the root `CLAUDE.md`).
+  `FormPending.tsx`: put inside a `next/form` `Form` to show the top line at once on submit (`useFormStatus`).
 - `Modal.tsx`: the one modal box (title, ✕, Escape / click outside closes, `isBusy` blocks closing, optional footer).
   For "Are you sure?" use `editor/ConfirmModal.tsx` instead, never the browser's `confirm()`.
 - `NavBar.tsx` (server only): the top bar of every page, with `AccountMenu.tsx` (Admin, Account settings, Log out).

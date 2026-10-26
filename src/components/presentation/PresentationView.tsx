@@ -245,8 +245,8 @@ export function PresentationView() {
   if (!slide) return null;
 
   const roundButtonClass =
-    // The shadow keeps the buttons easy to see when the slide behind them is white.
-    "flex h-9 w-9 items-center justify-center rounded-full bg-black/30 text-white/80 shadow-[0_1px_6px_rgba(0,0,0,0.35)] hover:bg-black/50 hover:text-white";
+    // A darker fill keeps the buttons easy to see when the slide behind them is white.
+    "flex h-9 w-9 items-center justify-center rounded-full bg-black/40 text-white/80 hover:bg-black/50 hover:text-white";
   const buttonsClass =`transition-opacity duration-300 ${showButtons ? "opacity-100" : "pointer-events-none opacity-0"}`;
 
   return (

@@ -4,6 +4,7 @@ import { TRIM_PADDING } from "@/lib/geometry";
 import { isPeopleArt, isPeopleArtLoaded, loadPeopleArt } from "@/lib/peopleArt";
 import { Spinner } from "@/components/Spinner";
 import { GRADIENT_PREFIX, TEXT_BOX_FONT_SIZE, thumbnailUrl } from "@/lib/constants";
+import { isSafeColor } from "@/lib/schema";
 import { SlideText } from "./SlideText";
 
 interface ElementSvgProps {
@@ -16,8 +17,10 @@ interface ElementSvgProps {
   onMeasure?: (width: number, height: number) => void;
 }
 
-// Turns a stored color string into a CSS background, for swatches shown outside the SVG.
+// Turns a stored color string into a CSS background, for swatches shown outside the SVG. One that isn't a color the
+// app writes (isSafeColor) draws nothing.
 export function toCssBackground(color: string) {
+  if (!isSafeColor(color)) return "transparent";
   return color.startsWith(GRADIENT_PREFIX) ? `linear-gradient(135deg, ${color.slice(GRADIENT_PREFIX.length)})` : color;
 }
 

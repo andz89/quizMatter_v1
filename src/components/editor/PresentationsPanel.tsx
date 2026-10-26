@@ -7,7 +7,9 @@ import { createClient } from "@/lib/supabase/client";
 import { CANVAS_WIDTH, CANVAS_HEIGHT, SLIDE_DRAG_MIME, getSlideNumbers } from "@/lib/constants";
 import { creditLines, detailsLabel, joinParts, slideCountLabel } from "@/lib/format";
 import { loadPublisherNames } from "@/lib/publishers";
-import { MAX_SLIDES, SUBJECTS, TOO_MANY_SLIDES_MESSAGE, gradesTitle, parseSlide, type Slide } from "@/lib/schema";
+import { MAX_SLIDES, SUBJECTS, isNewerThanApp, TOO_MANY_SLIDES_MESSAGE, gradesTitle, parseSlide, type Slide } from "@/lib/schema";
+import { toast } from "sonner";
+import { REFUSALS } from "@/lib/presentations";
 import { Spinner } from "@/components/Spinner";
 import { FluidSlidePreview } from "@/components/presentation/FluidSlidePreview";
 import { SaveCardButton } from "@/app/SaveCardButton";
@@ -22,7 +24,7 @@ const DRAG_IMAGE_WIDTH = 180;
 // Each presentation's first slide only (for its picture), not all of them, to keep the panel light. reviewers: its
 // "Reviewed by" names (teachers may read only some of that table's columns, see the hide_review_approver migration).
 const SUMMARY_COLUMNS =
-  "id, owner_id, title, grades, subject, term, week, day, author, from_admin, slides(count), first_slide:slides(data, position), reviewers:presentation_reviewers(name)";
+  "id, owner_id, title, grades, subject, term, week, day, author, from_admin, data_version, slides(count), first_slide:slides(data, position), reviewers:presentation_reviewers(name)";
 
 type PresentationSummary = {
   id: string;
@@ -37,6 +39,8 @@ type PresentationSummary = {
   // "" if it has none. The All tab has a row per subject.
   subject: string;
   firstSlide: Slide | null;
+  // Saved by newer app code than this tab runs: its slides can't be inserted here (see isNewerThanApp).
+  dataVersion: number;
 };
 
 type Tab = "all" | "saved";
@@ -187,6 +191,8 @@ export function PresentationsPanel() {
   };
 
   const showPresentation = async (presentation: PresentationSummary) => {
+    // Inserting its slides here would drop fields this older tab doesn't know.
+    if (isNewerThanApp(presentation.dataVersion)) return toast.error(REFUSALS.QMOLD);
     setOpenPresentation(presentation);
     setSlides(null);
     setSlidesError(false);
@@ -445,6 +451,7 @@ type SummaryRow = {
   day: string;
   author: string;
   from_admin: boolean;
+  data_version: number;
   slides: { count: number }[];
   first_slide: { data: unknown }[];
   reviewers: { name: string }[];
@@ -468,6 +475,7 @@ async function toSummaries(supabase: SupabaseClient, rows: SummaryRow[]): Promis
     ]),
     metaTitle: gradesTitle(row.grades),
     subject: row.subject,
+    dataVersion: row.data_version,
     firstSlide: parseSlide(row.first_slide[0]?.data),
   }));
 }

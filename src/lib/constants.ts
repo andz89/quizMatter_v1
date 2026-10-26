@@ -51,6 +51,8 @@ export const SLIDE_DRAG_MIME = "application/x-quizbuilder-slide";
 export const QUESTION_FONT_SIZE = 48;
 export const OPTION_FONT_SIZE = 56;
 export const TEXT_BOX_FONT_SIZE = 48;
+// Text color when none is set.
+export const DEFAULT_TEXT_COLOR = "#1F1F1F";
 // How small text shrinks before going below it only as a last resort (see useAutoFitText).
 const AUTO_FIT_MIN_FONT_SIZE = 22;
 

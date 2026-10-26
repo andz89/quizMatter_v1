@@ -9,12 +9,23 @@ interface ConfirmModalProps {
   confirmLabel: string;
   // Coral confirm button, for something that throws work away (e.g. Stop review).
   danger?: boolean;
+  // false: the confirm button isn't focused when the box opens, for a box that can pop up while someone types
+  // (Enter or Space would press it by accident).
+  autoFocus?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
 }
 
 /** Small centered "Are you sure?" box with Cancel and a confirm button. Escape or a click outside cancels. */
-export function ConfirmModal({ title, message, confirmLabel, danger = false, onConfirm, onCancel }: ConfirmModalProps) {
+export function ConfirmModal({
+  title,
+  message,
+  confirmLabel,
+  danger = false,
+  autoFocus = true,
+  onConfirm,
+  onCancel,
+}: ConfirmModalProps) {
   // Caught on the way down (capture) and stopped here, so the editor's shortcuts (Delete, arrows…)
   // don't act behind the box. Enter still presses the focused button.
   useEffect(() => {
@@ -49,7 +60,7 @@ export function ConfirmModal({ title, message, confirmLabel, danger = false, onC
           </button>
           <button
             type="button"
-            autoFocus
+            autoFocus={autoFocus}
             onClick={onConfirm}
             className={`h-9 rounded-button px-4 text-sm font-semibold text-white ${
               danger ? "bg-danger hover:bg-danger-strong" : "bg-accent btn-press hover:bg-accent-hover"

@@ -57,7 +57,7 @@ export function ElementContextMenu({ x, y, canCopy, canPaste, canFit, onCopy, on
     <div
       ref={ref}
       data-keep-container-selection="true"
-      className="fixed z-50 w-48 overflow-hidden rounded-dropdown border border-border-default bg-bg-surface py-1 shadow-[0_4px_16px_rgba(0,0,0,0.14)]"
+      className="fixed z-50 w-48 overflow-hidden rounded-dropdown border border-border-default bg-bg-surface py-1"
       style={{ left: x, top: y }}
       onClick={(e) => e.stopPropagation()}
     >

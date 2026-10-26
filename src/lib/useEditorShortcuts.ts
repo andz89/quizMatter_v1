@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { useEditorStore } from "./store";
-import { isTypingTarget } from "./dom";
+import { isTextFieldOrDialog, isTypingTarget } from "./dom";
 import { getContainerBounds } from "./constants";
 import { overhangFor, positionRange } from "./geometry";
 
@@ -19,8 +19,9 @@ const ARROW_DIRECTIONS: Record<string, { x: number; y: number }> = {
  * is pressed, so the listener never has to be rebuilt when the selection changes.
  *
  * - Ctrl/Cmd+S saves the presentation (also while typing)
- * - Ctrl/Cmd+Z undoes; Ctrl+Y or Ctrl/Cmd+Shift+Z redoes (also while typing, so there's only one undo history)
- * - Ctrl/Cmd+C copies and Ctrl/Cmd+V pastes the selected element(s)
+ * - Ctrl/Cmd+Z undoes; Ctrl+Y or Ctrl/Cmd+Shift+Z redoes (also in rich text, so there's only one undo history;
+ *   in a plain input or textarea the browser undoes the typing instead)
+ * - Ctrl/Cmd+C copies and Ctrl/Cmd+V pastes the selected element(s) (not while a text field or dialog has focus)
  * - Ctrl/Cmd+G groups, Ctrl/Cmd+Shift+G ungroups
  * - Ctrl/Cmd+] brings forward, Ctrl/Cmd+[ sends backward; add Alt to go all the way to the front/back
  * - Escape or Enter stops cropping
@@ -42,22 +43,26 @@ export function useEditorShortcuts() {
         state.savePresentation();
         return;
       }
+      // In a plain input or textarea, undo/redo belong to the browser (they undo the typing there).
+      const tagName = (e.target as HTMLElement | null)?.tagName;
+      const inPlainInput = tagName === "INPUT" || tagName === "TEXTAREA";
       if (isMeta && key === "z") {
+        if (inPlainInput) return;
         e.preventDefault();
         if (e.shiftKey) state.redo();
         else state.undo();
         return;
       }
       if (isMeta && key === "y") {
+        if (inPlainInput) return;
         e.preventDefault();
         state.redo();
         return;
       }
 
-      // Paste an element even while a text field has focus: the user may be typing in the
-      // option/question they want to paste into. With an empty clipboard this falls through, so
-      // normal text paste still works.
-      if (isMeta && key === "v" && state.clipboard) {
+      // Paste an element only when no text field, rich text or dialog has focus, so Ctrl+V in a
+      // text field pastes text. With an empty clipboard this falls through anyway.
+      if (isMeta && key === "v" && state.clipboard && !isTextFieldOrDialog(e.target)) {
         e.preventDefault();
         // No box clicked since copying → undefined, so each element returns to its own box.
         state.pasteClipboard(selectedSlideId, state.selectedContainerId ?? undefined);

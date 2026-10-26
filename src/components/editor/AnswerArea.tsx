@@ -75,7 +75,7 @@ export function AnswerArea({ slide, onClose }: AnswerAreaProps) {
                   key={type.value}
                   type="button"
                   onClick={() => setAnswerType(slide.id, type.value)}
-                  className={`h-7 rounded-[6px] px-3 text-sm font-semibold ${
+                  className={`h-7 rounded-dropdown px-3 text-sm font-semibold ${
                     answerType === type.value
                       ? "bg-success text-text-primary"
                       : "text-text-primary hover:bg-bg-surface"

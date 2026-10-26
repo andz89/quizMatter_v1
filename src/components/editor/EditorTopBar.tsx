@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEditorStore } from "@/lib/store";
 import { useFormatTexts } from "@/lib/useFormatTexts";
-import { ConfirmModal } from "./ConfirmModal";
 import { DetailsModal } from "./DetailsModal";
 import { SelectedElementToolbar } from "./SelectedElementToolbar";
 import { TextFormatToolbar } from "./TextFormatToolbar";
@@ -14,6 +13,8 @@ import { ReviewControls } from "./ReviewControls";
 import { ShareButton } from "./ShareButton";
 import { presentFullscreen } from "./EditorBottomBar";
 import { Spinner } from "@/components/Spinner";
+import { TopLoadingBar } from "@/components/TopLoadingBar";
+import { LinkPending } from "@/components/LinkPending";
 import { ChevronLeftIcon, PlayIcon, Redo2Icon, Undo2Icon } from "lucide-react";
 
 export function EditorTopBar() {
@@ -74,46 +75,42 @@ export function EditorTopBar() {
   );
 }
 
-/** Asks before leaving when there are unsaved changes (the browser's own "Leave page?" doesn't cover in-app links). */
+/**
+ * Goes back to the presentations. Unsaved changes are saved first (saveBeforeLeaving, the Spinner shows in the
+ * button); if they can't be saved or even kept in this browser, it stays.
+ */
 function BackToPresentationsLink() {
   // QuizMatter presentations are made on the admin page, so they go back there. A review goes back to the
   // presentation's page.
   const fromAdmin = useEditorStore((s) => s.presentation.fromAdmin);
   const reviewId = useEditorStore((s) => (s.review ? s.presentation.id : null));
   const router = useRouter();
-  const [isConfirming, setIsConfirming] = useState(false);
+  const [isLeaving, setIsLeaving] = useState(false);
   const href = reviewId ? `/presentation/${reviewId}` : fromAdmin ? "/admin/presentations" : "/";
   return (
-    <>
-      <Link
-        href={href}
-        title={reviewId ? "Back to the presentation" : fromAdmin ? "QuizMatter presentations" : "My presentations"}
-        onClick={(e) => {
-          const { presentation, savedPresentation } = useEditorStore.getState();
-          // Unsaved: stay, and ask first.
-          if (presentation === savedPresentation) return;
-          e.preventDefault();
-          setIsConfirming(true);
-        }}
-        className={historyButtonClass}
-      >
-        <ChevronLeftIcon size={18} />
-      </Link>
-      {isConfirming && (
-        <ConfirmModal
-          title="Leave without saving?"
-          message="You have unsaved changes. They're lost if you leave now."
-          confirmLabel="Leave"
-          danger
-          onConfirm={() => {
-            // An in-app move, so the browser's own "Leave page?" doesn't ask a second time.
-            setIsConfirming(false);
-            router.push(href);
-          }}
-          onCancel={() => setIsConfirming(false)}
-        />
-      )}
-    </>
+    <Link
+      href={href}
+      title={reviewId ? "Back to the presentation" : fromAdmin ? "QuizMatter presentations" : "My presentations"}
+      onClick={async (e) => {
+        const { presentation, savedPresentation, saveBeforeLeaving } = useEditorStore.getState();
+        // Nothing unsaved: the link goes right away.
+        if (presentation === savedPresentation && !isLeaving) return;
+        e.preventDefault();
+        if (isLeaving) return;
+        setIsLeaving(true);
+        const page = window.location.pathname;
+        const isSafe = await saveBeforeLeaving();
+        // Not if the teacher left another way meanwhile (e.g. the browser's Back).
+        if (window.location.pathname !== page) return;
+        if (isSafe) router.push(href);
+        else setIsLeaving(false);
+      }}
+      className={historyButtonClass}
+    >
+      {isLeaving ? <Spinner size={18} /> : <ChevronLeftIcon size={18} />}
+      {isLeaving && <TopLoadingBar />}
+      <LinkPending />
+    </Link>
   );
 }
 

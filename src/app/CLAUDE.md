@@ -11,17 +11,24 @@ The pages teachers use outside the editor. Other folders here have their own not
 | Tab | Page | Shows |
 |---|---|---|
 | My presentations | `page.tsx` → `MyPresentations.tsx` | My newest cards + Claude's drafts, my folders. "See all" → `/presentations` (a table: `presentations/PresentationList.tsx`) |
-| From QuizMatter | `quizmatter/` | What admins shared, a row per subject |
+| From QuizMatter | `quizmatter/` | What admins shared, a row per subject (first 5 each, "See all (n)" opens that subject, 20 at a time). Sort and subject live in the page link |
 | Other teachers | `teachers/` | Other teachers' published ones, 20 at a time ("Show more") |
 | Saved | `saved/` | Presentations I bookmarked (`MAX_SAVED` at most) |
-| Liked | `liked/` | Presentations I liked, newest liked first. Not shown to admins (they can't like) |
+| Liked | `liked/` | Presentations I liked, newest liked first, 20 at a time ("Show more"). Not shown to admins (they can't like) |
 | Reviews & submissions | `reviews-submissions/` | Editors only, two tables: Reviews (`MyReviews.tsx`: open, canceled, and "Published" for live ones I reviewed) and Submissions (`MySubmissions.tsx`) |
 | (search) | `search/` | Search results; the search lives in the page link (`homeSearch.ts`), so Back and shared links keep it |
 
 - `(home)/cards.ts` loads the cards (first slide only, to keep the page light) and turns rows into card data.
+  A request returns 1,000 rows at the most, so a home page never reads a list that can grow past that: it reads only
+  the cards it shows (`loadCardContext` reads my likes only for those ids, 50 at a time) and gets totals with
+  `count: "exact"`. My saved rows are the one list read whole (`loadCardContext`, the Saved tab): `MAX_SAVED` (50)
+  keeps it small.
+  From QuizMatter sends one request per subject (`bySubjectChip`): its exact count and its first 5 cards; a picked
+  subject (or `subject=none`, the "No subject" row's See all) is paged with `ShowMore` like Other teachers. Liked reads
+  my `presentation_likes` rows (newest liked first, paged by the database) with each presentation embedded.
   `CardGrid.tsx` lays them out and handles Present from a card.
-- `PresentationCard.tsx`: one card. `PresentationCardMenu.tsx`: its ⋮ menu (Edit, Present, Delete; admins: Move to
-  QuizMatter; editors: Submit to QuizMatter). `SaveCardButton.tsx`: the bookmark on other people's cards.
+- `PresentationCard.tsx`: one card. `PresentationCardMenu.tsx`: its ⋮ menu (Edit, Present, Delete; the super admin: Move
+  to QuizMatter; editors: Submit to QuizMatter). `SaveCardButton.tsx`: the bookmark on other people's cards.
   `LikeCardButton.tsx`: the heart with the like count, left of the bookmark (teachers and editors, someone else's
   presentation; `likes` in `CARD_COLUMNS`, my likes in `loadCardContext`). Where I can't like (admins), the count
   shows next to the details line instead.
@@ -62,7 +69,9 @@ the original, removes the copy. Editors can't publish (they Submit to QuizMatter
 copy in the database, in the same step (`20261125000000_shared_copy_fixes.sql`). An admin's hide sticks: a hidden
 copy can't be made private, and Admin → Reports
 "Delete for good" on a copy deletes its original too (`20261124000000_shared_copy_moderation.sql`,
-`admin/reports/actions.ts`). Only `share_presentation` / `unshare_presentation` change a copy
+`admin/reports/actions.ts`). A copy of a hidden presentation can't be published either: `share_presentation`
+refuses when its `copied_from` source, or that source's shared copy, is hidden
+(`20261210000100_plain_admin_limits.sql`). Only `share_presentation` / `unshare_presentation` change a copy
 (`20261123000000_shared_copy.sql`; app side: `src/lib/sharing.ts`, store `setPublished` / `updateSharedCopy`).
 My own lists leave copies out (`shared_from is null`) and show Published / Hidden from the copy (`mySharedCopies` in
 `(home)/cards.ts`); opening my copy's editor goes to the original. Limits (`20261103000000_share_limits.sql`,
@@ -77,10 +86,19 @@ Draft / Shared switch on the presentation itself, and aren't counted.
 - `teachers/[slug]/`: a teacher's public profile, from `src/lib/profiles.ts` (never the contact number or email).
   Below it, the QuizMatter presentations they made as an editor (`editor_presentations`, `src/lib/lessons.ts`), by
   subject, then first grade.
-- `signup/`: Turnstile check (`src/components/Turnstile.tsx`), blocked throwaway emails
-  (`src/lib/blockedEmailDomains.ts`), browser speed bumps (`src/lib/browserLimits.ts`), and a limit per internet
-  address in the database (`20261108000000_sign_up_limit.sql`). The email link opens `auth/confirm/route.ts`.
-- `login/`: login with plain-English errors and a browser speed bump. `src/proxy.ts` sends logged-out people here.
+- `signup/`: `page.tsx` (server) reads the throwaway email services from the database's `blocked_email_domains`
+  table and gives them to `SignUpForm.tsx` (the form), whose zod check (`signUpSchema(blockedDomains)` in
+  `src/lib/userSettings.ts`) refuses them at once. The database's sign up hook checks the same list, so a script
+  can't skip it, and it refuses with the same words (`THROWAWAY_EMAIL_MESSAGE`); if the page couldn't read the list,
+  the form sends anyway and shows the hook's words (`20261210000400_blocked_email_domains.sql`). Also: Turnstile
+  check (`src/components/Turnstile.tsx`), browser speed bumps (`src/lib/browserLimits.ts`), and a limit per
+  internet address in the same hook (`20261108000000_sign_up_limit.sql`). The email link opens
+  `auth/confirm/route.ts`: it checks `type` with zod (only `email`, the sign up email; add a type there if a new
+  email uses it) and, if someone is already logged in, does nothing and opens home, so a link can't swap them into
+  another account.
+- `login/`: login with plain-English errors and a browser speed bump. `src/proxy.ts` sends logged-out people here. Its
+  matcher skips only the real static files (`_next/static`, `_next/image`, `favicon.ico`, `icon.svg` and the five
+  `.svg` files in `public/`), never a page address that just ends in `.png`; a new file in `public/` must be added there.
 - `oauth/consent/` + `.well-known/`: Claude's login (see `src/pages/api/CLAUDE.md`).
 
 ## How a teacher's server action is written
@@ -92,4 +110,10 @@ server client (`@/lib/supabase/server`), `refresh()` the page's data, and return
 ## Other
 
 - `layout.tsx`: the root layout (fonts, `ClickPauseNotice`, toasts). `globals.css`: the design system.
+- `error.tsx`: the page shown when a page breaks ("Something went wrong", Try again via `retry()`, a link home). This
+  Next.js version passes `retry` (and still `reset`, which only clears the error without re-fetching).
+- Errors never use `alert()`: they show a sonner toast. The like and save buttons (`LikeCardButton`, `SaveCardButton`,
+  `LikeButton`, the preview's Save) catch a network error, show "Couldn't change it. Please try again." and stop their
+  spinner. A failed home tab count (`loadTabCounts` in `(home)/layout.tsx`) is logged and shows 0. Deleting a
+  presentation shows "Presentation deleted." `presentations/loading.tsx` is that list's top line and Spinner.
 - `dev/asset-shapes/`: development only, makes `src/lib/assetShapes.json`.

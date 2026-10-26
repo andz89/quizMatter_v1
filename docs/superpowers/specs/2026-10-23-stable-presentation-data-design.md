@@ -140,10 +140,29 @@ A new section "Changing the saved shape" in `src/lib/CLAUDE.md`, and a short poi
 - The kept copy is deleted as soon as it's restored into the editor, not after the next save.
 - Starting `DATA_VERSION` is 0; no data changes shape in this work, so nothing needs a bump yet.
 - Built differently from the text above: `start_review` is unchanged (a draft's check compares the app's version
-  with both the draft's and the live presentation's, `check_review_version`); `share_presentation` is unchanged (no
-  editor tab writes a shared copy); kept work isn't tied to a user id (only the owner or reviewer can save it
+  with both the draft's and the live presentation's, `check_review_version`); `share_presentation` was left unchanged
+  at first (no editor tab writes a shared copy), but since the 2026-10-24 fixes it gives the copy its original's
+  `data_version` (`20261210000000_data_version_cap.sql`), so copying a published presentation is checked too; kept work isn't tied to a user id (only the owner or reviewer can save it
   anyway); the "updated" box is the app's `ConfirmModal`, so it also has Cancel (the work stays kept); a review's
   Submit keeps the work too; slideSchema's older short-answer fix stays in its transform.
+- Kept work, also built differently (2026-10-24 fixes): the kept copy stays in storage until a save (or a review's
+  Submit) of that presentation works, not deleted at restore, so a crash or a second load doesn't lose it. Restoring
+  puts back only what this tab changed since its last save, against the just-loaded save time (the old one would
+  always conflict, and that conflict's reload would lose the work), merged with what the newer save did: walking the
+  kept slides, an untouched one becomes the loaded one (dropped if the newer save deleted it), a changed or new one
+  stays; then each slide the newer save added goes in right after the nearest slide before it that's in the result
+  (or first); a slide this tab deleted stays deleted. For that, the ids of the slides at the last save are kept too.
+  Nothing is kept or restored when there were no real edits (e.g. only a publish switch failed). If the browser
+  can't store the work, the box says so and "Leave page?" still asks. Toast: "Your unsaved changes are back. Saving
+  them replaces what was saved since." The work is also kept when the save on leaving the editor fails (the editor
+  saves before any move away inside the app).
+- Data version, also built differently (2026-10-24 fixes): every stored `data_version` / `draft_version` is capped
+  at the database's `current_data_version()` (0 today), whatever writes it, so a huge `app_version` can't make every
+  later save refuse (`20261210000000_data_version_cap.sql`). So a `DATA_VERSION` bump also needs a migration that
+  bumps `current_data_version()`, applied before the app deploys. "Make a copy" and inserting slides from another
+  presentation show the `QMOLD` message when the source was saved by newer app code (`isNewerThanApp`), and
+  `save_presentation` refuses such a copy too (its `copiedFrom` source). Admin → Data check runs only in development
+  (`npm run dev`): on the live site it says to run it there.
 - Deploy order: the migration must be live before the app code (the app sends `app_version`; old code still works
   against the new database).
 

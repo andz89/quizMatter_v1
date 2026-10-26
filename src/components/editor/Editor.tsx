@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
-import { useEditorStore, type EditorReview } from "@/lib/store";
+import { lastSaveOf, useEditorStore, waitForLeavingSave, type EditorReview } from "@/lib/store";
 import { buildSlides } from "@/lib/importPresentation";
 import { useEditorShortcuts } from "@/lib/useEditorShortcuts";
 import { EditorTopBar } from "./EditorTopBar";
@@ -19,7 +19,9 @@ import { SmallScreenNote } from "./SmallScreenNote";
 import { ReviewBanner } from "./ReviewControls";
 import { SentBackBanner } from "./SentBackBanner";
 import { ConfirmModal } from "./ConfirmModal";
+import { Modal } from "@/components/Modal";
 import { Spinner } from "@/components/Spinner";
+import { TopLoadingBar } from "@/components/TopLoadingBar";
 import type { Presentation } from "@/lib/schema";
 import type { SharedCopy } from "@/lib/sharing";
 import type { SubmissionStatus } from "@/lib/submissions";
@@ -68,11 +70,16 @@ export function Editor({
   canPublish?: boolean;
   submission?: SubmissionStatus;
 }) {
-  // Until the presentation below is in the store, the store still holds the placeholder (or the last presentation opened).
-  const isLoaded = useEditorStore((s) => s.presentation.id === presentation.id);
+  // The page's presentation once the editor has opened it (below). Until then the Spinner shows, and the store still
+  // holds the placeholder (or the last presentation opened).
+  const [openedFrom, setOpenedFrom] = useState<Presentation | null>(null);
+  // What was wrong in Claude's slides, shown in a box when its draft couldn't load.
+  const [draftErrors, setDraftErrors] = useState<string[]>([]);
+  const isInStore = useEditorStore((s) => s.presentation.id === presentation.id);
   const hasUnsavedChanges = useEditorStore((s) => s.presentation !== s.savedPresentation);
   const isOutdated = useEditorStore((s) => s.isOutdated);
   const setOutdated = useEditorStore((s) => s.setOutdated);
+  const keptInBrowser = useEditorStore((s) => s.keptInBrowser);
   const isPresenting = useEditorStore((s) => s.isPresenting);
   const isGridViewOpen = useEditorStore((s) => s.isGridViewOpen);
   const isElementsPanelOpen = useEditorStore((s) => s.isElementsPanelOpen);
@@ -90,35 +97,71 @@ export function Editor({
   useEditorShortcuts();
 
   useEffect(() => {
-    const store = useEditorStore.getState();
-    store.loadPresentation(presentation);
-    useEditorStore.setState({ review: review ?? null, sharedCopy: sharedCopy ?? null, canPublish, submission: submission ?? null });
-    if (draft === undefined) {
-      // Unsaved work kept before an app update's reload (see keptWork.ts) comes back now.
-      store.restoreKeptWork();
-      return;
-    }
+    let isCurrent = true;
+    // A presentation the editor just left may still be saving (saveBeforeLeaving): this opens after it, so the store
+    // isn't replaced while it saves, and coming back to it opens what was saved.
+    waitForLeavingSave().then(() => {
+      if (!isCurrent) return;
+      const store = useEditorStore.getState();
+      // What a save in this tab saved, when it's newer than the page: a leave-save that ended after the page was
+      // fetched, or browser Back/Forward showing the page as it first loaded. A Claude draft's page is always older
+      // once it's saved (opened fresh, it goes to the saved presentation instead).
+      const saved = lastSaveOf(presentation.id, review !== undefined);
+      const isSavedSince = saved !== null && (draft !== undefined || saved.savedAt > presentation.updatedAt);
+      store.loadPresentation(isSavedSince ? saved.presentation : presentation);
+      useEditorStore.setState({ review: review ?? null, sharedCopy: sharedCopy ?? null, canPublish, submission: submission ?? null });
+      // Its save time, not its own updatedAt (the time of its last edit), so the next save doesn't conflict.
+      if (isSavedSince) useEditorStore.setState({ savedAt: saved.savedAt });
+      setOpenedFrom(presentation);
+      // Unsaved work kept before an app update's reload, or when leaving couldn't save (see keptWork.ts), comes back
+      // now. A Claude draft saved since (by leaving) opens as the saved presentation.
+      if (draft === undefined || isSavedSince) {
+        store.restoreKeptWork();
+        return;
+      }
 
-    // Show the presentation's own address instead of /presentation/new?draft=…, so a reload after saving opens the
-    // saved presentation instead of another new copy.
-    window.history.replaceState(null, "", `/presentation/${presentation.id}/edit`);
-    const result = buildSlides(draft);
-    if ("errors" in result) alert(`Couldn't load the slides from Claude:\n\n${result.errors.join("\n")}`);
-    else store.importSlides(result.slides);
-    // Not in the database yet: its first save sends every slide, and fails if another tab saved it first.
-    useEditorStore.setState({ fromDraft: true, savedAt: null });
+      // Show the presentation's own address instead of /presentation/new?draft=…, so a reload after saving opens the
+      // saved presentation instead of another new copy.
+      window.history.replaceState(null, "", `/presentation/${presentation.id}/edit`);
+      const result = buildSlides(draft);
+      if ("errors" in result) setDraftErrors(result.errors);
+      else store.importSlides(result.slides);
+      // Not in the database yet: its first save sends every slide, and fails if another tab saved it first.
+      useEditorStore.setState({ fromDraft: true, savedAt: null });
+      // Work kept when leaving couldn't save it comes back over Claude's slides.
+      store.restoreKeptWork();
+    });
+    return () => {
+      isCurrent = false;
+    };
     // A new presentation/draft/review object from the server (e.g. after router.refresh()) loads it again and
     // drops unsaved edits, so don't refresh the editor page while someone is editing.
   }, [presentation, draft, review, sharedCopy, canPublish, submission]);
 
-  // Closing or reloading the tab with unsaved changes makes the browser ask "Leave page?" first. Not after an app
-  // update refused a save: the work is kept in the browser, and the reload gives it back.
+  // Leaving the editor in the app (browser Back/Forward, a link, the ← arrow) saves first (saveBeforeLeaving). React's
+  // dev mode closes and opens the editor again right after it opens: that isn't leaving, so the save checks a moment
+  // later that the editor isn't open again.
+  const isOpenRef = useRef(false);
   useEffect(() => {
-    if (!hasUnsavedChanges || isOutdated) return;
-    const handleBeforeUnload = (e: BeforeUnloadEvent) => e.preventDefault();
+    isOpenRef.current = true;
+    return () => {
+      isOpenRef.current = false;
+      useEditorStore.getState().saveBeforeLeaving(() => !isOpenRef.current);
+    };
+  }, []);
+
+  // Closing or reloading the tab with unsaved changes makes the browser ask "Leave page?" first (a save can't finish
+  // while the tab closes). Not after an app update refused a save: the work is kept once more right here (with edits
+  // made since the box opened), and the reload gives it back. It asks only if that fails.
+  useEffect(() => {
+    if (!hasUnsavedChanges) return;
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      const { isOutdated, keepWorkNow } = useEditorStore.getState();
+      if (!isOutdated || !keepWorkNow()) e.preventDefault();
+    };
     window.addEventListener("beforeunload", handleBeforeUnload);
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
-  }, [hasUnsavedChanges, isOutdated]);
+  }, [hasUnsavedChanges]);
 
   // A file dropped outside the slide's drop spots would make the browser open it, leaving the editor.
   useEffect(() => {
@@ -150,7 +193,14 @@ export function Editor({
     return () => window.removeEventListener("pointerdown", handlePointerDown);
   }, [selectedElementIds, selectedContainerId, clearElementSelection, selectContainer, closeColorPanel]);
 
-  if (!isLoaded) return null;
+  if (!isInStore || openedFrom !== presentation) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-bg-page">
+        <TopLoadingBar />
+        <Spinner size={32} />
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen flex-col">
@@ -177,11 +227,27 @@ export function Editor({
       <SmallScreenNote />
       {isGridViewOpen && <SlideGridModal />}
       {isPresenting && <PresentationView />}
+      {draftErrors.length > 0 && (
+        <Modal title="Couldn't load the slides from Claude" onClose={() => setDraftErrors([])}>
+          <ul className="list-disc space-y-1 pl-4 text-sm text-text-primary">
+            {draftErrors.map((error, index) => (
+              <li key={index}>{error}</li>
+            ))}
+          </ul>
+        </Modal>
+      )}
       {isOutdated && (
         <ConfirmModal
           title="QuizMatter was updated"
-          message="Reload to keep editing. Your changes are safe."
+          message={
+            keptInBrowser
+              ? "Reload to keep editing. Your changes are safe."
+              : "Couldn't keep your changes in this browser. Copy anything you need before reloading."
+          }
           confirmLabel="Reload"
+          // It opens by itself after a save, maybe while the teacher is still typing.
+          autoFocus={false}
+          // The reload keeps the work once more, with edits made since the box opened (see "Leave page?" above).
           onConfirm={() => window.location.reload()}
           // The work stays kept; the next save asks again.
           onCancel={() => setOutdated(false)}

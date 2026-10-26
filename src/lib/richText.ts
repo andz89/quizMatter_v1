@@ -31,9 +31,6 @@ export function formatChain(editor: Editor) {
   return editor.isEditable ? editor.chain().focus() : editor.chain().selectAll();
 }
 
-/** Text color when none is set — matches --text-primary. */
-export const DEFAULT_TEXT_COLOR = "#1F1F1F";
-
 /** Turns saved plain text (presentations made before styled text existed) into editor HTML, one paragraph per line. */
 export function textToHtml(text: string): string {
   if (text === "") return "";

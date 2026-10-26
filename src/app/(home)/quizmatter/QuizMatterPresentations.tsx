@@ -1,46 +1,84 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { Spinner } from "@/components/Spinner";
+import { TopLoadingBar } from "@/components/TopLoadingBar";
 import { OTHER_CHOICE, SUBJECTS } from "@/lib/schema";
+import { NO_SUBJECT, QUIZMATTER_ROW_SIZE } from "../../homeSearch";
 import type { PresentationCardData } from "../../PresentationCard";
-import { Cards, PartLabel, SubjectChips, subjectChip, useSavedIds } from "../CardGrid";
+import { Cards, PartLabel, SubjectChips, useSavedIds } from "../CardGrid";
+import { ShowMore } from "../ShowMore";
 
-// How many cards each subject row shows ("See all" opens the rest).
-const ROW_SIZE = 5;
-
-// An admin's presentation, with its dates so "From QuizMatter" can sort by either.
+// An admin's presentation, with its dates (kept on the card data).
 export type AdminCardData = PresentationCardData & { createdAt: number; updatedAt: number };
 
-type AdminSort = "updatedAt" | "createdAt";
+// One subject row: its exact count in the database and the cards read for it (the first few, or a page of them).
+export type SubjectGroup = { id: string; count: number; cards: AdminCardData[] };
+
+type AdminSort = "updated" | "newest";
 
 const ADMIN_SORTS: { id: AdminSort; label: string }[] = [
-  { id: "updatedAt", label: "Last changed" },
-  { id: "createdAt", label: "Newest" },
+  { id: "updated", label: "Last changed" },
+  { id: "newest", label: "Newest" },
 ];
 
-/** "From QuizMatter" (the /quizmatter page): a row per subject, subject chips, and Last changed / Newest. */
-export function QuizMatterPresentations({ cards }: { cards: AdminCardData[] }) {
-  const [adminSort, setAdminSort] = useState<AdminSort>("updatedAt");
-  // The picked subject chip ("" = All).
-  const [subject, setSubject] = useState("");
+/**
+ * "From QuizMatter" (the /quizmatter page): a row per subject, subject chips, and Last changed / Newest. The sort and
+ * the picked subject live in the page link, so the server reads only the cards that show.
+ */
+export function QuizMatterPresentations({
+  groups,
+  counts,
+  total,
+  subject,
+  sort,
+  shown,
+  grouped,
+}: {
+  groups: SubjectGroup[];
+  counts: Record<string, number>;
+  total: number;
+  subject: string;
+  sort: AdminSort;
+  shown: number;
+  // true: a row per subject (All); false: one list of the picked subject, with "Show more".
+  grouped: boolean;
+}) {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+  const cards = groups.flatMap((group) => group.cards);
   const { savedIds, onSavedChange } = useSavedIds(cards);
-
-  const sorted = [...cards].sort((a, b) => b[adminSort] - a[adminSort]);
-  const shown = subject === "" ? sorted : sorted.filter((card) => subjectChip(card.subject ?? "") === subject);
   const cardsProps = { savedIds, onSavedChange };
+
+  // The top line and spinner show at once, and stay until the server sends the new cards.
+  const open = (next: { subject?: string; sort?: AdminSort }) => {
+    const params = new URLSearchParams();
+    const nextSubject = next.subject ?? subject;
+    const nextSort = next.sort ?? sort;
+    if (nextSubject) params.set("subject", nextSubject);
+    if (nextSort !== "updated") params.set("sort", nextSort);
+    const query = params.toString();
+    startTransition(() => router.push(`/quizmatter${query ? `?${query}` : ""}`, { scroll: false }));
+  };
+
+  // The chips: every subject with something shared (the "no subject" ones have no chip).
+  const bySubject = new Map(Object.entries(counts).filter(([id, count]) => id !== NO_SUBJECT && count > 0));
 
   return (
     <>
-      {cards.length > 0 && (
-        <div className="mb-4 flex justify-end gap-1">
+      {isPending && <TopLoadingBar />}
+      {total > 0 && (
+        <div className="mb-4 flex items-center justify-end gap-1">
+          {isPending && <Spinner size={16} />}
           {ADMIN_SORTS.map(({ id, label }) => (
             <button
               key={id}
               type="button"
-              aria-pressed={adminSort === id}
-              onClick={() => setAdminSort(id)}
+              aria-pressed={sort === id}
+              onClick={() => open({ sort: id })}
               className={`rounded-dropdown px-2.5 py-1 text-[13px] font-semibold transition-colors ${
-                adminSort === id ? "bg-accent-soft text-accent" : "text-text-secondary hover:text-text-primary"
+                sort === id ? "bg-accent-soft text-accent" : "text-text-secondary hover:text-text-primary"
               }`}
             >
               {label}
@@ -49,53 +87,59 @@ export function QuizMatterPresentations({ cards }: { cards: AdminCardData[] }) {
         </div>
       )}
 
-      <SubjectChips cards={cards} picked={subject} onPick={setSubject} />
+      <SubjectChips
+        cards={cards}
+        serverCounts={{ total, bySubject }}
+        picked={subject === NO_SUBJECT ? "" : subject}
+        onPick={(chip) => open({ subject: chip })}
+      />
 
       <section className="mb-10">
-        {subject === "" && shown.some((card) => card.subject) ? (
-          <SubjectGroups {...cardsProps} cards={shown} onSeeAll={setSubject} />
+        {grouped && groups.length > 0 ? (
+          <SubjectGroups {...cardsProps} groups={groups} onSeeAll={(id) => open({ subject: id })} />
         ) : (
-          <Cards {...cardsProps} cards={shown} empty="QuizMatter hasn't shared any presentations yet." />
+          <>
+            <Cards {...cardsProps} cards={cards} empty="QuizMatter hasn't shared any presentations yet." />
+            {/* Reads the address, so it waits for it in the browser. */}
+            <Suspense>
+              <ShowMore shown={shown} total={groups[0]?.count ?? 0} />
+            </Suspense>
+          </>
         )}
       </section>
     </>
   );
 }
 
-/**
- * The cards in groups by subject (list order, then "Other", then no subject), one row each. "See all" picks that
- * subject's chip, which shows all of them.
- */
+/** The groups in list order, then "Other", then no subject, one row each. "See all" opens that subject. */
 function SubjectGroups({
-  cards,
+  groups,
   onSeeAll,
   ...cardsProps
 }: {
-  cards: PresentationCardData[];
+  groups: SubjectGroup[];
   onSeeAll: (subject: string) => void;
   savedIds: Set<string>;
   onSavedChange: (card: PresentationCardData, isSaved: boolean) => void;
 }) {
-  const groups = [...SUBJECTS, OTHER_CHOICE, ""]
-    .map((id) => ({ id, cards: cards.filter((card) => subjectChip(card.subject ?? "") === id) }))
-    .filter((group) => group.cards.length > 0);
+  const order: string[] = [...SUBJECTS, OTHER_CHOICE, NO_SUBJECT];
+  const sorted = [...groups].sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id));
 
   return (
     <div className="flex flex-col gap-6">
-      {groups.map(({ id, cards }) => (
+      {sorted.map(({ id, count, cards }) => (
         <div key={id}>
           <div className="flex items-center gap-3">
             <PartLabel className="mr-auto">
-              {id || "No subject"} · {cards.length}
+              {id === NO_SUBJECT ? "No subject" : id} · {count}
             </PartLabel>
-            {/* "No subject" has no chip to open, so it shows all its cards. */}
-            {id && cards.length > ROW_SIZE && (
+            {count > QUIZMATTER_ROW_SIZE && (
               <button type="button" onClick={() => onSeeAll(id)} className="mb-2 text-sm font-semibold text-text-primary hover:underline">
-                See all ({cards.length})
+                See all ({count})
               </button>
             )}
           </div>
-          <Cards {...cardsProps} cards={id ? cards.slice(0, ROW_SIZE) : cards} empty="" />
+          <Cards {...cardsProps} cards={cards} empty="" />
         </div>
       ))}
     </div>

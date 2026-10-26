@@ -1,10 +1,12 @@
-import { presentationSchema, type Presentation } from "./schema";
+import { presentationSchema, type Presentation, type Slide } from "./schema";
 
 // Unsaved work kept in this browser when a save is refused because newer app code saved the presentation (QMOLD,
-// see the data_version migration). The tab reloads to get the new code, and the editor then puts the work back
-// (upgraded to today's shape by presentationSchema). One per presentation; it stays until a save of that
+// see the data_version migration), or when the save on leaving the editor fails (saveBeforeLeaving in store.ts).
+// After a QMOLD the tab reloads to get the new code. The editor puts the work back the next time it opens that
+// presentation (upgraded to today's shape by presentationSchema). One per presentation; it stays until a save of that
 // presentation works (forgetKeptWork), so a crash or a second load doesn't lose it. Storage can be blocked or full
-// (private windows), so every read and write is allowed to fail: the work is then lost, as it would be without this.
+// (private windows), so every read and write is allowed to fail: keepUnsavedWork then says so (false), and the
+// editor tells the teacher.
 
 const keyFor = (id: string) => `qm-unsaved:${id}`;
 
@@ -21,13 +23,19 @@ type KeptWork = {
   presentation: Presentation;
   // Slides still the same as at the last save.
   unchangedSlideIds: string[];
+  // The slides at the last save, so restoring can tell slides a newer save added from ones this tab deleted.
+  savedSlideIds: string[];
   // Details (title, grades, …) changed since the last save.
   changedDetails: string[];
   isReview: boolean;
   keptAt: number;
 };
 
-/** Keeps the editor's unsaved presentation until a save of it works. */
+/**
+ * Keeps the editor's unsaved presentation until a save of it works. True when it's kept, or when there's nothing
+ * worth keeping (no edits, e.g. only a publish switch failed: then nothing is stored). False when the browser
+ * couldn't store it.
+ */
 export function keepUnsavedWork({
   presentation,
   savedPresentation,
@@ -36,29 +44,58 @@ export function keepUnsavedWork({
   presentation: Presentation;
   savedPresentation: Presentation | null;
   isReview: boolean;
-}): void {
-  const savedSlides = new Set(savedPresentation?.slides);
+}): boolean {
+  const savedSlides = savedPresentation?.slides ?? [];
+  const savedSlideSet = new Set(savedSlides);
+  const changedDetails = Object.keys(presentation).filter(
+    (key) => !NOT_EDITS.has(key) && presentation[key as keyof Presentation] !== savedPresentation?.[key as keyof Presentation]
+  );
+  const sameSlides =
+    presentation.slides.length === savedSlides.length && presentation.slides.every((slide, i) => slide === savedSlides[i]);
+  if (sameSlides && changedDetails.length === 0) return true;
   const work: KeptWork = {
     presentation,
-    unchangedSlideIds: presentation.slides.filter((slide) => savedSlides.has(slide)).map((slide) => slide.id),
-    changedDetails: Object.keys(presentation).filter(
-      (key) => !NOT_EDITS.has(key) && presentation[key as keyof Presentation] !== savedPresentation?.[key as keyof Presentation]
-    ),
+    unchangedSlideIds: presentation.slides.filter((slide) => savedSlideSet.has(slide)).map((slide) => slide.id),
+    savedSlideIds: savedSlides.map((slide) => slide.id),
+    changedDetails,
     isReview,
     keptAt: Date.now(),
   };
   try {
     localStorage.setItem(keyFor(presentation.id), JSON.stringify(work));
+    return true;
   } catch (error) {
     console.error("Couldn't keep the unsaved work", error);
+    return false;
   }
+}
+
+/**
+ * The kept slides merged with the ones as they open now. Walked in the kept order: an untouched slide becomes the
+ * loaded one (dropped if a newer save deleted it), a changed or new one stays. Then each loaded slide that wasn't
+ * there at this tab's last save (a newer save added it) goes in right after the nearest slide before it that's in
+ * the result, or first. A slide this tab deleted stays deleted.
+ */
+function mergeSlides(kept: Slide[], unchangedIds: Set<string>, savedIds: Set<string>, loaded: Slide[]): Slide[] {
+  const loadedById = new Map(loaded.map((slide) => [slide.id, slide]));
+  const slides = kept.flatMap((slide) => (unchangedIds.has(slide.id) ? (loadedById.get(slide.id) ?? []) : slide));
+  const keptIds = new Set(kept.map((slide) => slide.id));
+  loaded.forEach((slide, i) => {
+    if (savedIds.has(slide.id) || keptIds.has(slide.id)) return;
+    const before = loaded
+      .slice(0, i)
+      .map((earlier) => slides.findIndex((s) => s.id === earlier.id))
+      .findLast((index) => index !== -1);
+    slides.splice(before === undefined ? 0 : before + 1, 0, slide);
+  });
+  return slides;
 }
 
 /**
  * `loaded` (the presentation as it opens now) with the kept changes put back on it, or null. Null if there's none,
  * if it's older than KEEP_FOR_MS (then removed), if it was kept in the other mode (a review draft vs the owner's
- * editor), or if it can't be read even after upgrading (then it stays in storage, so it isn't lost for good).
- * Doesn't remove it: forgetKeptWork does, once it's saved.
+ * editor), if it can't be read even after upgrading (then it stays in storage, so it isn't lost for good), or if it
+ * gives back nothing that isn't already in `loaded`. Doesn't remove it: forgetKeptWork does, once it's saved.
  */
 export function takeKeptWork(loaded: Presentation, isReview: boolean): Presentation | null {
   try {
@@ -76,16 +113,30 @@ export function takeKeptWork(loaded: Presentation, isReview: boolean): Presentat
       return null;
     }
     const work = result.data;
-    const unchanged = new Set(Array.isArray(kept.unchangedSlideIds) ? kept.unchangedSlideIds : []);
-    const loadedSlides = new Map(loaded.slides.map((slide) => [slide.id, slide]));
-    // A detail renamed by an upgrade isn't in `work` under its old name: then the loaded one stays.
-    const changed = (Array.isArray(kept.changedDetails) ? kept.changedDetails : []).filter(
-      (key) => !NOT_EDITS.has(key) && key in work
+    let slides = mergeSlides(
+      work.slides,
+      new Set(Array.isArray(kept.unchangedSlideIds) ? kept.unchangedSlideIds : []),
+      new Set(Array.isArray(kept.savedSlideIds) ? kept.savedSlideIds : []),
+      loaded.slides
     );
+    // A presentation always has a slide. None left (this tab and the newer save deleted all the others between
+    // them): the loaded ones stay.
+    if (slides.length === 0) slides = loaded.slides;
+    // A detail renamed by an upgrade isn't in `work` under its old name: then the loaded one stays. One the newer
+    // save gave the same value isn't a change.
+    const changed = (Array.isArray(kept.changedDetails) ? kept.changedDetails : []).filter(
+      (key) =>
+        !NOT_EDITS.has(key) &&
+        key in work &&
+        JSON.stringify(work[key as keyof Presentation]) !== JSON.stringify(loaded[key as keyof Presentation])
+    );
+    const sameSlides = slides.length === loaded.slides.length && slides.every((slide, i) => slide === loaded.slides[i]);
+    // Nothing to give back.
+    if (sameSlides && changed.length === 0) return null;
     return {
       ...loaded,
       ...Object.fromEntries(changed.map((key) => [key, work[key as keyof Presentation]])),
-      slides: work.slides.map((slide) => (unchanged.has(slide.id) && loadedSlides.get(slide.id)) || slide),
+      slides,
     };
   } catch (error) {
     console.error("Couldn't read the kept work", error);

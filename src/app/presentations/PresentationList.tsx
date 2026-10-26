@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
+import { toast } from "sonner";
 import { Spinner } from "@/components/Spinner";
 import { ConfirmModal } from "@/components/editor/ConfirmModal";
 import { SUBMISSION_LABELS } from "@/lib/submissions";
@@ -91,8 +92,10 @@ export function PresentationList({ rows, folders }: { rows: PresentationRow[]; f
   const deleteChecked = () => {
     setIsConfirming(false);
     startDeleting(async () => {
-      if (await removeRows(checked)) setCheckedIds(new Set());
-      else alert("Couldn't delete some presentations. Please try again.");
+      if (await removeRows(checked)) {
+        setCheckedIds(new Set());
+        toast.success(checked.length === 1 ? "Presentation deleted." : "Presentations deleted.");
+      } else toast.error("Couldn't delete some presentations. Please try again.");
     });
   };
 
@@ -248,7 +251,8 @@ function PresentationListRow({
   const remove = () => {
     setIsConfirmingRemove(false);
     startRemoving(async () => {
-      if (!(await removeRows([row]))) alert("Couldn't delete the presentation. Please try again.");
+      if (await removeRows([row])) toast.success("Presentation deleted.");
+      else toast.error("Couldn't delete the presentation. Please try again.");
     });
   };
 

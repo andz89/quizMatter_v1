@@ -315,7 +315,7 @@ export function Workspace() {
             <ToolPanelButton
               title={isFull ? TOO_MANY_SLIDES_MESSAGE : "Add slide"}
               disabled={isFull}
-              buttonClassName="h-12 w-full rounded-card bg-bg-surface text-base font-semibold text-text-secondary shadow-[0_1px_3px_rgba(0,0,0,0.08)] transition hover:text-accent hover:shadow-[0_2px_8px_rgba(0,0,0,0.1)] aria-expanded:text-accent"
+              buttonClassName="h-12 w-full rounded-card bg-bg-surface text-base font-semibold text-text-secondary transition hover:text-accent aria-expanded:text-accent"
               panelWidthClassName="w-auto"
               closeOnAnyClick
               openAbove

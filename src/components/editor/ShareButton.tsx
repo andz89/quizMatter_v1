@@ -143,8 +143,10 @@ export function ShareButton() {
     setIsSwitching(false);
     // Paused for switching too often: the box closes, and the notice at the bottom says until when.
     if (problem !== null && !fromAdmin && (isPaused("share") || (value && isPaused("publish")))) return setConfirming(null);
+    // "" = already told (e.g. the "QuizMatter was updated" box shows): this box closes, so two boxes don't stack.
+    if (problem === "") return setConfirming(null);
     // Any other failure keeps the box open and says why, so the teacher can try again or cancel.
-    if (problem !== null) return problem && toast.error(problem);
+    if (problem !== null) return toast.error(problem);
     setConfirming(null);
     if (fromAdmin) toast.success(value ? "Shared — every teacher has it now." : "Back to a draft — only you can see it.");
     else toast.success(value ? "Presentation published — other teachers can see it now." : "Presentation is private now.");
@@ -175,8 +177,8 @@ export function ShareButton() {
     // QuizMatter gets what the editor sees, so unsaved edits are saved first.
     if (!(await savePresentation({ quiet: true }))) {
       setIsSubmitting(false);
-      // The "QuizMatter was updated" box already says what to do.
-      if (useEditorStore.getState().isOutdated) return;
+      // The "QuizMatter was updated" box already says what to do: this box closes, so the two don't stack.
+      if (useEditorStore.getState().isOutdated) return setIsSubmitConfirming(false);
       return toast.error("Couldn't save your changes, so it wasn't sent. Please try again.");
     }
     const error = await submitToQuizMatter(id);

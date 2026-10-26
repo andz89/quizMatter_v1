@@ -1,6 +1,8 @@
+import Form from "next/form";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { z } from "zod";
+import { FormPending } from "@/components/FormPending";
 import { LinkPending } from "@/components/LinkPending";
 import { getAccount } from "@/lib/account";
 import { ADMIN_ACTION_LABELS, adminActionSchema, type AdminAction } from "@/lib/adminActions";
@@ -101,7 +103,7 @@ export default async function AdminActivityPage({ searchParams }: PageProps<"/ad
 
   return (
     <div className="flex flex-col gap-4">
-      <form method="get" className="flex flex-wrap items-center gap-2">
+      <Form action="/admin/activity" className="flex flex-wrap items-center gap-2">
         <select name="admin" defaultValue={admin ?? ""} aria-label="Admin" className={selectClass}>
           <option value="">All admins</option>
           {admins.map(([id, name]) => (
@@ -124,7 +126,8 @@ export default async function AdminActivityPage({ searchParams }: PageProps<"/ad
         >
           Filter
         </button>
-      </form>
+        <FormPending />
+      </Form>
 
       <div className="overflow-x-auto rounded-card border border-border-default bg-bg-surface">
         {rows.length === 0 ? (

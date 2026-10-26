@@ -7,7 +7,7 @@ import { DAYS, GRADES, OTHER_CHOICE, SUBJECTS, TERMS, WEEKS, gradesTitle, isOthe
 import { contains, searchWords } from "@/lib/search";
 import { loadMySubmissions, type SubmissionStatus } from "@/lib/submissions";
 import type { PresentationCardData } from "../PresentationCard";
-import { changedSince, type HomeSearch } from "../homeSearch";
+import { changedSince, NO_SUBJECT, type HomeSearch } from "../homeSearch";
 
 // Each presentation's first slide only (for the card's picture), not all of them, to keep the page light.
 // reviewers: who is in its "Reviewed by" list, for the check and the Reviewer row on its card (everyone sees them).
@@ -40,9 +40,6 @@ export type CardPresentation = {
 
 // "saved": my saved row for it (only mine come back), for sorting by when I saved it.
 export type SavedPresentation = CardPresentation & { saved?: { saved_at: string }[] };
-
-// "liked": my like row for it (only mine come back), for sorting by when I liked it.
-export type LikedPresentation = CardPresentation & { liked?: { liked_at: string }[] };
 
 // A presentations query, whatever columns it selects ("any": each select gives its rows their own type).
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -224,6 +221,26 @@ export function draftCard(draft: DraftSummary, now: number) {
 }
 
 /**
+ * Which of these presentations I liked: only these ids are read, never every like (a request returns 1,000 rows at
+ * the most). The database only gives back my own likes. 50 ids at a time, so the request's link stays short.
+ */
+async function myLikedIds(supabase: SupabaseClient, ids: string[]): Promise<string[]> {
+  const batches = Array.from({ length: Math.ceil(ids.length / 50) }, (_, i) => ids.slice(i * 50, i * 50 + 50));
+  const results = await Promise.all(batches.map((batch) => supabase.from("presentation_likes").select("presentation_id").in("presentation_id", batch)));
+  return results.flatMap(({ data, error }) => {
+    if (error) throw error;
+    return data.map((row) => row.presentation_id as string);
+  });
+}
+
+/** Only the presentations under a subject chip: a list subject, "Other" (one not on the list), or NO_SUBJECT. */
+export function bySubjectChip<Q extends PresentationQuery>(query: Q, chip: string): Q {
+  if (chip === NO_SUBJECT) return query.eq("subject", "") as Q;
+  if (chip === OTHER_CHOICE) return query.neq("subject", "").not("subject", "in", inList(SUBJECTS)) as Q;
+  return query.eq("subject", chip) as Q;
+}
+
+/**
  * What cards of other people's presentations need: which ones I saved (bookmark) and liked, and the publisher's name
  * for other teachers' ones. `toSavableCard` is someone else's presentation, which I can save (bookmark) and like
  * (not admins: they only see the count) from its card.
@@ -232,14 +249,12 @@ export function draftCard(draft: DraftSummary, now: number) {
 export async function loadCardContext(supabase: SupabaseClient, rows: CardPresentation[], me: string) {
   const [savedRows, likedRows, publisherNames, account] = await Promise.all([
     supabase.from("saved_presentations").select("presentation_id"),
-    // The database only gives back my own likes.
-    supabase.from("presentation_likes").select("presentation_id"),
+    myLikedIds(supabase, rows.map((p) => p.id)),
     loadPublisherNames(supabase, rows.filter((p) => !p.from_admin).map((p) => p.owner_id)),
     getAccount(),
   ]);
   if (savedRows.error) throw savedRows.error;
-  if (likedRows.error) throw likedRows.error;
-  const likedIds = new Set<string>(likedRows.data.map((row) => row.presentation_id));
+  const likedIds = new Set<string>(likedRows);
   const savedIds = new Set<string>(savedRows.data.map((row) => row.presentation_id));
   const now = Date.now();
   const toSavableCard = (p: CardPresentation): PresentationCardData => ({

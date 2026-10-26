@@ -16,6 +16,8 @@ export type ReportedRow = {
   isHidden: boolean;
   // Newest first. Empty for a hidden presentation nobody reported (anymore).
   reports: { reason: string; note: string; when: string }[];
+  // The newest report's exact time ("" when there are none): Dismiss clears only reports up to it.
+  newestReportAt: string;
 };
 
 /** The reported presentations (most reported first), and the hidden ones without reports, to unhide later. */
@@ -71,7 +73,7 @@ function Row({ row }: { row: ReportedRow }) {
 
   const dismiss = () =>
     startTransition(async () => {
-      if (await dismissReports(row.id)) toast.success("Reports dismissed.");
+      if (await dismissReports(row.id, row.newestReportAt)) toast.success("Reports dismissed.");
       else toast.error("Couldn't dismiss the reports. Please try again.");
     });
 

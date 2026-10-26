@@ -13,7 +13,9 @@ where user_id = (select id from auth.users where email = 'andzrivero89@gmail.com
 -- Stop here if that account isn't an admin: else nobody would be super admin.
 do $$
 begin
-  if not exists (select 1 from public.admins where is_super) then
+  if not exists (select 1 from public.admins where is_super) and not exists (select 1 from auth.users) then
+    raise notice 'No users yet (fresh local database), so no super admin was set.';
+  elsif not exists (select 1 from public.admins where is_super) then
     raise exception 'andzrivero89@gmail.com is not in public.admins, so no super admin was set.';
   end if;
 end;

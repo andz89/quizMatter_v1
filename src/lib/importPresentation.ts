@@ -43,8 +43,9 @@ import {
   GRADIENT_PREFIX,
   MESH_PREFIX,
   RADIAL_PREFIX,
+  DEFAULT_TEXT_COLOR,
 } from "./constants";
-import { DEFAULT_TEXT_COLOR, markupToHtml, stripMarkup } from "./richText";
+import { markupToHtml, stripMarkup } from "./richText";
 import { BACKGROUND_COLORS, BACKGROUND_GRADIENTS, BACKGROUND_MESHES } from "./slideBackground";
 import { fitInBox, MIN_ELEMENT_SIZE, TRIM_PADDING, type Rect, type Size } from "./geometry";
 import ASSET_SHAPES from "./assetShapes.json";
@@ -91,6 +92,7 @@ import {
   weekSchema,
   daySchema,
   tagsSchema,
+  slideProblems,
   type Slide,
   type SvgElement,
 } from "./schema";
@@ -900,6 +902,9 @@ export function buildSlides(
     buildSlide(recipe, (message) => errors.push(`Slide ${i + 1}: ${message}`)),
   );
   if (errors.length) return { errors };
+  // Check the built slides like a save would, so a too-long text is caught now and not as a failed save later.
+  const problems = slideProblems(built.map(({ slide }) => slide));
+  if (problems.length) return { errors: problems };
   const report = built
     .map(({ slide, report }, i) => {
       const recipe = parsed.data.slides[i];

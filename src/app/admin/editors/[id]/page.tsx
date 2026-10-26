@@ -24,7 +24,7 @@ export default async function AdminEditorPage({ params }: PageProps<"/admin/edit
     return <Empty>This page needs the secret key SUPABASE_SECRET_KEY on the server.</Empty>;
   }
 
-  const [user, editor, settings, presentations, submissions, published, rounds, photos] = await Promise.all([
+  const [user, editor, settings, presentations, submissions, published, rounds, photos, shared] = await Promise.all([
     admin.auth.admin.getUserById(id),
     admin.from("editors").select("added_at").eq("user_id", id).maybeSingle(),
     admin.from("user_settings").select("display_name").eq("user_id", id).maybeSingle(),
@@ -45,22 +45,20 @@ export default async function AdminEditorPage({ params }: PageProps<"/admin/edit
       .eq("reviewer_id", id)
       .in("status", ["reviewing", "submitted", "canceled"]),
     admin.from("photos").select("id, src, width, height, created_at").eq("user_id", id).order("created_at", { ascending: false }),
+    // Their uploads also become shared photos (file name, category, tags, …) held by them (uploaded_by), found by
+    // their id rather than by every photo's address. A file someone else shared first stays that person's.
+    admin
+      .from("shared_photos_search")
+      .select("src, file_name, description, tags, source, category_name, bytes, is_public")
+      .eq("uploaded_by", id),
   ]);
-  for (const result of [editor, settings, presentations, submissions, published, rounds, photos]) {
+  for (const result of [editor, settings, presentations, submissions, published, rounds, photos, shared]) {
     if (result.error) throw result.error;
   }
   // Not an editor (or the account is gone) = not found.
   if (!editor.data || user.error || !user.data.user) notFound();
 
-  // A photo they uploaded may also be a shared photo, which has a file name, category, tags, …
   const photoRows = photos.data ?? [];
-  const shared = photoRows.length
-    ? await admin
-        .from("shared_photos_search")
-        .select("src, file_name, description, tags, source, category_name, bytes, is_public")
-        .in("src", photoRows.map((photo) => photo.src))
-    : { data: [], error: null };
-  if (shared.error) throw shared.error;
 
   const email = user.data.user.email ?? "";
   const name = (settings.data?.display_name as string | null) ?? "";
@@ -188,7 +186,7 @@ export default async function AdminEditorPage({ params }: PageProps<"/admin/edit
                   </span>
                 </td>
                 {/* Waiting = in Admin → Photos, but no teacher can see it until a live QuizMatter presentation uses it.
-                    No shared copy (a JPEG, or removed): "—". */}
+                    No shared copy of theirs (a JPEG, removed, or a file someone else shared first): the empty dash. */}
                 <td className="px-3 py-2">
                   {!info ? (
                     <span className="text-text-secondary">—</span>

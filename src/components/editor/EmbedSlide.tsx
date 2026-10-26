@@ -40,7 +40,7 @@ function getEmbed(kind: EmbedKind, url: string | undefined): Embed | null {
 /** The rounded box the embed sits in, filling the slide's content area. Dark behind players, clear behind pictures. */
 function EmbedFrame({ dark, children }: { dark: boolean; children: ReactNode }) {
   return (
-    <div className={`relative min-h-0 flex-1 overflow-hidden rounded-card ${dark ? "bg-[#111111]" : ""}`}>{children}</div>
+    <div className={`relative min-h-0 flex-1 overflow-hidden rounded-card ${dark ? "bg-text-primary" : ""}`}>{children}</div>
   );
 }
 

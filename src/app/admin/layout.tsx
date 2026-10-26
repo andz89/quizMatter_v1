@@ -3,8 +3,8 @@ import { notFound } from "next/navigation";
 import { LinkPending } from "@/components/LinkPending";
 import { NavBar, navLinkClass } from "@/components/NavBar";
 import { getAccount } from "@/lib/account";
-import { createClient } from "@/lib/supabase/server";
-import { AdminMenu, type TodoCounts } from "./AdminMenu";
+import { AdminMenu } from "./AdminMenu";
+import { getTodoCounts } from "./todoCounts";
 
 /**
  * Every admin page: a header and a left menu. Anyone who isn't an admin gets "page not found", so teachers
@@ -15,8 +15,8 @@ export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
   if (!isAdmin) notFound();
 
   // What's waiting for an admin, shown as pills in the menu. If this fails, the menu just shows no pills.
-  const supabase = await createClient();
-  const { data } = await supabase.rpc("admin_todo_counts").single<TodoCounts>();
+  // The page may ask too (Overview, Presentations): one call, cached for the request.
+  const { data } = await getTodoCounts();
   const counts = { reviews: data?.reviews ?? 0, submissions: data?.submissions ?? 0, reports: data?.reports ?? 0 };
 
   return (

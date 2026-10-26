@@ -23,7 +23,7 @@ import { ImageIcon, SearchIcon, XIcon } from "lucide-react";
 const TABS = ["Photos", "My Photos"] as const;
 
 /**
- * Adds photos. The "My Photos" tab: pick from the computer (several at once is fine), and
+ * Adds photos. The "My Photos" tab: pick one photo from the computer, and
  * below, what the teacher uploaded before, to click or drag onto the slide again. Photos can also be dragged
  * from the computer straight onto the slide (see useElementDropTarget). The "Photos" tab has the photos admins
  * shared with every teacher, in a row per category, and a search bar that filters them (see SharedPhotos).

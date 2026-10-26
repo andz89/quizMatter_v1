@@ -21,6 +21,11 @@ export const SORTS = [
   { id: "title", label: "A–Z" },
 ] as const;
 
+// From QuizMatter's "See all" for the presentations with no subject (the one subject choice that has no chip).
+export const NO_SUBJECT = "none";
+// How many cards each subject row of From QuizMatter shows ("See all" opens the rest).
+export const QUIZMATTER_ROW_SIZE = 5;
+
 // Cards per "Show more" step (search results and Other teachers).
 export const PAGE_SIZE = 20;
 // The most cards "Show more" can show.

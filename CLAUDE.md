@@ -90,13 +90,23 @@ Keep the code:
 - Easy to maintain and modify
 - Free of unnecessary abstractions, hooks, utilities, or patterns unless they provide a real benefit
 
+# Tests
+
+Run `npm test` (Node's built-in test runner). Tests sit next to the code as `*.test.ts` in `src/`. A test can import only `.ts` files whose own imports are `.ts` (no `.tsx`, no JSON); `@/` means `src/`. SQL tests are in `supabase/tests/`; each rolls back what it did. Run them only on the local Docker
+database, never the live one: `npx -y supabase@latest db reset` (replays every migration), then
+`docker exec -i supabase_db_quizBuilder psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/<file>.sql`. A file's
+first lines say when it must run as `-U supabase_admin -d postgres` instead (`account_delete.sql`,
+`blocked_email_domains.sql`). It passes when it ends with `ROLLBACK` and no `FAIL` or `ERROR`.
+
 # Saving Data
 
 Validate all input data with zod before saving it to Supabase — from the editor, forms, Claude (the MCP server), or anywhere else. Parse it with the matching zod schema right before the insert/update/rpc call, and don't save anything that fails. Put limits (like maximum text length) in the zod schema, so they're checked in one place.
 
 Changing the saved shape of a presentation or slide (a new field, a renamed one, a removed value) follows the rules
 in `src/lib/CLAUDE.md`, "Changing the saved shape": upgrade old data in `upgradeSlide` / `upgradePresentation`, bump
-`DATA_VERSION`, and run Admin → Data check before deploying.
+`DATA_VERSION`, bump the database's `current_data_version()` to the same number in a migration, and run Admin → Data
+check before deploying. Apply that migration before the app deploys: every saved version is capped at it, so until
+then older tabs aren't refused.
 
 # Click Limits (pausing a feature clicked too fast)
 
@@ -112,10 +122,10 @@ A feature's `ban_after_pauses` (in `click_limits`; bookmarks: 3) turns a chain o
 
 Editors (teachers an admin trusts) review shared QuizMatter presentations; an admin publishes or sends back each review. Full design: `docs/superpowers/specs/2026-10-04-presentation-reviews-design.md`. When changing it, keep these rules:
 
-- **Editor role:** the `editors` table and `is_editor()`. Admins give or take it in Admin → Teachers (`setEditor`); Admin → Editors (`src/app/admin/editors`) lists the editors with their review numbers, open round and how many presentations / photos they made, and can remove them (same `setEditor`); a name opens `/admin/editors/<id>`, a view-only page of their presentations (with submission status), their reviews and their uploaded photos. Taking it away cancels that editor's open review.
+- **Editor role:** the `editors` table and `is_editor()`. Only the super admin gives it, in Admin → Teachers (`setEditor`; a box asks first, since their published copies are removed; never to an admin or a banned teacher, which the database refuses too), and any admin takes it away; Admin → Editors (`src/app/admin/editors`) lists the editors with their review numbers, open round and how many presentations / photos they made, and can remove them (same `setEditor`); a name opens `/admin/editors/<id>`, a view-only page of their presentations (with submission status), their reviews and their uploaded photos. Taking it away cancels that editor's open review.
 - **One round at a time** per presentation, in `presentation_reviews`: reviewing → submitted → published (or sent back to reviewing, or canceled by Stop review). While reviewing or submitted the presentation is **locked**: database triggers refuse every change to it and its slides (error `QMREV`), except hiding. Only `publish_review` gets through. A round whose reviewer's account is gone doesn't lock, and admins can cancel any open round ("Cancel review" on the Under review list).
 - **The reviewer's work is a draft** in `presentation_reviews.draft`, never in `presentations` / `slides`, until an admin publishes. A reviewer can't change the author, sharing, owner or "from QuizMatter".
-- **The rules live in the database functions** (`start_review`, `save_review_draft`, `submit_review`, `stop_review`, `publish_review`, `send_back_review`, `set_review_open`, `admin_cancel_review`, `review_status`, `my_reviews`, `admin_reviews`, `admin_reviewers`), each checking who is calling. Change a rule there, not only in the app. Migrations: `20261019000000_presentation_reviews.sql`, `20261020000000_review_submit_checks.sql`, `20261021000000_review_approvals.sql`, `20261022000000_review_fixes.sql`, `20261025000000_review_reopen_and_canceled.sql`, `20261102000000_review_auto_reviewer.sql`, `20261202000000_author_updates.sql`, `20261203000000_author_update_published.sql`.
+- **The rules live in the database functions** (`start_review`, `save_review_draft`, `submit_review`, `stop_review`, `publish_review`, `send_back_review`, `set_review_open`, `admin_cancel_review`, `review_status`, `my_reviews`, `admin_reviews`, `admin_reviewers`), each checking who is calling. Change a rule there, not only in the app. Migrations: `20261019000000_presentation_reviews.sql`, `20261020000000_review_submit_checks.sql`, `20261021000000_review_approvals.sql`, `20261022000000_review_fixes.sql`, `20261025000000_review_reopen_and_canceled.sql`, `20261102000000_review_auto_reviewer.sql`, `20261202000000_author_updates.sql`, `20261203000000_author_update_published.sql`, `20261209000000_data_version.sql` (newest `save_review_draft`, `publish_review` and `admin_reviewers`: a draft keeps its `draft_version`, and an older app tab's save or submit is refused, `QMOLD`), `20261210000000_data_version_cap.sql` (`draft_version` is capped at `current_data_version()`), `20261210000200_database_fixes.sql` (newest `check_review_draft`: a draft is checked like the tables check, so a bad one is refused at save, not at publish), `20261210000500_admin_overview_counts.sql` (newest `start_review` and `submit_review`: a round keeps its first submit's time, `first_submitted_at`, for Admin → Overview).
 - **"Reviewed by" is automatic:** there is no form. On submit, `submit_review` takes the reviewer's name (display name, or the part of the email before "@") and email from their account; the app sends only the date (the reviewer's today). No background text.
 - **In the app:** reviewer saves go through `src/lib/reviews.ts` (zod first); reads through `src/lib/reviewStatus.ts`. The editor's review mode is `review` in the store plus `ReviewControls` (Save as draft + the ⋮ menu). A submitted review opens view only (`ReviewSubmittedView`, no editor). Admin pages are under `src/app/admin/presentations/reviews`. On the home pages, editors get a "Reviews & submissions" page (`/reviews-submissions`, `src/app/(home)/reviews-submissions/page.tsx`): one `ReviewsTable` with their open and canceled rounds ("Canceled by QuizMatter" / "by you", from `my_reviews()`) and, below them, the live presentations they reviewed ("Published", from their `presentation_reviewers` rows), then their submissions (see "Submit to QuizMatter") in a `SubmissionsTable`. After an admin publishes a review, nobody can start another until the admin turns on "Open to all editors". `ReviewDraftView` and `PresentDraftButton` are shared by the reviewer's and the admin's pages; reuse them.
 - **Author updates:** the editor who made a QuizMatter lesson (its approved submission's editor, `lesson_editor`)
@@ -161,11 +171,18 @@ Admins are split in two. Full design: `docs/superpowers/specs/2026-10-16-super-a
   with `is_super_admin()` in the database and `getAccount().isSuperAdmin` in the app.
 - **Plain admins** (every other admin, `is_admin()` still true): Admin → Photos (only the shared photos they
   uploaded, `shared_photos.uploaded_by`), Presentations (no "+ New presentation"), Reports, Editors. Not Teachers,
-  Safety or Photo cleanup (hidden, "page not found", actions refuse). No "Move to QuizMatter". They make categories
+  Safety, Photo cleanup, Admin log or Data check (hidden, "page not found", actions refuse). No "Move to QuizMatter". They make categories
   but can't rename or delete them. Their presentations (editor or Claude) are QuizMatter ones, like every admin's.
   They follow the speed limits (`count_write`, `count_click`, the 30-day name wait), but a click limit only pauses
   them, never bans them automatically; every admin still skips the
   50-presentation limit (approving a submission makes a copy the admin owns).
+- **These rules live in the database too** (`20261210000100_plain_admin_limits.sql`), so a direct API call can't skip
+  them: on someone else's presentation a plain admin only reads it, hides or shows it
+  (`guard_admin_presentation_update`), and deletes it when it or its shared copy is reported or hidden. Changing an
+  owner or "from QuizMatter" (Move to QuizMatter), sharing someone else's QuizMatter presentation, adding rows for
+  someone else and giving the editor role are the super admin's. A former admin (taken out of `admins`) can't
+  delete QuizMatter presentations. The database's own functions (reviews, submissions, sharing, account delete)
+  still work: the guard only stops direct writes (`current_user = 'authenticated'`).
 - A new super-admin-only rule goes in the database with `is_super_admin()`, not only in the app.
 - **Deleting an admin's account** (Supabase dashboard) first moves their QuizMatter presentations to the super admin,
   so teachers keep them; deleting a super admin who owns some, with no other super admin, is refused
@@ -187,6 +204,7 @@ When the user clicks something that opens another page, show a thin line at the 
 
 - The app has exactly ONE top line component, in `src/components/TopLoadingBar.tsx` (its animation is `--animate-top-bar` in `globals.css`). Always reuse it. Never build a second one or add a package for it.
 - For links, put `src/components/LinkPending.tsx` inside the `<Link>`. It uses Next.js's `useLinkStatus` to show the top line (and, if asked, the Spinner) the moment the link is clicked.
+- For a `next/form` `Form`, put `src/components/FormPending.tsx` inside it: it shows the top line the moment the form is sent (`useFormStatus`).
 - Every page that loads slowly also gets a `loading.tsx` that shows the top line and the Spinner.
 
 # Communication Style

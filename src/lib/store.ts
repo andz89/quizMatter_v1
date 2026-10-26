@@ -275,11 +275,23 @@ interface EditorState {
   // nothing new to save), false if it failed or another save is still running.
   savePresentation: (options?: { quiet?: boolean }) => Promise<boolean>;
   // True after a save was refused because newer app code saved this presentation (QMOLD): the unsaved work was kept
-  // in the browser (keptWork.ts) and the editor asks for a reload.
+  // in the browser (keptWork.ts; if it could be, see keptInBrowser) and the editor asks for a reload.
   isOutdated: boolean;
   setOutdated: (isOutdated: boolean) => void;
-  // After the editor opens a presentation: puts back unsaved work kept before a reload (see isOutdated), if any.
+  // Whether the last keepWorkNow worked (or had nothing to keep). False: the browser couldn't store the work, so the
+  // "QuizMatter was updated" box says so and "Leave page?" still asks.
+  keptInBrowser: boolean;
+  // Keeps the unsaved work in this browser as it is now (keepUnsavedWork), e.g. again right before the box's Reload,
+  // so edits made since the refused save are kept too. Returns whether it worked.
+  keepWorkNow: () => boolean;
+  // After the editor opens a presentation: puts back unsaved work kept before a reload (see isOutdated) or when
+  // leaving the editor couldn't save (saveBeforeLeaving), if any.
   restoreKeptWork: () => void;
+  // Saves before the editor is left (browser Back/Forward, a link, the ← arrow), with savePresentation's toast. If
+  // that fails, the work is kept in this browser (keepUnsavedWork) and comes back when the presentation opens again.
+  // True = saved, nothing to save, or kept; false = not even kept (the ← arrow then stays). `stillLeaving` is asked
+  // a moment later: false = not leaving after all (React's dev mode closes and opens the editor again at once).
+  saveBeforeLeaving: (stillLeaving?: () => boolean) => Promise<boolean>;
   // Undo/redo history of the presentation content only (not selection, zoom or open panels). Filled
   // automatically by the store subscription at the bottom of this file.
   past: Presentation[];
@@ -519,6 +531,51 @@ interface EditorState {
 // A placeholder until loadPresentation puts the real presentation in.
 const initialPresentation = createBlankPresentation();
 
+// The leave-save running now (saveBeforeLeaving), if any. A newer one waits for it, and so does the editor before it
+// opens a presentation (waitForLeavingSave), so the store isn't replaced while it saves.
+let leavingSave: Promise<boolean> | null = null;
+
+// The unsaved presentation a leave-save last kept in the browser, so leaving again with it (the ← arrow, then the
+// editor closing) doesn't try once more. Any edit after that is a new object, which is saved again.
+let keptOnLeave: Presentation | null = null;
+
+// What the last save in this tab saved (savePresentation), with its save time. Browser Back/Forward shows the editor
+// page as it first loaded, so the editor opens this instead when it's newer (see Editor). Kept apart from the store's
+// state, so opening something else (e.g. a Present button on another page) doesn't hide it.
+let lastSave: { presentation: Presentation; savedAt: number; isReview: boolean } | null = null;
+
+/** The last save in this tab of this presentation, in this mode (review draft or not), if any. */
+export function lastSaveOf(id: string, isReview: boolean) {
+  return lastSave?.presentation.id === id && lastSave.isReview === isReview ? lastSave : null;
+}
+
+/** Forgets the last save of this presentation: its review draft was thrown away (Stop review). */
+export function forgetLastSave(id: string) {
+  if (lastSave?.presentation.id === id) lastSave = null;
+}
+
+/** Resolves when the running leave-save (saveBeforeLeaving), if any, is done. */
+export function waitForLeavingSave(): Promise<void> {
+  return leavingSave ? leavingSave.then(() => {}, () => {}) : Promise.resolve();
+}
+
+/** Nothing opened yet, nothing unsaved, or already kept by a leave-save. */
+function hasNothingToSave({ presentation, savedPresentation }: EditorState): boolean {
+  return !savedPresentation || presentation === savedPresentation || presentation === keptOnLeave;
+}
+
+/** Resolves once no save is running: it ended, or another presentation was opened (loadPresentation). */
+function whenNotSaving(): Promise<void> {
+  return new Promise((resolve) => {
+    if (useEditorStore.getState().saveStatus !== "saving") return resolve();
+    const unsubscribe = useEditorStore.subscribe(({ saveStatus }) => {
+      if (saveStatus === "saving") return;
+      unsubscribe();
+      resolve();
+    });
+  });
+}
+
 export const useEditorStore = create<EditorState>((set, get) => ({
   presentation: initialPresentation,
   past: [],
@@ -558,19 +615,27 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   submission: null,
   isOutdated: false,
   setOutdated: (isOutdated) => set({ isOutdated }),
+  keptInBrowser: false,
+  keepWorkNow: () => {
+    const { presentation, savedPresentation, review } = get();
+    const keptInBrowser = keepUnsavedWork({ presentation, savedPresentation, isReview: review !== null });
+    set({ keptInBrowser });
+    return keptInBrowser;
+  },
 
   restoreKeptWork: () => {
-    const { presentation, review } = get();
-    const kept = takeKeptWork(presentation, review !== null);
+    const { presentation, review, fromDraft } = get();
+    // A Claude draft isn't in the database, so there's nothing newer to merge with: the kept slides replace Claude's.
+    const kept = takeKeptWork(fromDraft ? { ...presentation, slides: [] } : presentation, review !== null);
     if (!kept) return;
     // savedPresentation (and savedAt) stay the ones just loaded, so the kept work counts as unsaved and saves over
-    // the newer save. Someone always saved since (that's what refused it), so keeping the old save time would only
-    // make the next save a conflict, and the reload it asks for would lose the work. One undo step goes back to the
-    // presentation as it opened (set here, not by the history subscription, which joins quick changes into one step
-    // and would skip it when the editor loads twice in a row, as in React's dev mode).
+    // what was saved since. After a refused save someone usually did save since (that's what refused it): keeping
+    // the old save time would only make the next save a conflict, and the reload it asks for would lose the work.
+    // One undo step goes back to the presentation as it opened (set here, not by the history subscription, which
+    // joins quick changes into one step and would skip it when the editor loads twice in a row).
     withoutHistory(() => set({ presentation: kept, past: [presentation], future: [], selectedSlideId: kept.slides[0].id }));
-    toast.success("Your changes from before the update are back. Saving them replaces what was saved since.", {
-      // One toast, even when the editor loads twice (React's dev mode).
+    toast.success("Your unsaved changes are back. Saving them replaces what was saved since.", {
+      // One toast, even when the editor loads twice in a row.
       id: "kept-work",
       duration: Infinity,
       action: {
@@ -605,6 +670,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       // Claude's draft is now a saved presentation, so the draft goes: Claude's next send makes a new draft
       // (with a new link) instead of updating one nobody can open anymore. If this fails, the save still counts.
       if (fromDraft) finishDraft(presentation.id).catch(() => {});
+      // Even when another presentation was opened meanwhile: this is still what the database has now.
+      lastSave = { presentation, savedAt: newSavedAt, isReview: review !== null };
       // Work kept before an app update is in this save, so its toast (with "Throw away") goes too.
       forgetKeptWork(presentation.id);
       toast.dismiss("kept-work");
@@ -615,10 +682,18 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     } catch (error) {
       console.error("Couldn't save the presentation", error);
       // Newer app code saved it: keep the work in the browser and ask for a reload (Editor shows the box), which
-      // gives it back with the new code.
+      // gives it back with the new code. Kept as it is now (with edits made while it saved), or as it was sent if
+      // another presentation was opened meanwhile.
       if (error instanceof SaveRefusedError && error.isOutdated) {
-        keepUnsavedWork({ presentation, savedPresentation, isReview: review !== null });
-        if (isStillOpen()) set({ saveStatus: "error", isOutdated: true });
+        if (!isStillOpen()) {
+          // No box for it then, so say it if the work couldn't be kept either.
+          if (!keepUnsavedWork({ presentation, savedPresentation, isReview: review !== null })) {
+            toast.error("Couldn't save your changes.");
+          }
+        } else {
+          get().keepWorkNow();
+          set({ saveStatus: "error", isOutdated: true });
+        }
         return false;
       }
       // Sharing or publishing clicked too often: the database paused one. Both give the same refusal, so ask which;
@@ -634,6 +709,37 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       if (isStillOpen()) set({ saveStatus: "error" });
       return false;
     }
+  },
+
+  saveBeforeLeaving: (stillLeaving) => {
+    if (hasNothingToSave(get())) return Promise.resolve(true);
+    const save = (async () => {
+      // After a leave-save that's still running (e.g. the ← arrow's, then the editor closing).
+      await waitForLeavingSave();
+      if (stillLeaving && !stillLeaving()) return true;
+      // Save or Ctrl+S may still be saving: wait for it, then save what it didn't.
+      await whenNotSaving();
+      const sent = get();
+      if (hasNothingToSave(sent)) return true;
+      if (await sent.savePresentation()) return true;
+      // Kept as it is now (the ← arrow leaves the editor open while it saves), or as it was sent if another
+      // presentation was opened meanwhile (e.g. Present on another page). A Claude draft isn't in the database yet,
+      // so all of it is unsaved work.
+      const { presentation, savedPresentation, review, fromDraft } =
+        get().savedPresentation === sent.savedPresentation ? get() : sent;
+      if (keepUnsavedWork({ presentation, savedPresentation: fromDraft ? null : savedPresentation, isReview: review !== null })) {
+        keptOnLeave = presentation;
+        toast.error("Couldn't save. Your changes are kept in this browser and come back when you open this presentation again.");
+        return true;
+      }
+      toast.error("Couldn't save your changes.");
+      return false;
+    })();
+    leavingSave = save;
+    save.finally(() => {
+      if (leavingSave === save) leavingSave = null;
+    });
+    return save;
   },
 
   undo: () => {

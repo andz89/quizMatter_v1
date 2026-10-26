@@ -14,6 +14,8 @@ export type DataProblem = {
   slide: number | null;
   message: string;
   isReviewDraft: boolean;
+  // A review draft only: its review page opens only while the round is submitted.
+  isSubmitted: boolean;
 };
 
 // Presentations read per request, so the check never loads everything at once.
@@ -29,11 +31,12 @@ function describe(error: ZodError): { slide: number | null; message: string } {
 
 /**
  * The "Check saved data" button (Admin → Data check): reads every saved presentation and every review draft the way
- * the editor opens them (presentationSchema, which upgrades older shapes first) and lists the ones that fail. Run it
- * locally (`npm run dev`) before a deploy that changes the saved shape. Only reads. Super admin only. A string = an
+ * the editor opens them (presentationSchema, which upgrades older shapes first) and lists the ones that fail. Works only
+ * in development (`npm run dev`), run before a deploy that changes the saved shape. Only reads. Super admin only. A string = an
  * error message.
  */
 export async function checkSavedData(): Promise<{ checked: number; problems: DataProblem[] } | string> {
+  if (process.env.NODE_ENV !== "development") return "Run this on your computer (npm run dev).";
   if (!(await getAccount()).isSuperAdmin) return "Only the super admin can check saved data.";
   // The secret-key client: every teacher's presentations, which no account may read all of.
   const admin = createAdminClient();
@@ -52,7 +55,7 @@ export async function checkSavedData(): Promise<{ checked: number; problems: Dat
     for (const row of data) {
       const result = presentationSchema.safeParse(rowToPresentationInput(row));
       if (!result.success) {
-        problems.push({ id: row.id, title: row.title, ownerId: row.owner_id, isReviewDraft: false, ...describe(result.error) });
+        problems.push({ id: row.id, title: row.title, ownerId: row.owner_id, isReviewDraft: false, isSubmitted: false, ...describe(result.error) });
       }
     }
     checked += data.length;
@@ -61,7 +64,7 @@ export async function checkSavedData(): Promise<{ checked: number; problems: Dat
 
   const { data: drafts, error } = await admin
     .from("presentation_reviews")
-    .select("presentation_id, reviewer_id, draft")
+    .select("presentation_id, reviewer_id, status, draft")
     .not("draft", "is", null);
   if (error) return "Couldn't read the review drafts. Please try again.";
   for (const row of drafts) {
@@ -72,6 +75,7 @@ export async function checkSavedData(): Promise<{ checked: number; problems: Dat
         title: typeof row.draft?.title === "string" ? row.draft.title : "",
         ownerId: row.reviewer_id ?? "",
         isReviewDraft: true,
+        isSubmitted: row.status === "submitted",
         ...describe(result.error),
       });
     }

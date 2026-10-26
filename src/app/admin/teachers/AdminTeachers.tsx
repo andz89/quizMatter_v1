@@ -45,7 +45,7 @@ function Row({ row }: { row: TeacherRow }) {
   const [isBusy, startTransition] = useTransition();
   // The reason being typed, while the ban form is open (null = closed).
   const [reason, setReason] = useState<string | null>(null);
-  // Which question is open: removing the editor role, or unbanning.
+  // Which question is open: giving or removing the editor role, or unbanning.
   const [confirming, setConfirming] = useState<"editor" | "unban" | null>(null);
 
   const ban = (e: React.FormEvent) => {
@@ -95,23 +95,33 @@ function Row({ row }: { row: TeacherRow }) {
 
         <div className="flex items-center gap-2">
           {isBusy && <Spinner size={16} />}
-          {/* Also on banned rows: removing a banned editor ends the review they left open. */}
-          {reason === null && (row.isEditor || !row.ban) && (
+          {/* Remove editor also shows on banned rows: removing a banned editor ends the review they left open.
+              Make editor doesn't show for admins or banned teachers (the database refuses them too). */}
+          {reason === null && (row.isEditor || (!row.ban && !row.isAdmin)) && (
             <>
-              <button type="button" onClick={() => (row.isEditor ? setConfirming("editor") : toggleEditor())} disabled={isBusy} className={smallButtonClass}>
+              <button type="button" onClick={() => setConfirming("editor")} disabled={isBusy} className={smallButtonClass}>
                 <ShieldCheckIcon size={14} />
                 {row.isEditor ? "Remove editor" : "Make editor"}
               </button>
-              {confirming === "editor" && (
-                <ConfirmModal
-                  title="Remove this editor?"
-                  message={`${row.email} won't be an editor anymore. A review they have open is canceled.`}
-                  confirmLabel="Remove editor"
-                  danger
-                  onConfirm={toggleEditor}
-                  onCancel={() => setConfirming(null)}
-                />
-              )}
+              {confirming === "editor" &&
+                (row.isEditor ? (
+                  <ConfirmModal
+                    title="Remove this editor?"
+                    message={`${row.email} won't be an editor anymore. A review they have open is canceled.`}
+                    confirmLabel="Remove editor"
+                    danger
+                    onConfirm={toggleEditor}
+                    onCancel={() => setConfirming(null)}
+                  />
+                ) : (
+                  <ConfirmModal
+                    title={`Make ${row.name || row.email} an editor?`}
+                    message="Their published presentations are removed from other teachers' lists, with their bookmarks and reports."
+                    confirmLabel="Make editor"
+                    onConfirm={toggleEditor}
+                    onCancel={() => setConfirming(null)}
+                  />
+                ))}
             </>
           )}
           {row.ban ? (

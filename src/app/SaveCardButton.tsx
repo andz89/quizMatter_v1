@@ -42,7 +42,15 @@ export function SaveCardButton({
 
   const toggle = () =>
     startTransition(async () => {
-      const { status, pausedUntil } = await setPresentationSaved(presentationId, !isSaved);
+      let result;
+      try {
+        result = await setPresentationSaved(presentationId, !isSaved);
+      } catch {
+        // A network error: the transition ends, so the spinner stops.
+        toast.error("Couldn't change it. Please try again.");
+        return;
+      }
+      const { status, pausedUntil } = result;
       if (status === "paused") {
         pauseFeature("saved", pausedUntil!);
         return;

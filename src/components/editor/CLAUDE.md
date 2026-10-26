@@ -30,11 +30,12 @@ editor / view / review, and renders `Editor.tsx`, which calls `store.loadPresent
   (don't auto-close them).
 - Teachers' own photo uploads are **for editors and admins only, for now** (`checkCanUpload` in
   `src/lib/photos.tsx`, which asks `is_editor` / `is_admin` once). Other teachers' "My Photos" tab shows "This will
-  be available soon." with Upload and the link box greyed out, and a file dropped on a slide only shows a toast
+  be available soon." with Upload greyed out, and a file dropped on a slide only shows a toast
   (`useElementDropTarget`). Old "My photos" still show and can be added. `upload-image` refuses them too (403).
   Admin → Photos and Claude's photo import still upload.
 - Modals: `AnswerModal`, `DetailsModal` (title, grades, subject…), `SlideGridModal`, `ConfirmModal` (the app's one
   confirm box, used on every page; never the browser's `confirm()`).
+- A Claude draft whose slides can't be built (`buildSlides` errors) opens a `Modal` in `Editor` listing the errors.
 - Review mode: `ReviewControls.tsx` (Save as draft + the ⋮ menu, and `ReviewBanner`).
 - `SentBackBanner.tsx`: the yellow "QuizMatter sent this back" bar (a sent-back submission, or `ReviewBanner`), with
   "View comments" opening the admin's note in a `Modal`.
@@ -52,18 +53,41 @@ editor / view / review, and renders `Editor.tsx`, which calls `store.loadPresent
   It shows a sonner toast for success and for failure.
 - **Kept work after an app update:** when a save (or a review's Submit) is refused because newer app code saved the
   presentation (`QMOLD`, `SaveRefusedError.isOutdated`), the unsaved presentation goes into this browser's storage
-  (`src/lib/keptWork.ts`, key `qm-unsaved:<id>`) and `isOutdated` makes `Editor` show "QuizMatter was updated" with
-  Reload (no "Leave page?" then; a quiet save before Share/Submit shows no second message). After the reload,
-  `Editor` calls `restoreKeptWork`: only what was changed since the last save comes back, upgraded (changed slides
+  (`src/lib/keptWork.ts`, key `qm-unsaved:<id>`, through the store's `keepWorkNow`) and `isOutdated` makes `Editor`
+  show "QuizMatter was updated" with Reload (not focused, as it can pop up while typing). Reloading or closing the tab
+  keeps the work once more (in `Editor`'s `beforeunload` handler), so edits made since the box opened are in it. No
+  "Leave page?" then, unless the browser couldn't store the work (`keptInBrowser` false): the box says so instead of
+  "Your changes are safe". A quiet save before Share/Submit shows no second message, and the Share card's own box
+  closes. After the reload, `Editor` calls `restoreKeptWork`: only
+  what was changed since the last save comes back, upgraded (changed slides
   and details; untouched slides, the publish switch and save times stay as just loaded, so they aren't sent again
-  in the old shape), only in the same mode (owner's editor or review draft) and within 7 days. It's one undo step,
+  in the old shape; slides a newer save added stay, ones it deleted stay deleted unless this tab changed them, see
+  `src/lib/CLAUDE.md`), only in the same mode (owner's editor or review draft) and within 7 days. It's one undo step,
   unsaved, against the just-loaded save time, so saving replaces what the newer code saved (the toast says so and
   has "Throw away"). The old save time would always conflict, and that conflict's reload would lose the work. The
   kept copy stays in storage until a save or submit of that presentation works (`forgetKeptWork`).
+- **Leaving the editor saves first:** moving away inside the app with unsaved changes (browser Back/Forward, any
+  link, the ← arrow) runs the store's `saveBeforeLeaving`: a normal `savePresentation` with its toast (a review saves
+  its draft, a Claude draft is created like its first Save). `Editor` runs it when it closes; the ← arrow
+  (`BackToPresentationsLink`, no "Leave without saving?" box) runs it first with the Spinner in the button, and goes
+  only if it worked or the work was kept. If the save fails, the work is kept in this browser (`keepUnsavedWork`; a
+  Claude draft counts as all unsaved) and comes back the next time the presentation opens (a Claude draft: from its
+  link, the kept slides replace Claude's); a toast says so. If even that fails: "Couldn't save your changes." and the
+  arrow stays. Closing or reloading the tab still asks "Leave page?" (a save can't finish then).
+- **Opening waits for that save:** while a leave-save runs, `Editor` shows the Spinner and opens its presentation
+  only after it (`waitForLeavingSave`), so opening the editor doesn't replace the store mid-save. A Present button
+  on another page doesn't wait: the save then leaves the newly loaded store alone (`isStillOpen` in
+  `savePresentation`) and, if it fails, keeps what it sent. Browser Back/Forward shows the page as
+  it first loaded, so the editor opens what the last save in this tab saved (`lastSaveOf`, kept apart from the store,
+  so a Present button elsewhere can't hide it) when that's newer than the page, or always for a Claude draft's page.
+  Stop review forgets it (`forgetLastSave`), so a new review doesn't open the thrown-away draft. React's dev mode
+  closes and reopens the editor at once: the leave-save checks a moment later (`stillLeaving`) and skips it.
 
 ## Helpers this folder uses (in `src/lib`)
 
-`useEditorShortcuts` (keys), `useMarqueeSelection` (drag a rectangle to select), `useElementDropTarget` (drop from a
+`useEditorShortcuts` (keys; Ctrl+V pastes a copied element only when no input, textarea, rich text or dialog has
+focus, and Ctrl+Z / Ctrl+Y / Ctrl+Shift+Z leave a plain input or textarea to the browser's own typing undo, while rich
+text on a slide keeps the store's undo; `isTextFieldOrDialog` in `dom.ts`), `useMarqueeSelection` (drag a rectangle to select), `useElementDropTarget` (drop from a
 panel or the computer), `useCanvasTextEditor` + `richText.ts` (text typing, with tiptap), `useAutoFitText` (text
 shrinks to fit), `useFormatTexts` (which texts the format toolbar changes), `geometry.ts` / `crop.ts` (math),
 `svgLibrary.tsx` (every drawing in the Elements panel, and the diagram layouts).

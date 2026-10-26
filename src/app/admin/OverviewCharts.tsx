@@ -1,18 +1,25 @@
 export type OverviewRow = { series: string; day: string; total: number };
 
 // The charts in order. People charts are skipped for a plain admin.
+// A note says when a chart counts only rows that are still there (see admin_overview in
+// 20261210000500_admin_overview_counts.sql). Likes, saves and reports come from activity_events, which keeps every
+// one, even after it is taken back or dismissed.
 const CHARTS = [
-  { series: "presentations", title: "New presentations" },
-  { series: "publishes", title: "Teachers' publishes" },
+  { series: "presentations", title: "New presentations", note: "Not counting ones deleted since." },
+  { series: "publishes", title: "Teachers' publishes", note: "Only ones still published." },
   { series: "likes", title: "Likes", note: "Counted from Oct 23, 2026." },
   { series: "saves", title: "Saves", note: "Counted from Oct 23, 2026." },
   { series: "reports", title: "Reports", note: "Counted from Oct 23, 2026." },
-  { series: "submissions", title: "Submissions" },
-  { series: "reviews", title: "Reviews submitted", note: "Latest round of each presentation only." },
-  { series: "signups", title: "New teachers" },
+  { series: "submissions", title: "Submissions", note: "Each presentation's latest submit, not counting ones deleted since." },
+  {
+    series: "reviews",
+    title: "Reviews submitted",
+    note: "On the day each round was first submitted, even if it was sent back. Latest round of each presentation only.",
+  },
+  { series: "signups", title: "New teachers", note: "Not counting accounts deleted since." },
   { series: "logins", title: "Teachers who logged in", note: "Each teacher's last login only." },
-  { series: "pauses", title: "Click pauses" },
-  { series: "bans", title: "Automatic bans" },
+  { series: "pauses", title: "Click pauses", note: "Not counting accounts deleted since." },
+  { series: "bans", title: "Automatic bans", note: "Not counting accounts deleted since." },
 ];
 
 // Only the super admin gets these (the database sends them to nobody else).

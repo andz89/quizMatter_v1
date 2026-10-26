@@ -23,7 +23,7 @@ import {
   MESH_PREFIX,
   RADIAL_PREFIX,
 } from "@/lib/constants";
-import type { Slide } from "@/lib/schema";
+import { isSafeColor, type Slide } from "@/lib/schema";
 import { SlideText } from "@/components/editor/SlideText";
 import { StaticElementView } from "@/components/editor/StaticElementView";
 import { toCssBackground } from "@/components/editor/ElementSvg";
@@ -44,8 +44,10 @@ const MESH_CORNERS = ["0% 0%", "100% 0%", "0% 100%", "100% 100%"];
 /**
  * A slide's background color as CSS: the color itself, its gradient from the top of the slide to the bottom,
  * its round gradient from the middle out, or its soft blend (a round glow of color in each corner, fading out, over a corner-to-corner gradient).
+ * One that isn't a color the app writes (isSafeColor) draws nothing.
  */
 export function slideBackgroundCss(background: string) {
+  if (!isSafeColor(background)) return "transparent";
   if (background.startsWith(GRADIENT_PREFIX)) return `linear-gradient(180deg, ${background.slice(GRADIENT_PREFIX.length)})`;
   if (background.startsWith(RADIAL_PREFIX)) return `radial-gradient(circle, ${background.slice(RADIAL_PREFIX.length)})`;
   if (background.startsWith(MESH_PREFIX)) {
@@ -56,9 +58,10 @@ export function slideBackgroundCss(background: string) {
   return background;
 }
 
-/** The slide's background color, gradient or soft blend. */
+/** The slide's background color, gradient or soft blend. None, or one that isn't safe, = the plain white surface. */
 export function getSlideBackgroundStyle(slide: Pick<Slide, "background">) {
-  if (slide.background && /^(gradient|radial|mesh):/.test(slide.background)) {
+  if (!slide.background || !isSafeColor(slide.background)) return {};
+  if (/^(gradient|radial|mesh):/.test(slide.background)) {
     return { backgroundImage: slideBackgroundCss(slide.background) };
   }
   return { backgroundColor: slide.background };

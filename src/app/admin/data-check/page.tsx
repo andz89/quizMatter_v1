@@ -20,7 +20,13 @@ export default async function AdminDataCheckPage() {
           in <code>src/lib/schema.ts</code> until nothing is listed. It only reads.
         </p>
       </section>
-      <DataCheckList />
+      {process.env.NODE_ENV === "development" ? (
+        <DataCheckList />
+      ) : (
+        <p className="rounded-card border border-border-default bg-bg-surface px-5 py-4 text-sm text-text-secondary">
+          Run this on your computer (<code>npm run dev</code>).
+        </p>
+      )}
     </div>
   );
 }

@@ -52,8 +52,16 @@ export function LikeButton({
 
   const toggle = async () => {
     setIsPending(true);
-    const { status, pausedUntil } = await setPresentationLiked(presentationId, !isLiked);
-    setIsPending(false);
+    let result;
+    try {
+      result = await setPresentationLiked(presentationId, !isLiked);
+    } catch {
+      toast.error("Couldn't change it. Please try again.");
+      return;
+    } finally {
+      setIsPending(false);
+    }
+    const { status, pausedUntil } = result;
     if (status === "done") {
       setIsLiked(!isLiked);
       setLikeCount((count) => Math.max(count + (isLiked ? -1 : 1), 0));

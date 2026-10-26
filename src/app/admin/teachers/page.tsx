@@ -25,31 +25,51 @@ export default async function AdminTeachersPage() {
   }
 
   const supabase = await createClient();
+  // Bans and settings can be many rows (one per teacher), so they're read a page at a time; admins and editors are
+  // a handful, given by hand.
   const [users, bans, admins, editors, settings] = await Promise.all([
     listAllUsers(admin),
-    supabase.from("banned_users").select("user_id, reason, banned_at, is_automatic"),
+    readAll((from, to) =>
+      supabase.from("banned_users").select("user_id, reason, banned_at, is_automatic").order("user_id").range(from, to),
+    ),
     admin.from("admins").select("user_id"),
     admin.from("editors").select("user_id"),
-    admin
-      .from("user_settings")
-      .select("user_id, display_name, first_name, last_name, contact_number, education_level, education_field"),
+    readAll((from, to) =>
+      admin
+        .from("user_settings")
+        .select("user_id, display_name, first_name, last_name, contact_number, education_level, education_field")
+        .order("user_id")
+        .range(from, to),
+    ),
   ]);
-  if (bans.error) throw bans.error;
   if (admins.error) throw admins.error;
   if (editors.error) throw editors.error;
-  if (settings.error) throw settings.error;
 
   return (
     <AdminTeachers
       rows={buildRows(
         users,
-        bans.data as Ban[],
+        bans as Ban[],
         admins.data.map((row) => row.user_id as string),
         editors.data.map((row) => row.user_id as string),
-        settings.data as Settings[],
+        settings as Settings[],
       )}
     />
   );
+}
+
+// Supabase sends at most 1,000 rows per request.
+const PAGE_SIZE = 1000;
+
+/** Every row of a read, a page at a time: `page` reads rows `from` to `to` (in a fixed order). Throws if one fails. */
+async function readAll<T>(page: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: Error | null }>) {
+  const rows: T[] = [];
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const { data, error } = await page(from, from + PAGE_SIZE - 1);
+    if (error) throw error;
+    rows.push(...(data ?? []));
+    if (!data || data.length < PAGE_SIZE) return rows;
+  }
 }
 
 // is_automatic: banned by the database for clicking too fast (see the click_auto_ban migration), not by an admin.

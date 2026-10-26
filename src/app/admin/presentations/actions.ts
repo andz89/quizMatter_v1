@@ -12,20 +12,23 @@ const reviewOpenSchema = z.object({ id: idSchema, isOpen: z.boolean() });
 const sendBackSchema = z.object({ id: idSchema, note: reviewNoteSchema });
 
 /**
- * Shares a QuizMatter presentation with every teacher, or makes it a draft again, then reloads the list.
- * The "Own presentations" policy only lets its owner change it. False if it failed.
+ * Shares a QuizMatter presentation with every teacher, or makes it a draft again, then reloads the list. A plain
+ * admin only their own; the super admin any (the database refuses the rest too, see the plain_admin_limits
+ * migration). False if it failed or changed nothing.
  */
 export async function setShared(id: string, isShared: boolean): Promise<boolean> {
   const parsed = sharedSchema.safeParse({ id, isShared });
-  if (!parsed.success || !(await getAccount()).isAdmin) return false;
+  const account = await getAccount();
+  if (!parsed.success || !account.isAdmin) return false;
 
   const supabase = await createClient();
-  const { data, error } = await supabase
+  let query = supabase
     .from("presentations")
     .update({ is_published: parsed.data.isShared })
     .eq("id", parsed.data.id)
-    .eq("from_admin", true)
-    .select("id");
+    .eq("from_admin", true);
+  if (!account.isSuperAdmin) query = query.eq("owner_id", account.id);
+  const { data, error } = await query.select("id");
   refresh();
   return !error && data.length === 1;
 }

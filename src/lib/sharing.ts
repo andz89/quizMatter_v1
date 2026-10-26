@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { REFUSALS, SaveRefusedError } from "./presentations";
+import { SaveRefusedError, refusalFromCode } from "./presentations";
 import { createClient } from "./supabase/client";
 
 // A teacher's shared copy: what other teachers see once it's published (see the shared_copy migration).
@@ -12,7 +12,8 @@ const sharedCopySchema = z.object({ id: z.string(), sharedAt: z.number() });
 // A known refusal becomes its message. "Not allowed" (42501) from these functions already says why in plain words
 // (e.g. "QuizMatter hid the shared copy…"). Any other error keeps its code and details (e.g. a QMBLK pause).
 function refused(error: { code: string; message: string; details: string }): Error {
-  if (REFUSALS[error.code]) return new SaveRefusedError(REFUSALS[error.code]);
+  const refusal = refusalFromCode(error.code);
+  if (refusal) return refusal;
   if (error.code === "42501") return new SaveRefusedError(error.message);
   return Object.assign(new Error(error.message), error);
 }

@@ -26,6 +26,7 @@ import {
 } from "@/lib/photos";
 import { SHARED_PHOTO_TAG_MAX, photoCategoryNameSchema, sharedPhotoInfoSchema, type SharedPhotoInfo } from "@/lib/schema";
 import { Modal } from "@/components/Modal";
+import { ConfirmModal } from "@/components/editor/ConfirmModal";
 import { PhotoThumbnail } from "@/components/editor/PhotoTile";
 import { LinkPending } from "@/components/LinkPending";
 import { SearchField, SearchForm, SearchSelect, SearchTextInput } from "@/components/SearchForm";
@@ -602,6 +603,8 @@ function CategoryRow({
 }) {
   const [name, setName] = useState(category.name);
   const [isBusy, setIsBusy] = useState(false);
+  // Editors' uploads find this category by its name, so the database refuses to rename or delete it.
+  const isLocked = category.name.toLowerCase() === "from editors";
 
   const handleRename = async () => {
     if (name.trim() === category.name) return;
@@ -637,6 +640,8 @@ function CategoryRow({
         onBlur={handleRename}
         onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
         maxLength={40}
+        readOnly={isLocked}
+        title={isLocked ? "Editors' photos go here, so it can't be renamed or deleted" : undefined}
         aria-label="Category name"
         className="min-w-0 rounded-input border border-transparent bg-transparent px-2 py-1.5 text-sm text-text-primary outline-none hover:border-border-default focus:border-text-secondary"
       />
@@ -644,8 +649,8 @@ function CategoryRow({
       <button
         type="button"
         onClick={handleDelete}
-        disabled={photoCount > 0 || isBusy}
-        title={photoCount > 0 ? "Move or remove its photos first" : "Delete category"}
+        disabled={photoCount > 0 || isBusy || isLocked}
+        title={isLocked ? "Editors' photos go here, so it can't be deleted" : photoCount > 0 ? "Move or remove its photos first" : "Delete category"}
         aria-label={`Delete ${category.name}`}
         className="flex h-8 w-8 items-center justify-center rounded-dropdown text-text-primary transition-colors hover:bg-bg-page disabled:opacity-30 disabled:hover:bg-transparent"
       >
@@ -692,6 +697,8 @@ function PhotosCard({
   // The photos whose new category is being saved (they show the Spinner).
   const [movingSrcs, setMovingSrcs] = useState<Set<string>>(new Set());
   const [view, setView] = useView("admin-photos-view");
+  // The photo whose ✕ was clicked, waiting for the admin to confirm.
+  const [removing, setRemoving] = useState<SharedPhotoWithInfo | null>(null);
 
   const pageCount = Math.max(1, Math.ceil(matchCount / PHOTOS_PER_PAGE));
   // A link to this search with some options changed, back on page 1 unless it says otherwise.
@@ -757,13 +764,16 @@ function PhotosCard({
   };
 
   const handleRemove = async (shared: SharedPhotoWithInfo) => {
+    setRemoving(null);
+    const index = photos.findIndex((p) => p.photo.src === shared.photo.src);
     setPhotos((all) => all.filter((p) => p.photo.src !== shared.photo.src));
     try {
       await removeSharedPhoto(shared.photo.src);
       toast.success("Photo removed from shared photos.");
       onChanged();
     } catch (error) {
-      setPhotos((all) => [shared, ...all]);
+      // Back where it was.
+      setPhotos((all) => all.toSpliced(Math.min(index, all.length), 0, shared));
       toast.error(isPhotoLocked(error) ? PHOTO_LOCKED_MESSAGE : "Couldn't remove the photo. Please try again.");
     }
   };
@@ -778,7 +788,7 @@ function PhotosCard({
       categories={categories}
       isMoving={movingSrcs.has(shared.photo.src)}
       onMove={(categoryId) => handleMove(shared, categoryId)}
-      onRemove={() => handleRemove(shared)}
+      onRemove={() => setRemoving(shared)}
       onInfoSaved={(info) => onInfoSaved(shared.photo.src, info)}
     />
   ));
@@ -874,6 +884,16 @@ function PhotosCard({
             </div>
           )}
         </>
+      )}
+      {removing && (
+        <ConfirmModal
+          title="Remove this photo from the library?"
+          message="Teachers can't add it to slides anymore. It stays on slides that already use it."
+          confirmLabel="Remove"
+          danger
+          onConfirm={() => handleRemove(removing)}
+          onCancel={() => setRemoving(null)}
+        />
       )}
     </Card>
   );

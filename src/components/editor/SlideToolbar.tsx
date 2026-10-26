@@ -63,7 +63,7 @@ export function SlideToolbar({ slide, slideNumber, isFirst, isLast, canDelete, o
 
   return (
     <div className="mb-3 flex items-center justify-between gap-2">
-      <div className="flex min-w-0 items-center gap-1 rounded-dropdown bg-bg-surface px-1.5 py-1.5 shadow-[0_1px_3px_rgba(0,0,0,0.08)]">
+      <div className="flex min-w-0 items-center gap-1 rounded-dropdown bg-bg-surface px-1.5 py-1.5">
         {isRenaming ? (
           <div className="flex items-center gap-1.5 px-1.5 text-sm font-semibold uppercase tracking-[0.05em] text-text-header">
             <input
@@ -151,7 +151,7 @@ export function SlideToolbar({ slide, slideNumber, isFirst, isLast, canDelete, o
           </button>
         )}
 
-        <div className="flex items-center gap-1 rounded-dropdown bg-bg-surface px-1.5 py-1.5 shadow-[0_1px_3px_rgba(0,0,0,0.08)]">
+        <div className="flex items-center gap-1 rounded-dropdown bg-bg-surface px-1.5 py-1.5">
           <button
             type="button"
             onClick={onMoveUp}

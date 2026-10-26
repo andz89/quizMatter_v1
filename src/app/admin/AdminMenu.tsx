@@ -3,8 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { LinkPending } from "@/components/LinkPending";
-
-export type TodoCounts = { reviews: number; submissions: number; reports: number };
+import type { TodoCounts } from "./todoCounts";
 
 type Item = { href: string; label: string; superOnly?: boolean; count?: keyof TodoCounts };
 

@@ -45,6 +45,7 @@ export default async function NewPresentationFromClaudePage({ searchParams }: Pa
             </p>
             <Link href="/" className="text-sm font-semibold text-accent">
               Back to my presentations
+              <LinkPending />
             </Link>
           </div>
         </main>

@@ -3,8 +3,8 @@
 import { useState } from "react";
 import { useEditorState, type ChainedCommands } from "@tiptap/react";
 import { useEditorStore, type TextEditorEntry, type TextTarget } from "@/lib/store";
-import { DEFAULT_TEXT_COLOR, formatChain } from "@/lib/richText";
-import { OPTION_FONT_SIZE, QUESTION_CONTAINER_ID, QUESTION_FONT_SIZE, TEXT_BOX_FONT_SIZE } from "@/lib/constants";
+import { formatChain } from "@/lib/richText";
+import { DEFAULT_TEXT_COLOR, OPTION_FONT_SIZE, QUESTION_CONTAINER_ID, QUESTION_FONT_SIZE, TEXT_BOX_FONT_SIZE } from "@/lib/constants";
 import type { Presentation } from "@/lib/schema";
 import { EraserIcon, TextAlignCenterIcon, TextAlignEndIcon, TextAlignStartIcon } from "lucide-react";
 

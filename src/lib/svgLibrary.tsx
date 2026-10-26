@@ -1,13 +1,13 @@
 import type { ReactNode } from "react";
 import { renderSolid, SOLIDS } from "./solids";
 import { factorTreeSize, type FactorNode, type SvgElement } from "./schema";
-import { DEFAULT_TEXT_COLOR } from "./richText";
 import { KIDS, KID_VIEWBOX } from "./kids";
 import { CLIPART_KIDS, drawPeopleArt, SCHOOL_BOY } from "./peopleArt";
 import { FLAGS } from "./flags";
 import {
   BORDER_WIDTH_DEFAULT,
   CYCLE_STEPS,
+  DEFAULT_TEXT_COLOR,
   DIAGRAM_BORDER_WIDTH,
   DIAGRAM_BOX_POSITION_MAX,
   DIAGRAM_FONT_SIZE,

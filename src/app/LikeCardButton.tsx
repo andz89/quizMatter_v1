@@ -33,7 +33,15 @@ export function LikeCardButton({
 
   const toggle = () =>
     startTransition(async () => {
-      const { status, pausedUntil } = await setPresentationLiked(presentationId, !isLiked);
+      let result;
+      try {
+        result = await setPresentationLiked(presentationId, !isLiked);
+      } catch {
+        // A network error: the transition ends, so the spinner stops.
+        toast.error("Couldn't change it. Please try again.");
+        return;
+      }
+      const { status, pausedUntil } = result;
       if (status === "paused") {
         pauseFeature("like", pausedUntil!);
         return;

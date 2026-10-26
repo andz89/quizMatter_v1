@@ -84,7 +84,10 @@ async function loadTabCounts(supabase: SupabaseClient, me: string, isEditor: boo
     // Editors: my presentations sent to QuizMatter (see the quizmatter_submissions migration).
     isEditor ? supabase.rpc("my_submissions") : { data: [] as { id: string }[], error: null },
   ]);
-  for (const result of [mine, quizmatter, teachers, saved, liked, reviewed, myReviews, mySubmissions]) if (result.error) throw result.error;
+  // One failed count shows 0 (the data is empty then) instead of breaking every home tab.
+  for (const result of [mine, quizmatter, teachers, saved, liked, reviewed, myReviews, mySubmissions]) {
+    if (result.error) console.error("Couldn't load a tab count:", result.error);
+  }
 
   return {
     mine: mine.count ?? 0,
