@@ -287,8 +287,9 @@ interface EditorState {
   // After the editor opens a presentation: puts back unsaved work kept before a reload (see isOutdated) or when
   // leaving the editor couldn't save (saveBeforeLeaving), if any.
   restoreKeptWork: () => void;
-  // Saves before the editor is left (browser Back/Forward, a link, the ← arrow), with savePresentation's toast. If
-  // that fails, the work is kept in this browser (keepUnsavedWork) and comes back when the presentation opens again.
+  // Saves before the editor is left (browser Back/Forward, a link, the ← arrow), with savePresentation's toast. The
+  // work is kept in this browser (keepUnsavedWork) until a save works, so a failed save or a tab closed meanwhile
+  // doesn't lose it: it comes back when the presentation opens again.
   // True = saved, nothing to save, or kept; false = not even kept (the ← arrow then stays). `stillLeaving` is asked
   // a moment later: false = not leaving after all (React's dev mode closes and opens the editor again at once).
   saveBeforeLeaving: (stillLeaving?: () => boolean) => Promise<boolean>;
@@ -544,6 +545,15 @@ let keptOnLeave: Presentation | null = null;
 // state, so opening something else (e.g. a Present button on another page) doesn't hide it.
 let lastSave: { presentation: Presentation; savedAt: number; isReview: boolean } | null = null;
 
+// The saves running now (savePresentation). Opening another presentation (loadPresentation) resets the store's
+// saveStatus, but a running save goes on: a leave-save waits for these to really end (whenNotSaving).
+const runningSaves = new Set<Promise<void>>();
+
+// How many times a presentation was opened in the store (loadPresentation). A leave-save reads it when the editor is
+// left and again after it waits: a different number means something else was opened meanwhile (e.g. a Present
+// button on another page, even for the same presentation), so the store no longer holds what was left.
+let openCount = 0;
+
 /** The last save in this tab of this presentation, in this mode (review draft or not), if any. */
 export function lastSaveOf(id: string, isReview: boolean) {
   return lastSave?.presentation.id === id && lastSave.isReview === isReview ? lastSave : null;
@@ -564,16 +574,9 @@ function hasNothingToSave({ presentation, savedPresentation }: EditorState): boo
   return !savedPresentation || presentation === savedPresentation || presentation === keptOnLeave;
 }
 
-/** Resolves once no save is running: it ended, or another presentation was opened (loadPresentation). */
+/** Resolves once the saves running now have ended, even if another presentation was opened meanwhile. */
 function whenNotSaving(): Promise<void> {
-  return new Promise((resolve) => {
-    if (useEditorStore.getState().saveStatus !== "saving") return resolve();
-    const unsubscribe = useEditorStore.subscribe(({ saveStatus }) => {
-      if (saveStatus === "saving") return;
-      unsubscribe();
-      resolve();
-    });
-  });
+  return Promise.all(runningSaves).then(() => {});
 }
 
 export const useEditorStore = create<EditorState>((set, get) => ({
@@ -581,7 +584,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   past: [],
   future: [],
 
-  loadPresentation: (presentation) =>
+  loadPresentation: (presentation) => {
+    openCount += 1;
     withoutHistory(() =>
       set({
         presentation,
@@ -603,7 +607,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         isPresenting: false,
         answerSlideId: null,
       })
-    ),
+    );
+  },
 
   savedPresentation: null,
   savedAt: null,
@@ -655,6 +660,12 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     // Nothing new to save (Ctrl+S works even when the Save button is greyed out).
     if (presentation === savedPresentation) return true;
     set({ saveStatus: "saving" });
+    // Ends when this save ends, even if another presentation is opened meanwhile (whenNotSaving waits for it).
+    let endSave = () => {};
+    const thisSave = new Promise<void>((resolve) => {
+      endSave = () => resolve();
+    });
+    runningSaves.add(thisSave);
     // If another presentation is opened while this one saves, loadPresentation replaces savedPresentation.
     // Then this save's result belongs to the old presentation and must not touch the new one.
     const isStillOpen = () => get().savedPresentation === savedPresentation;
@@ -708,27 +719,47 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       }
       if (isStillOpen()) set({ saveStatus: "error" });
       return false;
+    } finally {
+      runningSaves.delete(thisSave);
+      endSave();
     }
   },
 
   saveBeforeLeaving: (stillLeaving) => {
-    if (hasNothingToSave(get())) return Promise.resolve(true);
+    // The editor as it was left, read now: while this waits, a Present button on another page can open something
+    // else in the store (openCount then changes).
+    const left = get();
+    const openCountWhenLeft = openCount;
+    if (hasNothingToSave(left)) return Promise.resolve(true);
+    // A Claude draft isn't in the database yet, so all of it is unsaved work.
+    const keep = ({ presentation, savedPresentation, review, fromDraft }: EditorState) =>
+      keepUnsavedWork({ presentation, savedPresentation: fromDraft ? null : savedPresentation, isReview: review !== null });
+    // Kept in this browser right away: once the editor is closed nothing asks "Leave page?", and closing the tab
+    // could stop the save. A save that works forgets it.
+    keep(left);
     const save = (async () => {
       // After a leave-save that's still running (e.g. the ← arrow's, then the editor closing).
       await waitForLeavingSave();
       if (stillLeaving && !stillLeaving()) return true;
       // Save or Ctrl+S may still be saving: wait for it, then save what it didn't.
       await whenNotSaving();
-      const sent = get();
+      // If something else was opened meanwhile, the store can't save what was left: it's kept as it was left (below),
+      // unless the save that just ended (Save, Ctrl+S) saved just that.
+      const isOpen = openCount === openCountWhenLeft;
+      const sent = isOpen ? get() : left;
       if (hasNothingToSave(sent)) return true;
-      if (await sent.savePresentation()) return true;
+      if (isOpen) {
+        // Kept again as it is sent (a save that worked meanwhile forgot it, and the ← arrow allows edits since).
+        keep(sent);
+        if (await sent.savePresentation()) return true;
+      } else if (lastSaveOf(left.presentation.id, left.review !== null)?.presentation === left.presentation) {
+        return true;
+      }
       // Kept as it is now (the ← arrow leaves the editor open while it saves), or as it was sent if another
-      // presentation was opened meanwhile (e.g. Present on another page). A Claude draft isn't in the database yet,
-      // so all of it is unsaved work.
-      const { presentation, savedPresentation, review, fromDraft } =
-        get().savedPresentation === sent.savedPresentation ? get() : sent;
-      if (keepUnsavedWork({ presentation, savedPresentation: fromDraft ? null : savedPresentation, isReview: review !== null })) {
-        keptOnLeave = presentation;
+      // presentation was opened meanwhile (e.g. Present on another page).
+      const failed = get().savedPresentation === sent.savedPresentation ? get() : sent;
+      if (keep(failed)) {
+        keptOnLeave = failed.presentation;
         toast.error("Couldn't save. Your changes are kept in this browser and come back when you open this presentation again.");
         return true;
       }

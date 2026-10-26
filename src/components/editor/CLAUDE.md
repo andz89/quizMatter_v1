@@ -65,23 +65,31 @@ editor / view / review, and renders `Editor.tsx`, which calls `store.loadPresent
   `src/lib/CLAUDE.md`), only in the same mode (owner's editor or review draft) and within 7 days. It's one undo step,
   unsaved, against the just-loaded save time, so saving replaces what the newer code saved (the toast says so and
   has "Throw away"). The old save time would always conflict, and that conflict's reload would lose the work. The
-  kept copy stays in storage until a save or submit of that presentation works (`forgetKeptWork`).
+  kept copy stays in storage until a save or submit of that presentation works, or Stop review throws the work away
+  (`forgetKeptWork`).
 - **Leaving the editor saves first:** moving away inside the app with unsaved changes (browser Back/Forward, any
   link, the ← arrow) runs the store's `saveBeforeLeaving`: a normal `savePresentation` with its toast (a review saves
   its draft, a Claude draft is created like its first Save). `Editor` runs it when it closes; the ← arrow
   (`BackToPresentationsLink`, no "Leave without saving?" box) runs it first with the Spinner in the button, and goes
-  only if it worked or the work was kept. If the save fails, the work is kept in this browser (`keepUnsavedWork`; a
-  Claude draft counts as all unsaved) and comes back the next time the presentation opens (a Claude draft: from its
-  link, the kept slides replace Claude's); a toast says so. If even that fails: "Couldn't save your changes." and the
-  arrow stays. Closing or reloading the tab still asks "Leave page?" (a save can't finish then).
+  only if it worked or the work was kept. The work is kept in this browser (`keepUnsavedWork`; a Claude draft counts
+  as all unsaved) as soon as the editor is left and again just before it's sent, since a closed editor can't ask
+  "Leave page?" and closing the tab could stop the save; a save that works forgets it. If the save fails, it stays
+  and comes back the next time the presentation opens (a Claude draft: from its link, the kept slides replace
+  Claude's); a toast says so. If even that fails: "Couldn't save your changes." and the arrow stays. Closing or
+  reloading the tab while the editor is open still asks "Leave page?" (a save can't finish then).
 - **Opening waits for that save:** while a leave-save runs, `Editor` shows the Spinner and opens its presentation
   only after it (`waitForLeavingSave`), so opening the editor doesn't replace the store mid-save. A Present button
   on another page doesn't wait: the save then leaves the newly loaded store alone (`isStillOpen` in
-  `savePresentation`) and, if it fails, keeps what it sent. Browser Back/Forward shows the page as
+  `savePresentation`) and, if it fails, keeps what it sent. A leave-save first waits for a running Save / Ctrl+S to
+  really end (`whenNotSaving`, even if something else was opened meanwhile). If a Present button opened something
+  while it waited (`openCount`, even the same presentation), it can't save from the store: it keeps what was left,
+  with the toast, unless that Save / Ctrl+S saved exactly it. Browser Back/Forward shows the page as
   it first loaded, so the editor opens what the last save in this tab saved (`lastSaveOf`, kept apart from the store,
   so a Present button elsewhere can't hide it) when that's newer than the page, or always for a Claude draft's page.
-  Stop review forgets it (`forgetLastSave`), so a new review doesn't open the thrown-away draft. React's dev mode
-  closes and reopens the editor at once: the leave-save checks a moment later (`stillLeaving`) and skips it.
+  Stop review forgets it (`forgetLastSave`) and any kept copy (`forgetKeptWork`), and marks the store as it is now
+  as saved, so a new review doesn't open the thrown-away draft and leaving doesn't save or keep it. React's dev mode
+  closes and reopens the editor at once: the leave-save checks a moment later (`stillLeaving`) and skips the save
+  (what it kept right away stays until the next save).
 
 ## Helpers this folder uses (in `src/lib`)
 

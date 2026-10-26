@@ -55,8 +55,11 @@ export function ReviewControls() {
       await stopReview(presentation.id);
       toast.success("Review stopped. Nothing was changed.");
       // Nothing left to save, so leaving doesn't save the thrown-away work (see saveBeforeLeaving), and a new review
-      // in this tab doesn't open the thrown-away draft (see lastSaveOf).
-      useEditorStore.setState({ savedPresentation: presentation, review: null });
+      // in this tab doesn't open the thrown-away draft (see lastSaveOf). As it is now: edits typed while it stopped
+      // are thrown away too, not left unsaved outside review mode. Nor kept in this browser (a leave-save keeps the
+      // work as soon as the editor closes), so a new review doesn't bring it back.
+      useEditorStore.setState((s) => ({ savedPresentation: s.presentation, review: null }));
+      forgetKeptWork(presentation.id);
       forgetLastSave(presentation.id);
       router.push(`/presentation/${presentation.id}`);
     } catch (error) {

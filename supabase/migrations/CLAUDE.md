@@ -26,6 +26,15 @@ even if the app has a bug. The app's checks (zod, hidden buttons) are only the f
 - A limit checked here (text length, counts) must match the same limit in `src/lib/schema.ts` (or the file named
   in the comment), so the app and the database agree. Write "Same limit as …" next to it.
 
+## Deploying (database first)
+
+- Apply new migrations, in file-name order, **before** deploying the app code that uses them. Now: apply
+  `20261210000000` to `20261210000500` in order, then deploy. Without them, Admin → Editors fails (it calls
+  `admin_editors`, `…000500`), Admin → Safety fails and the sign up page loses its throwaway email check (they read
+  `blocked_email_domains`, `…000400`).
+- Then check in the Supabase dashboard (Authentication → Hooks) that the Before User Created hook is still on: the
+  sign up limit and the throwaway email check run only through it.
+
 ## Finding a function's newest version
 
 Many functions were changed again in later files (`create or replace function`). The newest version is in the

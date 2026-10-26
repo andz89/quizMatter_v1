@@ -37,11 +37,11 @@
   `share_presentation` / `unshare_presentation` (zod first). A teacher's shared copy is its own presentation row
   (`shared_from` = the original). The store keeps `sharedCopy`; `setPublished` / `updateSharedCopy` save unsaved
   edits first. QuizMatter presentations keep the `isPublished` switch. See `20261123000000_shared_copy.sql`.
-- `keptWork.ts`: unsaved work kept in this browser (`qm-unsaved:<id>`) when a save is refused with `QMOLD`, or when
-  the save on leaving the editor fails (`saveBeforeLeaving` in `store.ts`; how the editor uses it:
-  `src/components/editor/CLAUDE.md`). `keepUnsavedWork` returns false when the browser can't store it
-  (blocked or full), and stores nothing (true) when there are no real edits (only the publish switch or save times
-  changed). It keeps the ids of the slides at the last save too, so `takeKeptWork` can merge with what a newer save
+- `keptWork.ts`: unsaved work kept in this browser (`qm-unsaved:<id>`) when a save is refused with `QMOLD`, or while
+  the editor is left (`saveBeforeLeaving` in `store.ts` keeps it before it saves, and a save that works forgets it;
+  how the editor uses it: `src/components/editor/CLAUDE.md`). `keepUnsavedWork` returns false when the browser
+  can't store it (blocked or full), and stores nothing (true) when there are no real edits (only the publish switch
+  or save times changed). It keeps the ids of the slides at the last save too, so `takeKeptWork` can merge with what a newer save
   did: walking the kept slides, an untouched one becomes the loaded one (dropped if the newer save deleted it), a
   changed or new one stays; then each slide the newer save added goes in right after the nearest slide before it
   that's in the result (or first). A slide this tab deleted stays deleted. Nothing to give back = null. Tests:

@@ -1,7 +1,8 @@
 import { presentationSchema, type Presentation, type Slide } from "./schema";
 
 // Unsaved work kept in this browser when a save is refused because newer app code saved the presentation (QMOLD,
-// see the data_version migration), or when the save on leaving the editor fails (saveBeforeLeaving in store.ts).
+// see the data_version migration), or while the editor is left (saveBeforeLeaving in store.ts keeps it before it
+// saves, so a failed save or a tab closed meanwhile doesn't lose it).
 // After a QMOLD the tab reloads to get the new code. The editor puts the work back the next time it opens that
 // presentation (upgraded to today's shape by presentationSchema). One per presentation; it stays until a save of that
 // presentation works (forgetKeptWork), so a crash or a second load doesn't lose it. Storage can be blocked or full
