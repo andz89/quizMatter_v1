@@ -1,19 +1,19 @@
 import { notFound } from "next/navigation";
+import { ShowMore } from "@/app/(home)/ShowMore";
+import { parseShown } from "@/app/homeSearch";
 import { getAccount } from "@/lib/account";
 import { timeAgo } from "@/lib/format";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { ClickHistory, type HistoryRow } from "../ClickHistory";
 import { ClickTabs } from "../ClickTabs";
-import { lookUpEmails, type AdminClient, type ClickLimit } from "../data";
-
-// The newest events shown.
-const HISTORY_ROWS = 20;
+import { lookUpNames, type AdminClient, type ClickLimit } from "../data";
 
 /**
- * Admin → Safety → History: the newest pauses, automatic bans and admin releases (the click_history table, which has
- * no policies, so it needs the secret key).
+ * Admin → Safety → History: every pause, automatic ban and admin release, newest first, 20 at a time ("Show more",
+ * `?shown=`). The click_history table has no policies, so it needs the secret key. Each row saved the email when it
+ * was written, so a deleted account's rows still say who it was (20261213000000_click_history_keeps_email.sql).
  */
-export default async function AdminSafetyHistoryPage() {
+export default async function AdminSafetyHistoryPage({ searchParams }: PageProps<"/admin/safety/history">) {
   // The layout checks too, but a layout doesn't run again on every request, so the page checks next to its data.
   if (!(await getAccount()).isSuperAdmin) notFound();
   const admin = createAdminClient();
@@ -24,14 +24,16 @@ export default async function AdminSafetyHistoryPage() {
       </p>
     );
   }
+  const shown = parseShown(await searchParams);
 
   const [limits, history] = await Promise.all([
     admin.from("click_limits").select("*"),
     admin
       .from("click_history")
-      .select("id, user_id, feature, kind, pause_minutes, streak, created_at")
+      .select("id, user_id, email, feature, kind, pause_minutes, streak, created_at", { count: "exact" })
       .order("created_at", { ascending: false })
-      .limit(HISTORY_ROWS),
+      .order("id", { ascending: false })
+      .range(0, shown - 1),
   ]);
   if (limits.error) throw limits.error;
   if (history.error) throw history.error;
@@ -43,16 +45,19 @@ export default async function AdminSafetyHistoryPage() {
       <h2 className="text-[11px] font-bold tracking-[0.05em] text-text-header uppercase">Clicked too fast</h2>
       <ClickTabs active="history" />
       <p className="text-sm text-text-secondary">
-        Every pause, automatic ban and admin release, newest first (the last {HISTORY_ROWS}).
+        Every pause, automatic ban and admin release, newest first. Kept, also after an account is deleted.
       </p>
       <ClickHistory rows={rows} />
+      <ShowMore shown={shown} total={history.count ?? 0} />
     </section>
   );
 }
 
 type HistoryEvent = {
   id: number;
-  user_id: string;
+  // Empty once the account is deleted.
+  user_id: string | null;
+  email: string | null;
   feature: string;
   kind: HistoryRow["kind"];
   pause_minutes: number | null;
@@ -64,12 +69,14 @@ type HistoryEvent = {
 async function buildHistoryRows(admin: AdminClient, events: HistoryEvent[], limits: ClickLimit[]): Promise<HistoryRow[]> {
   const now = Date.now();
   const limitByFeature = new Map(limits.map((limit) => [limit.feature, limit]));
-  const emails = await lookUpEmails(admin, events.map((event) => event.user_id));
+  const names = await lookUpNames(admin, events.flatMap((event) => (event.user_id ? [event.user_id] : [])));
   return events.map((event) => {
     const limit = limitByFeature.get(event.feature);
     return {
       id: event.id,
-      email: emails.get(event.user_id) ?? "",
+      email: event.email ?? "(no email)",
+      name: (event.user_id && names.get(event.user_id)) || "",
+      isDeleted: event.user_id === null,
       label: limit?.label || event.feature,
       kind: event.kind,
       pauseMinutes: event.pause_minutes,

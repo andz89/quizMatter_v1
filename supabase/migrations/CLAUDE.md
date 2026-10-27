@@ -100,6 +100,10 @@ A refusal raises an error with its own code. The app turns the code into a messa
   per request (flag `quizmatter.counted_<feature>`), only when
   `current_user = 'authenticated'` (so `set_display_name`, a database function, counts only `display_name`) and
   never without a logged-in user (an account delete runs them as `supabase_auth_admin`).
+  `20261213000000_click_history_keeps_email.sql`: each `click_history` row saves the account's email
+  (`set_click_history_email`, before insert, so `count_click` and the admin's Release don't send it), and deleting
+  the account only empties `user_id` (`on delete set null`), so the record of who reached a limit stays. Test: in
+  `supabase/tests/account_delete.sql`.
 - Reviews: `20261019000000_presentation_reviews.sql` and the review files after it (listed in the root `CLAUDE.md`).
   Newest `check_review_draft` (run by `save_review_draft` and `submit_review`): `20261210000200_database_fixes.sql`,
   which also checks what the presentations table checks (at most 10 tags and 14 grades, a known slide effect, speed

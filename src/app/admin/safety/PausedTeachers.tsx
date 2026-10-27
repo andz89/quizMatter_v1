@@ -10,6 +10,8 @@ import { releasePause } from "./actions";
 export type PausedRow = {
   userId: string;
   email: string;
+  // Display name, else first and last name ("" if none).
+  name: string;
   feature: string;
   // What the feature is called, e.g. "Save (bookmarks)".
   label: string;
@@ -66,7 +68,8 @@ function Row({ row }: { row: PausedRow }) {
     <div className={`flex flex-wrap items-center gap-3 px-5 py-3.5 ${isBusy ? "opacity-60" : ""}`}>
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="truncate text-sm font-semibold text-text-primary">{row.email}</span>
+          <span className="truncate text-sm font-semibold text-text-primary">{row.name || row.email}</span>
+          {row.name && <span className="truncate text-[13px] text-text-secondary">{row.email}</span>}
           {row.isPausedNow ? (
             <span className={`${pillClass} bg-highlight-soft text-highlight-strong`}>Paused</span>
           ) : (

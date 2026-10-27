@@ -84,8 +84,19 @@ select public.approve_submission(target_id => 'test-acd-e1');
 reset role;
 select set_config('request.jwt.claims', '', true);
 
+-- A pause in the teacher's click history, written like count_click writes it (no email given).
+insert into public.click_history (user_id, feature, kind, pause_minutes, streak)
+values ('00000000-0000-4000-8000-0000000000a3', 'saved', 'pause', 10, 1);
+
 do $$
 begin
+  -- The history row saves the teacher's email by itself, so it still says who it was after the account is gone.
+  if not exists (
+    select 1 from public.click_history h
+    where h.user_id = '00000000-0000-4000-8000-0000000000a3' and h.email = 'acd-teacher@example.com'
+  ) then
+    raise exception 'FAIL: the click history row didn''t save the teacher''s email';
+  end if;
   if (select count(*) from public.presentations p where p.owner_id = '00000000-0000-4000-8000-0000000000a3') <> 3
     or not exists (select 1 from public.slide_photos sp where sp.presentation_id = 'test-acd-t1')
     or not exists (select 1 from public.presentation_likes l where l.user_id = '00000000-0000-4000-8000-0000000000a3')
@@ -171,6 +182,13 @@ begin
   -- The lesson's like count went back down with the deleted like.
   if coalesce((select c.total from public.presentation_like_counts c where c.presentation_id = 'test-acd-lesson'), 0) <> 0 then
     raise exception 'FAIL: the deleted teacher''s like still counts';
+  end if;
+  -- The teacher's click history stays for Admin → Safety → History: no account, but the saved email.
+  if not exists (
+    select 1 from public.click_history h
+    where h.user_id is null and h.email = 'acd-teacher@example.com' and h.kind = 'pause'
+  ) then
+    raise exception 'FAIL: the deleted teacher''s click history didn''t stay';
   end if;
 end $$;
 

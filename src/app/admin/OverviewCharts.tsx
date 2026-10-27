@@ -18,8 +18,9 @@ const CHARTS = [
   },
   { series: "signups", title: "New teachers", note: "Not counting accounts deleted since." },
   { series: "logins", title: "Teachers who logged in", note: "Each teacher's last login only." },
-  { series: "pauses", title: "Click pauses", note: "Not counting accounts deleted since." },
-  { series: "bans", title: "Automatic bans", note: "Not counting accounts deleted since." },
+  // click_history keeps a deleted account's rows since 20261213000000_click_history_keeps_email.sql.
+  { series: "pauses", title: "Click pauses", note: "Deleted accounts count too, from Oct 27, 2026." },
+  { series: "bans", title: "Automatic bans", note: "Deleted accounts count too, from Oct 27, 2026." },
 ];
 
 // Only the super admin gets these (the database sends them to nobody else).

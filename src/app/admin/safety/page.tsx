@@ -9,7 +9,9 @@ import { DRAFT_LIFETIME_MS } from "@/lib/drafts";
 import { FOLDER_NAME_MAX, MAX_FOLDERS } from "@/lib/folders";
 import {
   CONTACT_NUMBER_MAX_LENGTH,
+  DISPLAY_NAME_CHANGE_DAYS,
   DISPLAY_NAME_MAX_LENGTH,
+  DISPLAY_NAME_TAKEN_MESSAGE,
   EDUCATION_FIELD_MAX_LENGTH,
   EDUCATION_LEVEL_LABELS,
   EDUCATION_LEVELS,
@@ -25,7 +27,7 @@ import { MAX_PRESENTATIONS, MAX_SAVED, MAX_SLIDES, MAX_TAGS, PUBLISH_NEEDS_CONTE
 import { createAdminClient } from "@/lib/supabase/admin";
 import { timeAgo } from "@/lib/format";
 import { ClickTabs } from "./ClickTabs";
-import { lookUpEmails, type AdminClient, type ClickLimit } from "./data";
+import { lookUpEmails, lookUpNames, type AdminClient, type ClickLimit } from "./data";
 import { PausedTeachers, type PausedRow } from "./PausedTeachers";
 
 /**
@@ -61,6 +63,12 @@ export default async function AdminSafetyPage() {
   if (blockedDomains.error) throw blockedDomains.error;
 
   const banningLimits = clickLimits.filter((limit) => limit.ban_after_pauses);
+  // One sentence when they all ban the same way (they do today: the 3rd time in a row, each within 24 hours).
+  const banRules = [
+    ...new Set(
+      banningLimits.map((limit) => `${banRule(limit.ban_after_pauses!)} Each time must be within ${limit.repeat_within_hours} hours of the last.`)
+    ),
+  ].join(" ");
   // Teachers, not rows: one teacher paused on two features counts once.
   const pausedNow = new Set(pausedRows.filter((row) => row.isPausedNow).map((row) => row.userId)).size;
   const repeatHours = [...new Set(clickLimits.map((limit) => limit.repeat_within_hours))].join(" or ");
@@ -85,6 +93,10 @@ export default async function AdminSafetyPage() {
         <PausedTeachers rows={pausedRows} repeatHours={repeatHours} />
       </section>
 
+      <Group title="Click limits at a glance" count={clickLimits.length}>
+        <ClickLimitsTable limits={clickLimits} />
+      </Group>
+
       <Group title="Speed limits">
         <Item
           name="Shared photos speed limit"
@@ -101,22 +113,30 @@ export default async function AdminSafetyPage() {
             scenario: `Someone gets into an admin's account and tries to flood the shared library with photos. Only ${WRITES_PER_MINUTE} get through each minute.`,
           }}
         />
-        {clickLimits.map((limit) => (
-          <Item
-            key={limit.feature}
-            name={`${limit.label || limit.feature} click limit`}
-            where="Database"
-            rule={
-              (limit.daily_reset_time_zone
-                ? `${limit.max_clicks} a day pauses it until 12:00 midnight (${zoneName(limit.daily_reset_time_zone)}), when the count starts again.`
-                : `${limit.max_clicks} clicks within ${timeSpan(limit.per_seconds)} pauses it for ${duration(limit.first_pause_minutes)}. ` +
-                  `If it happens again within ${limit.repeat_within_hours} hours, the pause is ${duration(limit.repeat_pause_minutes)}.`) +
-              (limit.ban_after_pauses ? ` ${banRule(limit.ban_after_pauses)}` : "")
-            }
-            sees="Its buttons grey out, and a notice at the bottom says when they work again."
-            more={clickLimitMore(limit)}
-          />
-        ))}
+        {clickLimits.map((limit) => {
+          // A daily limit shows with its minute limit (presentation_save + presentation_save_daily: one item).
+          const minute = clickLimits.find((other) => `${other.feature}_daily` === limit.feature);
+          if (minute && PAIRS[minute.feature]) return null;
+          const daily = clickLimits.find((other) => other.feature === `${limit.feature}_daily`);
+          const pair = PAIRS[limit.feature];
+          if (daily && pair) return <PairItem key={limit.feature} minute={limit} daily={daily} text={pair(limit, daily)} />;
+          return (
+            <Item
+              key={limit.feature}
+              name={`${limit.label || limit.feature} click limit`}
+              where="Database"
+              rule={
+                (limit.daily_reset_time_zone
+                  ? `${limit.max_clicks} a day pauses it until 12:00 midnight (${zoneName(limit.daily_reset_time_zone)}), when the count starts again.`
+                  : `${limit.max_clicks} clicks within ${timeSpan(limit.per_seconds)} pauses it for ${duration(limit.first_pause_minutes)}. ` +
+                    `If it happens again within ${limit.repeat_within_hours} hours, the pause is ${duration(limit.repeat_pause_minutes)}.`) +
+                (limit.ban_after_pauses ? ` ${banRule(limit.ban_after_pauses)}` : "")
+              }
+              sees="Its buttons grey out, and a notice at the bottom says when they work again."
+              more={clickLimitMore(limit)}
+            />
+          );
+        })}
       </Group>
 
       <Group title="Sharing presentations">
@@ -162,24 +182,24 @@ export default async function AdminSafetyPage() {
       </Group>
 
       <Group title="Bans">
-        {banningLimits.map((limit) => (
+        {banningLimits.length > 0 && (
           <Item
-            key={limit.feature}
-            name={`Automatic ban: ${limit.label || limit.feature}`}
+            name="Automatic ban"
             where="Database"
-            rule={`${banRule(limit.ban_after_pauses!)} Each time must be within ${limit.repeat_within_hours} hours of the last.`}
+            rule={`${banningLimits.length} click limits ban a teacher who keeps reaching them: ${banningLimits.map((limit) => limit.label || limit.feature).join(", ")}. ${banRules}`}
             sees="Banned like an admin ban. Shows as “Automatic” on Admin → Teachers, where it can be lifted with Unban."
             more={{
               what: [
-                `If a teacher keeps hitting the ${limit.label || limit.feature} click limit again and again, the app bans the account by itself, without waiting for an admin.`,
-                `The times must come close together: each one within ${limit.repeat_within_hours} hours of the last. ${banRule(limit.ban_after_pauses!)}`,
-                "The ban works like an admin's ban: no saving, no uploads, no logging in. It shows as “Automatic” on Admin → Teachers, and an admin can lift it with Unban.",
+                "If a teacher keeps reaching the same click limit again and again, the app bans the account by itself, without waiting for an admin. Each limit counts its own pauses: a pause on Folders doesn't add to Save.",
+                `The times must come close together. ${banRules}`,
+                "The ban works like an admin's ban: no saving, no uploads, no logging in. It shows as “Automatic” on Admin → Teachers, and an admin can lift it with Unban. Plain admins are only paused, never banned; the super admin isn't counted.",
+                "Every pause and ban is written in Safety → History with the teacher's name and email. It stays there even after the account is deleted.",
               ],
-              example: `Ben hits the limit on Monday morning and is paused. He hits it again that afternoon, and again that evening. The ${ordinal(limit.ban_after_pauses!)} time, he is banned instead of paused. An admin looks, sees it was a mistake, and clicks Unban.`,
-              scenario: "A script keeps clicking all night, waiting out each pause and starting again. Instead of being paused forever, the account is banned, and an admin sees it in the morning.",
+              example: `Ben hits the Save limit on Monday morning and is paused. He hits it again that afternoon, and again that evening. The ${ordinal(banningLimits[0].ban_after_pauses!)} time, he is banned instead of paused. An admin looks, sees it was a mistake, and clicks Unban.`,
+              scenario: "A script keeps saving all night, waiting out each pause and starting again. Instead of being paused forever, the account is banned, and an admin sees it in the morning.",
             }}
           />
-        ))}
+        )}
         <Item
           name="Admin ban"
           where="Database + login"
@@ -452,7 +472,7 @@ export default async function AdminSafetyPage() {
           more={{
             what: [
               "Every file type starts with its own few bytes (a kind of signature). The server checks those, so a program renamed to “photo.jpg” is refused.",
-              "Uploads also count toward the save speed limit, and a banned account can't upload.",
+              "Each upload also counts toward the “Photo uploads” click limits (Speed limits, above), and a banned account can't upload.",
             ],
             example: "Ben uploads a PNG drawing his class made. The server sees it's a real PNG and saves it.",
             scenario: "Someone renames a harmful program to “cat.jpg” and uploads it, hoping others download it. The server sees it isn't a photo and refuses it.",
@@ -619,6 +639,20 @@ export default async function AdminSafetyPage() {
           }}
         />
         <Item
+          name={`Display name: once every ${DISPLAY_NAME_CHANGE_DAYS} days`}
+          where="Database + app"
+          rule={`After a teacher changes their display name, it stays for ${DISPLAY_NAME_CHANGE_DAYS} days. A name someone else uses is refused (names are unique by their profile link). Each try also counts toward the “Display name” click limit (Speed limits, above)`}
+          sees={`“You can change your display name again on <date>.” or “${DISPLAY_NAME_TAKEN_MESSAGE}”`}
+          more={{
+            what: [
+              "The display name shows on the teacher's presentations and profile, and the profile link is made from it. Changing it often would break shared links and confuse other teachers, so a change is kept for 30 days.",
+              "The Account page says so and asks first. The database checks it again (set_display_name), so a request sent by hand can't skip the wait. The super admin can change theirs any time.",
+            ],
+            example: "Ana changes her display name from “Ana C.” to “Teacher Ana” on March 1. On March 10 she wants to change it back, and is told she can on March 31.",
+            scenario: "Someone keeps changing their name to look like other teachers, to trick people. They get one change a month, and a name already in use is refused.",
+          }}
+        />
+        <Item
           name="Emails really from QuizMatter"
           where="Cloudflare DNS + Resend"
           rule="Sign up emails are sent by Resend as no-reply@quizmatter.com. The SPF, DKIM and DMARC records for quizmatter.com in Cloudflare (DNS → Records) prove they really come from QuizMatter. Set up outside the code"
@@ -679,6 +713,52 @@ export default async function AdminSafetyPage() {
           }}
         />
       </Group>
+
+      <Group title="Not covered yet">
+        <Item
+          name="Page loads and reloads"
+          where="Not limited"
+          rule="Opening and reloading pages isn't counted, and neither is reading from the database (looking at presentations, searching). Only a Cloudflare rate limit can slow a flood of them (“Cloudflare rate limit”, above), if a rule is set in the Cloudflare dashboard"
+          sees="Nothing; pages open as usual."
+          more={{
+            what: [
+              "The click limits count changes (saves, uploads, folders, …), not looking. A teacher who reloads a page all day isn't paused, and isn't written in History.",
+              "What helps today: Cloudflare can block an internet address that sends too many requests, before they reach the app. That rule lives in the Cloudflare dashboard (Security → WAF → Rate limiting rules), not in the code.",
+            ],
+            example: "A teacher's Wi-Fi is slow, so she reloads the editor 20 times in an hour. Nothing happens to her account.",
+            scenario: "Someone runs a script that reloads the Home page thousands of times to slow the app down. The app itself doesn't stop it; only a Cloudflare rule would.",
+          }}
+        />
+        <Item
+          name="A new account after a ban"
+          where="Not limited"
+          rule={`A ban is on the account, not the person, so a banned person can sign up again with another email. What slows them: throwaway emails are refused, ${SIGN_UPS_PER_ADDRESS} sign ups an hour per internet address, the person check, and the email must be confirmed (Sign up and login, above)`}
+          sees="Nothing; the new account works like any other until it's banned too."
+          more={{
+            what: [
+              "QuizMatter knows people by their email. Someone with a second real email can make a new account after a ban.",
+              "The sign up limits make it slow: a throwaway inbox is refused, one internet address gets only a few sign ups an hour, and each account needs a real email they can open.",
+              "History keeps the old account's name and email, even after it's deleted, so if the same person comes back you can see it and ban the new account too.",
+            ],
+            example: "Ben is banned for spam. A week later he signs up again with his other Gmail. An admin notices the same kind of presentations and bans the new account too.",
+            scenario: "Someone makes a new account after every ban. Each one needs a new real email they can open, so it costs them time, and every ban is recorded.",
+          }}
+        />
+        <Item
+          name="The login right after a ban"
+          where="Supabase"
+          rule="A ban stops saving and adding at once (presentations, photos, new folders, settings, reports, likes, bookmarks) and the home pages show the blocked message. But a login that's already open isn't ended right away: Supabase checks it again within the hour"
+          sees="Their saves are refused at once; within the hour they're logged out and can't log in again."
+          more={{
+            what: [
+              "A login lasts up to an hour before Supabase checks the account again. Until then the banned person is still logged in.",
+              "That hour can't be used to spread anything: the database refuses their saves and additions the moment the ban is made. Only tidying their own things still works (like renaming or deleting a folder), which harms nobody.",
+            ],
+            example: "An admin bans Ben at 2:00 PM. His next save is refused at once. By 3:00 PM at the latest he's logged out, and logging in again is refused.",
+            scenario: "A spammer is banned in the middle of posting. Nothing more they send is saved, even though their old login lasts a little longer.",
+          }}
+        />
+      </Group>
     </div>
   );
 }
@@ -707,7 +787,8 @@ async function buildPausedRows(admin: AdminClient, limits: ClickLimit[]): Promis
     const limit = limitByFeature.get(row.feature);
     return limit && Date.parse(row.paused_until) > now - limit.repeat_within_hours * 3_600_000;
   });
-  const emails = await lookUpEmails(admin, current.map((row) => row.user_id));
+  const ids = current.map((row) => row.user_id);
+  const [emails, names] = await Promise.all([lookUpEmails(admin, ids), lookUpNames(admin, ids)]);
 
   return current
     .map((row) => {
@@ -717,6 +798,7 @@ async function buildPausedRows(admin: AdminClient, limits: ClickLimit[]): Promis
       return {
         userId: row.user_id,
         email: emails.get(row.user_id) ?? "",
+        name: names.get(row.user_id) ?? "",
         feature: row.feature,
         label: limit.label || row.feature,
         status: isPausedNow
@@ -786,11 +868,7 @@ function ShareLimitDetails({ limits }: { limits: ClickLimit[] }) {
                     <td className="px-3 py-2">{counts}</td>
                     <td className="px-3 py-2">{limitAmount(limit)}</td>
                     <td className="px-3 py-2">{firstPause(limit)}</td>
-                    <td className="px-3 py-2">
-                      {limit.daily_reset_time_zone
-                        ? "Until 12:00 midnight, every time"
-                        : `${duration(limit.repeat_pause_minutes)}, if it happens again within ${limit.repeat_within_hours} hours after the last pause ended`}
-                    </td>
+                    <td className="px-3 py-2">{pauseAgain(limit)}</td>
                     <td className="px-3 py-2">{limit.ban_after_pauses ? banRule(limit.ban_after_pauses) : "Never"}</td>
                   </tr>
                 ))}
@@ -923,20 +1001,33 @@ function clock(minutes: number): string {
   return days === 0 ? time : days === 1 ? `${time} the next day` : `${time} in ${days} days`;
 }
 
-/** 1 → "1st", 12 → "12th", 22 → "22nd". */
+/** 1 → "1st", 12 → "12th", 22 → "22nd", 1000 → "1,000th". */
 function ordinal(n: number): string {
   const suffix = n % 100 >= 11 && n % 100 <= 13 ? "th" : ["th", "st", "nd", "rd"][n % 10] ?? "th";
-  return `${n}${suffix}`;
+  return `${withCommas(n)}${suffix}`;
 }
 
-/** How many, in words: "12 within 1 hour", or "10 a day" for a limit counted per day. */
+/** How many, in words: "12 within 1 hour", or "1,000 a day" for a limit counted per day. */
 function limitAmount(limit: ClickLimit): string {
-  return limit.daily_reset_time_zone ? `${limit.max_clicks} a day` : `${limit.max_clicks} within ${timeSpan(limit.per_seconds)}`;
+  const max = withCommas(limit.max_clicks);
+  return limit.daily_reset_time_zone ? `${max} a day` : `${max} within ${timeSpan(limit.per_seconds)}`;
 }
 
 /** How long the first pause is: "1 hour", or "Until 12:00 midnight" for a limit counted per day. */
 function firstPause(limit: ClickLimit): string {
   return limit.daily_reset_time_zone ? "Until 12:00 midnight" : duration(limit.first_pause_minutes);
+}
+
+/** How long a pause is when it happens again soon after the last one. */
+function pauseAgain(limit: ClickLimit): string {
+  return limit.daily_reset_time_zone
+    ? "Until 12:00 midnight, every time"
+    : `${duration(limit.repeat_pause_minutes)}, if it happens again within ${limit.repeat_within_hours} hours after the last pause ended`;
+}
+
+/** 1000 → "1,000". */
+function withCommas(n: number): string {
+  return n.toLocaleString("en-US");
 }
 
 /** When the count goes back to 0, finishing "the count goes back to 0 …". */
@@ -981,14 +1072,17 @@ function Stat({ label, value, note }: { label: string; value: number; note: stri
   );
 }
 
-/** A group of protections that opens and closes on a click (closed at first, so the page is easy to scan). */
-function Group({ title, children }: { title: string; children: ReactNode }) {
+/**
+ * A group of protections that opens and closes on a click (closed at first, so the page is easy to scan). The pill
+ * shows how many items it has, or `count` (e.g. the rows of one table).
+ */
+function Group({ title, count, children }: { title: string; count?: number; children: ReactNode }) {
   return (
     <details className="group/section flex flex-col gap-2">
       <summary className="flex w-fit cursor-pointer list-none items-center gap-2 text-[11px] font-bold tracking-[0.05em] text-text-header uppercase hover:text-text-secondary [&::-webkit-details-marker]:hidden">
         <ChevronDownIcon size={14} className="-rotate-90 transition-transform group-open/section:rotate-0" />
         <h2>{title}</h2>
-        <span className="rounded-dropdown bg-bg-page px-2 py-0.5 tracking-normal normal-case">{Children.toArray(children).length}</span>
+        <span className="rounded-dropdown bg-bg-page px-2 py-0.5 tracking-normal normal-case">{count ?? Children.toArray(children).length}</span>
       </summary>
       <div className="mt-2 flex flex-col divide-y divide-border-default rounded-card border border-border-default bg-bg-surface">
         {children}
@@ -1121,3 +1215,159 @@ function clickLimitMore(limit: ClickLimit): More {
     scenario: `Someone runs a script (a small program that clicks for them) that clicks hundreds of times. It's stopped after ${limit.max_clicks}, and has to wait ${pause}.` + (limit.ban_after_pauses ? ` If it keeps coming back, the account is banned.` : ""),
   };
 }
+
+/** Every click limit in one table, from its click_limits row (so the numbers stay true), with what it counts. */
+function ClickLimitsTable({ limits }: { limits: ClickLimit[] }) {
+  return (
+    <div className="overflow-x-auto px-5 py-3.5">
+      <table className="w-full text-left text-[13px] text-text-primary">
+        <thead className="text-[11px] font-bold tracking-[0.05em] text-text-header uppercase">
+          <tr className="border-b border-border-default">
+            <th className="py-2 pr-3">Limit</th>
+            <th className="px-3 py-2">What counts</th>
+            <th className="px-3 py-2">How many</th>
+            <th className="px-3 py-2">First pause</th>
+            <th className="px-3 py-2">Pause again</th>
+            <th className="py-2 pl-3">Ban</th>
+          </tr>
+        </thead>
+        <tbody>
+          {limits.map((limit) => (
+            <tr key={limit.feature} className="border-b border-border-default align-top last:border-b-0">
+              <td className="py-2 pr-3 font-semibold">{limit.label || limit.feature}</td>
+              {/* A daily limit counts the same as its minute limit. */}
+              <td className="min-w-56 px-3 py-2">{COUNTS[limit.feature.replace(/_daily$/, "")] ?? "—"}</td>
+              <td className="px-3 py-2 whitespace-nowrap">{limitAmount(limit)}</td>
+              <td className="px-3 py-2">{firstPause(limit)}</td>
+              <td className="min-w-48 px-3 py-2">{pauseAgain(limit)}</td>
+              <td className="py-2 pl-3">{limit.ban_after_pauses ? `The ${ordinal(limit.ban_after_pauses)} time in a row` : "Never"}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+/** What each click limit counts, in a few words (the table's "What counts"). */
+const COUNTS: Record<string, string> = {
+  saved: "Adding or removing a presentation in Saved (the bookmark)",
+  like: "Liking or unliking a presentation",
+  share: "Switching a presentation private ↔ published (both ways)",
+  publish: "Making a presentation published",
+  create: "Each new presentation: + New presentation, Make a copy, saving a Claude draft",
+  display_name: "Each try to change the display name",
+  presentation_save: "Every change to my presentations or slides (Save, delete, copy, publish), once per request",
+  photo_upload: "Each photo uploaded to My photos",
+  photo_rows: "Each photo added to the My photos list (the app's own upload adds one too)",
+  folders: "Making, renaming or deleting a folder, or moving presentations in or out, once per request",
+  settings: "Saving personal details, the bio or a favorite star in Elements, once per request",
+};
+
+/** The words for a click limit that has a daily limit too. */
+type PairText = { counts: string[]; notCounted: string[]; sees: string; example: string; scenario: string };
+
+/** A click limit and its daily limit (e.g. Save: 30 within 1 minute and 1,000 a day) as one item. */
+function PairItem({ minute, daily, text }: { minute: ClickLimit; daily: ClickLimit; text: PairText }) {
+  const ban = minute.ban_after_pauses ? ` ${banRule(minute.ban_after_pauses)}` : "";
+  const dailyPause = daily.daily_reset_time_zone
+    ? `until 12:00 midnight (${zoneName(daily.daily_reset_time_zone)})`
+    : `for ${duration(daily.first_pause_minutes)}`;
+  return (
+    <Item
+      name={`${minute.label || minute.feature} click limits`}
+      where="Database"
+      rule={
+        `${limitAmount(minute)} pauses it for ${duration(minute.first_pause_minutes)}; again within ` +
+        `${minute.repeat_within_hours} hours, for ${duration(minute.repeat_pause_minutes)}. ${limitAmount(daily)} pauses it ${dailyPause}.${ban}`
+      }
+      sees={text.sees}
+      more={{
+        what: (
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-1.5">
+              <p>
+                Two limits count the same thing: {limitAmount(minute)} stops a fast script, and {limitAmount(daily)} stops a
+                slow one that waits between tries. Each teacher has their own counts.
+              </p>
+              <p>
+                The {ordinal(minute.max_clicks)} time within {timeSpan(minute.per_seconds)} (or the {ordinal(daily.max_clicks)} in
+                a day) still works; the next one is refused, and only this feature pauses. Everything else in the app keeps
+                working.{ban} Each limit counts its own pauses.
+              </p>
+              <p>Plain admins are paused too, but never banned. The super admin isn&apos;t counted. An admin can end a pause early with Release (above).</p>
+            </div>
+            <MoreList title="What counts" lines={text.counts} />
+            <MoreList title="What doesn't count" lines={text.notCounted} />
+          </div>
+        ),
+        example: text.example,
+        scenario: text.scenario,
+      }}
+    />
+  );
+}
+
+/** Each click limit that has a daily limit (`<feature>_daily`), in words, with its numbers. */
+const PAIRS: Record<string, (minute: ClickLimit, daily: ClickLimit) => PairText> = {
+  presentation_save: (minute, daily) => ({
+    counts: [
+      "Every change to the teacher's own presentations and slides: Save or Ctrl+S, leaving the editor with unsaved changes, deleting a presentation, Make a copy, Published or Private, saving a Claude draft.",
+      "Every way of doing it: the app, Claude, or a request sent by hand, skipping the app.",
+      "One save counts once, however many slides it sends: saving 100 slides at once is 1.",
+      "All the teacher's presentations count together, not each one alone.",
+    ],
+    notCounted: ["Opening, presenting or looking at presentations.", "Edits in the editor until they're saved.", "The super admin."],
+    sees: "The Save button greys out, and a notice at the bottom says when saving works again.",
+    example: `Ana builds a quiz and presses Ctrl+S after almost every change: about 6 saves a minute, far under ${minute.max_clicks}. Over a long day she saves about 300 times, still under ${withCommas(daily.max_clicks)}.`,
+    scenario: `A script makes, saves and deletes presentations over and over. After ${minute.max_clicks} in a minute it's paused; a slow script that waits between saves is stopped at ${withCommas(daily.max_clicks)} for the day. If it keeps coming back, the account is banned.`,
+  }),
+  photo_upload: (minute, daily) => ({
+    counts: ["Each photo a teacher uploads to My photos (the editor's Photos panel), counted before the file is stored."],
+    notCounted: [
+      "Using a photo already in My photos or the shared library.",
+      "Removing a photo.",
+      "An admin adding photos to the shared library: that has its own limit (Shared photos speed limit, above).",
+      "The super admin.",
+    ],
+    sees: "The upload button in the Photos panel greys out, and a notice at the bottom says when it works again.",
+    example: `Ben uploads 25 photos for a science lesson, one after another. That's under ${minute.max_clicks} in a minute, and far under ${daily.max_clicks} a day.`,
+    scenario: `Someone uploads photos nonstop to fill QuizMatter's storage. After ${minute.max_clicks} in a minute they're paused, and after ${daily.max_clicks} in a day, until midnight. If it keeps happening, the account is banned.`,
+  }),
+  photo_rows: (minute, daily) => ({
+    counts: [
+      "Each new photo in the teacher's My photos list. The app's own upload adds one, so each upload counts here and in “Photo uploads”.",
+      "Its real job: a script that skips the upload and adds photos straight to the database is counted here.",
+    ],
+    notCounted: ["Removing a photo from My photos.", "The super admin."],
+    sees: "The upload button in the Photos panel greys out, and a notice at the bottom says when it works again.",
+    example: `Ben's 25 photos count 25 here too: still under ${minute.max_clicks} in a minute and ${daily.max_clicks} a day.`,
+    scenario: `A script adds thousands of photos straight to the database, without any files. It's stopped after ${minute.max_clicks} in a minute, and after ${daily.max_clicks} in a day.`,
+  }),
+  folders: (minute, daily) => ({
+    counts: [
+      "Making, renaming or deleting a folder.",
+      "Moving presentations into or out of a folder (the Move box, or dragging cards onto a folder).",
+      "One request counts once: dragging 10 cards onto a folder at once is 1.",
+    ],
+    notCounted: ["Opening a folder and looking at what's in it.", "The super admin."],
+    sees: "“New folder” and the Move box grey out, and a notice at the bottom says when they work again.",
+    example: `Ana sorts her presentations: she makes 8 folders and drags cards into them, about 20 changes in 10 minutes. Far under ${minute.max_clicks} in a minute.`,
+    scenario: `A script makes and deletes folders over and over. After ${minute.max_clicks} changes in a minute it's paused, and after ${daily.max_clicks} in a day, until midnight.`,
+  }),
+  settings: (minute, daily) => ({
+    counts: [
+      "Saving personal details or the bio on the Account page.",
+      "Each favorite star in the Elements panel (favorites are kept in the teacher's settings).",
+      "One request counts once.",
+    ],
+    notCounted: [
+      `Changing the display name: it has its own limit and the ${DISPLAY_NAME_CHANGE_DAYS}-day wait.`,
+      "Signing up (the database makes the first settings).",
+      "The super admin.",
+    ],
+    sees: "The favorite stars and the Account page's Save grey out, and a notice at the bottom says when they work again.",
+    example: `Ben stars 12 drawings as favorites while making a lesson, then fixes his bio. That's 13, under ${minute.max_clicks} in a minute.`,
+    scenario: `A script saves the Account page again and again. It's stopped after ${minute.max_clicks} in a minute, and after ${daily.max_clicks} in a day.`,
+  }),
+};

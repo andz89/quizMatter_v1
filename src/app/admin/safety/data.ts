@@ -18,6 +18,22 @@ export type ClickLimit = {
   daily_reset_time_zone: string | null;
 };
 
+/** Each teacher's name by id (display name, else first and last name), in one read. A deleted account has none. */
+export async function lookUpNames(admin: AdminClient, userIds: string[]): Promise<Map<string, string>> {
+  if (userIds.length === 0) return new Map();
+  const { data, error } = await admin
+    .from("user_settings")
+    .select("user_id, display_name, first_name, last_name")
+    .in("user_id", [...new Set(userIds)]);
+  if (error) throw error;
+  return new Map(
+    (data as { user_id: string; display_name: string; first_name: string; last_name: string }[]).map((row) => [
+      row.user_id,
+      row.display_name || `${row.first_name} ${row.last_name}`.trim(),
+    ])
+  );
+}
+
 /** Each teacher's email by id. Only a few teachers are ever in these lists, so each one is looked up on its own. */
 export async function lookUpEmails(admin: AdminClient, userIds: string[]): Promise<Map<string, string>> {
   return new Map(

@@ -1,6 +1,10 @@
 export type HistoryRow = {
   id: number;
+  // Saved in the row when it was written, so it stays after the account is deleted (isDeleted).
   email: string;
+  // Display name, else first and last name ("" if none, or the account is gone).
+  name: string;
+  isDeleted: boolean;
   // What the feature is called, e.g. "Save (bookmarks)".
   label: string;
   kind: "pause" | "ban" | "release";
@@ -29,7 +33,9 @@ export function ClickHistory({ rows }: { rows: HistoryRow[] }) {
         <div key={row.id} className="flex flex-wrap items-center gap-3 px-5 py-3.5">
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="truncate text-sm font-semibold text-text-primary">{row.email}</span>
+              <span className="truncate text-sm font-semibold text-text-primary">{row.name || row.email}</span>
+              {row.name && <span className="truncate text-[13px] text-text-secondary">{row.email}</span>}
+              {row.isDeleted && <span className={`${pillClass} bg-bg-page text-text-secondary`}>Account deleted</span>}
               <KindPill row={row} />
               {row.kind === "pause" && row.streak !== null && row.banAfter !== null && (
                 <span className={`${pillClass} bg-bg-page text-text-secondary`}>
