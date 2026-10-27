@@ -31,7 +31,9 @@
    - The old names (`…_lesson…`, `…_quiz…`) still work, because old chats keep the tool list they started with.
 3. **Drafts:** they live in Cloudflare D1 (`d1/migrations`), not Supabase, and last 24 hours. The link opens
    `/presentation/new?draft=<id>` (`src/app/presentation/new/page.tsx`), which loads it into the editor as a new
-   presentation. It is only saved for real when the teacher clicks Save. Nothing here touches saved presentations.
+   presentation. It is only saved for real when the admin clicks Save (or Ctrl+S). Leaving the editor doesn't save
+   it: changes are kept in that browser and come back when the link is opened again, and it stays a draft (see
+   `src/components/editor/CLAUDE.md`). Nothing here touches saved presentations.
 
 ## Rules
 

@@ -7,19 +7,21 @@ first.
 - `src/app/` **(notes)**: the teacher pages. `(home)/` home tabs (My presentations, From QuizMatter, Other
   teachers, Saved, Liked, Reviews & submissions, search) and folders; `presentation/[id]/` the view page and `edit/` the
   editor page; `presentation/new/` opens Claude's drafts; `account/`, `login/`, `signup/`, `teachers/[slug]/`
-  (profiles); `oauth/` Claude's login. Teachers' server actions: `actions.ts`, `folderActions.ts`, or an
-  `actions.ts` next to the page.
+  (profiles); `oauth/` Claude's login; `(legal)/` Privacy and Terms (placeholders). Teachers' server actions:
+  `actions.ts`, `folderActions.ts`, or an `actions.ts` next to the page.
 - `src/app/admin/` **(notes)**: the admin pages (Overview, the menu
   with counts, Admin log).
 - `src/app/api/` **(notes)**: photo uploads and deletes (files in Cloudflare R2).
 - `src/components/editor/` **(notes)**: the editor. Its state and every edit: `src/lib/store.ts` (zustand).
 - `src/components/presentation/` **(notes)**: presenting fullscreen (slide effects) and view-only slides.
-- `src/components/` **(notes)**: shared UI (`Spinner`, `TopLoadingBar`, `LinkPending`, `Modal`, `NavBar`, …). The
-  app's confirm box is `src/components/editor/ConfirmModal.tsx` (used on every page).
+- `src/components/` **(notes)**: shared UI (`Spinner`, `TopLoadingBar`, `LinkPending`, `Modal`, `NavBar`, `Footer`,
+  …). The app's confirm box is `src/components/editor/ConfirmModal.tsx` (used on every page). The support email and
+  Facebook link: `src/lib/support.ts`.
 - `src/lib/` **(notes)**: helpers, zod schemas (`schema.ts`), saving and loading.
 - `supabase/migrations/` **(notes)**: the database. Its functions and triggers hold the real rules and limits.
 - `src/pages/api/` **(notes)**: Claude's connector (MCP server). Its drafts live in Cloudflare D1 (`d1/migrations`).
-- `src/proxy.ts`: the login check before each page. `worker.ts` + `wrangler.jsonc`: Cloudflare timers (cleanups).
+- `src/proxy.ts`: the login check before each page (logged-out visitors may open only login, sign up, the email
+  confirm link, Privacy and Terms). `worker.ts` + `wrangler.jsonc`: Cloudflare timers (cleanups).
 - `docs/superpowers/specs/`: the designs of past features. Read the matching one before changing a big feature.
 
 **How a save works:** an edit in the editor → a store action in `store.ts` (kept for undo) → Save / Ctrl+S →
@@ -117,6 +119,16 @@ There is ONE system for pausing a feature when a teacher clicks it too fast (e.g
 3. In the app: read the refusal with `pausedUntilFromError`, call `pauseFeature`, and disable its buttons with `useIsPaused`. The sticky notice at the bottom (`src/components/ClickPauseNotice.tsx`, in the root layout) shows by itself.
 
 A feature's `ban_after_pauses` (in `click_limits`; bookmarks: 3) turns a chain of that many pauses, each within `repeat_within_hours` of the last, into a real ban: a `banned_users` row marked `is_automatic` (Admin → Teachers shows "Automatic") plus Supabase's login ban. Leave it empty for a feature that should never ban. See `supabase/migrations/20261014000000_click_auto_ban.sql`.
+
+Features that pause and then ban (3 times in a row): bookmarks (`saved`), `like`, and saving presentations
+(`presentation_save`: every change to a teacher's presentations or slides, once per request), photo uploads
+(`photo_upload`), photos sent straight to the table (`photo_rows`), `folders` (folders and folder items) and
+`settings` (`user_settings`), each 30 in a minute and also a daily limit (`<feature>_daily`: saves 1,000, uploads and
+photo rows 300, folders and settings 500; paused until midnight Philippine time), so a slow script is stopped too
+(`20261211000000_save_photo_click_limits.sql`). A button covered by both checks `useIsPaused(feature,
+feature_daily)`, and a refusal asks `checkPauses` (both give the same `QMBLK`). Pause only, never ban: `share`, `publish`, `create`,
+`display_name`. Size limits (100 slides, 50 presentations, …) and refusals like an old tab or a review lock are
+never click limits: an honest teacher hits them.
 
 # Presentation Reviews (editors checking QuizMatter presentations)
 

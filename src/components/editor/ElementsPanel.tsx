@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useEditorStore, isPanelEscape } from "@/lib/store";
 import { ELEMENT_LIBRARY, ELEMENT_CATEGORY_LABELS, ELEMENT_PANEL_CATEGORIES, getElementAsset, type ElementCategory } from "@/lib/svgLibrary";
 import { loadFavoriteCategories, saveFavoriteCategories } from "@/lib/userSettings";
+import { checkPauses, pausedUntilFromError, useIsPaused } from "@/lib/clickLimits";
 import { ELEMENT_DRAG_MIME } from "@/lib/constants";
 import { ElementSvg } from "./ElementSvg";
 import { Spinner } from "@/components/Spinner";
@@ -17,6 +18,8 @@ export function ElementsPanel() {
   const favoriteCategories = useEditorStore((s) => s.favoriteElementCategories);
   const setFavoriteCategories = useEditorStore((s) => s.setFavoriteElementCategories);
   const [isSavingFavorite, setIsSavingFavorite] = useState(false);
+  // Changed settings too fast: the star greys out and the notice at the bottom says until when.
+  const isSettingsPaused = useIsPaused("settings", "settings_daily");
 
   // Which category's items are showing; null means the top-level category grid. Escape steps back
   // one level at a time (out of a category first, then closes the panel), matching the back arrow.
@@ -40,8 +43,10 @@ export function ElementsPanel() {
     setIsSavingFavorite(true);
     try {
       await saveFavoriteCategories(next);
-    } catch {
+    } catch (error) {
       setFavoriteCategories(previous);
+      // The minute and the daily limit give the same refusal, so ask which is paused.
+      if (pausedUntilFromError(error as { code?: string; details?: string })) await checkPauses();
     } finally {
       setIsSavingFavorite(false);
     }
@@ -101,9 +106,9 @@ export function ElementsPanel() {
             <button
               type="button"
               onClick={() => toggleFavorite(openCategory)}
-              disabled={isSavingFavorite}
+              disabled={isSavingFavorite || isSettingsPaused}
               title={favoriteCategories.includes(openCategory) ? "Remove from favorites" : "Add to favorites"}
-              className="flex h-8 w-8 items-center justify-center rounded-dropdown text-text-primary hover:bg-bg-page"
+              className="flex h-8 w-8 items-center justify-center rounded-dropdown text-text-primary hover:bg-bg-page disabled:opacity-40"
             >
               {isSavingFavorite ? <Spinner size={14} /> : <StarIcon size={16} fill={favoriteCategories.includes(openCategory) ? "currentColor" : "none"} />}
             </button>

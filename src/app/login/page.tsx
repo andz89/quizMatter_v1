@@ -8,10 +8,12 @@ import { LinkPending } from "@/components/LinkPending";
 import { Logo } from "@/components/Logo";
 import { LoginAbout } from "@/components/LoginAbout";
 import { Spinner } from "@/components/Spinner";
+import { SupportEmail } from "@/components/SupportEmail";
 import { TopLoadingBar } from "@/components/TopLoadingBar";
 import { Turnstile, type TurnstileStatus } from "@/components/Turnstile";
 import { clearTries, lockedUntil, LOGIN_LIMIT, recordTry, tryAgainAfter } from "@/lib/browserLimits";
 import { createClient } from "@/lib/supabase/client";
+import { SUPPORT_EMAIL } from "@/lib/support";
 
 // Teachers sign up on /signup; admins can still add them by hand in the Supabase dashboard (Authentication → Users).
 export default function LoginPage({ searchParams }: PageProps<"/login">) {
@@ -129,6 +131,9 @@ export default function LoginPage({ searchParams }: PageProps<"/login">) {
               <LinkPending />
             </Link>
           </p>
+          <p className="mt-2 text-center text-sm text-text-secondary">
+            Need help? <SupportEmail />
+          </p>
         </form>
         <LoginAbout />
       </div>
@@ -143,7 +148,7 @@ function lockMessage(until: number) {
 
 // Plain-English words for what went wrong.
 function loginErrorMessage(error: AuthError) {
-  if (error.code === "user_banned") return "This account is blocked. Contact QuizMatter if you think this is a mistake."; // Admin → Teachers
+  if (error.code === "user_banned") return `This account is blocked. If you think this is a mistake, email ${SUPPORT_EMAIL}.`; // Admin → Teachers
   if (error.code === "invalid_credentials") return "Wrong email or password.";
   // Supabase's limit per internet address (Authentication → Rate Limits).
   if (error.code === "over_request_rate_limit") return "Too many tries. Please wait a few minutes and try again.";

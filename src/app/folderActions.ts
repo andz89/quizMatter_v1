@@ -2,6 +2,7 @@
 
 import { refresh } from "next/cache";
 import { z } from "zod";
+import { pausedUntilFromError } from "@/lib/clickLimits";
 import { folderIdSchema, folderNameSchema, MAX_FOLDERS } from "@/lib/folders";
 import { createClient } from "@/lib/supabase/server";
 
@@ -12,10 +13,12 @@ import { createClient } from "@/lib/supabase/server";
 const presentationIdsSchema = z.array(z.string().min(1).max(100)).min(1).max(200);
 
 /** What to tell the teacher when the database refused. */
-function failure(error: { code?: string }): string {
+function failure(error: { code?: string; details?: string }): string {
   if (error.code === "23505") return "You already have a folder with that name.";
   if (error.code === "QMFLD") return `You have ${MAX_FOLDERS} folders, the most allowed. Delete one to make another.`;
   if (error.code === "QMBAN") return "Your account is blocked, so you can't change folders.";
+  // Changed too fast (the folders click limit); the page then asks which features are paused (showFolderError).
+  if (pausedUntilFromError(error)) return "Changing folders is paused for now. The notice at the bottom says until when.";
   return "Couldn't save the folder. Please try again.";
 }
 

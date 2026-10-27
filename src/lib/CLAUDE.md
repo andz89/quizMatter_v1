@@ -25,7 +25,9 @@
 
 - `presentations.ts`: `savePresentationToDb` → zod → the `save_presentation` database function. `REFUSALS` turns
   the database's refusal codes (`QM409` conflict, `QMMAX`, `QM429`, `QMBAN`, `QMREV` locked, …) into messages, and
-  `SaveRefusedError` carries them. A new refusal code goes in `REFUSALS`. `refusalFromCode(code)` gives the
+  `SaveRefusedError` carries them. Saving too fast is the `presentation_save` click limit (`QMBLK`, not in
+  `REFUSALS`): `saveErrorMessage` says it's paused, the store's save calls `checkPauses`, and the Save button greys
+  out. A new refusal code goes in `REFUSALS`. `refusalFromCode(code)` gives the
   `SaveRefusedError` for a known code (or null); `reviews.ts` and `sharing.ts` use it too.
 - `fetchPresentation.ts`: loads a presentation + who owns it + its review and submission status (server), whether I
   saved it, its likes (`likeCount`, `isLiked`; 0 and not liked if those reads fail), and `sharedCopy` (my original's
@@ -39,7 +41,8 @@
   edits first. QuizMatter presentations keep the `isPublished` switch. See `20261123000000_shared_copy.sql`.
 - `keptWork.ts`: unsaved work kept in this browser (`qm-unsaved:<id>`) when a save is refused with `QMOLD`, or while
   the editor is left (`saveBeforeLeaving` in `store.ts` keeps it before it saves, and a save that works forgets it;
-  how the editor uses it: `src/components/editor/CLAUDE.md`). `keepUnsavedWork` returns false when the browser
+  a changed Claude draft not saved yet is only kept, never saved by leaving; how the editor uses it:
+  `src/components/editor/CLAUDE.md`). `keepUnsavedWork` returns false when the browser
   can't store it (blocked or full), and stores nothing (true) when there are no real edits (only the publish switch
   or save times changed). It keeps the ids of the slides at the last save too, so `takeKeptWork` can merge with what a newer save
   did: walking the kept slides, an untouched one becomes the loaded one (dropped if the newer save deleted it), a
@@ -94,6 +97,9 @@ data. Spec: `docs/superpowers/specs/2026-10-23-stable-presentation-data-design.m
 - Drawings: `svgLibrary.tsx`, `flags.tsx`, `kids.tsx`, `solids.tsx`, and the big people drawings `schoolBoy.tsx` /
   `clipartKids.tsx`, which load only when needed (`peopleArt.ts`).
 - Text: `richText.ts` (tiptap setup, safe HTML), `format.ts` (dates, labels).
+- `support.ts`: `SUPPORT_EMAIL` and `FACEBOOK_URL`, the one place each is written (the support address is an alias
+  of the admin's Google Workspace inbox). Used by `src/components/SupportEmail.tsx`, `src/components/Footer.tsx` and
+  the "blocked" messages (`QMBAN`, the login page).
 - Editor hooks: `useEditorShortcuts`, `useMarqueeSelection`, `useElementDropTarget`, `useCanvasTextEditor`,
   `useAutoFitText`, `useFormatTexts`.
 

@@ -266,8 +266,10 @@ interface EditorState {
   // in the database yet (a draft from Claude).
   savedAt: number | null;
   saveStatus: "idle" | "saving" | "error";
-  // True while the presentation is a draft from Claude that hasn't been saved yet (see /presentation/new).
-  fromDraft: boolean;
+  // While the presentation is a draft from Claude that hasn't been saved yet (see /presentation/new): the
+  // presentation as Claude's draft opened, so leaving can tell whether it was changed (saveBeforeLeaving). Only Save
+  // makes it a presentation. null = it's in the database.
+  claudeDraft: Presentation | null;
   // Set while an editor reviews someone else's QuizMatter presentation: saves go to their draft. null = a normal
   // presentation.
   review: EditorReview | null;
@@ -289,7 +291,8 @@ interface EditorState {
   restoreKeptWork: () => void;
   // Saves before the editor is left (browser Back/Forward, a link, the ← arrow), with savePresentation's toast. The
   // work is kept in this browser (keepUnsavedWork) until a save works, so a failed save or a tab closed meanwhile
-  // doesn't lose it: it comes back when the presentation opens again.
+  // doesn't lose it: it comes back when the presentation opens again. A Claude draft not saved yet isn't saved: its
+  // changes are only kept (none if it wasn't changed), and it stays a draft.
   // True = saved, nothing to save, or kept; false = not even kept (the ← arrow then stays). `stillLeaving` is asked
   // a moment later: false = not leaving after all (React's dev mode closes and opens the editor again at once).
   saveBeforeLeaving: (stillLeaving?: () => boolean) => Promise<boolean>;
@@ -569,9 +572,11 @@ export function waitForLeavingSave(): Promise<void> {
   return leavingSave ? leavingSave.then(() => {}, () => {}) : Promise.resolve();
 }
 
-/** Nothing opened yet, nothing unsaved, or already kept by a leave-save. */
-function hasNothingToSave({ presentation, savedPresentation }: EditorState): boolean {
-  return !savedPresentation || presentation === savedPresentation || presentation === keptOnLeave;
+/** Nothing opened yet, nothing unsaved, a Claude draft nobody changed, or already kept by a leave-save. */
+function hasNothingToSave({ presentation, savedPresentation, claudeDraft }: EditorState): boolean {
+  return (
+    !savedPresentation || presentation === savedPresentation || presentation === claudeDraft || presentation === keptOnLeave
+  );
 }
 
 /** Resolves once the saves running now have ended, even if another presentation was opened meanwhile. */
@@ -593,7 +598,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         // Loaded from the database, so its updatedAt is the database's save time.
         savedAt: presentation.updatedAt,
         saveStatus: "idle",
-        fromDraft: false,
+        claudeDraft: null,
         review: null,
         isOutdated: false,
         // Editor sets it right after, from the page.
@@ -613,7 +618,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   savedPresentation: null,
   savedAt: null,
   saveStatus: "idle",
-  fromDraft: false,
+  claudeDraft: null,
   review: null,
   sharedCopy: null,
   canPublish: true,
@@ -629,9 +634,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   restoreKeptWork: () => {
-    const { presentation, review, fromDraft } = get();
+    const { presentation, review, claudeDraft } = get();
     // A Claude draft isn't in the database, so there's nothing newer to merge with: the kept slides replace Claude's.
-    const kept = takeKeptWork(fromDraft ? { ...presentation, slides: [] } : presentation, review !== null);
+    const kept = takeKeptWork(claudeDraft ? { ...presentation, slides: [] } : presentation, review !== null);
     if (!kept) return;
     // savedPresentation (and savedAt) stay the ones just loaded, so the kept work counts as unsaved and saves over
     // what was saved since. After a refused save someone usually did save since (that's what refused it): keeping
@@ -655,7 +660,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   savePresentation: async ({ quiet = false } = {}) => {
-    const { presentation, savedPresentation, savedAt, saveStatus, fromDraft, review } = get();
+    const { presentation, savedPresentation, savedAt, saveStatus, claudeDraft, review } = get();
     if (saveStatus === "saving") return false;
     // Nothing new to save (Ctrl+S works even when the Save button is greyed out).
     if (presentation === savedPresentation) return true;
@@ -680,7 +685,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
           });
       // Claude's draft is now a saved presentation, so the draft goes: Claude's next send makes a new draft
       // (with a new link) instead of updating one nobody can open anymore. If this fails, the save still counts.
-      if (fromDraft) finishDraft(presentation.id).catch(() => {});
+      if (claudeDraft) finishDraft(presentation.id).catch(() => {});
       // Even when another presentation was opened meanwhile: this is still what the database has now.
       lastSave = { presentation, savedAt: newSavedAt, isReview: review !== null };
       // Work kept before an app update is in this save, so its toast (with "Throw away") goes too.
@@ -688,7 +693,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       toast.dismiss("kept-work");
       if (!quiet) toast.success(review ? "Draft saved. Teachers still see the old version." : "Presentation saved.");
       // Edits made while saving aren't in the database yet, so they still count as unsaved.
-      if (isStillOpen()) set({ savedPresentation: presentation, savedAt: newSavedAt, saveStatus: "idle", fromDraft: false });
+      if (isStillOpen()) set({ savedPresentation: presentation, savedAt: newSavedAt, saveStatus: "idle", claudeDraft: null });
       return true;
     } catch (error) {
       console.error("Couldn't save the presentation", error);
@@ -707,8 +712,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         }
         return false;
       }
-      // Sharing or publishing clicked too often: the database paused one. Both give the same refusal, so ask which;
-      // the notice at the bottom shows it and the Share card greys out.
+      // Saving, sharing or publishing too often: the database paused one. They give the same refusal, so ask which;
+      // the notice at the bottom shows it, and the Save button or the Share card greys out.
       if (pausedUntilFromError(error as { code?: string; details?: string })) await checkPauses();
       // A refused save is shown even when quiet: it says why, and a conflict stays until the user reloads.
       if (error instanceof SaveRefusedError || !quiet) {
@@ -732,10 +737,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const openCountWhenLeft = openCount;
     if (hasNothingToSave(left)) return Promise.resolve(true);
     // A Claude draft isn't in the database yet, so all of it is unsaved work.
-    const keep = ({ presentation, savedPresentation, review, fromDraft }: EditorState) =>
-      keepUnsavedWork({ presentation, savedPresentation: fromDraft ? null : savedPresentation, isReview: review !== null });
+    const keep = ({ presentation, savedPresentation, review, claudeDraft }: EditorState) =>
+      keepUnsavedWork({ presentation, savedPresentation: claudeDraft ? null : savedPresentation, isReview: review !== null });
     // Kept in this browser right away: once the editor is closed nothing asks "Leave page?", and closing the tab
-    // could stop the save. A save that works forgets it.
+    // could stop the save. A save that works forgets it. (A changed Claude draft is only kept, below.)
     keep(left);
     const save = (async () => {
       // After a leave-save that's still running (e.g. the ← arrow's, then the editor closing).
@@ -749,21 +754,27 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       const sent = isOpen ? get() : left;
       if (hasNothingToSave(sent)) return true;
       if (isOpen) {
-        // Kept again as it is sent (a save that worked meanwhile forgot it, and the ← arrow allows edits since).
-        keep(sent);
-        if (await sent.savePresentation()) return true;
+        // A Claude draft becomes a presentation only when Save is clicked: leaving it only keeps its changes (below),
+        // and they come back when the draft opens again.
+        if (!sent.claudeDraft) {
+          // Kept again as it is sent (a save that worked meanwhile forgot it, and the ← arrow allows edits since).
+          keep(sent);
+          if (await sent.savePresentation()) return true;
+        }
       } else if (lastSaveOf(left.presentation.id, left.review !== null)?.presentation === left.presentation) {
         return true;
       }
       // Kept as it is now (the ← arrow leaves the editor open while it saves), or as it was sent if another
       // presentation was opened meanwhile (e.g. Present on another page).
-      const failed = get().savedPresentation === sent.savedPresentation ? get() : sent;
-      if (keep(failed)) {
-        keptOnLeave = failed.presentation;
-        toast.error("Couldn't save. Your changes are kept in this browser and come back when you open this presentation again.");
+      const unsaved = get().savedPresentation === sent.savedPresentation ? get() : sent;
+      const isDraft = unsaved.claudeDraft !== null;
+      if (keep(unsaved)) {
+        keptOnLeave = unsaved.presentation;
+        if (isDraft) toast("Your changes are kept in this browser. Open the draft and click Save to make it a presentation.");
+        else toast.error("Couldn't save. Your changes are kept in this browser and come back when you open this presentation again.");
         return true;
       }
-      toast.error("Couldn't save your changes.");
+      toast.error(isDraft ? "Couldn't keep your changes in this browser." : "Couldn't save your changes.");
       return false;
     })();
     leavingSave = save;
@@ -1710,6 +1721,16 @@ export function withoutHistory(change: () => void) {
   } finally {
     skipHistory = false;
   }
+}
+
+/**
+ * A box tidying itself (e.g. fitting its drawing as it first shows), with no undo step (withoutHistory). It isn't the
+ * user's own edit, so a Claude draft nobody changed still counts as unchanged, and leaving it keeps nothing.
+ */
+export function tidyUp(change: () => void) {
+  const { presentation, claudeDraft } = useEditorStore.getState();
+  withoutHistory(change);
+  if (presentation === claudeDraft) useEditorStore.setState({ claudeDraft: useEditorStore.getState().presentation });
 }
 
 /** Puts an older/newer presentation back, dropping any selection that points at things that no longer exist. */

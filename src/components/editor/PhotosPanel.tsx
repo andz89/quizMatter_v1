@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useEditorStore, isPanelEscape } from "@/lib/store";
+import { useIsPaused } from "@/lib/clickLimits";
 import { toast } from "sonner";
 import {
   PHOTO_LOCKED_MESSAGE,
@@ -41,6 +42,8 @@ export function PhotosPanel() {
   const [uploadingFiles, setUploadingFiles] = useState(0);
   // Only editors and admins can upload for now (see checkCanUpload). null until known.
   const [canUpload, setCanUpload] = useState<boolean | null>(null);
+  // Uploaded too fast: paused for a while (the photo_upload and photo_rows click limits, each a minute and a day).
+  const isUploadPaused = useIsPaused("photo_upload", "photo_upload_daily", "photo_rows", "photo_rows_daily");
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -160,7 +163,7 @@ export function PhotosPanel() {
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            disabled={!canUpload}
+            disabled={!canUpload || isUploadPaused}
             className="flex items-center justify-center gap-2 rounded-card border border-transparent bg-accent-soft p-2 text-[13px] font-semibold text-text-primary transition-colors hover:border-accent disabled:pointer-events-none disabled:opacity-40"
           >
             <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-button bg-accent text-white">

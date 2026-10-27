@@ -35,6 +35,8 @@ unsaved edits with no warning.
 - **Coming back before that save finishes** must not show the old version as if it were current (my call: wait for
   the pending save, then load what was saved).
 - A Claude draft not yet in the database saves as a new presentation, like its first Save.
+  Changed 2026-10-26 (user's decision): an unsaved Claude draft is kept in the browser instead; it becomes a
+  presentation only on Save.
 
 ## B. Kept work (the uncommitted "stable presentation data" feature)
 

@@ -7,12 +7,24 @@ import { createClient } from "./supabase/client";
  * A new feature also needs its row in click_limits and a count_click('<feature>') call in the database.
  */
 export const CLICK_FEATURES = {
-  saved: { pausedText: "Saving presentations" },
+  saved: { pausedText: "Adding presentations to Saved" },
   like: { pausedText: "Liking presentations" },
   share: { pausedText: "Sharing presentations" },
   publish: { pausedText: "Publishing presentations" },
   create: { pausedText: "Making new presentations" },
   display_name: { pausedText: "Changing your display name" },
+  // Every change to a presentation (save, delete, copy, share), photo uploads / photo rows sent by hand, folders
+  // and settings, each with a minute and a daily limit (20261211000000_save_photo_click_limits.sql).
+  presentation_save: { pausedText: "Saving your presentations" },
+  presentation_save_daily: { pausedText: "Saving your presentations" },
+  photo_upload: { pausedText: "Uploading photos" },
+  photo_upload_daily: { pausedText: "Uploading photos" },
+  photo_rows: { pausedText: "Adding photos" },
+  photo_rows_daily: { pausedText: "Adding photos" },
+  folders: { pausedText: "Changing folders" },
+  folders_daily: { pausedText: "Changing folders" },
+  settings: { pausedText: "Saving your settings" },
+  settings_daily: { pausedText: "Saving your settings" },
 } as const;
 
 export type ClickFeature = keyof typeof CLICK_FEATURES;
@@ -64,9 +76,9 @@ export function isPaused(feature: ClickFeature): boolean {
   return usePausedFeatures.getState()[feature] !== undefined;
 }
 
-/** True while the feature is paused: its buttons are greyed out. */
-export function useIsPaused(feature: ClickFeature): boolean {
-  return usePausedFeatures((paused) => paused[feature] !== undefined);
+/** True while the feature (or any of the features given) is paused: its buttons are greyed out. */
+export function useIsPaused(...features: ClickFeature[]): boolean {
+  return usePausedFeatures((paused) => features.some((feature) => paused[feature] !== undefined));
 }
 
 /** Every paused feature and when its pause ends, for the notice at the bottom of the screen. */

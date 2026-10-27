@@ -28,10 +28,10 @@ even if the app has a bug. The app's checks (zod, hidden buttons) are only the f
 
 ## Deploying (database first)
 
-- Apply new migrations, in file-name order, **before** deploying the app code that uses them. Now: apply
-  `20261210000000` to `20261210000500` in order, then deploy. Without them, Admin → Editors fails (it calls
-  `admin_editors`, `…000500`), Admin → Safety fails and the sign up page loses its throwaway email check (they read
-  `blocked_email_domains`, `…000400`).
+- Apply new migrations, in file-name order, **before** deploying the app code that uses them. Otherwise the app
+  calls functions or reads tables that aren't there yet: for example, without `20261210000500` Admin → Editors fails
+  (it calls `admin_editors`), and without `20261210000400` Admin → Safety fails and the sign up page loses its
+  throwaway email check (they read `blocked_email_domains`).
 - Then check in the Supabase dashboard (Authentication → Hooks) that the Before User Created hook is still on: the
   sign up limit and the throwaway email check run only through it.
 
@@ -48,7 +48,8 @@ A refusal raises an error with its own code. The app turns the code into a messa
 (`src/lib/presentations.ts`) or in the action that called it. Main ones:
 
 - `QM409`: someone saved a newer copy (conflict). `QM422`: a slide the app thought was saved is missing.
-- `QM429`: saving too fast. `QMMAX`: too many presentations. `QMBAN`: banned account.
+- `QM429`: an admin adding shared photos too fast (saving presentations is a click limit now: `QMBLK`). `QMMAX`: too
+  many presentations. `QMBAN`: banned account.
 - `QMREV`: locked by a review or a submission (`is_review_locked`). `QMRVW`: review step not allowed.
   `QMSUB`: submission not allowed. `QMPUB`: publishing an empty presentation. `QMPHL`: removing a photo that is
   in a presentation or review waiting for QuizMatter (`photo_waiting_for_approval`).
@@ -87,6 +88,18 @@ A refusal raises an error with its own code. The app turns the code into a messa
   added; `slide_photos (src)` index. `20261128000000_fix_photo_lock.sql`: the lock trigger reads the owner with
   `to_jsonb(old)`, since `shared_photos` has no `user_id`.
 - Click limits: `20261013000000_click_limits.sql`, `20261014000000_click_auto_ban.sql`, `20261017000000_click_history.sql`.
+  `20261211000000_save_photo_click_limits.sql` (test `supabase/tests/save_photo_click_limits.sql`): saving
+  presentations (`presentation_save` + `presentation_save_daily`, from `count_presentation_write`: once per request,
+  the `quizmatter.write_counted` flag), photo uploads (`photo_upload` + `photo_upload_daily`, in `count_photo_upload`,
+  called by the upload route) and photos rows (`photo_rows` + `photo_rows_daily`, from `count_photo_write`) count
+  `count_click` instead of `count_write`: 30 in a minute pauses 10 minutes (1 hour if again within 24 hours), 1,000
+  saves / 300 uploads / 300 photo rows a day pause until midnight (Philippine time), the 3rd time in a row bans. `count_click` doesn't check bans, so both
+  triggers check `is_banned()` first (`QMBAN`). `count_write` is left only for admins' shared photos (`'photos'`).
+  Folders and settings: `count_table_write('<feature>')`, statement triggers on `folders`, `folder_items`
+  (`folders`) and `user_settings` (`settings`); it counts `<feature>` and `<feature>_daily` (500 a day each), once
+  per request (flag `quizmatter.counted_<feature>`), only when
+  `current_user = 'authenticated'` (so `set_display_name`, a database function, counts only `display_name`) and
+  never without a logged-in user (an account delete runs them as `supabase_auth_admin`).
 - Reviews: `20261019000000_presentation_reviews.sql` and the review files after it (listed in the root `CLAUDE.md`).
   Newest `check_review_draft` (run by `save_review_draft` and `submit_review`): `20261210000200_database_fixes.sql`,
   which also checks what the presentations table checks (at most 10 tags and 14 grades, a known slide effect, speed
@@ -120,6 +133,10 @@ A refusal raises an error with its own code. The app turns the code into a messa
   the suggestions in one call, the only one the view page makes; `editor_presentations` checks the profile once).
   They return only ids. A lesson's maker is its approved submission's editor (`lesson_editor`, by `copy_id`), never
   the Author text; admin-made lessons have none.
+- A teacher's shared presentations on their profile: `20261212000000_teacher_shared_presentations.sql`
+  (`teacher_shared_presentations(slug)`: their shared copies' ids, not hidden, last changed first, with the same
+  profile check as `teacher_profile`, so a hidden admin's gives nothing). Test:
+  `supabase/tests/teacher_shared_presentations.sql`.
 - Editors' Author and Make a copy's source: `20261201000000_editor_author_and_copy_source.sql` (`set_editor_author`
   makes an editor's own presentations' Author their name on every save; `approve_submission` always uses the
   editor's name; `copied_from`, set by `save_presentation` on the first save only and kept by `keep_copied_from`).
@@ -180,10 +197,10 @@ A refusal raises an error with its own code. The app turns the code into a messa
   `supabase/tests/database_fixes.sql`.
 - Limits on direct writes (a teacher writing a table straight through the API, skipping the app's path):
   `20261210000300_direct_write_limits.sql`, test `supabase/tests/direct_write_limits.sql`. Its triggers act only
-  when `current_user = 'authenticated'`. `photos`: every new row counts toward `count_write('photo_rows')` (30 a
-  minute, `QM429`; banned `QMBAN`), a counter of its own because the upload route already counts `'photos'` before
-  storing the file, so one upload isn't counted twice; no cap on how many rows (the app has none). Newest
-  `count_write` is in this file. `slides`: at most 100 per presentation (`check_slide_limit`, `22023`, same as
+  when `current_user = 'authenticated'`. `photos`: every new row is counted (`count_photo_write`; banned `QMBAN`), a
+  counter of its own because the upload route already counts its upload before storing the file, so one upload
+  isn't counted twice; no cap on how many rows (the app has none). Since `20261211000000_save_photo_click_limits.sql`
+  that counter is the `photo_rows` click limit. Newest `count_write` is in this file. `slides`: at most 100 per presentation (`check_slide_limit`, `22023`, same as
   `MAX_SLIDES`), counting rows added earlier in the same insert and a slide moved in from another presentation; it
   skips slides already saved (save_presentation's upsert) and locks the presentation row first, like
   `save_presentation`. Speed and bans for slides were already counted by `count_slide_write`.

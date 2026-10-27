@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { LinkPending } from "@/components/LinkPending";
 import { NavBar, navLinkClass } from "@/components/NavBar";
 import { loadEditorPresentationIds } from "@/lib/lessons";
-import { educationLine, loadTeacherProfile } from "@/lib/profiles";
+import { educationLine, loadSharedPresentationIds, loadTeacherProfile } from "@/lib/profiles";
 import { DAYS, GRADES, SUBJECTS, TERMS, WEEKS, listOrder } from "@/lib/schema";
 import { createClient } from "@/lib/supabase/server";
 import { loadCardRows, toSavableCards, type CardPresentation } from "../../(home)/cards";
@@ -14,15 +14,24 @@ import { SavableCardGrid } from "../../SavableCardGrid";
  * A teacher's profile, at /teachers/<link name> (made from their display name): display name, full name, educational
  * background and bio. Any logged-in user can open it with the link (the proxy sends logged-out people to log in
  * first). Never the contact number or email: see loadTeacherProfile. Below it, the QuizMatter presentations they made
- * as an editor, by subject, then grade (see the lesson_week migration).
+ * as an editor, by subject, then grade (see the lesson_week migration), and the presentations they published, last
+ * changed first (see the teacher_shared_presentations migration; editors can't publish, so they have none).
  */
 export default async function TeacherProfilePage({ params }: PageProps<"/teachers/[slug]">) {
   const { slug } = await params;
   const supabase = await createClient();
-  const [profile, lessonIds] = await Promise.all([loadTeacherProfile(supabase, slug), loadEditorPresentationIds(supabase, slug)]);
+  const [profile, lessonIds, sharedIds] = await Promise.all([
+    loadTeacherProfile(supabase, slug),
+    loadEditorPresentationIds(supabase, slug),
+    loadSharedPresentationIds(supabase, slug),
+  ]);
   if (!profile) notFound();
-  const rows = await loadCardRows(supabase, lessonIds);
-  const groups = groupLessons(rows, await toSavableCards(supabase, rows));
+  // Both lists' cards in one go (loadCardRows keeps the ids' order), then split.
+  const rows = await loadCardRows(supabase, [...lessonIds, ...sharedIds]);
+  const cards = await toSavableCards(supabase, rows);
+  const isShared = new Set(sharedIds);
+  const groups = groupLessons(rows.filter((row) => !isShared.has(row.id)), cards);
+  const sharedCards = cards.filter((card) => isShared.has(card.id));
 
   const fullName = `${profile.firstName} ${profile.lastName}`.trim();
   const heading = profile.displayName || fullName || "QuizMatter teacher";
@@ -75,6 +84,13 @@ export default async function TeacherProfilePage({ params }: PageProps<"/teacher
                 ))}
               </div>
             ))}
+          </section>
+        )}
+
+        {sharedCards.length > 0 && (
+          <section className="mt-8 flex flex-col gap-4">
+            <h2 className="text-xl font-extrabold text-text-primary">Shared presentations</h2>
+            <SavableCardGrid cards={sharedCards} />
           </section>
         )}
       </main>

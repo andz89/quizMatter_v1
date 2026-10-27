@@ -87,17 +87,18 @@ export default async function AdminSafetyPage() {
 
       <Group title="Speed limits">
         <Item
-          name="Save speed limit"
+          name="Shared photos speed limit"
           where="Database"
-          rule={`${WRITES_PER_MINUTE} a minute each for saving presentations and uploading photos (bookmarks use their own click limit, below)`}
-          sees={`“${REFUSALS.QM429}” For photos: “You're adding photos too fast. Wait a minute and try again.”`}
+          rule={`${WRITES_PER_MINUTE} a minute for an admin adding shared photos. Saving presentations and teachers' own photo uploads use click limits instead (below), which pause and then ban`}
+          sees="“You're adding photos too fast. Wait a minute and try again.”"
           more={{
             what: [
-              "The database counts how many times each teacher saves a presentation in one minute, and how many photos they upload in one minute. Each teacher has their own count.",
-              `Up to ${WRITES_PER_MINUTE} a minute is fine. More than that is refused until the minute is over. Nothing is paused for long and nobody is banned: after a minute it works again.`,
+              "The database counts how many shared photos each admin adds in one minute. Each admin has their own count.",
+              `Up to ${WRITES_PER_MINUTE} a minute is fine. More than that is refused until the minute is over. Admins often add many photos at once, so this one never pauses anyone for long and never bans.`,
+              "Saving presentations (every change: save, delete, copy, share), a teacher's own photo uploads, photos sent straight to the table, folders and settings are counted by the click limits below (“Save (presentations)”, “Photo uploads”, “Photos sent by hand”, “Folders”, “Settings”). Each one also has a daily limit, so a slow script is stopped too. Reaching one pauses the teacher; doing it again and again bans them.",
             ],
-            example: `Ana is working fast and presses Ctrl+S many times. Even pressing it every 2 seconds is still under ${WRITES_PER_MINUTE} a minute, so she never sees the message.`,
-            scenario: `Someone writes a script (a small program that does the clicking for them) that saves a presentation 1,000 times a minute, to slow the app down for everyone. Only ${WRITES_PER_MINUTE} of those saves go through each minute; the rest are refused right away.`,
+            example: `An admin picks 40 photos for the shared library at once. ${WRITES_PER_MINUTE} are added, and the other 10 say “You're adding photos too fast.” A minute later the admin adds those 10 again.`,
+            scenario: `Someone gets into an admin's account and tries to flood the shared library with photos. Only ${WRITES_PER_MINUTE} get through each minute.`,
           }}
         />
         {clickLimits.map((limit) => (

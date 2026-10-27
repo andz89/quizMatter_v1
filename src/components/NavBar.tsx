@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { getAccount } from "@/lib/account";
 import { AccountMenu } from "./AccountMenu";
+import { KeepFreeButton } from "./KeepFree";
 import { LinkPending } from "./LinkPending";
 import { Logo } from "./Logo";
 
@@ -11,7 +12,8 @@ export const navLinkClass =
 
 /**
  * The white bar across the top of every page: the logo (a link home) on the left; the page's links and main
- * button (`children`), then the account menu, on the right. Server only (it looks up the logged-in user).
+ * button (`children`), the "Support" button, then the account menu, on the right. Server only (it looks up the
+ * logged-in user).
  */
 export async function NavBar({ children }: { children?: ReactNode }) {
   const account = await getAccount();
@@ -23,6 +25,7 @@ export async function NavBar({ children }: { children?: ReactNode }) {
           <LinkPending />
         </Link>
         {children}
+        <KeepFreeButton />
         <span className="ml-1">
           <AccountMenu account={account} />
         </span>

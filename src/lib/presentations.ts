@@ -12,6 +12,7 @@ import {
   type Presentation,
   type Slide,
 } from "./schema";
+import { SUPPORT_EMAIL } from "./support";
 
 /** A save the database refused on purpose. `message` tells the user why. */
 export class SaveRefusedError extends Error {
@@ -33,7 +34,7 @@ export const REFUSALS: Record<string, string> = {
   QM409: "This presentation was saved in another tab or device. Reload the page to get the newest copy.",
   QMMAX: `You have ${MAX_PRESENTATIONS} presentations, the most allowed. Delete some to make new ones.`,
   QM429: "You're saving too fast. Wait a minute and try again.",
-  QMBAN: "Your account is blocked, so you can't save. Contact QuizMatter if you think this is a mistake.",
+  QMBAN: `Your account is blocked, so you can't save. If you think this is a mistake, email ${SUPPORT_EMAIL}.`,
   // Saved by newer app code (see the data_version migration).
   QMOLD: "QuizMatter was updated. Reload the page to keep editing.",
   // Presentation reviews and submissions (see the presentation_reviews and quizmatter_submissions migrations).

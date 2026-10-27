@@ -7,9 +7,16 @@ import { ArrowLeftIcon, CheckIcon, EllipsisVerticalIcon, FolderIcon, FolderPlusI
 import { Modal } from "@/components/Modal";
 import { ConfirmModal } from "@/components/editor/ConfirmModal";
 import { Spinner } from "@/components/Spinner";
+import { checkPauses, useIsPaused } from "@/lib/clickLimits";
 import { FOLDER_NAME_MAX, type Folder } from "@/lib/folders";
 import { createFolder, deleteFolder, moveToFolder, renameFolder } from "./folderActions";
 import type { PresentationCardData } from "./PresentationCard";
+
+/** Says why a folder change failed. If folders are paused (changed too fast), the notice at the bottom shows it. */
+export function showFolderError(error: string) {
+  toast.error(error);
+  checkPauses();
+}
 
 // A teacher's folders on the home page's "My presentations" tab (see the folders migration). Cards can be dragged
 // onto a folder tile, or onto "← My presentations" to take them out of their folder (MyPresentations' DndContext).
@@ -41,6 +48,7 @@ export function FolderTiles({
   onOpen: (id: string) => void;
 }) {
   const [isNaming, setIsNaming] = useState(false);
+  const isPaused = useIsPaused("folders", "folders_daily");
 
   return (
     <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
@@ -50,7 +58,8 @@ export function FolderTiles({
       <button
         type="button"
         onClick={() => setIsNaming(true)}
-        className={`${tileClass} border-dashed border-border-default bg-bg-surface text-text-secondary`}
+        disabled={isPaused}
+        className={`${tileClass} border-dashed border-border-default bg-bg-surface text-text-secondary disabled:opacity-40`}
       >
         <FolderPlusIcon size={18} className="shrink-0" />
         New folder
@@ -221,7 +230,7 @@ export function FolderHeader({ folder, isMovingOut, onBack }: { folder: Folder; 
     setIsConfirmingDelete(false);
     startDeleting(async () => {
       const error = await deleteFolder(folder.id);
-      if (error) toast.error(error);
+      if (error) showFolderError(error);
       else {
         toast.success("Folder deleted. Its presentations are in My presentations.");
         onBack();
@@ -333,7 +342,7 @@ function FolderNameModal({
   const save = () =>
     startSaving(async () => {
       const error = await onSave(name);
-      if (error) toast.error(error);
+      if (error) showFolderError(error);
       else {
         toast.success(savedMessage);
         onClose();
@@ -386,12 +395,13 @@ export function MoveToFolderModal({
   const [newName, setNewName] = useState("");
   // Which choice is saving ("" = No folder, "new" = the new folder), so only that one shows the Spinner.
   const [savingId, setSavingId] = useState<string | null>(null);
+  const isPaused = useIsPaused("folders", "folders_daily");
 
   const move = async (id: string | null, save: () => Promise<string | null>, message: string) => {
     setSavingId(id ?? "");
     const error = await save();
     setSavingId(null);
-    if (error) toast.error(error);
+    if (error) showFolderError(error);
     else {
       toast.success(message);
       onMoved();
@@ -421,7 +431,7 @@ export function MoveToFolderModal({
           // Already where they all are.
           const isCurrent = cards.every((card) => (card.folderId ?? "") === id);
           return (
-            <button key={id} type="button" onClick={() => moveTo(folder)} disabled={savingId !== null || isCurrent} className={rowClass}>
+            <button key={id} type="button" onClick={() => moveTo(folder)} disabled={savingId !== null || isCurrent || isPaused} className={rowClass}>
               <FolderIcon size={16} className={folder ? "shrink-0 text-accent" : "shrink-0 text-text-secondary"} />
               <span className="min-w-0 flex-1 truncate">{name}</span>
               {savingId === id ? <Spinner size={14} /> : isCurrent && <CheckIcon size={16} className="text-accent" />}
@@ -445,7 +455,7 @@ export function MoveToFolderModal({
           aria-label="New folder name"
           className={inputClass}
         />
-        <button type="submit" disabled={savingId !== null || newName.trim() === ""} className={`${buttonClass} shrink-0`}>
+        <button type="submit" disabled={savingId !== null || newName.trim() === "" || isPaused} className={`${buttonClass} shrink-0`}>
           {savingId === "new" ? <Spinner size={14} /> : <FolderPlusIcon size={16} />}
           Make and move
         </button>

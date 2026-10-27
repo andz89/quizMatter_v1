@@ -105,7 +105,7 @@ export function Editor({
       const store = useEditorStore.getState();
       // What a save in this tab saved, when it's newer than the page: a leave-save that ended after the page was
       // fetched, or browser Back/Forward showing the page as it first loaded. A Claude draft's page is always older
-      // once it's saved (opened fresh, it goes to the saved presentation instead).
+      // once it's saved with Save or Ctrl+S (opened fresh, it goes to the saved presentation instead).
       const saved = lastSaveOf(presentation.id, review !== undefined);
       const isSavedSince = saved !== null && (draft !== undefined || saved.savedAt > presentation.updatedAt);
       store.loadPresentation(isSavedSince ? saved.presentation : presentation);
@@ -114,7 +114,7 @@ export function Editor({
       if (isSavedSince) useEditorStore.setState({ savedAt: saved.savedAt });
       setOpenedFrom(presentation);
       // Unsaved work kept before an app update's reload, or when leaving couldn't save (see keptWork.ts), comes back
-      // now. A Claude draft saved since (by leaving) opens as the saved presentation.
+      // now. A Claude draft saved since (with Save or Ctrl+S; leaving doesn't save it) opens as the saved presentation.
       if (draft === undefined || isSavedSince) {
         store.restoreKeptWork();
         return;
@@ -126,9 +126,11 @@ export function Editor({
       const result = buildSlides(draft);
       if ("errors" in result) setDraftErrors(result.errors);
       else store.importSlides(result.slides);
-      // Not in the database yet: its first save sends every slide, and fails if another tab saved it first.
-      useEditorStore.setState({ fromDraft: true, savedAt: null });
-      // Work kept when leaving couldn't save it comes back over Claude's slides.
+      // Not in the database yet: its first save sends every slide, and fails if another tab saved it first. Claude's
+      // draft as it opened (before kept work comes back), so leaving can tell whether it was changed.
+      useEditorStore.setState((s) => ({ claudeDraft: s.presentation, savedAt: null }));
+      // Changes kept when it was left (leaving keeps a changed draft instead of saving it) come back over Claude's
+      // slides.
       store.restoreKeptWork();
     });
     return () => {
@@ -138,9 +140,9 @@ export function Editor({
     // drops unsaved edits, so don't refresh the editor page while someone is editing.
   }, [presentation, draft, review, sharedCopy, canPublish, submission]);
 
-  // Leaving the editor in the app (browser Back/Forward, a link, the ← arrow) saves first (saveBeforeLeaving). React's
-  // dev mode closes and opens the editor again right after it opens: that isn't leaving, so the save checks a moment
-  // later that the editor isn't open again.
+  // Leaving the editor in the app (browser Back/Forward, a link, the ← arrow) saves first (saveBeforeLeaving; a Claude
+  // draft not saved yet only keeps its changes in this browser). React's dev mode closes and opens the editor again
+  // right after it opens: that isn't leaving, so the save checks a moment later that the editor isn't open again.
   const isOpenRef = useRef(false);
   useEffect(() => {
     isOpenRef.current = true;

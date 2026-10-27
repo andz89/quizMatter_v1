@@ -52,10 +52,10 @@ export const MAX_PRESENTATIONS = 50;
 // supabase/migrations/20261015000000_lower_saved_limit.sql.
 export const MAX_SAVED = 50;
 
-// The most saves of each kind a teacher can make in one minute (QM429; the super admin isn't counted): presentations
-// (with their slides), photo uploads ('photos'), and photos rows written to the table ('photo_rows'). Same as
-// count_write, newest in supabase/migrations/20261210000300_direct_write_limits.sql. Bookmarks use their own click
-// limit instead (20261016000000_bookmarks_click_limit_only.sql). Shown on Admin → Safety.
+// The most shared photos an admin can add in one minute (QM429, count_write('photos'); the super admin isn't
+// counted), newest in supabase/migrations/20261210000300_direct_write_limits.sql. Saving presentations, a teacher's
+// own photo uploads and photos rows sent by hand use click limits instead (pause, then ban;
+// 20261211000000_save_photo_click_limits.sql), like bookmarks. Shown on Admin → Safety.
 export const WRITES_PER_MINUTE = 30;
 
 // Size limits for the rest of the slide content. They're far above what the editor or Claude ever make (Claude's

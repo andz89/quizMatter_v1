@@ -98,8 +98,8 @@ begin
     raise exception 'FAIL: setup: the accounts don''t own what the test deletes';
   end if;
   -- The write counter still counts a logged-in teacher (their publish wrote presentations).
-  if (select w.writes from public.write_rate w
-      where w.user_id = '00000000-0000-4000-8000-0000000000a3' and w.kind = 'presentations') is distinct from 1 then
+  if (select r.clicks from public.click_rate r
+      where r.user_id = '00000000-0000-4000-8000-0000000000a3' and r.feature = 'presentation_save') is distinct from 1 then
     raise exception 'FAIL: the teacher''s presentation write wasn''t counted';
   end if;
 end $$;

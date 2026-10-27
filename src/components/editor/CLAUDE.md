@@ -69,14 +69,24 @@ editor / view / review, and renders `Editor.tsx`, which calls `store.loadPresent
   (`forgetKeptWork`).
 - **Leaving the editor saves first:** moving away inside the app with unsaved changes (browser Back/Forward, any
   link, the ← arrow) runs the store's `saveBeforeLeaving`: a normal `savePresentation` with its toast (a review saves
-  its draft, a Claude draft is created like its first Save). `Editor` runs it when it closes; the ← arrow
-  (`BackToPresentationsLink`, no "Leave without saving?" box) runs it first with the Spinner in the button, and goes
-  only if it worked or the work was kept. The work is kept in this browser (`keepUnsavedWork`; a Claude draft counts
-  as all unsaved) as soon as the editor is left and again just before it's sent, since a closed editor can't ask
-  "Leave page?" and closing the tab could stop the save; a save that works forgets it. If the save fails, it stays
-  and comes back the next time the presentation opens (a Claude draft: from its link, the kept slides replace
-  Claude's); a toast says so. If even that fails: "Couldn't save your changes." and the arrow stays. Closing or
-  reloading the tab while the editor is open still asks "Leave page?" (a save can't finish then).
+  its draft). `Editor` runs it when it closes; the ← arrow (`BackToPresentationsLink`, no "Leave without saving?"
+  box) runs it first with the Spinner in the button, and goes only if it worked or the work was kept. The work is
+  kept in this browser (`keepUnsavedWork`) as soon as the editor is left and again just before it's sent, since a
+  closed editor can't ask "Leave page?" and closing the tab could stop the save; a save that works forgets it. If the
+  save fails, it stays and comes back the next time the presentation opens; a toast says so. If even that fails:
+  "Couldn't save your changes." and the arrow stays. Closing or reloading the tab while the editor is open still asks
+  "Leave page?" (a save can't finish then).
+- **Leaving never saves a Claude draft** (the user's decision, 2026-10-26): only Save / Ctrl+S makes it a
+  presentation. The store's `claudeDraft` is Claude's draft as it opened (set by `Editor` before kept work comes
+  back; null once it's saved). Left unchanged (`presentation === claudeDraft`): nothing is saved or kept, no toast,
+  and it stays a draft in the list. A box fitting its drawing as it first shows (`tidyUp`) doesn't count as a change.
+  Left changed: the changes are only kept in this browser (`keepUnsavedWork` with no saved copy, so all of it counts
+  as unsaved; at once, and again as it is after the waits below), with the toast "Your changes are kept in this
+  browser. Open the draft and click Save to make it a presentation." Opening the draft's link again puts them back
+  over Claude's slides (`restoreKeptWork`, "Your unsaved changes are back"). If the browser can't keep them:
+  "Couldn't keep your changes in this browser." and the arrow stays. Once saved, it's a normal presentation, and
+  leaving saves it (also when a Save / Ctrl+S still running as it was left works: the leave-save waits for it, then
+  saves what's left as usual). Closing the tab on a draft still asks "Leave page?".
 - **Opening waits for that save:** while a leave-save runs, `Editor` shows the Spinner and opens its presentation
   only after it (`waitForLeavingSave`), so opening the editor doesn't replace the store mid-save. A Present button
   on another page doesn't wait: the save then leaves the newly loaded store alone (`isStillOpen` in

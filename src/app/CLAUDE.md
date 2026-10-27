@@ -37,7 +37,11 @@ The pages teachers use outside the editor. Other folders here have their own not
 ## Folders
 
 `MyFolders.tsx` (folder tiles, drag cards onto a folder, the Move modal) + `folderActions.ts` (create, rename,
-delete, move). Limits in `src/lib/folders.ts`, checked again in `20261028000000_folders.sql`.
+delete, move). Limits in `src/lib/folders.ts`, checked again in `20261028000000_folders.sql`. Every change counts
+toward the `folders` click limits (30 in a minute and 500 a day, once per request;
+`20261211000000_save_photo_click_limits.sql`):
+`failure` says it's paused, `showFolderError` shows it and asks `checkPauses`, and "New folder" and the Move
+modal grey out.
 
 ## A presentation's pages: `presentation/`
 
@@ -58,7 +62,8 @@ delete, move). Limits in `src/lib/folders.ts`, checked again in `20261028000000_
 - `[id]/edit/page.tsx`: decides who gets what: my own → editor; locked by review or submission → view; my review →
   the editor in review mode, or `ReviewSubmittedView` once submitted. `PresentationEditor.tsx` loads the editor
   without server rendering (the store makes random ids, which would not match).
-- `new/page.tsx`: opens a Claude draft (`?draft=<id>`) as a new, not-yet-saved presentation.
+- `new/page.tsx`: opens a Claude draft (`?draft=<id>`) as a new, not-yet-saved presentation. Only Save makes it a
+  presentation; leaving the editor keeps its changes in the browser instead (see `src/components/editor/CLAUDE.md`).
 
 ## Sharing and publishing
 
@@ -81,11 +86,14 @@ Draft / Shared switch on the presentation itself, and aren't counted.
 
 ## Account, profiles, sign up, login
 
-- `account/`: display name (kept 30 days once changed; `display_name` click limit), personal details and bio,
-  password (`AccountForms.tsx`). Rules and limits: `src/lib/userSettings.ts`.
+- `account/`: display name (kept 30 days once changed; `display_name` click limit), personal details and bio
+  (the `settings` click limit, like the Elements panel's favorite stars), password (`AccountForms.tsx`). Rules and
+  limits: `src/lib/userSettings.ts`.
 - `teachers/[slug]/`: a teacher's public profile, from `src/lib/profiles.ts` (never the contact number or email).
   Below it, the QuizMatter presentations they made as an editor (`editor_presentations`, `src/lib/lessons.ts`), by
-  subject, then first grade.
+  subject, then first grade; then "Shared presentations", the ones they published (their shared copies, not hidden,
+  last changed first; `teacher_shared_presentations` via `loadSharedPresentationIds` in `src/lib/profiles.ts`).
+  Editors can't publish, so only plain teachers have that list. Both lists use `SavableCardGrid.tsx`.
 - `signup/`: `page.tsx` (server) reads the throwaway email services from the database's `blocked_email_domains`
   table and gives them to `SignUpForm.tsx` (the form), whose zod check (`signUpSchema(blockedDomains)` in
   `src/lib/userSettings.ts`) refuses them at once. The database's sign up hook checks the same list, so a script
@@ -96,10 +104,14 @@ Draft / Shared switch on the presentation itself, and aren't counted.
   `auth/confirm/route.ts`: it checks `type` with zod (only `email`, the sign up email; add a type there if a new
   email uses it) and, if someone is already logged in, does nothing and opens home, so a link can't swap them into
   another account.
-- `login/`: login with plain-English errors and a browser speed bump. `src/proxy.ts` sends logged-out people here. Its
+- `login/`: login with plain-English errors, a browser speed bump and a "Need help?" line with the support email
+  (`src/components/SupportEmail.tsx`). `src/proxy.ts` sends logged-out people here. Its
   matcher skips only the real static files (`_next/static`, `_next/image`, `favicon.ico`, `icon.svg` and the five
   `.svg` files in `public/`), never a page address that just ends in `.png`; a new file in `public/` must be added there.
 - `oauth/consent/` + `.well-known/`: Claude's login (see `src/pages/api/CLAUDE.md`).
+- `(legal)/`: `privacy/` and `terms/`, linked from the footer; placeholders ("We're still writing this page" + the
+  support email) until the real text is written. Open to logged-out visitors (`src/proxy.ts`), so `layout.tsx` shows
+  the NavBar only when logged in, else a bar with the logo and Log in.
 
 ## How a teacher's server action is written
 

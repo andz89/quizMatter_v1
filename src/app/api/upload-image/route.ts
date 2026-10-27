@@ -1,3 +1,4 @@
+import { pausedUntilFromError } from "@/lib/clickLimits";
 import { MAX_STORED_PHOTO_BYTES, PHOTO_URL_PREFIX } from "@/lib/constants";
 import { photoFileName, readPhotoType, savePhotoFile } from "@/lib/photoFiles";
 import { photoSchema, sharedPhotoBytesSchema, sharedPhotoInfoSchema, sharedPhotoSchema } from "@/lib/schema";
@@ -25,10 +26,16 @@ export async function POST(request: Request) {
     if (isAdmin !== true) return Response.json({ error: "Only admins can share photos." }, { status: 403 });
   } else {
     // A teacher's own photo: only editors and admins can upload for now (the editor says "available soon").
-    const [{ data: isEditor }, { data: isAdmin }] = await Promise.all([supabase.rpc("is_editor"), supabase.rpc("is_admin")]);
+    const [{ data: isEditor }, { data: isAdmin }, { data: isBanned }] = await Promise.all([
+      supabase.rpc("is_editor"),
+      supabase.rpc("is_admin"),
+      supabase.rpc("is_banned"),
+    ]);
     if (isEditor !== true && isAdmin !== true) {
       return Response.json({ error: "Uploading photos will be available soon." }, { status: 403 });
     }
+    // Checked before the file takes up storage (the photos table refuses them too).
+    if (isBanned === true) return banned();
   }
 
   // The header is checked first so a huge upload is refused before it's read.
@@ -72,14 +79,17 @@ export async function POST(request: Request) {
     }
   }
 
-  // At most 30 photos a minute per teacher (the super admin: no limit), counted before the file takes up storage.
-  const { error: rateError } = await supabase.rpc("count_write", { kind: "photos" });
-  if (rateError?.code === "QMBAN") {
-    return Response.json({ error: "Your account is blocked, so you can't add photos." }, { status: 403 });
-  }
+  // Counted before the file takes up storage (the super admin: no limit). Own photos: 30 in a minute or 300 in a
+  // day pauses uploads for a while, and the 3rd time in a row bans (the photo_upload and photo_upload_daily click
+  // limits). Shared photos (admins only, often many at once): 30 a minute, never paused (count_write).
+  const { error: rateError } = shared
+    ? await supabase.rpc("count_write", { kind: "photos" })
+    : await supabase.rpc("count_photo_upload");
+  if (rateError?.code === "QMBAN") return banned();
   if (rateError?.code === "QM429") {
     return Response.json({ error: "You're adding photos too fast. Wait a minute and try again." }, { status: 429 });
   }
+  if (pausedUntilFromError(rateError)) return paused();
   if (rateError) return Response.json({ error: "Couldn't upload the photo. Please try again." }, { status: 500 });
 
   await savePhotoFile(fileName, body, type);
@@ -94,6 +104,8 @@ export async function POST(request: Request) {
           { onConflict: "src" },
         )
     : await supabase.from("photos").upsert({ ...photo.data, user_id: data.claims.sub, created_at }, { onConflict: "user_id,src" });
+  // The photos table has its own click limit (photo_rows), for rows sent by hand.
+  if (pausedUntilFromError(error)) return paused();
   if (error) return Response.json({ error: "Couldn't upload the photo. Please try again." }, { status: 500 });
   // The name and source are only set when the photo has none: uploading it again keeps what an admin may have
   // changed. (Not saved = the photo just has none yet, which the admin can add.)
@@ -108,4 +120,16 @@ export async function POST(request: Request) {
 
 function tooBig() {
   return Response.json({ error: "This photo is too big." }, { status: 413 });
+}
+
+function banned() {
+  return Response.json({ error: "Your account is blocked, so you can't add photos." }, { status: 403 });
+}
+
+// The browser asks which features are paused (checkPauses), so the notice at the bottom shows when it ends.
+function paused() {
+  return Response.json(
+    { error: "Uploading photos is paused for now. The notice at the bottom says until when." },
+    { status: 429 },
+  );
 }

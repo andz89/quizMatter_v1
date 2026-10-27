@@ -8,7 +8,7 @@ import { toast } from "sonner";
 import type { Folder } from "@/lib/folders";
 import { LinkPending } from "@/components/LinkPending";
 import type { PresentationCardData } from "../PresentationCard";
-import { DraggedCards, FolderHeader, FolderTiles, MoveToFolderModal, SelectRow, folderDropId, movedMessage } from "../MyFolders";
+import { DraggedCards, FolderHeader, FolderTiles, MoveToFolderModal, SelectRow, folderDropId, movedMessage, showFolderError } from "../MyFolders";
 import { moveToFolder } from "../folderActions";
 import { Cards, PartLabel, PresentingView, SubjectChips, subjectChip } from "./CardGrid";
 
@@ -91,7 +91,7 @@ export function MyPresentations({
       folderId || null
     );
     setMovingTo(null);
-    if (error) toast.error(error);
+    if (error) showFolderError(error);
     else {
       toast.success(movedMessage(cards.length, folders.find(({ id }) => id === folderId)?.name));
       endSelecting();

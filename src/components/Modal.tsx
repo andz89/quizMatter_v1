@@ -8,18 +8,21 @@ import { XIcon } from "lucide-react";
 /**
  * A white box in the middle of the screen over a dark backdrop, with a title and ✕. Escape, a click outside
  * or ✕ closes it — except while `isBusy` (e.g. uploading), when ✕ shows the Spinner and nothing closes it.
- * Taller content scrolls inside the box; an optional `footer` (e.g. a Save button) stays below it.
+ * Taller content scrolls inside the box; an optional `footer` (e.g. a Save button) stays below it. `isNarrow` makes a
+ * small box (e.g. the "Keep QuizMatter free" QR).
  */
 export function Modal({
   title,
   onClose,
   isBusy = false,
+  isNarrow = false,
   footer,
   children,
 }: {
   title: string;
   onClose: () => void;
   isBusy?: boolean;
+  isNarrow?: boolean;
   footer?: ReactNode;
   children: ReactNode;
 }) {
@@ -39,7 +42,7 @@ export function Modal({
         if (e.target === e.currentTarget && !isBusy) onClose();
       }}
     >
-      <div role="dialog" aria-modal="true" aria-label={title} className="flex max-h-full w-full max-w-2xl flex-col rounded-card bg-bg-surface">
+      <div role="dialog" aria-modal="true" aria-label={title} className={`flex max-h-full w-full flex-col rounded-card bg-bg-surface ${isNarrow ? "max-w-md" : "max-w-2xl"}`}>
         <div className="flex items-center gap-3 border-b border-border-default px-5 py-3.5">
           <h2 className="text-[15px] font-extrabold text-text-primary">{title}</h2>
           <button

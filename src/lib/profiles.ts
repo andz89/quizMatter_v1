@@ -45,6 +45,18 @@ export async function loadTeacherProfile(supabase: SupabaseClient, slug: string)
 }
 
 /**
+ * The ids of the presentations this teacher published (their shared copies, not hidden), last changed first; empty
+ * for a link that isn't anyone, a hidden admin, or if it fails. See the teacher_shared_presentations migration.
+ */
+export async function loadSharedPresentationIds(supabase: SupabaseClient, slug: string): Promise<string[]> {
+  const checked = profileSlugSchema.safeParse(slug.toLowerCase());
+  if (!checked.success) return [];
+  const { data, error } = await supabase.rpc("teacher_shared_presentations", { slug: checked.data });
+  if (error) return [];
+  return (data as { id: string }[]).map((row) => row.id);
+}
+
+/**
  * The link names of these accounts' profiles the user may open (everyone's except a hidden admin's, and only if they
  * have a display name), by account id, so a page links only those names. Empty if the lookup fails: names then just
  * aren't links.

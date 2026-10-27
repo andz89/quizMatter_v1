@@ -1,5 +1,6 @@
 import { toast } from "sonner";
 import { Spinner } from "@/components/Spinner";
+import { checkPauses } from "./clickLimits";
 import { MAX_PHOTO_FILE_BYTES, MAX_STORED_PHOTO_BYTES, PHOTO_MAX_SIDE } from "./constants";
 import {
   SHARED_PHOTO_COLUMNS,
@@ -113,6 +114,8 @@ async function sendPhoto(shrunk: ShrunkPhoto, shared?: { categoryId: string; sou
     headers: { "Content-Type": shrunk.blob.type },
   });
   const result = await response.json().catch(() => null);
+  // Uploaded too fast: if it's paused, the notice at the bottom shows until when and the Upload button greys out.
+  if (response.status === 429) await checkPauses();
   const photo = photoSchema.safeParse(result);
   if (!response.ok || !photo.success) throw new PhotoError(result?.error ?? "Couldn't upload the photo. Please try again.");
   return photo.data;

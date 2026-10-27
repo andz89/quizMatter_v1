@@ -2,6 +2,7 @@ import { Suspense, type ReactNode } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { BanIcon } from "lucide-react";
 import { NavBar } from "@/components/NavBar";
+import { SupportEmail } from "@/components/SupportEmail";
 import { getAccount } from "@/lib/account";
 import { createClient } from "@/lib/supabase/server";
 import { NewPresentationButton } from "../PresentationListButtons";
@@ -116,8 +117,10 @@ function BlockedHome() {
           </span>
           <h1 className="text-xl font-extrabold text-text-primary">Your account is blocked</h1>
           <p className="mt-2 text-sm text-text-secondary">
-            You can&apos;t open or make presentations anymore. If you think this is a mistake, contact QuizMatter. You can
-            log out from the round button at the top right.
+            You can&apos;t open or make presentations anymore. You can log out from the round button at the top right.
+          </p>
+          <p className="mt-4 text-sm text-text-secondary">
+            If you think this is a mistake, email us: <SupportEmail />
           </p>
         </div>
       </main>

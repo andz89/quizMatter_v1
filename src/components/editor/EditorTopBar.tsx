@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEditorStore } from "@/lib/store";
+import { useIsPaused } from "@/lib/clickLimits";
 import { useFormatTexts } from "@/lib/useFormatTexts";
 import { DetailsModal } from "./DetailsModal";
 import { SelectedElementToolbar } from "./SelectedElementToolbar";
@@ -77,7 +78,8 @@ export function EditorTopBar() {
 
 /**
  * Goes back to the presentations. Unsaved changes are saved first (saveBeforeLeaving, the Spinner shows in the
- * button); if they can't be saved or even kept in this browser, it stays.
+ * button; a Claude draft not saved yet only keeps them in this browser); if they can't be saved or even kept in this
+ * browser, it stays.
  */
 function BackToPresentationsLink() {
   // QuizMatter presentations are made on the admin page, so they go back there. A review goes back to the
@@ -116,13 +118,15 @@ function BackToPresentationsLink() {
 
 /**
  * Saves the presentation to the database (also Ctrl+S). A dot shows while there are unsaved changes. In a review
- * it saves the reviewer's draft ("Save as draft").
+ * it saves the reviewer's draft ("Save as draft"). Greyed out while saving is paused (saved too fast, the
+ * presentation_save click limits; a review draft isn't counted).
  */
 function SaveButton() {
   const savePresentation = useEditorStore((s) => s.savePresentation);
   const saveStatus = useEditorStore((s) => s.saveStatus);
   const hasUnsavedChanges = useEditorStore((s) => s.presentation !== s.savedPresentation);
   const review = useEditorStore((s) => s.review);
+  const isPaused = useIsPaused("presentation_save", "presentation_save_daily") && !review;
 
   const label =
     saveStatus === "saving"
@@ -141,9 +145,9 @@ function SaveButton() {
     <button
       type="button"
       onClick={() => savePresentation()}
-      disabled={saveStatus === "saving" || !hasUnsavedChanges}
-      title={review ? "Save as draft (Ctrl+S)" : "Save (Ctrl+S)"}
-      className="ml-auto flex items-center gap-2 rounded-button border border-border-default px-4 py-2 text-sm font-semibold text-text-primary transition-colors hover:bg-bg-page disabled:hover:bg-transparent"
+      disabled={saveStatus === "saving" || !hasUnsavedChanges || isPaused}
+      title={isPaused ? "Saving is paused for now. The notice at the bottom says until when." : review ? "Save as draft (Ctrl+S)" : "Save (Ctrl+S)"}
+      className={`ml-auto flex items-center gap-2 rounded-button border border-border-default px-4 py-2 text-sm font-semibold text-text-primary transition-colors hover:bg-bg-page disabled:hover:bg-transparent ${isPaused ? "opacity-40" : ""}`}
     >
       {saveStatus === "saving" && <Spinner size={14} />}
       {hasUnsavedChanges && saveStatus !== "saving" && (

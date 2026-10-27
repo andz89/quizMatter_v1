@@ -1,7 +1,7 @@
 "use client";
 
 import { memo, useEffect, useRef, useState } from "react";
-import { useEditorStore, withoutHistory } from "@/lib/store";
+import { tidyUp, useEditorStore } from "@/lib/store";
 import { canCrop, getDiagramBoxes, getElementAsset } from "@/lib/svgLibrary";
 import { ElementSvg } from "./ElementSvg";
 import { TextBoxContent } from "./TextBoxContent";
@@ -571,8 +571,9 @@ export const SvgElementItem = memo(function SvgElementItem({ slideId, element, i
     // Already fitted (this runs again after every resize), or too thin to still be grabbed.
     if (Math.abs(fitWidth - width) < 0.5 && Math.abs(fitHeight - height) < 0.5) return;
     if (fitWidth < MIN_ELEMENT_SIZE || fitHeight < MIN_ELEMENT_SIZE) return;
-    // Not an undo step of its own: it's the box tidying itself, and it runs again after every undo.
-    withoutHistory(() =>
+    // Not an undo step of its own: it's the box tidying itself, and it runs again after every undo. An untouched
+    // Claude draft stays untouched (see tidyUp).
+    tidyUp(() =>
       updateElement(slideId, element.id, {
         width: fitWidth,
         height: fitHeight,

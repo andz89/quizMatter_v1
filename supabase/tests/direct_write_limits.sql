@@ -176,7 +176,7 @@ exception when sqlstate 'QMBAN' then
   null;
 end $$;
 
--- ─── 3. Photos written straight to the table follow the speed limit (30 a minute) ─────────────────────────────
+-- ─── 3. Photos written straight to the table: 30 in a minute pauses it (20261211000000) ──────────────────────
 select set_config('request.jwt.claims',
   json_build_object('sub', '00000000-0000-4000-8000-0000000000e4', 'role', 'authenticated')::text, true);
 
@@ -189,16 +189,16 @@ begin
   insert into public.photos (src, width, height)
   values ('https://images.quizmatter.com/uploads/test-dwl-31.webp', 10, 10);
   raise exception 'FAIL: a 31st photo in one minute was added straight to the table';
-exception when sqlstate 'QM429' then
+exception when sqlstate 'QMBLK' then
   null;
 end $$;
 
--- The app's upload (src/app/api/upload-image): count_write('photos') before the file is stored, then the row.
--- Each counts once, in its own counter, so an upload isn't counted twice.
+-- The app's upload (src/app/api/upload-image): count_photo_upload() before the file is stored, then the
+-- row. Each counts once, in its own counter, so an upload isn't counted twice.
 select set_config('request.jwt.claims',
   json_build_object('sub', '00000000-0000-4000-8000-0000000000e5', 'role', 'authenticated')::text, true);
 
-select public.count_write('photos');
+select public.count_photo_upload();
 insert into public.photos (user_id, src, width, height, created_at)
 values ('00000000-0000-4000-8000-0000000000e5', 'https://images.quizmatter.com/uploads/test-dwl-app.webp', 10, 10, now())
 on conflict (user_id, src) do update set created_at = excluded.created_at;
@@ -207,10 +207,10 @@ reset role;
 
 do $$
 begin
-  if (select w.writes from public.write_rate w
-      where w.user_id = '00000000-0000-4000-8000-0000000000e5' and w.kind = 'photos') is distinct from 1
-    or (select w.writes from public.write_rate w
-      where w.user_id = '00000000-0000-4000-8000-0000000000e5' and w.kind = 'photo_rows') is distinct from 1 then
+  if (select r.clicks from public.click_rate r
+      where r.user_id = '00000000-0000-4000-8000-0000000000e5' and r.feature = 'photo_upload') is distinct from 1
+    or (select r.clicks from public.click_rate r
+      where r.user_id = '00000000-0000-4000-8000-0000000000e5' and r.feature = 'photo_rows') is distinct from 1 then
     raise exception 'FAIL: one app upload wasn''t counted once as an upload and once as a photo row';
   end if;
 end $$;

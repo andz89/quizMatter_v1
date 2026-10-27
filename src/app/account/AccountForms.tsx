@@ -8,7 +8,7 @@ import { CopyIcon, UserIcon } from "lucide-react";
 import { ConfirmModal } from "@/components/editor/ConfirmModal";
 import { LinkPending } from "@/components/LinkPending";
 import { Spinner } from "@/components/Spinner";
-import { pauseFeature, pausedUntilFromError, useIsPaused } from "@/lib/clickLimits";
+import { checkPauses, pauseFeature, pausedUntilFromError, useIsPaused } from "@/lib/clickLimits";
 import { formatDate } from "@/lib/format";
 import {
   BIO_MAX_LENGTH,
@@ -132,6 +132,7 @@ export function PersonalDetailsForm({ profile }: { profile: ProfileFields }) {
   const [fields, setFields] = useState(profile);
   const [error, setError] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  const isPaused = useIsPaused("settings", "settings_daily");
   const isChanged = (Object.keys(profile) as (keyof ProfileFields)[]).some((key) => fields[key].trim() !== profile[key]);
 
   const update = (name: keyof ProfileFields) => (e: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
@@ -147,8 +148,11 @@ export function PersonalDetailsForm({ profile }: { profile: ProfileFields }) {
       await saveProfile(fields);
       toast.success("Details saved.");
       router.refresh();
-    } catch {
-      toast.error("Couldn't save your details. Please try again.");
+    } catch (error) {
+      // Paused (changed settings too fast): the button greys out and the notice at the bottom says until when. The
+      // minute and the daily limit give the same refusal, so ask which is paused.
+      if (pausedUntilFromError(error as { code?: string; details?: string })) await checkPauses();
+      else toast.error("Couldn't save your details. Please try again.");
     }
     setIsSaving(false);
   };
@@ -240,7 +244,7 @@ export function PersonalDetailsForm({ profile }: { profile: ProfileFields }) {
         </p>
       </div>
       {error && <p className="text-sm text-danger-strong">{error}</p>}
-      <button type="submit" disabled={isSaving || !isChanged} className={buttonClass}>
+      <button type="submit" disabled={isSaving || isPaused || !isChanged} className={buttonClass}>
         {isSaving && <Spinner size={14} />}
         Save details
       </button>
