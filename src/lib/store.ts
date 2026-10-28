@@ -359,6 +359,9 @@ interface EditorState {
   // False for editors: they send presentations to QuizMatter instead of publishing them (see the
   // shared_copy_moderation migration).
   canPublish: boolean;
+  // Linked to an editor: the database keeps their name as the Author, so the Details box shows it locked (see the
+  // author_link migration).
+  isAuthorLinked: boolean;
   // An editor's own presentation sent to QuizMatter before: "sent_back" (the Share card says Submit again),
   // "approved" (can't be sent again), "canceled", or null (never sent). A waiting one never opens in the editor.
   submission: SubmissionStatus | null;
@@ -622,6 +625,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   review: null,
   sharedCopy: null,
   canPublish: true,
+  isAuthorLinked: false,
   submission: null,
   isOutdated: false,
   setOutdated: (isOutdated) => set({ isOutdated }),

@@ -33,7 +33,9 @@ editor / view / review, and renders `Editor.tsx`, which calls `store.loadPresent
   be available soon." with Upload greyed out, and a file dropped on a slide only shows a toast
   (`useElementDropTarget`). Old "My photos" still show and can be added. `upload-image` refuses them too (403).
   Admin → Photos and Claude's photo import still upload.
-- Modals: `AnswerModal`, `DetailsModal` (title, grades, subject…), `SlideGridModal`, `ConfirmModal` (the app's one
+- Modals: `AnswerModal`, `DetailsModal` (title, grades, subject…; the Author is locked text in review mode, on an
+  editor's own presentation, and when the presentation is linked to an editor, store `isAuthorLinked` from the edit
+  page's `authorId`: the database always writes their name there), `SlideGridModal`, `ConfirmModal` (the app's one
   confirm box, used on every page; never the browser's `confirm()`).
 - A Claude draft whose slides can't be built (`buildSlides` errors) opens a `Modal` in `Editor` listing the errors.
 - Review mode: `ReviewControls.tsx` (Save as draft + the ⋮ menu, and `ReviewBanner`).

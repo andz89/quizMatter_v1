@@ -18,6 +18,7 @@ const Editor = dynamic(() => import("@/components/editor/Editor").then((mod) => 
 // `sentBackNote`: the admin's note on my presentation that QuizMatter sent back (see Editor).
 // `sharedCopy`: my presentation's shared copy, if it's published. `canPublish`: false for editors (see Editor).
 // `submission`: my presentation's Submit to QuizMatter status, if it was ever sent (see Editor).
+// `isAuthorLinked`: the database keeps an editor's name as the Author (see Editor).
 export function PresentationEditor({
   presentation,
   draft,
@@ -25,6 +26,7 @@ export function PresentationEditor({
   sentBackNote,
   sharedCopy,
   canPublish,
+  isAuthorLinked,
   submission,
 }: {
   presentation: Presentation;
@@ -33,13 +35,14 @@ export function PresentationEditor({
   sentBackNote?: string;
   sharedCopy?: SharedCopy | null;
   canPublish?: boolean;
+  isAuthorLinked?: boolean;
   submission?: SubmissionStatus;
 }) {
   // A draft from Claude is only a recipe until the editor builds its slides, so it always waits for the
   // people art (Claude often puts the clipart students in).
   return (
     <PeopleArtGate needed={draft !== undefined || usesPeopleArt(presentation.slides)}>
-      <Editor presentation={presentation} draft={draft} review={review} sentBackNote={sentBackNote} sharedCopy={sharedCopy} canPublish={canPublish} submission={submission} />
+      <Editor presentation={presentation} draft={draft} review={review} sentBackNote={sentBackNote} sharedCopy={sharedCopy} canPublish={canPublish} isAuthorLinked={isAuthorLinked} submission={submission} />
     </PeopleArtGate>
   );
 }

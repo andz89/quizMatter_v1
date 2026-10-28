@@ -146,6 +146,20 @@ A refusal raises an error with its own code. The app turns the code into a messa
 - Editors' Author and Make a copy's source: `20261201000000_editor_author_and_copy_source.sql` (`set_editor_author`
   makes an editor's own presentations' Author their name on every save; `approve_submission` always uses the
   editor's name; `copied_from`, set by `save_presentation` on the first save only and kept by `keep_copied_from`).
+- Author link: `20261216000000_author_link.sql` (test `supabase/tests/author_link.sql`).
+  `presentations.author_id` is the editor a presentation belongs to as its Author: their own presentations (set by
+  `set_editor_author` on each save while they're an editor; the next save after the role is taken away empties it)
+  and the lesson `approve_submission` makes from their submission. Teachers' presentations and copies have none
+  (their Author is free text). A direct write, or `save_presentation`, never sets or changes it (`keep_author_id`,
+  only when `current_user = 'authenticated'`). While it's set, `set_editor_author` writes the editor's name
+  (`editor_author()`) into `author` on every write, whatever was sent, so admins can't retype it. `set_display_name`
+  writes the new name on every linked presentation in the same step, without changing `updated_at` (no `QM409`
+  for an open tab); `check_presentation_review_lock` lets that through (flag `quizmatter.renaming_author`) and never
+  compares `author_id`, so an account delete (`on delete set null`, the last name stays as text) works on a locked
+  lesson. Newest `set_editor_author`, `approve_submission` and `check_presentation_review_lock` are in this file.
+  `20261217000000_author_link_fixes.sql` (newest `set_display_name`): the rename isn't a presentation save (it turns
+  on the write counter's `quizmatter.write_counted` flag for its update, then puts it back), and a one-time update
+  linked what was made before (approved lessons by their submission, editors' own presentations, not shared copies).
 - Author updates (a lesson's own editor changes it through a review round): `20261202000000_author_updates.sql`
   (`is_author_update`; newest `review_status`, `admin_reviews`; `publish_review` was changed again in
   `20261209000000_data_version.sql`, `start_review` in `20261210000500_admin_overview_counts.sql`) and

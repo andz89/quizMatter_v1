@@ -52,6 +52,8 @@ const PresentationView = dynamic(
  * `sharedCopy` is my presentation's shared copy, if it's published (see the shared_copy migration). `canPublish` is
  * false for editors: they send presentations to QuizMatter instead (see the shared_copy_moderation migration).
  * `submission` is my presentation's Submit to QuizMatter status, if it was ever sent (the Share card uses it).
+ * `isAuthorLinked`: the presentation is linked to an editor, so the database keeps their name as the Author and the
+ * Details box shows it locked (see the author_link migration).
  */
 export function Editor({
   presentation,
@@ -60,6 +62,7 @@ export function Editor({
   sentBackNote,
   sharedCopy,
   canPublish = true,
+  isAuthorLinked = false,
   submission,
 }: {
   presentation: Presentation;
@@ -68,6 +71,7 @@ export function Editor({
   sentBackNote?: string;
   sharedCopy?: SharedCopy | null;
   canPublish?: boolean;
+  isAuthorLinked?: boolean;
   submission?: SubmissionStatus;
 }) {
   // The page's presentation once the editor has opened it (below). Until then the Spinner shows, and the store still
@@ -109,7 +113,7 @@ export function Editor({
       const saved = lastSaveOf(presentation.id, review !== undefined);
       const isSavedSince = saved !== null && (draft !== undefined || saved.savedAt > presentation.updatedAt);
       store.loadPresentation(isSavedSince ? saved.presentation : presentation);
-      useEditorStore.setState({ review: review ?? null, sharedCopy: sharedCopy ?? null, canPublish, submission: submission ?? null });
+      useEditorStore.setState({ review: review ?? null, sharedCopy: sharedCopy ?? null, canPublish, isAuthorLinked, submission: submission ?? null });
       // Its save time, not its own updatedAt (the time of its last edit), so the next save doesn't conflict.
       if (isSavedSince) useEditorStore.setState({ savedAt: saved.savedAt });
       setOpenedFrom(presentation);
@@ -138,7 +142,7 @@ export function Editor({
     };
     // A new presentation/draft/review object from the server (e.g. after router.refresh()) loads it again and
     // drops unsaved edits, so don't refresh the editor page while someone is editing.
-  }, [presentation, draft, review, sharedCopy, canPublish, submission]);
+  }, [presentation, draft, review, sharedCopy, canPublish, isAuthorLinked, submission]);
 
   // Leaving the editor in the app (browser Back/Forward, a link, the ← arrow) saves first (saveBeforeLeaving; a Claude
   // draft not saved yet only keeps its changes in this browser). React's dev mode closes and opens the editor again

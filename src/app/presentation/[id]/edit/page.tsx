@@ -33,6 +33,8 @@ export default async function PresentationPage({ params }: PageProps<"/presentat
         sentBackNote={sentBackNote}
         sharedCopy={result.sharedCopy}
         canPublish={canPublish}
+        // Linked to an editor: the database keeps their name as the Author (see the author_link migration).
+        isAuthorLinked={result.authorId !== null}
         submission={result.submission?.status}
       />
     );

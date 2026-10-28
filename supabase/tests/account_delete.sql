@@ -84,6 +84,25 @@ select public.approve_submission(target_id => 'test-acd-e1');
 reset role;
 select set_config('request.jwt.claims', '', true);
 
+-- The editor's approved lesson is under review by someone who stays (the super admin, written straight in), so it's
+-- locked when the delete empties its author_id (20261216000000_author_link.sql).
+insert into public.presentation_reviews (presentation_id, reviewer_id, status, started_at)
+select s.copy_id, '00000000-0000-4000-8000-0000000000a1', 'reviewing', now()
+from public.presentation_submissions s
+where s.presentation_id = 'test-acd-e1';
+
+do $$
+begin
+  if not exists (
+    select 1 from public.presentations p
+    join public.presentation_submissions s on s.copy_id = p.id
+    where s.presentation_id = 'test-acd-e1' and p.author_id = '00000000-0000-4000-8000-0000000000a4'
+      and p.author = 'Acd Editor' and public.is_review_locked(p.id)
+  ) then
+    raise exception 'FAIL: setup: the approved lesson isn''t linked to the editor and locked';
+  end if;
+end $$;
+
 -- A pause in the teacher's click history, written like count_click writes it (no email given).
 insert into public.click_history (user_id, feature, kind, pause_minutes, streak)
 values ('00000000-0000-4000-8000-0000000000a3', 'saved', 'pause', 10, 1);
@@ -167,6 +186,14 @@ begin
       select 1 from public.presentation_reviewers r where r.presentation_id = 'test-acd-lesson' and r.reviewer_id is null
     ) then
     raise exception 'FAIL: the deleted editor''s rows aren''t as they should be';
+  end if;
+  -- Their lesson stays, unlinked, with their last name as plain text.
+  if not exists (
+    select 1 from public.presentations p
+    join public.presentation_submissions s on s.copy_id = p.id
+    where s.submitter_id is null and p.author_id is null and p.author = 'Acd Editor'
+  ) then
+    raise exception 'FAIL: the deleted editor''s lesson lost its Author or kept its link';
   end if;
   -- The plain admin's QuizMatter presentation moved to the super admin; their shared photo stays.
   if not exists (

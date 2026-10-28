@@ -166,6 +166,10 @@ An editor sends one of their own presentations to QuizMatter; an admin approves 
 - **Editors' Author and "Copied from":** an editor's own presentations always have the editor as Author (the
   `set_editor_author` trigger; their Details box shows it locked). Make a copy saves `copied_from` (set once), and the
   admin's submission page shows "Copied from <title>" with a link. See `20261201000000_editor_author_and_copy_source.sql`.
+  The Author is linked to the editor (`presentations.author_id`), on their own presentations and on the QuizMatter
+  lessons made from their submissions, so it follows their display name: a rename rewrites it everywhere at once,
+  even on a lesson under review, and admins can't retype it (their Details box shows it locked). See
+  `20261216000000_author_link.sql`.
 - **Editor photos:** every editor upload waits in Admin → Photos (not public) until a live QuizMatter presentation uses
   it: approving their submission or publishing their review makes it public. A photo in a presentation or review
   waiting for QuizMatter can't be removed by anyone (`QMPHL`). See

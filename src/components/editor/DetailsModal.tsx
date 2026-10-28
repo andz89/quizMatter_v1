@@ -38,6 +38,9 @@ export function DetailsModal({ onClose }: { onClose: () => void }) {
   const isReview = useEditorStore((s) => s.review !== null);
   // An editor's own presentation (editors can't publish, see ShareButton).
   const isEditor = useEditorStore((s) => !s.canPublish && !s.presentation.fromAdmin);
+  // Linked to an editor (their presentation, or a QuizMatter lesson from their submission): the database always
+  // writes their name as the Author, so an admin can't retype it either.
+  const isAuthorLinked = useEditorStore((s) => s.isAuthorLinked);
   const savePresentation = useEditorStore((s) => s.savePresentation);
   const isSaving = useEditorStore((s) => s.saveStatus === "saving");
   const hasUnsavedChanges = useEditorStore((s) => s.presentation !== s.savedPresentation);
@@ -138,6 +141,10 @@ export function DetailsModal({ onClose }: { onClose: () => void }) {
           // An editor's own presentations always have them as the Author (the database sets it on every save).
           <Field label="Author">
             <p className="text-sm text-text-primary">{presentation.author || "You (added when you save)"}</p>
+          </Field>
+        ) : isAuthorLinked ? (
+          <Field label="Author">
+            <p className="text-sm text-text-primary">{presentation.author || "—"}</p>
           </Field>
         ) : (
           textField("author", "Author", "Who wrote it: you, a book, another teacher…")

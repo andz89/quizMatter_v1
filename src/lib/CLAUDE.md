@@ -31,7 +31,8 @@
   `SaveRefusedError` for a known code (or null); `reviews.ts` and `sharing.ts` use it too.
 - `fetchPresentation.ts`: loads a presentation + who owns it + its review and submission status (server), whether I
   saved it, its likes (`likeCount`, `isLiked`; 0 and not liked if those reads fail), and `sharedCopy` (my original's
-  shared copy) / `sharedFrom` (set when this is a copy). `loadPresentation` reads one with the client it's given (the
+  shared copy) / `sharedFrom` (set when this is a copy), and `authorId` (the editor the Author is linked to, or null;
+  `20261216000000_author_link.sql`). `loadPresentation` reads one with the client it's given (the
   MCP server and the admin's submission page use it too). `PRESENTATION_COLUMNS` (the columns read) and
   `rowToPresentationInput` (a row in the app's shape, for `presentationSchema`) are shared with Admin → Data check,
   so it checks presentations the same way they open.

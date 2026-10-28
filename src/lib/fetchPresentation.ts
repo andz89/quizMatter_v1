@@ -15,7 +15,8 @@ import { loadSubmissionStatus } from "./submissions";
  * (see the presentation_reviews migration). `submission`: my presentation sent to QuizMatter, or null (see the
  * quizmatter_submissions migration). `sharedFrom`: set when this is a shared copy (the original's id).
  * `sharedCopy`: my presentation's shared copy, or null (see the shared_copy migration). `likeCount` and `isLiked`
- * (I liked it): see the presentation_likes migration. Server-only.
+ * (I liked it): see the presentation_likes migration. `authorId`: the editor whose name the database keeps as the
+ * Author, or null (see the author_link migration). Server-only.
  */
 export async function fetchPresentation(id: string): Promise<{
   presentation: Presentation;
@@ -34,6 +35,7 @@ export async function fetchPresentation(id: string): Promise<{
   submission: Awaited<ReturnType<typeof loadSubmissionStatus>>;
   sharedFrom: string | null;
   sharedCopy: SharedCopy | null;
+  authorId: string | null;
 } | null> {
   const supabase = await createClient();
   const [result, { data: claims }, { data: saved }, { data: likes }, { data: liked }, review, reviewers, submission, { data: copy }] = await Promise.all([
@@ -76,17 +78,19 @@ export async function fetchPresentation(id: string): Promise<{
     submission,
     sharedFrom: result.sharedFrom,
     sharedCopy: isMine && copy ? { id: copy.id, sharedAt: Date.parse(copy.shared_at), isHidden: copy.hidden_at !== null } : null,
+    authorId: result.authorId,
   };
 }
 
 /**
- * The presentation and its owner's id, read with the given client (so the database decides what that user may
- * read), or null if there's none they can read. Also used by the MCP server, which logs in with Claude's token.
+ * The presentation, its owner's id and its linked author's id, read with the given client (so the database decides
+ * what that user may read), or null if there's none they can read. Also used by the MCP server, which logs in with
+ * Claude's token.
  */
 export async function loadPresentation(
   supabase: SupabaseClient,
   id: string,
-): Promise<{ presentation: Presentation; ownerId: string; sharedFrom: string | null } | null> {
+): Promise<{ presentation: Presentation; ownerId: string; sharedFrom: string | null; authorId: string | null } | null> {
   const { data, error } = await supabase
     .from("presentations")
     .select(PRESENTATION_COLUMNS)
@@ -99,12 +103,12 @@ export async function loadPresentation(
   // Checked against the schema (which upgrades older shapes first), so a slide saved in a broken shape fails here
   // instead of inside the editor. Admin → Data check finds these before a deploy.
   const presentation = presentationSchema.parse(rowToPresentationInput(data));
-  return { presentation, ownerId: data.owner_id, sharedFrom: data.shared_from };
+  return { presentation, ownerId: data.owner_id, sharedFrom: data.shared_from, authorId: data.author_id };
 }
 
 /** The presentation columns (and its slides) read to open one. Order the slides by position. */
 export const PRESENTATION_COLUMNS =
-  "id, owner_id, title, description, grades, subject, term, week, day, curriculum, learning_competency, author, reference_links, tags, transition, transition_speed, is_published, from_admin, shared_from, created_at, updated_at, slides(data, position)";
+  "id, owner_id, title, description, grades, subject, term, week, day, curriculum, learning_competency, author, author_id, reference_links, tags, transition, transition_speed, is_published, from_admin, shared_from, created_at, updated_at, slides(data, position)";
 
 /** A presentations row (PRESENTATION_COLUMNS) in the app's shape, ready for presentationSchema. */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
