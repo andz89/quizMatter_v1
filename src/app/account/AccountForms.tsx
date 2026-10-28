@@ -27,6 +27,7 @@ import {
   saveDisplayName,
   saveProfile,
   type ProfileFields,
+  type ProfileVisibility,
 } from "@/lib/userSettings";
 
 const labelClass = "mb-1 block text-[11px] font-bold tracking-[0.05em] text-text-header uppercase";
@@ -126,17 +127,44 @@ export function ProfileForm({
   );
 }
 
-/** First and last name, contact number and educational background (given at sign up), and the bio for the profile page. */
-export function PersonalDetailsForm({ profile }: { profile: ProfileFields }) {
+/**
+ * First and last name, contact number and educational background (given at sign up), and the bio for the profile page.
+ * Plain teachers pick which of the name, background and bio their profile shows ("Show on my profile"); an editor's
+ * always show (see 20261215000000_profile_privacy.sql), so they get no checkboxes.
+ */
+export function PersonalDetailsForm({
+  profile,
+  visibility,
+  displayName,
+  isEditor,
+}: {
+  profile: ProfileFields;
+  visibility: ProfileVisibility;
+  displayName: string;
+  isEditor: boolean;
+}) {
   const router = useRouter();
   const [fields, setFields] = useState(profile);
+  const [shown, setShown] = useState(visibility);
   const [error, setError] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const isPaused = useIsPaused("settings", "settings_daily");
-  const isChanged = (Object.keys(profile) as (keyof ProfileFields)[]).some((key) => fields[key].trim() !== profile[key]);
+  const isChanged =
+    (Object.keys(profile) as (keyof ProfileFields)[]).some((key) => fields[key].trim() !== profile[key]) ||
+    (Object.keys(visibility) as (keyof ProfileVisibility)[]).some((key) => shown[key] !== visibility[key]);
+  // Sign up makes the display name from the first + last name, so hiding the full name alone hides nothing.
+  const firstName = fields.firstName.trim().toLowerCase();
+  const lastName = fields.lastName.trim().toLowerCase();
+  const isNameStillShown =
+    !shown.fullNamePublic &&
+    firstName !== "" &&
+    lastName !== "" &&
+    displayName.toLowerCase().includes(firstName) &&
+    displayName.toLowerCase().includes(lastName);
 
   const update = (name: keyof ProfileFields) => (e: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setFields((old) => ({ ...old, [name]: e.target.value }));
+  const show = (name: keyof ProfileVisibility) => (checked: boolean) => setShown((old) => ({ ...old, [name]: checked }));
 
   const save = async (e: FormEvent) => {
     e.preventDefault();
@@ -145,7 +173,7 @@ export function PersonalDetailsForm({ profile }: { profile: ProfileFields }) {
     setError("");
     setIsSaving(true);
     try {
-      await saveProfile(fields);
+      await saveProfile(fields, shown);
       toast.success("Details saved.");
       router.refresh();
     } catch (error) {
@@ -159,33 +187,41 @@ export function PersonalDetailsForm({ profile }: { profile: ProfileFields }) {
 
   return (
     <Card title="Personal details" onSubmit={save}>
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div>
-          <label htmlFor="firstName" className={labelClass}>First name</label>
-          <input
-            id="firstName"
-            type="text"
-            required
-            maxLength={NAME_MAX_LENGTH}
-            autoComplete="given-name"
-            value={fields.firstName}
-            onChange={update("firstName")}
-            className={inputClass}
-          />
+      <div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label htmlFor="firstName" className={labelClass}>First name</label>
+            <input
+              id="firstName"
+              type="text"
+              required
+              maxLength={NAME_MAX_LENGTH}
+              autoComplete="given-name"
+              value={fields.firstName}
+              onChange={update("firstName")}
+              className={inputClass}
+            />
+          </div>
+          <div>
+            <label htmlFor="lastName" className={labelClass}>Last name</label>
+            <input
+              id="lastName"
+              type="text"
+              required
+              maxLength={NAME_MAX_LENGTH}
+              autoComplete="family-name"
+              value={fields.lastName}
+              onChange={update("lastName")}
+              className={inputClass}
+            />
+          </div>
         </div>
-        <div>
-          <label htmlFor="lastName" className={labelClass}>Last name</label>
-          <input
-            id="lastName"
-            type="text"
-            required
-            maxLength={NAME_MAX_LENGTH}
-            autoComplete="family-name"
-            value={fields.lastName}
-            onChange={update("lastName")}
-            className={inputClass}
-          />
-        </div>
+        {!isEditor && <ShowOnProfile checked={shown.fullNamePublic} onChange={show("fullNamePublic")} />}
+        {!isEditor && isNameStillShown && (
+          <p className="mt-2 rounded-dropdown bg-highlight-soft px-3 py-2 text-xs text-text-primary">
+            Your display name still shows your full name. You can change it in Profile above.
+          </p>
+        )}
       </div>
       <div>
         <label htmlFor="contactNumber" className={labelClass}>Contact number</label>
@@ -226,6 +262,7 @@ export function PersonalDetailsForm({ profile }: { profile: ProfileFields }) {
           onChange={update("educationField")}
           className={inputClass}
         />
+        {!isEditor && <ShowOnProfile checked={shown.educationPublic} onChange={show("educationPublic")} />}
       </div>
       <div>
         <label htmlFor="bio" className={labelClass}>Bio</label>
@@ -239,9 +276,15 @@ export function PersonalDetailsForm({ profile }: { profile: ProfileFields }) {
           className={`${inputClass} resize-y`}
         />
         <p className="mt-1 text-xs text-text-secondary">
-          Optional, up to {BIO_MAX_LENGTH} characters. Your profile page shows your names, educational background and bio,
-          never your contact number or email.
+          Optional, up to {BIO_MAX_LENGTH} characters. Your contact number and email never show on your profile.
         </p>
+        {isEditor ? (
+          <p className="mt-1 text-xs text-text-secondary">
+            As an editor, your profile always shows your full name, educational background and bio.
+          </p>
+        ) : (
+          <ShowOnProfile checked={shown.bioPublic} onChange={show("bioPublic")} />
+        )}
       </div>
       {error && <p className="text-sm text-danger-strong">{error}</p>}
       <button type="submit" disabled={isSaving || isPaused || !isChanged} className={buttonClass}>
@@ -249,6 +292,16 @@ export function PersonalDetailsForm({ profile }: { profile: ProfileFields }) {
         Save details
       </button>
     </Card>
+  );
+}
+
+/** The "Show on my profile" checkbox under a detail in Personal details. */
+function ShowOnProfile({ checked, onChange }: { checked: boolean; onChange: (checked: boolean) => void }) {
+  return (
+    <label className="mt-2 flex w-fit items-center gap-2 text-sm text-text-primary">
+      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} className="h-4 w-4 accent-accent" />
+      Show on my profile
+    </label>
   );
 }
 

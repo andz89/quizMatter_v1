@@ -236,8 +236,14 @@ A refusal raises an error with its own code. The app turns the code into a messa
   (`QMBAN`), editor (`42501`) and that `src` is one of our photo files (`22023`), then counts under a row lock: 3 a
   day by the `Asia/Manila` date (`QMPPL`), returning how many are left. `remove_profile_photo()` and
   `admin_remove_profile_photo(target)` (any admin; logs `profile_photo_removed`) only empty `src`, so the day's count
-  stays. `my_profile_photo()` gives the account page `src` and `left_today`. Newest `teacher_profile` (adds
-  `photo_src`) and `used_photo_srcs` (adds profile photos) are in this file, and so is the newest `admin_actions`
-  action list.
+  stays. `my_profile_photo()` gives the account page `src` and `left_today`. Newest `used_photo_srcs` (adds profile
+  photos) is in this file, and so is the newest `admin_actions` action list.
+- Profile privacy: `20261215000000_profile_privacy.sql` (test `supabase/tests/profile_privacy.sql`; spec
+  `docs/superpowers/specs/2026-10-28-profile-privacy-design.md`). `user_settings.full_name_public`,
+  `education_public`, `bio_public` (default `true`; the owner writes them with their details). Newest
+  `teacher_profile` (`photo_src` from the photos file, plus the three as "others see this": the switch, or `true` for
+  an editor): a private field comes back `''` for everyone but its owner, admins too. Apply it (after
+  `20261214000000_profile_photos.sql`, whose table it joins) before the app deploys: `getAccount` reads these columns
+  on every page.
 
 Claude's drafts and photo tickets are NOT here: they live in Cloudflare D1 (`d1/migrations`).

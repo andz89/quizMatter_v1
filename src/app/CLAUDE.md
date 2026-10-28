@@ -89,6 +89,12 @@ Draft / Shared switch on the presentation itself, and aren't counted.
 - `account/`: display name (kept 30 days once changed; `display_name` click limit), personal details and bio
   (the `settings` click limit, like the Elements panel's favorite stars), password (`AccountForms.tsx`). Rules and
   limits: `src/lib/userSettings.ts`.
+- Profile privacy (spec `docs/superpowers/specs/2026-10-28-profile-privacy-design.md`): in Personal details, plain
+  teachers get a "Show on my profile" checkbox under the full name, the educational background (degree and field
+  together) and the bio, saved with Save details (`saveProfile(fields, visibility)`, `profileVisibilitySchema`; all
+  on until turned off). With the full name off and both names still in the display name (sign up makes it from
+  them), a note says to change the display name. Editors get no checkboxes: their details always show (the database
+  decides, `teacher_profile` in `20261215000000_profile_privacy.sql`), and "Make editor" in Admin → Teachers says so.
 - Editors' profile photo (spec `docs/superpowers/specs/2026-10-27-editor-profile-photo-design.md`): a "Profile photo"
   box first on `account/`, editors only (`ProfilePhotoForm.tsx`; the page reads `my_profile_photo`). Add / Change
   photo opens the file picker, then "Adjust your photo" (`ProfilePhotoCropper.tsx`: drag to move, Zoom 1–3×, the
@@ -99,6 +105,9 @@ Draft / Shared switch on the presentation itself, and aren't counted.
   away removes it.
 - `teachers/[slug]/`: a teacher's public profile, from `src/lib/profiles.ts` (never the contact number or email).
   An editor's profile photo (`photoSrc`, from `teacher_profile`) shows round next to the name; none = the name alone.
+  A private full name, background or bio comes back empty for others, so it isn't shown (a private bio has no
+  section at all); the owner sees it with an "Only you can see this" tag (`fullNamePublic` / `educationPublic` /
+  `bioPublic` off).
   Below it, the QuizMatter presentations they made as an editor (`editor_presentations`, `src/lib/lessons.ts`), by
   subject, then first grade; then "Shared presentations", the ones they published (their shared copies, not hidden,
   last changed first; `teacher_shared_presentations` via `loadSharedPresentationIds` in `src/lib/profiles.ts`).

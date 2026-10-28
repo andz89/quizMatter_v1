@@ -73,6 +73,15 @@ export const profileSchema = z.object({
   bio: z.string().trim().max(BIO_MAX_LENGTH, `Use at most ${BIO_MAX_LENGTH} characters for your bio.`),
 });
 
+// Which details the profile page shows to others ("Show on my profile"; all on until the teacher turns one off).
+// Editors' always show: teacher_profile in 20261215000000_profile_privacy.sql.
+export const profileVisibilitySchema = z.object({
+  fullNamePublic: z.boolean(),
+  educationPublic: z.boolean(),
+  bioPublic: z.boolean(),
+});
+export type ProfileVisibility = z.infer<typeof profileVisibilitySchema>;
+
 // The refusal for an email at a throwaway email service (e.g. "x@mailinator.com"). The database's sign up hook
 // (hook_before_user_created, 20261210000400_blocked_email_domains.sql) refuses with the same words.
 export const THROWAWAY_EMAIL_MESSAGE = "Please use your real email address (school or personal), not a throwaway one.";
@@ -170,9 +179,13 @@ export async function signUp(fields: SignUpFields, captchaToken: string, blocked
   if (error) throw error;
 }
 
-/** Saves the user's personal details (creates the settings row the first time). Throws if it fails. */
-export async function saveProfile(fields: ProfileFields) {
+/**
+ * Saves the user's personal details and which of them their profile shows, in one request (creates the settings row
+ * the first time). Throws if it fails.
+ */
+export async function saveProfile(fields: ProfileFields, visibility: ProfileVisibility) {
   const profile = profileSchema.parse(fields);
+  const shown = profileVisibilitySchema.parse(visibility);
   const supabase = createClient();
   const { data } = await supabase.auth.getSession();
   if (!data.session) throw new Error("Not signed in");
@@ -184,6 +197,9 @@ export async function saveProfile(fields: ProfileFields) {
     education_level: profile.educationLevel,
     education_field: profile.educationField,
     bio: profile.bio,
+    full_name_public: shown.fullNamePublic,
+    education_public: shown.educationPublic,
+    bio_public: shown.bioPublic,
     updated_at: new Date().toISOString(),
   });
   if (error) throw error;

@@ -1,6 +1,6 @@
 import { cache } from "react";
 import { createClient } from "./supabase/server";
-import { DISPLAY_NAME_CHANGE_DAYS, type ProfileFields } from "./userSettings";
+import { DISPLAY_NAME_CHANGE_DAYS, type ProfileFields, type ProfileVisibility } from "./userSettings";
 
 export type Account = {
   id: string;
@@ -12,6 +12,8 @@ export type Account = {
   nextNameChangeAt: number | null;
   // First and last name, contact number, educational background and bio ("" for each one not set).
   profile: ProfileFields;
+  // Which of those the profile page shows to others (all on until the teacher turns one off).
+  visibility: ProfileVisibility;
   isAdmin: boolean;
   // The one admin who can do everything (admins.is_super). Plain admins can't manage teachers, safety or the
   // photo cleanup, and only manage the shared photos they uploaded.
@@ -31,7 +33,9 @@ export const getAccount = cache(async (): Promise<Account> => {
     supabase.auth.getClaims(),
     supabase
       .from("user_settings")
-      .select("display_name, profile_slug, display_name_changed_at, first_name, last_name, contact_number, education_level, education_field, bio")
+      .select(
+        "display_name, profile_slug, display_name_changed_at, first_name, last_name, contact_number, education_level, education_field, bio, full_name_public, education_public, bio_public",
+      )
       .maybeSingle(),
     supabase.rpc("is_admin"),
     supabase.rpc("is_super_admin"),
@@ -53,6 +57,11 @@ export const getAccount = cache(async (): Promise<Account> => {
       educationLevel: settings?.education_level ?? "",
       educationField: settings?.education_field ?? "",
       bio: settings?.bio ?? "",
+    },
+    visibility: {
+      fullNamePublic: settings?.full_name_public ?? true,
+      educationPublic: settings?.education_public ?? true,
+      bioPublic: settings?.bio_public ?? true,
     },
     isAdmin: isAdmin === true,
     isSuperAdmin: isSuperAdmin === true,

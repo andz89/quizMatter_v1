@@ -40,7 +40,12 @@ export default async function AccountPage() {
         <div className="flex flex-col gap-5">
           {photo && <ProfilePhotoForm src={photo.src} leftToday={photo.left_today} />}
           <ProfileForm email={account.email} displayName={account.displayName} nextNameChangeAt={account.nextNameChangeAt} />
-          <PersonalDetailsForm profile={account.profile} />
+          <PersonalDetailsForm
+            profile={account.profile}
+            visibility={account.visibility}
+            displayName={account.displayName}
+            isEditor={account.isEditor}
+          />
           <PasswordForm />
         </div>
       </main>

@@ -4,8 +4,9 @@ import { DISPLAY_NAME_MAX_LENGTH, EDUCATION_LEVEL_LABELS, EDUCATION_LEVELS, type
 
 // A teacher's profile page (/teachers/<link name>, e.g. /teachers/teacher-ria, made from the display name by the
 // database's profile_slug): the public part of their settings, which any logged-in user can open
-// with the link. It comes from the teacher_profile database function (20261112000000_profile_name_links.sql), which
-// never hands out the contact number or email, and hides admins from teachers.
+// with the link. It comes from the teacher_profile database function (newest: 20261215000000_profile_privacy.sql),
+// which never hands out the contact number or email, and hides admins from teachers. A field the teacher made private
+// comes back "" for everyone but its owner.
 export type TeacherProfile = {
   displayName: string;
   firstName: string;
@@ -15,6 +16,11 @@ export type TeacherProfile = {
   bio: string;
   // Editors' profile photo ("" when none; only editors have one, see 20261214000000_profile_photos.sql).
   photoSrc: string;
+  // Whether others see the full name, educational background and bio (the teacher's "Show on my profile"; always
+  // true for an editor). Off with the field filled in = the owner looking at their own profile.
+  fullNamePublic: boolean;
+  educationPublic: boolean;
+  bioPublic: boolean;
 };
 
 // A link name: lowercase letters and digits in groups joined by "-" (what profile_slug makes), at most the display
@@ -34,6 +40,9 @@ export async function loadTeacherProfile(supabase: SupabaseClient, slug: string)
     education_field: string;
     bio: string;
     photo_src: string;
+    full_name_public: boolean;
+    education_public: boolean;
+    bio_public: boolean;
   }>();
   if (error) throw error;
   if (!data) return null;
@@ -45,6 +54,9 @@ export async function loadTeacherProfile(supabase: SupabaseClient, slug: string)
     educationField: data.education_field,
     bio: data.bio,
     photoSrc: data.photo_src,
+    fullNamePublic: data.full_name_public,
+    educationPublic: data.education_public,
+    bioPublic: data.bio_public,
   };
 }
 

@@ -1,3 +1,4 @@
+import { LockIcon } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PhotoThumbnail } from "@/components/editor/PhotoTile";
@@ -14,9 +15,11 @@ import { SavableCardGrid } from "../../SavableCardGrid";
 /**
  * A teacher's profile, at /teachers/<link name> (made from their display name): an editor's photo, display name, full
  * name, educational background and bio. Any logged-in user can open it with the link (the proxy sends logged-out people to log in
- * first). Never the contact number or email: see loadTeacherProfile. Below it, the QuizMatter presentations they made
- * as an editor, by subject, then grade (see the lesson_week migration), and the presentations they published, last
- * changed first (see the teacher_shared_presentations migration; editors can't publish, so they have none).
+ * first). Never the contact number or email: see loadTeacherProfile. A full name, background or bio the teacher made
+ * private is left out for others; on their own profile it shows marked "Only you can see this". Below it, the
+ * QuizMatter presentations they made as an editor, by subject, then grade (see the lesson_week migration), and the
+ * presentations they published, last changed first (see the teacher_shared_presentations migration; editors can't
+ * publish, so they have none).
  */
 export default async function TeacherProfilePage({ params }: PageProps<"/teachers/[slug]">) {
   const { slug } = await params;
@@ -60,25 +63,39 @@ export default async function TeacherProfilePage({ params }: PageProps<"/teacher
             )}
             <div>
               <h1 className="text-2xl font-extrabold text-text-primary">{heading}</h1>
-              {fullName && fullName !== heading && <p className="mt-1 text-sm text-text-secondary">{fullName}</p>}
+              {fullName && fullName !== heading && (
+                <p className="mt-1 flex flex-wrap items-center gap-2 text-sm text-text-secondary">
+                  {fullName}
+                  {!profile.fullNamePublic && <OnlyYouTag />}
+                </p>
+              )}
             </div>
           </header>
 
           {education && (
             <section>
-              <h2 className={labelClass}>Educational background</h2>
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className={labelClass}>Educational background</h2>
+                {!profile.educationPublic && <OnlyYouTag />}
+              </div>
               <p className="mt-1 text-sm text-text-primary">{education}</p>
             </section>
           )}
 
-          <section>
-            <h2 className={labelClass}>Bio</h2>
-            {profile.bio ? (
-              <p className="mt-1 text-sm whitespace-pre-line text-text-primary">{profile.bio}</p>
-            ) : (
-              <p className="mt-1 text-sm text-text-secondary">No bio yet.</p>
-            )}
-          </section>
+          {/* A private bio: others get "" and no section; the owner sees it marked. */}
+          {(profile.bioPublic || profile.bio !== "") && (
+            <section>
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className={labelClass}>Bio</h2>
+                {!profile.bioPublic && <OnlyYouTag />}
+              </div>
+              {profile.bio ? (
+                <p className="mt-1 text-sm whitespace-pre-line text-text-primary">{profile.bio}</p>
+              ) : (
+                <p className="mt-1 text-sm text-text-secondary">No bio yet.</p>
+              )}
+            </section>
+          )}
         </article>
 
         {groups.length > 0 && (
@@ -110,6 +127,16 @@ export default async function TeacherProfilePage({ params }: PageProps<"/teacher
 }
 
 const labelClass = "font-sans text-[11px] font-bold tracking-[0.05em] text-text-header uppercase";
+
+/** Marks a private detail on the teacher's own profile (others don't get it at all; see loadTeacherProfile). */
+function OnlyYouTag() {
+  return (
+    <span className="inline-flex items-center gap-1 rounded-dropdown border border-border-default px-2 py-0.5 text-[11px] font-semibold text-text-secondary">
+      <LockIcon size={12} />
+      Only you can see this
+    </span>
+  );
+}
 
 type LessonGroup = { subject: string; grades: { grade: string; cards: PresentationCardData[] }[] };
 

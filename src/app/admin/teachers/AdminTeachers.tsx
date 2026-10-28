@@ -116,7 +116,7 @@ function Row({ row }: { row: TeacherRow }) {
                 ) : (
                   <ConfirmModal
                     title={`Make ${row.name || row.email} an editor?`}
-                    message="Their published presentations are removed from other teachers' lists, with their bookmarks and reports."
+                    message="Their published presentations are removed from other teachers' lists, with their bookmarks and reports. Their full name, educational background and bio will always show on their profile."
                     confirmLabel="Make editor"
                     onConfirm={toggleEditor}
                     onCancel={() => setConfirming(null)}
