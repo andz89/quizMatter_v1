@@ -242,6 +242,12 @@ A refusal raises an error with its own code. The app turns the code into a messa
   missing read policy fails quietly: the hook sees no rows, so that check lets everyone through. Supabase gives it the email in
   `event -> 'user' ->> 'email'` and the address in `event -> 'metadata' ->> 'ip_address'`; it refuses by returning
   `{"error": {"http_code", "message"}}`. Test, run as `supabase_admin`: `supabase/tests/blocked_email_domains.sql`.
+- Sign up consent: `20261218000000_terms_consent.sql` (test `supabase/tests/terms_consent.sql`).
+  `user_settings.terms_version` / `terms_accepted_at`: which Terms and Privacy Policy version the teacher agreed to
+  at sign up, and when. Set only by the newest `handle_new_user` (from the metadata key `terms_version`; empty for an
+  account added from the dashboard); `keep_terms_consent` puts them back on a teacher's own write. Sign up details
+  never stay in `auth.users.raw_user_meta_data`: `handle_new_user` removes them after copying, and
+  `strip_sign_up_details` (before update on `auth.users`) keeps them out.
 - Folders: `20261028000000_folders.sql` (the folder limit's lock: `20261210000300_direct_write_limits.sql`).
   Teacher profiles: `20261110000000_teacher_profiles.sql`, `20261112000000_profile_name_links.sql`.
 - Editors' profile photos: `20261214000000_profile_photos.sql` (test `supabase/tests/profile_photos.sql`).

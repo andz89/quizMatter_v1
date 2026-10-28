@@ -32,6 +32,7 @@ const emptyFields: SignUpFields = {
   email: "",
   password: "",
   confirmPassword: "",
+  agreeTerms: false,
 };
 
 /**
@@ -61,7 +62,7 @@ export function SignUpForm({ blockedDomains }: { blockedDomains: string[] }) {
     return () => window.removeEventListener("pageshow", onPageShow);
   }, []);
 
-  const update = (name: keyof SignUpFields) => (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
+  const update = (name: Exclude<keyof SignUpFields, "agreeTerms">) => (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setFields((old) => ({ ...old, [name]: e.target.value }));
 
   const createAccount = async (e: FormEvent) => {
@@ -177,6 +178,9 @@ export function SignUpForm({ blockedDomains }: { blockedDomains: string[] }) {
                 className={inputClass}
               />
             </Field>
+            <p className="-mt-2 text-xs text-text-secondary sm:col-span-2">
+              Shows on your profile page, so teachers can see who made the lessons they use.
+            </p>
             <Field id="email" label="Email" className="sm:col-span-2">
               <input
                 id="email"
@@ -212,6 +216,29 @@ export function SignUpForm({ blockedDomains }: { blockedDomains: string[] }) {
                 className={inputClass}
               />
             </Field>
+          </div>
+
+          {/* The links open a new tab, so the filled form isn't lost. */}
+          <div className="flex items-start gap-2">
+            <input
+              id="agreeTerms"
+              type="checkbox"
+              required
+              checked={fields.agreeTerms}
+              onChange={(e) => setFields((old) => ({ ...old, agreeTerms: e.target.checked }))}
+              className="mt-0.5 accent-accent"
+            />
+            <label htmlFor="agreeTerms" className="text-sm text-text-primary">
+              I agree to the{" "}
+              <Link href="/terms" target="_blank" rel="noopener noreferrer" className="font-semibold text-accent hover:underline">
+                Terms of Use
+              </Link>{" "}
+              and{" "}
+              <Link href="/privacy" target="_blank" rel="noopener noreferrer" className="font-semibold text-accent hover:underline">
+                Privacy Policy
+              </Link>
+              , including how QuizMatter keeps and shows my educational background.
+            </label>
           </div>
 
           <Turnstile key={captchaRound} onToken={setCaptchaToken} onStatus={setCaptchaStatus} />

@@ -56,7 +56,11 @@
   `userSettings.ts` also holds the sign up rules: `signUpSchema(blockedDomains)` is a function, since the throwaway
   email services live in the database (`blocked_email_domains`; the sign up page reads them on the server and passes
   them in, and `signUp` takes them too). `THROWAWAY_EMAIL_MESSAGE` is the same text the database's sign up hook
-  refuses with (`20261210000400_blocked_email_domains.sql`): change both together.
+  refuses with (`20261210000400_blocked_email_domains.sql`): change both together. Its `agreeTerms` field (the
+  agree box, `z.literal(true)`, `AGREE_TERMS_MESSAGE`) must be ticked; `signUp` then sends `terms_version`
+  (`LEGAL_VERSION`), which the database saves with the time (`20261218000000_terms_consent.sql`).
+- `legal.ts`: `LEGAL_VERSION`, the Terms and Privacy Policy version (the date they last changed). The pages show it
+  as "Last updated" and each new account saves it. Change it whenever either page changes.
 - `supabase/`: `client.ts` (browser), `server.ts` (server, with the login cookies), `admin.ts` (secret key, server
   only, skips the database rules: use only when there is no other way).
   `listAllUsers` there pages through every account (1,000 at a time); Admin → Teachers uses it (Admin → Editors
@@ -98,7 +102,9 @@ data. Spec: `docs/superpowers/specs/2026-10-23-stable-presentation-data-design.m
   `profilePhotos.ts` (make the 400 × 400 square, upload it, remove it; kept apart from `photos.tsx` for the same
   reason).
 - Claude (MCP): `drafts.ts` (drafts in Cloudflare D1), `importPresentation.ts`, `photoTickets.ts`.
-- Timers: `cleanupPhotos.ts`, `cleanupAccounts.ts` (run by `worker.ts`).
+- Timers: `cleanupPhotos.ts`, `cleanupAccounts.ts` (run by `worker.ts`). `cleanupAccounts.ts`, daily: deletes
+  accounts unconfirmed after 3 days, `sign_up_attempts` older than a day, and `click_history` and `admin_actions`
+  rows older than `KEEP_SAFETY_RECORDS_DAYS` (365, from each row's `created_at`; the Privacy Policy promises it).
 - Drawings: `svgLibrary.tsx`, `flags.tsx`, `kids.tsx`, `solids.tsx`, and the big people drawings `schoolBoy.tsx` /
   `clipartKids.tsx`, which load only when needed (`peopleArt.ts`).
 - Text: `richText.ts` (tiptap setup, safe HTML), `format.ts` (dates, labels).

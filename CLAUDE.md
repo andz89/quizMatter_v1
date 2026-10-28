@@ -7,7 +7,7 @@ first.
 - `src/app/` **(notes)**: the teacher pages. `(home)/` home tabs (My presentations, From QuizMatter, Other
   teachers, Saved, Liked, Reviews & submissions, search) and folders; `presentation/[id]/` the view page and `edit/` the
   editor page; `presentation/new/` opens Claude's drafts; `account/`, `login/`, `signup/`, `teachers/[slug]/`
-  (profiles); `oauth/` Claude's login; `(legal)/` Privacy and Terms (placeholders). Teachers' server actions:
+  (profiles); `oauth/` Claude's login; `(legal)/` the Privacy Policy and Terms of Use (version in `src/lib/legal.ts`). Teachers' server actions:
   `actions.ts`, `folderActions.ts`, or an `actions.ts` next to the page.
 - `src/app/admin/` **(notes)**: the admin pages (Overview, the menu
   with counts, Admin log).
@@ -39,6 +39,9 @@ edit / view / review → `Editor` → `store.loadPresentation`.
   `CLAUDE.md`, or a new `CLAUDE.md` for a new folder (and a line in this map).
 - When you change a feature or a folder (new file, moved logic, new rule, new limit, removed part), update its notes
   and this map in the same commit. Delete notes about things that are gone.
+- **The Privacy Policy stays true (required):** a change to what the app collects, who sees it, how long it's kept,
+  or which outside service holds it updates the Privacy Policy (`src/app/(legal)/privacy/page.tsx`) and
+  `LEGAL_VERSION` (`src/lib/legal.ts`) in the same commit.
 - Notes say how things work and connect, in plain English, short. Read the real code before writing them; never
   guess. Stale notes mislead the next session.
 
@@ -121,8 +124,8 @@ There is ONE system for pausing a feature when a teacher clicks it too fast (e.g
    (and its words to `PAIRS` there if it has a `<feature>_daily` limit too).
 
 Every pause, automatic ban and admin release is written in `click_history` (Admin → Safety → History, with the
-teacher's name and email). Each row keeps the email, so it stays after the account is deleted
-(`20261213000000_click_history_keeps_email.sql`).
+teacher's name and email). Each row keeps the email, so it stays after the account is deleted, for 1 year
+(`20261213000000_click_history_keeps_email.sql`; the daily cleanup deletes older rows).
 
 A feature's `ban_after_pauses` (in `click_limits`; bookmarks: 3) turns a chain of that many pauses, each within `repeat_within_hours` of the last, into a real ban: a `banned_users` row marked `is_automatic` (Admin → Teachers shows "Automatic") plus Supabase's login ban. Leave it empty for a feature that should never ban. See `supabase/migrations/20261014000000_click_auto_ban.sql`.
 

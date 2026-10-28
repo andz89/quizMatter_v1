@@ -59,7 +59,9 @@ function createServer(appUrl: string, userId: string, supabase: SupabaseClient) 
       if (!id) return { isError: true, content: [{ type: "text", text: "That isn't a quizMatter presentation link or id." }] };
       const result = await loadPresentation(supabase, id).catch(() => undefined);
       if (result === undefined) return { isError: true, content: [{ type: "text", text: "Couldn't read the presentation. Try again." }] };
-      if (!result) {
+      // The admin can read every presentation, but Claude reads only their own, other teachers' published copies and
+      // QuizMatter ones (the Privacy Policy says so). Any other gets the same answer as a missing one.
+      if (!result || (result.ownerId !== userId && !result.sharedFrom && !result.presentation.fromAdmin)) {
         const text = "There's no presentation with that link, or it's someone else's private one. A link to a draft that isn't saved yet can't be read.";
         return { isError: true, content: [{ type: "text", text }] };
       }

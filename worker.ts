@@ -1,6 +1,6 @@
 // The Worker Cloudflare runs. Visitors get the app (built by OpenNext into .open-next/worker.js), as before.
 // The timers in wrangler.jsonc ("triggers") run the weekly photo cleanup (see docs/photo-cleanup.md) and the daily
-// cleanup of accounts that were never confirmed (src/lib/cleanupAccounts.ts).
+// cleanup of accounts that were never confirmed and of safety records older than a year (src/lib/cleanupAccounts.ts).
 
 // Made by `opennextjs-cloudflare build`, so it's missing until the app is built. (ts-ignore, not
 // ts-expect-error: after a build the file exists, and an unused ts-expect-error is an error too.)

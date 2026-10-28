@@ -5,7 +5,9 @@ import { createClient } from "@supabase/supabase-js";
 // A confirmed account is never touched. An unconfirmed one never logged in, so it has no presentations or photos;
 // its user_settings row goes with it. A teacher whose link expired can simply sign up again. Accounts an admin
 // invited from the Supabase dashboard are kept, even when not accepted yet.
-// It also empties old rows of sign_up_attempts (the sign up limit per internet address, 20261108000000_sign_up_limit.sql).
+// It also empties old rows of sign_up_attempts (the sign up limit per internet address, 20261108000000_sign_up_limit.sql),
+// and deletes the safety records older than a year: click_history (Admin → Safety → History) and admin_actions (the
+// Admin log). Both keep teachers' emails, and the Privacy Policy promises a year.
 
 type CleanupEnv = {
   SUPABASE_URL: string;
@@ -18,6 +20,9 @@ export const KEEP_UNCONFIRMED_DAYS = 3;
 const KEEP_UNCONFIRMED_MS = KEEP_UNCONFIRMED_DAYS * 24 * 60 * 60 * 1000;
 // The sign up limit only looks at the last hour, so a day is plenty.
 const KEEP_SIGN_UP_ATTEMPTS_MS = 24 * 60 * 60 * 1000;
+// How long the click history and the Admin log keep a row, from when it was written (Admin → Safety shows it).
+export const KEEP_SAFETY_RECORDS_DAYS = 365;
+const KEEP_SAFETY_RECORDS_MS = KEEP_SAFETY_RECORDS_DAYS * 24 * 60 * 60 * 1000;
 const PAGE_SIZE = 1000;
 
 export async function cleanupUnconfirmedAccounts(env: CleanupEnv) {
@@ -51,4 +56,10 @@ export async function cleanupUnconfirmedAccounts(env: CleanupEnv) {
     .delete()
     .lt("created_at", new Date(Date.now() - KEEP_SIGN_UP_ATTEMPTS_MS).toISOString());
   if (error) throw error;
+
+  const safetyCutoff = new Date(Date.now() - KEEP_SAFETY_RECORDS_MS).toISOString();
+  const { error: historyError } = await supabase.from("click_history").delete().lt("created_at", safetyCutoff);
+  if (historyError) throw historyError;
+  const { error: logError } = await supabase.from("admin_actions").delete().lt("created_at", safetyCutoff);
+  if (logError) throw logError;
 }

@@ -118,7 +118,10 @@ Draft / Shared switch on the presentation itself, and aren't counted.
   can't skip it, and it refuses with the same words (`THROWAWAY_EMAIL_MESSAGE`); if the page couldn't read the list,
   the form sends anyway and shows the hook's words (`20261210000400_blocked_email_domains.sql`). Also: Turnstile
   check (`src/components/Turnstile.tsx`), browser speed bumps (`src/lib/browserLimits.ts`), and a limit per
-  internet address in the same hook (`20261108000000_sign_up_limit.sql`). The email link opens
+  internet address in the same hook (`20261108000000_sign_up_limit.sql`). A required agree box ("I agree to the
+  Terms of Use and Privacy Policy…"; its two links open a new tab, so the filled form isn't lost): zod refuses it
+  unticked, and the account saves the agreed version (`LEGAL_VERSION`) and the time in `user_settings`. A hint under
+  educational background (here and on the Account page) says it shows on the profile. The email link opens
   `auth/confirm/route.ts`: it checks `type` with zod (only `email`, the sign up email; add a type there if a new
   email uses it) and, if someone is already logged in, does nothing and opens home, so a link can't swap them into
   another account.
@@ -127,8 +130,10 @@ Draft / Shared switch on the presentation itself, and aren't counted.
   matcher skips only the real static files (`_next/static`, `_next/image`, `favicon.ico`, `icon.svg` and the five
   `.svg` files in `public/`), never a page address that just ends in `.png`; a new file in `public/` must be added there.
 - `oauth/consent/` + `.well-known/`: Claude's login (see `src/pages/api/CLAUDE.md`).
-- `(legal)/`: `privacy/` and `terms/`, linked from the footer; placeholders ("We're still writing this page" + the
-  support email) until the real text is written. Open to logged-out visitors (`src/proxy.ts`), so `layout.tsx` shows
+- `(legal)/`: `privacy/` (Privacy Policy) and `terms/` (Terms of Use), linked from the footer and the sign up agree
+  box. Plain-English pages written to match the code (spec `docs/superpowers/specs/2026-10-27-privacy-and-terms-design.md`),
+  built from `LegalParts.tsx` (`LegalTitle` with "Last updated" from `LEGAL_VERSION`, `ShortVersion`,
+  `LegalSection`). Open to logged-out visitors (`src/proxy.ts`), so `layout.tsx` shows
   the NavBar only when logged in, else a bar with the logo and Log in.
 
 ## How a teacher's server action is written

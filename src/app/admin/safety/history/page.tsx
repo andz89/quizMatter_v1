@@ -45,7 +45,7 @@ export default async function AdminSafetyHistoryPage({ searchParams }: PageProps
       <h2 className="text-[11px] font-bold tracking-[0.05em] text-text-header uppercase">Clicked too fast</h2>
       <ClickTabs active="history" />
       <p className="text-sm text-text-secondary">
-        Every pause, automatic ban and admin release, newest first. Kept, also after an account is deleted.
+        Every pause, automatic ban and admin release, newest first. Kept for a year, also after an account is deleted.
       </p>
       <ClickHistory rows={rows} />
       <ShowMore shown={shown} total={history.count ?? 0} />

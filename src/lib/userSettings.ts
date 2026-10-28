@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { LEGAL_VERSION } from "./legal";
 import { createClient } from "./supabase/client";
 import { ELEMENT_PANEL_CATEGORIES, type ElementCategory } from "./svgLibrary";
 
@@ -86,6 +87,9 @@ export type ProfileVisibility = z.infer<typeof profileVisibilitySchema>;
 // (hook_before_user_created, 20261210000400_blocked_email_domains.sql) refuses with the same words.
 export const THROWAWAY_EMAIL_MESSAGE = "Please use your real email address (school or personal), not a throwaway one.";
 
+// The refusal for an unticked agree box on the sign up form.
+export const AGREE_TERMS_MESSAGE = "Please agree to the Terms of Use and Privacy Policy to make an account.";
+
 /**
  * The sign up form's rules. blockedDomains: the throwaway email services from the database's blocked_email_domains
  * table (the sign up page reads them on the server), so the form says no at once. The sign up hook checks the same
@@ -103,6 +107,8 @@ export function signUpSchema(blockedDomains: string[]) {
         .refine((email) => !blocked.has(email.slice(email.lastIndexOf("@") + 1).toLowerCase()), THROWAWAY_EMAIL_MESSAGE),
       password: passwordSchema,
       confirmPassword: z.string(),
+      // The agree box: the account saves which version was agreed to (signUp sends LEGAL_VERSION).
+      agreeTerms: z.literal(true, { error: AGREE_TERMS_MESSAGE }),
     })
     .refine((fields) => fields.password === fields.confirmPassword, {
       error: "The two passwords don't match.",
@@ -112,7 +118,10 @@ export function signUpSchema(blockedDomains: string[]) {
 
 // What the forms hold: plain text in every box ("" in the dropdown until a level is picked).
 export type ProfileFields = { [K in keyof z.input<typeof profileSchema>]: string };
-export type SignUpFields = { [K in keyof z.input<ReturnType<typeof signUpSchema>>]: string };
+// The agree box is the one checkbox: true or false.
+export type SignUpFields = {
+  [K in Exclude<keyof z.input<ReturnType<typeof signUpSchema>>, "agreeTerms">]: string;
+} & { agreeTerms: boolean };
 
 /** The Elements panel categories the signed-in user starred. Empty if they have none yet. Throws if it fails. */
 export async function loadFavoriteCategories(): Promise<ElementCategory[]> {
@@ -154,7 +163,8 @@ export async function saveDisplayName(name: string): Promise<DisplayNameResult> 
 /**
  * Makes a new account. Supabase emails a link to confirm it; the teacher can log in only after clicking it. The
  * details ride along as user metadata, and the handle_new_user trigger (20261113000000_display_name_rules.sql) copies
- * them into user_settings and makes the display name from the first + last name. If the email already has an
+ * them into user_settings (with the agreed version, terms_version, and the time) and makes the display name from the
+ * first + last name, then removes them from the metadata (20261218000000_terms_consent.sql). If the email already has an
  * account, Supabase answers the same way and sends nothing, so strangers can't find out who has one.
  * blockedDomains: the throwaway email services (see signUpSchema). Throws if it fails.
  */
@@ -173,6 +183,8 @@ export async function signUp(fields: SignUpFields, captchaToken: string, blocked
         contact_number: contactNumber,
         education_level: educationLevel,
         education_field: educationField,
+        // Only a ticked box gets past the parse above.
+        terms_version: LEGAL_VERSION,
       },
     },
   });

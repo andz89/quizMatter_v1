@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { ChevronDownIcon, ShieldIcon } from "lucide-react";
 import { getAccount } from "@/lib/account";
 import { LOGIN_LIMIT, SIGN_UP_LIMIT, SIGN_UPS_PER_ADDRESS, type BrowserLimit } from "@/lib/browserLimits";
-import { KEEP_UNCONFIRMED_DAYS } from "@/lib/cleanupAccounts";
+import { KEEP_SAFETY_RECORDS_DAYS, KEEP_UNCONFIRMED_DAYS } from "@/lib/cleanupAccounts";
 import { KEEP_NEW_FILES_MS } from "@/lib/cleanupPhotos";
 import { DRAFT_LIFETIME_MS } from "@/lib/drafts";
 import { FOLDER_NAME_MAX, MAX_FOLDERS } from "@/lib/folders";
@@ -193,7 +193,7 @@ export default async function AdminSafetyPage() {
                 "If a teacher keeps reaching the same click limit again and again, the app bans the account by itself, without waiting for an admin. Each limit counts its own pauses: a pause on Folders doesn't add to Save.",
                 `The times must come close together. ${banRules}`,
                 "The ban works like an admin's ban: no saving, no uploads, no logging in. It shows as “Automatic” on Admin → Teachers, and an admin can lift it with Unban. Plain admins are only paused, never banned; the super admin isn't counted.",
-                "Every pause and ban is written in Safety → History with the teacher's name and email. It stays there even after the account is deleted.",
+                "Every pause and ban is written in Safety → History with the teacher's name and email. It stays there for a year, even after the account is deleted.",
               ],
               example: `Ben hits the Save limit on Monday morning and is paused. He hits it again that afternoon, and again that evening. The ${ordinal(banningLimits[0].ban_after_pauses!)} time, he is banned instead of paused. An admin looks, sees it was a mistake, and clicks Unban.`,
               scenario: "A script keeps saving all night, waiting out each pause and starting again. Instead of being paused forever, the account is banned, and an admin sees it in the morning.",
@@ -594,6 +594,20 @@ export default async function AdminSafetyPage() {
             ],
             example: `Ben signs up but types his email wrong, so the link never reaches him. ${KEEP_UNCONFIRMED_DAYS} days later the broken account is gone, and he signs up again with the right email.`,
             scenario: "Someone makes dozens of fake accounts. They show as “Not confirmed” for a few days, then disappear on their own.",
+          }}
+        />
+        <Item
+          name="Old safety records deleted"
+          where="Cloudflare timer"
+          rule={`Every day at 4:00 AM (UTC), Safety → History and Admin log rows older than ${KEEP_SAFETY_RECORDS_DAYS} days are deleted (src/lib/cleanupAccounts.ts)`}
+          sees="Nothing. The two lists show the last year."
+          more={{
+            what: [
+              "Safety → History and the Admin log keep teachers' names and emails, even after an account is deleted. The Privacy Policy promises to keep them for a year, and the law says to keep personal data only as long as it's needed.",
+              `Once a day, the app deletes rows written more than ${KEEP_SAFETY_RECORDS_DAYS} days ago, in both lists. A year is long enough to see a pattern of misuse.`,
+            ],
+            example: "Ana was paused for clicking Save too fast last October. This November the row is gone from Safety → History.",
+            scenario: "A teacher deletes their account and asks what's still kept. Their old pauses and the Admin log rows about them disappear a year after each was written.",
           }}
         />
         <Item

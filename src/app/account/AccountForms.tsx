@@ -262,6 +262,9 @@ export function PersonalDetailsForm({
           onChange={update("educationField")}
           className={inputClass}
         />
+        <p className="mt-1 text-xs text-text-secondary">
+          Shows on your profile page, so teachers can see who made the lessons they use.
+        </p>
         {!isEditor && <ShowOnProfile checked={shown.educationPublic} onChange={show("educationPublic")} />}
       </div>
       <div>

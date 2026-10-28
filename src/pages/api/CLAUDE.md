@@ -15,7 +15,9 @@
    can use it.**
 2. **The tools:**
    - `get_presentation_format`: the recipe format (`getClaudeFormat()` in `src/lib/importPresentation.ts`).
-   - `read_presentation`: reads a saved presentation as a reference.
+   - `read_presentation`: reads a saved presentation as a reference: only the admin's own, other teachers' published
+     copies (`sharedFrom`) and QuizMatter ones (`fromAdmin`). An admin may open any presentation, but anything else
+     gets the "someone else's private one" answer, as the Privacy Policy promises.
    - `find_photos`: searches the shared photo library.
    - `prepare_photo_upload`: makes one-time upload links (`src/lib/photoTickets.ts`); Claude then sends each file to
      `/api/claude-photo` (`src/app/api/claude-photo/route.ts`).
