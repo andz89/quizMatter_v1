@@ -27,6 +27,7 @@ import {
   MIN_QUESTION_WIDTH,
   PHOTO_MAX_SIDE,
   PHOTO_URL_PREFIX,
+  PROFILE_PHOTO_SIZE,
   moveShortAnswerPicturesToSlide,
 } from "./constants";
 import { EMBED_SLIDE_TYPES, MAX_EMBED_URL_LENGTH, isEmbedSlide, readEmbedLink, type EmbedKind } from "./embed";
@@ -99,6 +100,12 @@ export const photoSchema = z.object({
   src: z.string().max(300).startsWith(PHOTO_URL_PREFIX),
   width: z.number().int().positive().max(PHOTO_MAX_SIDE),
   height: z.number().int().positive().max(PHOTO_MAX_SIDE),
+});
+
+// An editor's profile photo: always the square the account page's "Adjust your photo" box makes.
+export const profilePhotoSchema = photoSchema.extend({
+  width: z.literal(PROFILE_PHOTO_SIZE),
+  height: z.literal(PROFILE_PHOTO_SIZE),
 });
 
 // A photo an admin shared with every teacher (the shared_photos table), in one category.

@@ -4,9 +4,9 @@ import { useRef, useState, useTransition, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { PHOTO_TYPES } from "@/lib/constants";
 import {
   MAX_SHARED_UPLOADS,
-  PHOTO_TYPES,
   deleteCategory,
   findOrAddCategory,
   loadSharedPhotoInfo,

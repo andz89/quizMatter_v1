@@ -29,6 +29,7 @@ export const ADMIN_ACTION_LABELS = {
   category_renamed: "Renamed a category",
   category_deleted: "Deleted a category",
   photo_deleted: "Deleted a photo",
+  profile_photo_removed: "Removed a profile photo",
 } as const satisfies Record<string, string>;
 
 export type AdminAction = keyof typeof ADMIN_ACTION_LABELS;

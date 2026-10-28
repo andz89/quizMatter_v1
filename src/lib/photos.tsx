@@ -1,7 +1,7 @@
 import { toast } from "sonner";
 import { Spinner } from "@/components/Spinner";
 import { checkPauses } from "./clickLimits";
-import { MAX_PHOTO_FILE_BYTES, MAX_STORED_PHOTO_BYTES, PHOTO_MAX_SIDE } from "./constants";
+import { MAX_PHOTO_FILE_BYTES, MAX_STORED_PHOTO_BYTES, PHOTO_MAX_SIDE, PHOTO_TYPES } from "./constants";
 import {
   SHARED_PHOTO_COLUMNS,
   photoCategoryNameSchema,
@@ -24,7 +24,6 @@ import { PHOTO_ID } from "./svgLibrary";
 // photo and saves the copy in our own storage (see app/api/upload-image), so it never breaks later. Each
 // upload is also added to the teacher's "My photos" list (the photos table), to add again without uploading.
 
-export const PHOTO_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const PHOTO_QUALITY = 0.85;
 // Used for a second try when a very detailed photo is still too big for the server at PHOTO_QUALITY.
 const PHOTO_LOW_QUALITY = 0.7;

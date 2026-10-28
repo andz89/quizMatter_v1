@@ -91,7 +91,11 @@ data. Spec: `docs/superpowers/specs/2026-10-23-stable-presentation-data-design.m
 - Photos: `photos.tsx` (upload, My photos, shared photos; `isPhotoLocked` / `PHOTO_LOCKED_MESSAGE` for `QMPHL`, a
   photo in something waiting for QuizMatter can't be removed; the editor's Photos panel shows only public shared
   photos, even to admins), `photoFiles.ts` (R2 files, server), `photoTickets.ts`
-  (Claude's photo uploads), `cleanupPhotos.ts` (weekly cleanup).
+  (Claude's photo uploads), `cleanupPhotos.ts` (weekly cleanup). `PHOTO_TYPES` (the files a teacher can pick) is in
+  `constants.ts`, so pages outside the editor can use it without loading `photos.tsx` (which loads the editor's store).
+  Editors' profile photos: `photoCrop.ts` (zoom and move math for the adjust box, with `photoCrop.test.ts`) and
+  `profilePhotos.ts` (make the 400 × 400 square, upload it, remove it; kept apart from `photos.tsx` for the same
+  reason).
 - Claude (MCP): `drafts.ts` (drafts in Cloudflare D1), `importPresentation.ts`, `photoTickets.ts`.
 - Timers: `cleanupPhotos.ts`, `cleanupAccounts.ts` (run by `worker.ts`).
 - Drawings: `svgLibrary.tsx`, `flags.tsx`, `kids.tsx`, `solids.tsx`, and the big people drawings `schoolBoy.tsx` /

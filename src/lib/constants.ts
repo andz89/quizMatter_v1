@@ -35,10 +35,17 @@ export function thumbnailUrl(src: string, width = 320) {
 }
 // Photos are shrunk in the browser so their longest side is at most this (px) — sharp in fullscreen.
 export const PHOTO_MAX_SIDE = 1920;
+// The photo files a teacher can pick (they're turned into WebP or JPEG before upload).
+export const PHOTO_TYPES = ["image/jpeg", "image/png", "image/webp"];
 // Biggest photo file (bytes) a teacher can pick, before it's shrunk.
 export const MAX_PHOTO_FILE_BYTES = 20 * 1024 * 1024;
 // Biggest shrunk photo (bytes) the server stores.
 export const MAX_STORED_PHOTO_BYTES = 2 * 1024 * 1024;
+// An editor's profile photo is stored as a square this size (px); the circle is only how it's shown.
+export const PROFILE_PHOTO_SIZE = 400;
+// How many new profile photos an editor can save in a day (Philippine time). Same limit as set_profile_photo in
+// supabase/migrations/20261214000000_profile_photos.sql.
+export const PROFILE_PHOTO_CHANGES_PER_DAY = 3;
 
 // dataTransfer type used to drag a photo (as JSON) from the Photos panel's "My photos" list onto a box or the slide.
 export const PHOTO_DRAG_MIME = "application/x-quizbuilder-photo";

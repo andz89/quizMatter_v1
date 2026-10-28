@@ -59,6 +59,7 @@ A refusal raises an error with its own code. The app turns the code into a messa
   reload.
 - `QMBLK`: a click limit paused the feature (the pause end time is in `details`), read by `pausedUntilFromError`
   (`src/lib/clickLimits.ts`).
+- `QMPPL`: an editor already saved 3 profile photos today (`set_profile_photo`).
 
 ## Where the big features live
 
@@ -77,7 +78,8 @@ A refusal raises an error with its own code. The app turns the code into a messa
   `save_presentation` also refuses (`QMOLD`) a new presentation whose `copiedFrom` source has a higher
   `data_version` than its `app_version` (an old tab's Make a copy), and `share_presentation` gives the shared copy
   its original's `data_version`, so copies of a published presentation are checked too.
-- Photos and the weekly cleanup: `used_photo_srcs` (drafts' photos count as used).
+- Photos and the weekly cleanup: `used_photo_srcs` (drafts' photos and profile photos count as used; newest in
+  `20261214000000_profile_photos.sql`).
 - Editor photos (`20261126000000_editor_photos.sql`): an editor's WebP upload also becomes a shared photo with
   `is_public = false` ("From editors" category), hidden from teachers and `search_shared_photos`. It turns public
   for good when a live QuizMatter presentation uses it (triggers on `slide_photos` and `presentations`). The
@@ -228,5 +230,14 @@ A refusal raises an error with its own code. The app turns the code into a messa
   `{"error": {"http_code", "message"}}`. Test, run as `supabase_admin`: `supabase/tests/blocked_email_domains.sql`.
 - Folders: `20261028000000_folders.sql` (the folder limit's lock: `20261210000300_direct_write_limits.sql`).
   Teacher profiles: `20261110000000_teacher_profiles.sql`, `20261112000000_profile_name_links.sql`.
+- Editors' profile photos: `20261214000000_profile_photos.sql` (test `supabase/tests/profile_photos.sql`).
+  `profile_photos` (one row per editor, `references editors on delete cascade`, so taking the role away or deleting
+  the account removes it; no policies, nobody writes it directly). `set_profile_photo(src)` checks login, ban
+  (`QMBAN`), editor (`42501`) and that `src` is one of our photo files (`22023`), then counts under a row lock: 3 a
+  day by the `Asia/Manila` date (`QMPPL`), returning how many are left. `remove_profile_photo()` and
+  `admin_remove_profile_photo(target)` (any admin; logs `profile_photo_removed`) only empty `src`, so the day's count
+  stays. `my_profile_photo()` gives the account page `src` and `left_today`. Newest `teacher_profile` (adds
+  `photo_src`) and `used_photo_srcs` (adds profile photos) are in this file, and so is the newest `admin_actions`
+  action list.
 
 Claude's drafts and photo tickets are NOT here: they live in Cloudflare D1 (`d1/migrations`).

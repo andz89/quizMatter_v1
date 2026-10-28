@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { PhotoThumbnail } from "@/components/editor/PhotoTile";
 import { LinkPending } from "@/components/LinkPending";
 import { NavBar, navLinkClass } from "@/components/NavBar";
 import { loadEditorPresentationIds } from "@/lib/lessons";
@@ -11,8 +12,8 @@ import type { PresentationCardData } from "../../PresentationCard";
 import { SavableCardGrid } from "../../SavableCardGrid";
 
 /**
- * A teacher's profile, at /teachers/<link name> (made from their display name): display name, full name, educational
- * background and bio. Any logged-in user can open it with the link (the proxy sends logged-out people to log in
+ * A teacher's profile, at /teachers/<link name> (made from their display name): an editor's photo, display name, full
+ * name, educational background and bio. Any logged-in user can open it with the link (the proxy sends logged-out people to log in
  * first). Never the contact number or email: see loadTeacherProfile. Below it, the QuizMatter presentations they made
  * as an editor, by subject, then grade (see the lesson_week migration), and the presentations they published, last
  * changed first (see the teacher_shared_presentations migration; editors can't publish, so they have none).
@@ -48,9 +49,19 @@ export default async function TeacherProfilePage({ params }: PageProps<"/teacher
 
       <main className="mx-auto w-full max-w-4xl px-4 py-8 sm:py-10">
         <article className="mx-auto flex w-full max-w-2xl flex-col gap-5 rounded-card border border-border-default bg-bg-surface px-5 py-6">
-          <header>
-            <h1 className="text-2xl font-extrabold text-text-primary">{heading}</h1>
-            {fullName && fullName !== heading && <p className="mt-1 text-sm text-text-secondary">{fullName}</p>}
+          <header className="flex items-center gap-4">
+            {/* An editor's photo, round (see the profile_photos migration); none = the name alone. */}
+            {profile.photoSrc && (
+              <PhotoThumbnail
+                src={profile.photoSrc}
+                alt=""
+                className="h-[88px] w-[88px] shrink-0 rounded-full border border-border-default bg-bg-page object-cover"
+              />
+            )}
+            <div>
+              <h1 className="text-2xl font-extrabold text-text-primary">{heading}</h1>
+              {fullName && fullName !== heading && <p className="mt-1 text-sm text-text-secondary">{fullName}</p>}
+            </div>
           </header>
 
           {education && (

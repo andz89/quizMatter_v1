@@ -3,11 +3,17 @@ import { LinkPending } from "@/components/LinkPending";
 import { NavBar, navLinkClass } from "@/components/NavBar";
 import { getAccount } from "@/lib/account";
 import { profileHref } from "@/lib/profiles";
+import { createClient } from "@/lib/supabase/server";
 import { PasswordForm, PersonalDetailsForm, ProfileForm, ProfileLinks } from "./AccountForms";
+import { ProfilePhotoForm } from "./ProfilePhotoForm";
 
-/** Account settings: display name, personal details (with the bio), password, and links to your profile page. */
+/**
+ * Account settings: the profile photo (editors only), display name, personal details (with the bio), password, and
+ * links to your profile page.
+ */
 export default async function AccountPage() {
   const account = await getAccount();
+  const photo = account.isEditor ? await loadMyProfilePhoto() : null;
 
   return (
     <>
@@ -32,6 +38,7 @@ export default async function AccountPage() {
         </header>
 
         <div className="flex flex-col gap-5">
+          {photo && <ProfilePhotoForm src={photo.src} leftToday={photo.left_today} />}
           <ProfileForm email={account.email} displayName={account.displayName} nextNameChangeAt={account.nextNameChangeAt} />
           <PersonalDetailsForm profile={account.profile} />
           <PasswordForm />
@@ -39,4 +46,12 @@ export default async function AccountPage() {
       </main>
     </>
   );
+}
+
+/** My profile photo ('' when none) and how many changes are left today; null if the read failed (no box then). */
+async function loadMyProfilePhoto() {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("my_profile_photo").maybeSingle<{ src: string; left_today: number }>();
+  if (error) console.error("Couldn't read the profile photo:", error);
+  return data;
 }

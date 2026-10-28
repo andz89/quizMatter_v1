@@ -13,6 +13,8 @@ export type TeacherProfile = {
   educationLevel: string;
   educationField: string;
   bio: string;
+  // Editors' profile photo ("" when none; only editors have one, see 20261214000000_profile_photos.sql).
+  photoSrc: string;
 };
 
 // A link name: lowercase letters and digits in groups joined by "-" (what profile_slug makes), at most the display
@@ -31,6 +33,7 @@ export async function loadTeacherProfile(supabase: SupabaseClient, slug: string)
     education_level: string;
     education_field: string;
     bio: string;
+    photo_src: string;
   }>();
   if (error) throw error;
   if (!data) return null;
@@ -41,6 +44,7 @@ export async function loadTeacherProfile(supabase: SupabaseClient, slug: string)
     educationLevel: data.education_level,
     educationField: data.education_field,
     bio: data.bio,
+    photoSrc: data.photo_src,
   };
 }
 

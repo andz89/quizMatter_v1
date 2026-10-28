@@ -89,7 +89,16 @@ Draft / Shared switch on the presentation itself, and aren't counted.
 - `account/`: display name (kept 30 days once changed; `display_name` click limit), personal details and bio
   (the `settings` click limit, like the Elements panel's favorite stars), password (`AccountForms.tsx`). Rules and
   limits: `src/lib/userSettings.ts`.
+- Editors' profile photo (spec `docs/superpowers/specs/2026-10-27-editor-profile-photo-design.md`): a "Profile photo"
+  box first on `account/`, editors only (`ProfilePhotoForm.tsx`; the page reads `my_profile_photo`). Add / Change
+  photo opens the file picker, then "Adjust your photo" (`ProfilePhotoCropper.tsx`: drag to move, Zoom 1–3×, the
+  math in `src/lib/photoCrop.ts`), which cuts a 400 × 400 square and uploads it (`src/lib/profilePhotos.ts` →
+  `/api/profile-photo`). It shows on the profile at once, no admin check. 3 new photos a day (Philippine time; the
+  database counts, `QMPPL`): the box says "N left today", and with none left the button greys out. Remove asks first
+  and doesn't give a change back. Not a click limit. Admins can remove it in Admin → Editors; taking the editor role
+  away removes it.
 - `teachers/[slug]/`: a teacher's public profile, from `src/lib/profiles.ts` (never the contact number or email).
+  An editor's profile photo (`photoSrc`, from `teacher_profile`) shows round next to the name; none = the name alone.
   Below it, the QuizMatter presentations they made as an editor (`editor_presentations`, `src/lib/lessons.ts`), by
   subject, then first grade; then "Shared presentations", the ones they published (their shared copies, not hidden,
   last changed first; `teacher_shared_presentations` via `loadSharedPresentationIds` in `src/lib/profiles.ts`).

@@ -8,10 +8,12 @@ import { getAccount } from "@/lib/account";
 import { formatBytes, formatDate, joinParts, slideCountLabel } from "@/lib/format";
 import { SUBMISSION_LABELS, type SubmissionStatus } from "@/lib/submissions";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { ProfilePhotoPart } from "./ProfilePhotoPart";
 
 /**
  * Admin → Editors → one editor, view only, to check their work: the presentations they made (with what happened
  * when they submitted them to QuizMatter), the QuizMatter presentations they reviewed, and the photos they uploaded.
+ * Their profile photo is the one thing an admin can change here (Remove photo).
  * Uses the secret key, like the list.
  */
 export default async function AdminEditorPage({ params }: PageProps<"/admin/editors/[id]">) {
@@ -24,10 +26,11 @@ export default async function AdminEditorPage({ params }: PageProps<"/admin/edit
     return <Empty>This page needs the secret key SUPABASE_SECRET_KEY on the server.</Empty>;
   }
 
-  const [user, editor, settings, presentations, submissions, published, rounds, photos, shared] = await Promise.all([
+  const [user, editor, settings, profilePhoto, presentations, submissions, published, rounds, photos, shared] = await Promise.all([
     admin.auth.admin.getUserById(id),
     admin.from("editors").select("added_at").eq("user_id", id).maybeSingle(),
     admin.from("user_settings").select("display_name").eq("user_id", id).maybeSingle(),
+    admin.from("profile_photos").select("src").eq("user_id", id).maybeSingle(),
     // Not shared copies, like their own lists.
     admin
       .from("presentations")
@@ -52,7 +55,7 @@ export default async function AdminEditorPage({ params }: PageProps<"/admin/edit
       .select("src, file_name, description, tags, source, category_name, bytes, is_public")
       .eq("uploaded_by", id),
   ]);
-  for (const result of [editor, settings, presentations, submissions, published, rounds, photos, shared]) {
+  for (const result of [editor, settings, profilePhoto, presentations, submissions, published, rounds, photos, shared]) {
     if (result.error) throw result.error;
   }
   // Not an editor (or the account is gone) = not found.
@@ -93,7 +96,10 @@ export default async function AdminEditorPage({ params }: PageProps<"/admin/edit
         </p>
       </header>
 
-      <PartLabel>Presentations ({presentationRows.length})</PartLabel>
+      <PartLabel>Profile photo</PartLabel>
+      <ProfilePhotoPart userId={id} src={(profilePhoto.data?.src as string | undefined) ?? ""} />
+
+      <PartLabel className="mt-6">Presentations ({presentationRows.length})</PartLabel>
       {presentationRows.length === 0 ? (
         <Empty>No presentations yet.</Empty>
       ) : (

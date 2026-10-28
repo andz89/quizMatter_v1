@@ -4,9 +4,9 @@ import { useEffect, useRef, useState } from "react";
 import { useEditorStore, isPanelEscape } from "@/lib/store";
 import { useIsPaused } from "@/lib/clickLimits";
 import { toast } from "sonner";
+import { PHOTO_TYPES } from "@/lib/constants";
 import {
   PHOTO_LOCKED_MESSAGE,
-  PHOTO_TYPES,
   addPhotoToSlide,
   checkCanUpload,
   isPhotoLocked,
