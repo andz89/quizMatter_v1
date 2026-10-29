@@ -147,6 +147,10 @@ server client (`@/lib/supabase/server`), `refresh()` the page's data, and return
 - `layout.tsx`: the root layout (fonts, `ClickPauseNotice`, toasts). `globals.css`: the design system.
 - `error.tsx`: the page shown when a page breaks ("Something went wrong", Try again via `retry()`, a link home). This
   Next.js version passes `retry` (and still `reset`, which only clears the error without re-fetching).
+- `not-found.tsx`: the one "Page not found" page (NavBar, a card, "Go to home"), for a wrong address and every
+  `notFound()`: a deleted or hidden presentation, an unknown teacher, an admin page a teacher can't open. The
+  presentation pages (`presentation/[id]`, `edit/`) check the id is a uuid first, so a broken link shows it too,
+  not "Something went wrong". Logged-out visitors go to login first (`proxy.ts`).
 - Errors never use `alert()`: they show a sonner toast. The like and save buttons (`LikeCardButton`, `SaveCardButton`,
   `LikeButton`, the preview's Save) catch a network error, show "Couldn't change it. Please try again." and stop their
   spinner. A failed home tab count (`loadTabCounts` in `(home)/layout.tsx`) is logged and shows 0. Deleting a

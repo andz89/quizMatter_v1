@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { z } from "zod";
 import { LinkPending } from "@/components/LinkPending";
 import { NavBar, navLinkClass } from "@/components/NavBar";
 import { PeopleArtGate } from "@/components/PeopleArtGate";
@@ -14,6 +15,8 @@ import { ReviewSubmittedView } from "./ReviewSubmittedView";
 
 export default async function PresentationPage({ params }: PageProps<"/presentation/[id]/edit">) {
   const { id } = await params;
+  // A broken link (not an id) would make the database fail; it's simply not found.
+  if (!z.uuid().safeParse(id).success) notFound();
   const result = await fetchPresentation(id);
   // Also covers someone else's private presentation: the database hides it, so it looks like it doesn't exist.
   if (!result) notFound();

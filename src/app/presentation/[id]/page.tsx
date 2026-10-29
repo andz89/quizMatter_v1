@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { z } from "zod";
 import { LinkPending } from "@/components/LinkPending";
 import { NavBar, navLinkClass } from "@/components/NavBar";
 import { getAccount } from "@/lib/account";
@@ -18,6 +19,8 @@ import { PresentationPreview } from "./PresentationPreview";
 /** A presentation to look at, not edit: mostly other teachers' published presentations (opened from the home page). */
 export default async function PresentationPage({ params }: PageProps<"/presentation/[id]">) {
   const { id } = await params;
+  // A broken link (not an id) would make the database fail; it's simply not found.
+  if (!z.uuid().safeParse(id).success) notFound();
   const [result, account] = await Promise.all([fetchPresentation(id), getAccount()]);
   // Someone else's private presentation is hidden by the database, so it looks like it doesn't exist.
   if (!result) notFound();
