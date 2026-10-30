@@ -61,6 +61,11 @@
   `myAnnouncementSchema` (a `my_announcements` row), `pickForPage` (what shows on a page: fits `pages`, skips closed
   parts, newest first, 2 bars at most) and `manilaDay`. It repeats `EDUCATION_LEVELS` because `userSettings.ts`
   can't load in a test. Tests: `announcements.test.ts`.
+- `announcementText.ts`: an announcement's text. `ANNOUNCEMENT_MODAL_EXTENSIONS` (the slide text styles + links +
+  images) and `ANNOUNCEMENT_BAR_EXTENSIONS` (no images) for its editor; `toSafeAnnouncementHtml` (browser only)
+  re-builds saved text through them, then `cleanAnnouncementDoc` drops images that aren't ours (`PHOTO_URL_PREFIX`)
+  and links that aren't `http(s)://` or an app path (`isAllowedLink`; `isInternalLink` = opens in the same tab).
+  Tests: `announcementText.test.ts`.
 - `reviews.ts` (reviewer's saves) / `reviewStatus.ts` (reads), `submissions.ts` (Submit to QuizMatter reads).
 - `lessons.ts`: reads for "This week's lessons", "You may also like" and an editor's profile list (only ids; see `src/app/CLAUDE.md`).
 - `folders.ts`, `userSettings.ts`, `profiles.ts`, `account.ts` (`getAccount`: who is logged in, `isAdmin`).
