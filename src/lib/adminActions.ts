@@ -33,6 +33,8 @@ export const ADMIN_ACTION_LABELS = {
   maintenance_on: "Turned maintenance on",
   maintenance_off: "Turned maintenance off",
   maintenance_announced: "Announced maintenance",
+  announcement_saved: "Saved an announcement",
+  announcement_deleted: "Deleted an announcement",
 } as const satisfies Record<string, string>;
 
 export type AdminAction = keyof typeof ADMIN_ACTION_LABELS;

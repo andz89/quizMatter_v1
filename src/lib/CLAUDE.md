@@ -52,7 +52,15 @@
   `keptWork.test.ts` (`npm test`).
 - `maintenance.ts`: maintenance status for the proxy, pages, Claude's connector and the timers
   (`getMaintenanceStatus`, remembered 60 seconds; `fetchMaintenanceStatus`, fresh), the note's limit and the
-  `QMMNT` / header / event names. `REFUSALS.QMMNT` has its words. See the root `CLAUDE.md`, "Maintenance".
+  `QMMNT` / header / event names. `REFUSALS.QMMNT` has its words. See the root `CLAUDE.md`, "Maintenance". The
+  status also carries `announcementsKey` (null = no announcement live; it changes when one changes).
+- `announcements.ts`: announcements (a modal and/or top bar for chosen teachers; spec
+  `docs/superpowers/specs/2026-10-30-announcements-design.md`, `20261221000000_announcements.sql`). `PAGE_GROUPS` and
+  `pageGroup(pathname)` (which group a page is in; null = never shows one), the limits (`ANNOUNCEMENT_LIMITS`, same as
+  the database's checks), `announcementSchema` (zod, run before every save; keys = the column names),
+  `myAnnouncementSchema` (a `my_announcements` row), `pickForPage` (what shows on a page: fits `pages`, skips closed
+  parts, newest first, 2 bars at most) and `manilaDay`. It repeats `EDUCATION_LEVELS` because `userSettings.ts`
+  can't load in a test. Tests: `announcements.test.ts`.
 - `reviews.ts` (reviewer's saves) / `reviewStatus.ts` (reads), `submissions.ts` (Submit to QuizMatter reads).
 - `lessons.ts`: reads for "This week's lessons", "You may also like" and an editor's profile list (only ids; see `src/app/CLAUDE.md`).
 - `folders.ts`, `userSettings.ts`, `profiles.ts`, `account.ts` (`getAccount`: who is logged in, `isAdmin`).

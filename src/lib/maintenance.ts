@@ -24,6 +24,8 @@ export type MaintenanceStatus = {
   startedAt: string | null;
   // The announced start, only while it's still ahead, or null.
   plannedAt: string | null;
+  // Changes whenever a live announcement is added, edited, turned on or off, starts or ends; null = none live.
+  announcementsKey: string | null;
 };
 
 const statusSchema = z.object({
@@ -31,6 +33,7 @@ const statusSchema = z.object({
   message: z.string(),
   started_at: z.string().nullable(),
   planned_at: z.string().nullable(),
+  announcements_key: z.string().nullable().catch(null),
 });
 
 /**
@@ -47,7 +50,13 @@ export async function fetchMaintenanceStatus(url: string, key: string): Promise<
     });
     if (!response.ok) return null;
     const row = statusSchema.parse(await response.json());
-    return { isOn: row.is_on, message: row.message, startedAt: row.started_at, plannedAt: row.planned_at };
+    return {
+      isOn: row.is_on,
+      message: row.message,
+      startedAt: row.started_at,
+      plannedAt: row.planned_at,
+      announcementsKey: row.announcements_key,
+    };
   } catch {
     return null;
   }
@@ -58,7 +67,7 @@ export async function fetchMaintenanceStatus(url: string, key: string): Promise<
 const REMEMBER_MS = 60_000;
 let remembered: { status: MaintenanceStatus; at: number } | null = null;
 
-const OFF: MaintenanceStatus = { isOn: false, message: "", startedAt: null, plannedAt: null };
+const OFF: MaintenanceStatus = { isOn: false, message: "", startedAt: null, plannedAt: null, announcementsKey: null };
 
 /**
  * The status for the app's server (proxy, pages). If the database can't be read it counts as off, so a hiccup
