@@ -21,7 +21,8 @@ first.
 - `supabase/migrations/` **(notes)**: the database. Its functions and triggers hold the real rules and limits.
 - `src/pages/api/` **(notes)**: Claude's connector (MCP server). Its drafts live in Cloudflare D1 (`d1/migrations`).
 - `src/proxy.ts`: the login check before each page (logged-out visitors may open only login, sign up, the email
-  confirm link, Privacy and Terms). `worker.ts` + `wrangler.jsonc`: Cloudflare timers (cleanups).
+  confirm link, Privacy and Terms), and the maintenance stop (see "Maintenance" below; `src/app/maintenance/` is
+  its page). `worker.ts` + `wrangler.jsonc`: Cloudflare timers (cleanups).
 - `docs/superpowers/specs/`: the designs of past features. Read the matching one before changing a big feature.
 
 **How a save works:** an edit in the editor → a store action in `store.ts` (kept for undo) → Save / Ctrl+S →
@@ -216,6 +217,44 @@ Admins are split in two. Full design: `docs/superpowers/specs/2026-10-16-super-a
 - **Deleting an admin's account** (Supabase dashboard) first moves their QuizMatter presentations to the super admin,
   so teachers keep them; deleting a super admin who owns some, with no other super admin, is refused
   (`before_account_delete`, `20261205000000_account_delete_keeps_quizmatter.sql`).
+
+# Maintenance (stopping everyone but the super admin)
+
+The super admin turns it on in Admin → Maintenance (`src/app/admin/maintenance`) while fixing things. Everyone else
+(teachers, editors, plain admins, logged out visitors) is stopped. Migration: `20261219000000_maintenance.sql`;
+test: `supabase/tests/maintenance.sql`. Keep these rules:
+
+- **The database is the real stop.** The browser talks to Supabase directly, so the proxy alone can't stop saves.
+  `set_maintenance(true, note)` sets PostgREST's `pgrst.db_pre_request` to `check_maintenance` (and `notify pgrst,
+  'reload config'`), so every API request runs it first and gets `QMMNT` (HTTP 503) unless it's the super admin, the
+  secret-key client (`service_role`), or the `maintenance_status` call. Turning it off removes the setting, so on
+  normal days nothing extra runs. `check_maintenance` also reads the `maintenance` row, so a leftover setting with
+  maintenance off lets everyone through. If the guard ever gets stuck, run as postgres:
+  `alter role authenticator reset pgrst.db_pre_request; notify pgrst, 'reload config';`.
+- **One row** in `maintenance` (on/off, the note, started at / by, the announced time). Read it only through
+  `maintenance_status()` (open to all); change it only through `set_maintenance` / `announce_maintenance` (super
+  admin; logged in the Admin log as `maintenance_on` / `maintenance_off` / `maintenance_announced`).
+- **The app** reads the status with `src/lib/maintenance.ts`: `getMaintenanceStatus()` remembers it for 60 seconds
+  per server copy (so the proxy isn't a database call per request; if it can't be read it counts as off).
+  `src/proxy.ts` sends page opens (and in-app page loads: Next's router follows the redirect) to `/maintenance` and
+  answers server actions and `/api/*` with 503 + the `x-qm-maintenance` header; only `/maintenance`, `/login`, `/privacy` and `/terms` stay
+  open, and the super admin passes. `/maintenance` goes to `/` once it's off (by the proxy, not the page, so the two
+  can't bounce).
+- **Open tabs:** `MaintenanceWatch` (root layout) wraps the browser's fetch; a 503 with the header or code `QMMNT`
+  sends the tab to `/maintenance`, after `MAINTENANCE_EVENT`, which makes the editor keep unsaved work in the browser
+  (it comes back when the presentation opens again).
+- **Login and sign up:** `/login` stays open for the super admin; anyone else is logged out again at once
+  (`mayLogInNow` in the login page). Sign up is refused by the sign up hook (`hook_before_user_created`) and the
+  proxy.
+- **Also stopped:** Claude's connector (`/api/mcp`, checked before its login, 503) and Claude's photo uploads
+  (`/api/claude-photo`), since both skip the proxy and use the secret key; and the cleanup timers (`worker.ts` skips
+  them, also when the status can't be read).
+- **Announce ahead:** `announce_maintenance(time, note)` shows a Sunny bar on every page (`MaintenanceBar`) until
+  that time; it doesn't start maintenance by itself. While it's on, the super admin sees a coral "Maintenance is ON"
+  bar.
+- **Emergency (the app itself is down and can't show its page):** in Cloudflare, Security → WAF → Custom rules, add
+  "hostname equals quizmatter.com → Block" (it doesn't stop direct Supabase calls; pause the Supabase project for
+  that). Delete the rule afterwards.
 
 # Diagrams and Picture Shapes
 

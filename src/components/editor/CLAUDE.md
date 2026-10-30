@@ -60,7 +60,9 @@ editor / view / review, and renders `Editor.tsx`, which calls `store.loadPresent
   keeps the work once more (in `Editor`'s `beforeunload` handler), so edits made since the box opened are in it. No
   "Leave page?" then, unless the browser couldn't store the work (`keptInBrowser` false): the box says so instead of
   "Your changes are safe". A quiet save before Share/Submit shows no second message, and the Share card's own box
-  closes. After the reload, `Editor` calls `restoreKeptWork`: only
+  closes. Maintenance does the same without the box: `MaintenanceWatch` sends `MAINTENANCE_EVENT` before moving the
+  tab to `/maintenance`, and the `beforeunload` handler keeps the work instead of asking.
+  After the reload, `Editor` calls `restoreKeptWork`: only
   what was changed since the last save comes back, upgraded (changed slides
   and details; untouched slides, the publish switch and save times stay as just loaded, so they aren't sent again
   in the old shape; slides a newer save added stay, ones it deleted stay deleted unless this tab changed them, see

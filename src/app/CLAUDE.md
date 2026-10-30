@@ -88,11 +88,14 @@ Draft / Shared switch on the presentation itself, and aren't counted.
 
 - `account/`: display name (kept 30 days once changed; `display_name` click limit), personal details and bio
   (the `settings` click limit, like the Elements panel's favorite stars), password (`AccountForms.tsx`). Rules and
-  limits: `src/lib/userSettings.ts`.
+  limits: `src/lib/userSettings.ts`. Personal details include the birthday, gender, province and town (spec
+  `docs/superpowers/specs/2026-10-30-age-gender-address-design.md`), all required, like at sign up: an account with
+  none (e.g. made in the Supabase dashboard) must fill them in to save.
 - Profile privacy (spec `docs/superpowers/specs/2026-10-28-profile-privacy-design.md`): in Personal details, plain
-  teachers get a "Show on my profile" checkbox under the full name, the educational background (degree and field
-  together) and the bio, saved with Save details (`saveProfile(fields, visibility)`, `profileVisibilitySchema`; all
-  on until turned off). With the full name off and both names still in the display name (sign up makes it from
+  teachers get a "Show on my profile" checkbox under the full name, the town and province (together), the
+  educational background (degree and field together) and the bio, saved with Save details
+  (`saveProfile(fields, visibility)`, `profileVisibilitySchema`; all on until turned off). The birthday and gender
+  never show on a profile. With the full name off and both names still in the display name (sign up makes it from
   them), a note says to change the display name. Editors get no checkboxes: their details always show (the database
   decides, `teacher_profile` in `20261215000000_profile_privacy.sql`), and "Make editor" in Admin → Teachers says so.
 - Editors' profile photo (spec `docs/superpowers/specs/2026-10-27-editor-profile-photo-design.md`): a "Profile photo"
@@ -107,7 +110,8 @@ Draft / Shared switch on the presentation itself, and aren't counted.
   An editor's profile photo (`photoSrc`, from `teacher_profile`) shows round next to the name; none = the name alone.
   A private full name, background or bio comes back empty for others, so it isn't shown (a private bio has no
   section at all); the owner sees it with an "Only you can see this" tag (`fullNamePublic` / `educationPublic` /
-  `bioPublic` off).
+  `bioPublic` off). Under the name: "Town, Province" with a map pin (`placeLine`), hidden the same way
+  (`townPublic`); never the birthday or gender.
   Below it, the QuizMatter presentations they made as an editor (`editor_presentations`, `src/lib/lessons.ts`), by
   subject, then first grade; then "Shared presentations", the ones they published (their shared copies, not hidden,
   last changed first; `teacher_shared_presentations` via `loadSharedPresentationIds` in `src/lib/profiles.ts`).
@@ -121,7 +125,11 @@ Draft / Shared switch on the presentation itself, and aren't counted.
   internet address in the same hook (`20261108000000_sign_up_limit.sql`). A required agree box ("I agree to the
   Terms of Use and Privacy Policy…"; its two links open a new tab, so the filled form isn't lost): zod refuses it
   unticked, and the account saves the agreed version (`LEGAL_VERSION`) and the time in `user_settings`. A hint under
-  educational background (here and on the Account page) says it shows on the profile. The email link opens
+  educational background (here and on the Account page) says it shows on the profile. Also required: Birthday (a date
+  picker limited to 18–100 years old, `src/lib/age.ts`), Gender (Male / Female), Province (`src/lib/provinces.ts`)
+  and City or town; a hint says the birthday and gender are private and the town and province show on the profile.
+  They ride along as metadata like the other details; the database refuses a bad one (`QMAGE` for the birthday) and
+  sign up saves a bad one empty (`20261220000000_age_gender_address.sql`). The email link opens
   `auth/confirm/route.ts`: it checks `type` with zod (only `email`, the sign up email; add a type there if a new
   email uses it) and, if someone is already logged in, does nothing and opens home, so a link can't swap them into
   another account.
@@ -129,6 +137,10 @@ Draft / Shared switch on the presentation itself, and aren't counted.
   (`src/components/SupportEmail.tsx`). `src/proxy.ts` sends logged-out people here. Its
   matcher skips only the real static files (`_next/static`, `_next/image`, `favicon.ico`, `icon.svg` and the five
   `.svg` files in `public/`), never a page address that just ends in `.png`; a new file in `public/` must be added there.
+  During maintenance it logs anyone but the super admin out again at once (`mayLogInNow`).
+- `maintenance/`: the page everyone but the super admin sees during maintenance (open without a login): the note,
+  "Try again" and the support email; "QuizMatter is back" if it's already off. See the root `CLAUDE.md`,
+  "Maintenance".
 - `oauth/consent/` + `.well-known/`: Claude's login (see `src/pages/api/CLAUDE.md`).
 - `(legal)/`: `privacy/` (Privacy Policy) and `terms/` (Terms of Use), linked from the footer and the sign up agree
   box. Plain-English pages written to match the code (spec `docs/superpowers/specs/2026-10-27-privacy-and-terms-design.md`),

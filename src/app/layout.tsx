@@ -4,6 +4,8 @@ import { Toaster } from "sonner";
 import { ClickPauseNotice } from "@/components/ClickPauseNotice";
 import { DevRequestCounter } from "@/components/DevRequestCounter";
 import { Footer } from "@/components/Footer";
+import { MaintenanceBar } from "@/components/MaintenanceBar";
+import { MaintenanceWatch } from "@/components/MaintenanceWatch";
 import "./globals.css";
 
 // Lexend for text (made for easy reading, good for young readers); Bricolage Grotesque for headings.
@@ -26,11 +28,15 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className={`${lexend.variable} ${bricolage.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col">
+        {/* Maintenance announced ahead (everyone), or on (only the super admin sees the app then). */}
+        <MaintenanceBar />
         {children}
         {/* Facebook, the support email, Privacy and Terms; not on the editor pages. */}
         <Footer />
         {/* A feature paused for clicking too fast (e.g. bookmarks): a notice at the bottom. */}
         <ClickPauseNotice />
+        {/* Sends an open tab to /maintenance when a request is refused for maintenance. */}
+        <MaintenanceWatch />
         {/* On localhost only: how many requests the page sends (bottom-left). */}
         <DevRequestCounter />
         {/* Pop-up messages (toast() from "sonner"), styled like the app's cards. */}

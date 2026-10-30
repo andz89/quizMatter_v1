@@ -37,6 +37,8 @@ export const REFUSALS: Record<string, string> = {
   QMBAN: `Your account is blocked, so you can't save. If you think this is a mistake, email ${SUPPORT_EMAIL}.`,
   // Saved by newer app code (see the data_version migration).
   QMOLD: "QuizMatter was updated. Reload the page to keep editing.",
+  // Maintenance (Admin → Maintenance): the tab goes to /maintenance right after (src/components/MaintenanceWatch.tsx).
+  QMMNT: "QuizMatter is under maintenance. Your unsaved work is kept in this browser.",
   // Presentation reviews and submissions (see the presentation_reviews and quizmatter_submissions migrations).
   QMREV: "This presentation is under review or waiting for QuizMatter, so it can't be changed right now. Copy anything you need before leaving.",
   QMRVW: "Someone else is reviewing this presentation, or you can't review it right now.",

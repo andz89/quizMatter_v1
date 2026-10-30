@@ -57,6 +57,8 @@ A refusal raises an error with its own code. The app turns the code into a messa
 - `QMOLD`: the save came from older app code (`app_version`) than the presentation's `data_version` (or the review
   draft's `draft_version`, or a new copy's source). The app keeps the unsaved work in the browser and asks for a
   reload.
+- `QMMNT`: maintenance is on (`check_maintenance`, PostgREST's pre-request guard, HTTP 503; root `CLAUDE.md`,
+  "Maintenance"). The open tab goes to `/maintenance`.
 - `QMBLK`: a click limit paused the feature (the pause end time is in `details`), read by `pausedUntilFromError`
   (`src/lib/clickLimits.ts`).
 - `QMPPL`: an editor already saved 3 profile photos today (`set_profile_photo`).
@@ -260,10 +262,21 @@ A refusal raises an error with its own code. The app turns the code into a messa
   photos) is in this file, and so is the newest `admin_actions` action list.
 - Profile privacy: `20261215000000_profile_privacy.sql` (test `supabase/tests/profile_privacy.sql`; spec
   `docs/superpowers/specs/2026-10-28-profile-privacy-design.md`). `user_settings.full_name_public`,
-  `education_public`, `bio_public` (default `true`; the owner writes them with their details). Newest
+  `education_public`, `bio_public` (default `true`; the owner writes them with their details). Its
   `teacher_profile` (`photo_src` from the photos file, plus the three as "others see this": the switch, or `true` for
   an editor): a private field comes back `''` for everyone but its owner, admins too. Apply it (after
   `20261214000000_profile_photos.sql`, whose table it joins) before the app deploys: `getAccount` reads these columns
+  on every page.
+- Birthday, gender, province and town: `20261220000000_age_gender_address.sql` (test
+  `supabase/tests/age_gender_address.sql`; spec `docs/superpowers/specs/2026-10-30-age-gender-address-design.md`).
+  `user_settings.birth_date` (empty allowed; `check_birth_date` refuses under 18, over 100 or a future date on
+  today's Philippine date, `QMAGE`), `gender` (`''`, `male`, `female`), `province` (`''` or `is_province`, the same
+  list as `src/lib/provinces.ts`), `town` (60 characters), `town_public` (default `true`). `age_on(birth, today)` and
+  `manila_today()` are the age math (same as `src/lib/age.ts`). Newest `handle_new_user` and
+  `strip_sign_up_details` (copy the four from the sign up metadata, a bad one saved empty, then remove them). Newest
+  `teacher_profile` (adds `town`, `province`, `town_public`; never the birthday or gender).
+  `admin_teacher_breakdown()` (admins only, `42501` otherwise): `(kind, label, total)` per province, age group
+  (`18–24` … `55+`) and gender, `''` = not given. Apply it before the app deploys: `getAccount` reads these columns
   on every page.
 
 Claude's drafts and photo tickets are NOT here: they live in Cloudflare D1 (`d1/migrations`).

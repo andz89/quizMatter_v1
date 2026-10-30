@@ -12,7 +12,9 @@
    `src/app/oauth/consent/allowedApps.ts`; `answerConsent` checks again). An app picks its own name, so the name
    proves nothing. `src/proxy.ts` lets `/api/mcp` through without cookies. `checkLogin` reads the token and asks the
    database `is_admin` / `is_banned`; if it can't tell whether the user is banned, it refuses. **For now only admins
-   can use it.**
+   can use it.** During maintenance (root `CLAUDE.md`, "Maintenance") it answers 503 to everyone but the super
+   admin, checked before `checkLogin` (the database guard refuses others' login checks, which would look like
+   "log in again" to Claude).
 2. **The tools:**
    - `get_presentation_format`: the recipe format (`getClaudeFormat()` in `src/lib/importPresentation.ts`).
    - `read_presentation`: reads a saved presentation as a reference: only the admin's own, other teachers' published

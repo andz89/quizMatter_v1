@@ -12,6 +12,7 @@ import { SupportEmail } from "@/components/SupportEmail";
 import { TopLoadingBar } from "@/components/TopLoadingBar";
 import { Turnstile, type TurnstileStatus } from "@/components/Turnstile";
 import { clearTries, lockedUntil, LOGIN_LIMIT, recordTry, tryAgainAfter } from "@/lib/browserLimits";
+import { MAINTENANCE_WORDS } from "@/lib/maintenance";
 import { createClient } from "@/lib/supabase/client";
 import { SUPPORT_EMAIL } from "@/lib/support";
 
@@ -53,7 +54,16 @@ export default function LoginPage({ searchParams }: PageProps<"/login">) {
     if (until) return setError(lockMessage(until));
     setIsLoggingIn(true);
     setError(null);
-    const { error } = await createClient().auth.signInWithPassword({ email, password, options: { captchaToken } });
+    const supabase = createClient();
+    const { error } = await supabase.auth.signInWithPassword({ email, password, options: { captchaToken } });
+    if (!error && !(await mayLogInNow(supabase))) {
+      await supabase.auth.signOut();
+      setError(MAINTENANCE_WORDS);
+      setIsLoggingIn(false);
+      setCaptchaToken(null);
+      setCaptchaRound((round) => round + 1);
+      return;
+    }
     if (error) {
       // Only a wrong email or password counts; the try that starts a lock says so at once.
       const lockedTill = error.code === "invalid_credentials" ? recordTry(LOGIN_LIMIT) : null;
@@ -168,3 +178,15 @@ function nextPath() {
 
 const inputClass =
   "w-full rounded-input border border-border-default px-3 py-2 text-sm text-text-primary outline-none focus:border-text-secondary";
+
+/**
+ * During maintenance only the super admin may log in (the page stays open for them, see src/proxy.ts); anyone else
+ * is logged out again at once. The database guard refuses the others' is_super_admin call, which counts as no.
+ * MaintenanceWatch leaves this page alone, so the logout finishes.
+ */
+async function mayLogInNow(supabase: ReturnType<typeof createClient>): Promise<boolean> {
+  const { data: status } = await supabase.rpc("maintenance_status");
+  if (status?.is_on !== true) return true;
+  const { data: isSuperAdmin } = await supabase.rpc("is_super_admin");
+  return isSuperAdmin === true;
+}

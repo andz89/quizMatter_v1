@@ -3,6 +3,7 @@ import { z } from "zod";
 import { MAX_STORED_PHOTO_BYTES, PHOTO_MAX_SIDE, PHOTO_URL_PREFIX } from "@/lib/constants";
 import { photoFileName, readPhotoType, savePhotoFile } from "@/lib/photoFiles";
 import { deletePhotoTicket, getPhotoTicket } from "@/lib/photoTickets";
+import { getMaintenanceStatus, MAINTENANCE_WORDS } from "@/lib/maintenance";
 import { findOrCreateCategory } from "@/lib/photoCategories";
 import { claudePhotoSchema, sharedPhotoBytesSchema, sharedPhotoSchema } from "@/lib/schema";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -61,6 +62,9 @@ export async function POST(request: Request) {
   ]);
   if (ownerError || banError) return answer(500, "Couldn't add the photo. Send it again.");
   if (!owner || ban) return answer(403, notAllowed);
+  // Maintenance (Admin → Maintenance): only the super admin's uploads go through (this skips the proxy and the
+  // database guard, so it's checked here).
+  if ((await getMaintenanceStatus()).isOn && !owner.is_super) return answer(503, MAINTENANCE_WORDS);
 
   // Checked with zod right before it's saved (see CLAUDE.md, "Saving Data").
   const details = claudePhotoSchema.safeParse(ticket.details);

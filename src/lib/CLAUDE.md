@@ -50,6 +50,9 @@
   changed or new one stays; then each slide the newer save added goes in right after the nearest slide before it
   that's in the result (or first). A slide this tab deleted stays deleted. Nothing to give back = null. Tests:
   `keptWork.test.ts` (`npm test`).
+- `maintenance.ts`: maintenance status for the proxy, pages, Claude's connector and the timers
+  (`getMaintenanceStatus`, remembered 60 seconds; `fetchMaintenanceStatus`, fresh), the note's limit and the
+  `QMMNT` / header / event names. `REFUSALS.QMMNT` has its words. See the root `CLAUDE.md`, "Maintenance".
 - `reviews.ts` (reviewer's saves) / `reviewStatus.ts` (reads), `submissions.ts` (Submit to QuizMatter reads).
 - `lessons.ts`: reads for "This week's lessons", "You may also like" and an editor's profile list (only ids; see `src/app/CLAUDE.md`).
 - `folders.ts`, `userSettings.ts`, `profiles.ts`, `account.ts` (`getAccount`: who is logged in, `isAdmin`).
@@ -61,6 +64,12 @@
   (`LEGAL_VERSION`), which the database saves with the time (`20261218000000_terms_consent.sql`).
 - `legal.ts`: `LEGAL_VERSION`, the Terms and Privacy Policy version (the date they last changed). The pages show it
   as "Last updated" and each new account saves it. Change it whenever either page changes.
+- `age.ts`: the birthday rules (`MIN_AGE` 18, `MAX_AGE` 100), `ageOn` (the age in whole years on a date),
+  `isAllowedBirthDate`, `birthDateRange` (the date picker's limits) and `todayInManila`. The database does the same
+  math (`age_on`, `manila_today`, `20261220000000_age_gender_address.sql`): change both together. No imports, so
+  tests load it (`userSettings.ts` can't be loaded by tests).
+- `provinces.ts`: `PROVINCES`, the Province dropdown (82 provinces, Metro Manila, "Outside the Philippines"); the
+  name itself is saved. The database's `is_province` has the same list; `provinces.test.ts` fails if they differ.
 - `supabase/`: `client.ts` (browser), `server.ts` (server, with the login cookies), `admin.ts` (secret key, server
   only, skips the database rules: use only when there is no other way).
   `listAllUsers` there pages through every account (1,000 at a time); Admin → Teachers uses it (Admin → Editors

@@ -28,6 +28,11 @@ notes.
 - `Logo.tsx`: the one logo (same drawing as `src/app/icon.svg`).
 - `SearchForm.tsx`: the search box with its options panel, used by the home page and Admin → Photos.
 - `ClickPauseNotice.tsx`: the sticky "paused" notice from click limits; in the root layout once.
+- Maintenance (root `CLAUDE.md`, "Maintenance"), in the root layout once each: `MaintenanceWatch.tsx` wraps the
+  browser's fetch and sends an open tab to `/maintenance` on a maintenance refusal (not on `/maintenance` or
+  `/login`). `MaintenanceBar.tsx` (server) shows the announcement to everyone, or "Maintenance is ON" to the super
+  admin; `MaintenanceNotice.tsx` draws it: a bar on top, or a card floating at the bottom with ✕ in the editor
+  (`isEditorPage` from `Footer.tsx`).
 - `Turnstile.tsx`: Cloudflare's "are you human" check on sign up (with its own retries).
 - `PeopleArtGate.tsx`: holds back a presentation until the big people drawings have downloaded
   (`src/lib/peopleArt.ts`).

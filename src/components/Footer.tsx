@@ -13,8 +13,8 @@ import { SupportEmail } from "./SupportEmail";
 const linkClass = "text-sm font-semibold text-text-primary transition-colors hover:text-accent";
 const smallLinkClass = "font-semibold text-text-secondary transition-colors hover:text-accent";
 
-// The editor fills the whole screen, so it has no footer.
-const isEditorPage = (path: string) => path === "/presentation/new" || /^\/presentation\/[^/]+\/edit$/.test(path);
+// The editor fills the whole screen, so it has no footer (and MaintenanceNotice floats there).
+export const isEditorPage = (path: string) => path === "/presentation/new" || /^\/presentation\/[^/]+\/edit$/.test(path);
 // Logged-out pages don't ask for support.
 const isLoginPage = (path: string) => path === "/login" || path === "/signup";
 

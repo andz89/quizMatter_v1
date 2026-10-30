@@ -11,6 +11,7 @@ import { findOrCreateCategory } from "@/lib/photoCategories";
 import { contains } from "@/lib/search";
 import { createPhotoTickets } from "@/lib/photoTickets";
 import { claudePhotoFillSchema, claudePhotoSchema, type Photo, type Presentation, type Slide } from "@/lib/schema";
+import { getMaintenanceStatus, MAINTENANCE_WORDS } from "@/lib/maintenance";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 /**
@@ -352,6 +353,16 @@ async function checkLogin(token: string): Promise<{ id: string; isAdmin: boolean
   return { id: data.claims.sub, isAdmin: isAdmin === true, supabase };
 }
 
+/** Whether Claude's login token belongs to the super admin (only asked during maintenance). */
+async function isSuperAdminToken(token: string): Promise<boolean> {
+  const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
+    global: { headers: { Authorization: `Bearer ${token}` } },
+    auth: { persistSession: false },
+  });
+  const { data } = await supabase.rpc("is_super_admin");
+  return data === true;
+}
+
 // Drawings bigger than this (in characters) are left out of read_presentation, to keep its answer small.
 const MAX_READ_SVG_LENGTH = 5_000;
 
@@ -433,6 +444,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const appUrl = `${host.startsWith("localhost") ? "http" : "https"}://${host}`;
 
   const token = req.headers.authorization?.match(/^Bearer (.+)$/i)?.[1];
+  // Maintenance (Admin → Maintenance): closed to all but the super admin. Checked before the login, since the
+  // database guard refuses the others' login checks, and that would look like "log in again" to Claude.
+  if ((await getMaintenanceStatus()).isOn && !(token && (await isSuperAdminToken(token)))) {
+    res.setHeader("Retry-After", "600");
+    res.status(503).json({ error: MAINTENANCE_WORDS });
+    return;
+  }
   const user = token ? await checkLogin(token) : null;
   if (!user) {
     // The standard answer that makes Claude start the login (it reads where to log in from this link).
