@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Bricolage_Grotesque, Lexend } from "next/font/google";
 import { Toaster } from "sonner";
+import { Announcements } from "@/components/Announcements";
 import { ClickPauseNotice } from "@/components/ClickPauseNotice";
 import { DevRequestCounter } from "@/components/DevRequestCounter";
 import { Footer } from "@/components/Footer";
@@ -30,6 +31,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body className="min-h-full flex flex-col">
         {/* Maintenance announced ahead (everyone), or on (only the super admin sees the app then). */}
         <MaintenanceBar />
+        {/* The super admin's announcements for chosen teachers: bars on top, a modal (only when one is live). */}
+        <Announcements />
         {children}
         {/* Facebook, the support email, Privacy and Terms; not on the editor pages. */}
         <Footer />

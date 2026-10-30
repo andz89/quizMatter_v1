@@ -80,6 +80,13 @@ export default function PrivacyPage() {
           you’re an editor, also your reviews, submissions and the photos you upload.
         </p>
         <p>
+          <strong>Announcements.</strong> QuizMatter sometimes shows a message (a pop-up or a bar at the top) to some
+          teachers. Your age, gender, province and city or town, educational background, how many presentations you
+          made, and your role (teacher, editor or admin) are used to choose which announcements you see. Nobody else
+          learns which ones you get. We keep which announcements you closed, and when, so they don’t show again too
+          soon.
+        </p>
+        <p>
           <strong>Your agreement.</strong> Which version of the Terms of Use and this Privacy Policy you agreed to at
           sign up, and when.
         </p>
@@ -91,7 +98,7 @@ export default function PrivacyPage() {
         </p>
         <p>
           <strong>Your browser.</strong> Login cookies (small files that keep you logged in), and storage in your
-          browser for unsaved work and for the sign up and login speed limits. We use no tracking or analytics tools.
+          browser for unsaved work, the sign up and login speed limits, and the announcements for your visit. We use no tracking or analytics tools.
         </p>
         <p>
           <strong>Why the law allows this</strong> (our <em>legal grounds</em>):
@@ -215,6 +222,10 @@ export default function PrivacyPage() {
                   Until you remove it, the editor role is taken away, or the account is deleted; then the weekly cleanup
                   deletes the file
                 </td>
+              </tr>
+              <tr>
+                <td>Which announcements you closed, and when</td>
+                <td>Until the announcement or your account is deleted</td>
               </tr>
               <tr>
                 <td>Pauses, bans and the admins’ log</td>

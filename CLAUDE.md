@@ -10,7 +10,7 @@ first.
   (profiles); `oauth/` Claude's login; `(legal)/` the Privacy Policy and Terms of Use (version in `src/lib/legal.ts`). Teachers' server actions:
   `actions.ts`, `folderActions.ts`, or an `actions.ts` next to the page.
 - `src/app/admin/` **(notes)**: the admin pages (Overview, the menu
-  with counts, Admin log).
+  with counts, Admin log). `src/app/admin/announcements/`: Announcements (see "Announcements" below).
 - `src/app/api/` **(notes)**: photo uploads and deletes (files in Cloudflare R2).
 - `src/components/editor/` **(notes)**: the editor. Its state and every edit: `src/lib/store.ts` (zustand).
 - `src/components/presentation/` **(notes)**: presenting fullscreen (slide effects) and view-only slides.
@@ -252,9 +252,40 @@ test: `supabase/tests/maintenance.sql`. Keep these rules:
 - **Announce ahead:** `announce_maintenance(time, note)` shows a Sunny bar on every page (`MaintenanceBar`) until
   that time; it doesn't start maintenance by itself. While it's on, the super admin sees a coral "Maintenance is ON"
   bar.
+- **Announcements ride on the status:** `maintenance_status()` also returns `announcements_key` (see
+  "Announcements").
 - **Emergency (the app itself is down and can't show its page):** in Cloudflare, Security → WAF → Custom rules, add
   "hostname equals quizmatter.com → Block" (it doesn't stop direct Supabase calls; pause the Supabase project for
   that). Delete the rule afterwards.
+
+# Announcements (a modal and/or top bar for chosen teachers)
+
+The super admin shows a message to chosen teachers on chosen pages (Admin → Announcements,
+`src/app/admin/announcements`). Design: `docs/superpowers/specs/2026-10-30-announcements-design.md`. Migration:
+`20261221000000_announcements.sql`; test: `supabase/tests/announcements.sql`. Keep these rules:
+
+- **Super admin only** for making, changing and deleting them (`is_super_admin()` in every admin function; the page
+  and actions check `isSuperAdmin`). Only logged-in teachers see them; a banned one sees none.
+- **The rules live in the database functions** (`save_announcement`, `set_announcement_on`, `delete_announcement`,
+  `admin_announcements`, `announcement_audience`, `my_announcements`, `dismiss_announcement`), with the matching
+  rule written once (`announcement_matches`). Nobody reads the tables directly. The limits are in both the database
+  and `announcementSchema` (`src/lib/announcements.ts`), number for number; at most 20 on and not ended.
+- **Filters:** empty = everyone; every filled one must match. A teacher with that detail empty (e.g. no birthday)
+  doesn't match a filter on it. Presentations count their own, not shared copies.
+- **The key rides on the maintenance status:** `maintenance_status()` returns `announcements_key` (null when nothing
+  is live; an md5 of the live ids and `updated_at`s). `Announcements` (root layout) mounts `AnnouncementsWatch`
+  only when it's filled, so on a quiet day nothing extra runs. The watch asks `my_announcements()` once per key and
+  Philippine day (kept in sessionStorage, `qm:announcements`), never on pages outside the page groups
+  (`pageGroup`), and picks what fits each page (`pickForPage`: modals one at a time, at most 2 bars, newest first).
+- **Show again:** `once` (an `announcement_dismissals` row, for good), `daily` (again after midnight Philippine
+  time), `every_visit` (only sessionStorage: again in a new tab). The modal and the bar close separately.
+- **Hidden while presenting fullscreen** (`document.fullscreenElement`); a waiting modal shows after. On the editor
+  page the bars float at the bottom.
+- **Safe text:** saved HTML is re-built through the editor's extensions (`toSafeAnnouncementHtml`,
+  `src/lib/announcementText.ts`); only our R2 photos and `http(s)://` or in-app links survive. Modal pictures upload
+  through `/api/announcement-image` and are kept by the photo cleanup (`used_photo_srcs` reads `modal_html`).
+- **Privacy:** what's used to choose them, and the closed records, are in the Privacy Policy. A new filter on another
+  detail updates it too.
 
 # Diagrams and Picture Shapes
 

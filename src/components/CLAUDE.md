@@ -33,6 +33,12 @@ notes.
   `/login`). `MaintenanceBar.tsx` (server) shows the announcement to everyone, or "Maintenance is ON" to the super
   admin; `MaintenanceNotice.tsx` draws it: a bar on top, or a card floating at the bottom with ✕ in the editor
   (`isEditorPage` from `Footer.tsx`).
+- Announcements (root `CLAUDE.md`, "Announcements"): `Announcements.tsx` (server, root layout right after
+  `MaintenanceBar`) renders `AnnouncementsWatch.tsx` only when the maintenance status's `announcementsKey` is filled.
+  The watch keeps the teacher's list in sessionStorage (`qm:announcements`: key, Philippine day, items, closed
+  parts), asks `my_announcements` only when the key or day changed and the page is in a page group, hides everything
+  while fullscreen, and on close marks the part closed in the tab and (`once` / `daily`) calls
+  `dismiss_announcement`.
 - `AnnouncementView.tsx`: how an announcement looks (root `CLAUDE.md`, "Announcements"), for teachers and the admin's
   preview. `AnnouncementModal` (the `Modal`, "You can close this in N…" until its close delay ends, then ✕ and a
   Close button) and `AnnouncementBar` (a violet strip with a megaphone; ✕ after the countdown; `isFloating` = a card,
