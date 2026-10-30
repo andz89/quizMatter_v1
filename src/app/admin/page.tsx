@@ -7,6 +7,7 @@ import { ADMIN_ACTION_LABELS, type AdminAction } from "@/lib/adminActions";
 import { formatDate } from "@/lib/format";
 import { createClient } from "@/lib/supabase/server";
 import { OverviewCharts, type OverviewRow } from "./OverviewCharts";
+import { TeacherBreakdown, type BreakdownRow } from "./TeacherBreakdown";
 import { getTodoCounts } from "./todoCounts";
 
 const RANGES = [7, 30, 90];
@@ -24,8 +25,8 @@ type RecentAction = { id: string; admin_name: string; action: AdminAction; targe
 const sectionLabel = "text-[11px] font-bold tracking-[0.05em] text-text-header uppercase";
 
 /**
- * Admin → Overview: what is waiting for you, how busy the app is (bars per day), and, for the super admin, the
- * latest admin actions. The range is `?days=7|30|90`. (../layout.tsx checks the user is an admin.)
+ * Admin → Overview: what is waiting for you, how busy the app is (bars per day), how many teachers by province, age
+ * group and gender, and, for the super admin, the latest admin actions. The range is `?days=7|30|90`. (../layout.tsx checks the user is an admin.)
  */
 export default async function AdminOverviewPage({ searchParams }: PageProps<"/admin">) {
   const { isAdmin, isSuperAdmin } = await getAccount();
@@ -33,10 +34,11 @@ export default async function AdminOverviewPage({ searchParams }: PageProps<"/ad
   const days = daysSchema.parse((await searchParams).days);
 
   const supabase = await createClient();
-  const [todo, overview, recent] = await Promise.all([
+  const [todo, overview, breakdown, recent] = await Promise.all([
     // The same call as the menu's pills (cached for the request).
     getTodoCounts(),
     supabase.rpc("admin_overview", { days }),
+    supabase.rpc("admin_teacher_breakdown"),
     isSuperAdmin
       ? supabase
           .from("admin_actions")
@@ -47,6 +49,7 @@ export default async function AdminOverviewPage({ searchParams }: PageProps<"/ad
   ]);
   if (todo.error) throw todo.error;
   if (overview.error) throw overview.error;
+  if (breakdown.error) throw breakdown.error;
   if (recent?.error) throw recent.error;
   const actions = (recent?.data ?? []) as RecentAction[];
 
@@ -88,6 +91,11 @@ export default async function AdminOverviewPage({ searchParams }: PageProps<"/ad
           </div>
         </div>
         <OverviewCharts rows={overview.data as OverviewRow[]} days={days} isSuperAdmin={isSuperAdmin} />
+      </section>
+
+      <section>
+        <h2 className={`mb-3 ${sectionLabel}`}>Teachers</h2>
+        <TeacherBreakdown rows={breakdown.data as BreakdownRow[]} />
       </section>
 
       {isSuperAdmin && (

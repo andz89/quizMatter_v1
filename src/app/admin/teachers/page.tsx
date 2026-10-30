@@ -1,10 +1,12 @@
 import { notFound } from "next/navigation";
 import { getAccount } from "@/lib/account";
+import { ageOn, todayInManila } from "@/lib/age";
 import type { User } from "@supabase/supabase-js";
 import { joinParts, timeAgo } from "@/lib/format";
 import { createAdminClient, listAllUsers } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
-import { educationLine } from "@/lib/profiles";
+import { educationLine, placeLine } from "@/lib/profiles";
+import { GENDER_LABELS, type Gender } from "@/lib/userSettings";
 import { AdminTeachers, type TeacherRow } from "./AdminTeachers";
 
 /**
@@ -37,7 +39,9 @@ export default async function AdminTeachersPage() {
     readAll((from, to) =>
       admin
         .from("user_settings")
-        .select("user_id, display_name, first_name, last_name, contact_number, education_level, education_field")
+        .select(
+          "user_id, display_name, first_name, last_name, contact_number, education_level, education_field, birth_date, gender, province, town",
+        )
         .order("user_id")
         .range(from, to),
     ),
@@ -83,12 +87,22 @@ type Settings = {
   contact_number: string;
   education_level: string;
   education_field: string;
+  birth_date: string | null;
+  gender: string;
+  province: string;
+  town: string;
 };
 
-/** "Ana Cruz · +63 917 123 4567 · Master's degree in English" ("" when the teacher gave no details). */
+/**
+ * "Ana Cruz · 34 · Female · Quezon City, Metro Manila · +63 917 123 4567 · Master's degree in English" ("" when the
+ * teacher gave no details; a missing part is left out).
+ */
 function detailsLine(row: Settings) {
   return joinParts([
     `${row.first_name} ${row.last_name}`.trim(),
+    row.birth_date && String(ageOn(row.birth_date, todayInManila())),
+    GENDER_LABELS[row.gender as Gender],
+    placeLine(row.town, row.province),
     row.contact_number,
     educationLine(row.education_level, row.education_field),
   ]);
