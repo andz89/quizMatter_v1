@@ -47,7 +47,11 @@ edit / view / review → `Editor` → `store.loadPresentation`.
 
 # Workflow Preferences
 
-**Always use Superpowers** (brainstorming, writing-plans, etc.) to handle the work. Don't ask first.
+**Always use the Superpowers plugin** (brainstorming, writing-plans, test-driven-development, etc.) for every task. Don't ask first.
+
+**Always use Docker for all testing.** Every test that touches the database, migrations or Supabase runs on the local
+Docker stack (`npx -y supabase@latest start` / `db reset`), never on the live project. Never test against the live
+Supabase database (no `execute_sql` or `apply_migration` on it to try things out). See "Tests" below.
 
 The only exception: if the user says not to (e.g. "don't use superpowers"), don't use any Superpowers skill for that prompt, and follow the plan-first rule below instead.
 
@@ -97,7 +101,7 @@ Keep the code:
 
 # Tests
 
-Run `npm test` (Node's built-in test runner). Tests sit next to the code as `*.test.ts` in `src/`. A test can import only `.ts` files whose own imports are `.ts` (no `.tsx`, no JSON); `@/` means `src/`. SQL tests are in `supabase/tests/`; each rolls back what it did. Run them only on the local Docker
+Run `npm test` (Node's built-in test runner). Tests sit next to the code as `*.test.ts` in `src/`. A test can import only `.ts` files whose own imports are `.ts` (no `.tsx`, no JSON); `@/` means `src/`. SQL tests are in `supabase/tests/`; each rolls back what it did. All testing uses Docker: run them only on the local Docker
 database, never the live one: `npx -y supabase@latest db reset` (replays every migration), then
 `docker exec -i supabase_db_quizBuilder psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/<file>.sql`. A file's
 first lines say when it must run as `-U supabase_admin -d postgres` instead (`account_delete.sql`,
