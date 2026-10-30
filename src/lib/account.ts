@@ -10,7 +10,8 @@ export type Account = {
   profileSlug: string;
   // When the display name can be changed again (Unix ms), or null if it can be changed now (always null for the super admin).
   nextNameChangeAt: number | null;
-  // First and last name, contact number, educational background and bio ("" for each one not set).
+  // First and last name, contact number, educational background, bio, birthday ("YYYY-MM-DD"), gender, province and
+  // town ("" for each one not set).
   profile: ProfileFields;
   // Which of those the profile page shows to others (all on until the teacher turns one off).
   visibility: ProfileVisibility;
@@ -34,7 +35,7 @@ export const getAccount = cache(async (): Promise<Account> => {
     supabase
       .from("user_settings")
       .select(
-        "display_name, profile_slug, display_name_changed_at, first_name, last_name, contact_number, education_level, education_field, bio, full_name_public, education_public, bio_public",
+        "display_name, profile_slug, display_name_changed_at, first_name, last_name, contact_number, education_level, education_field, bio, birth_date, gender, province, town, full_name_public, education_public, bio_public, town_public",
       )
       .maybeSingle(),
     supabase.rpc("is_admin"),
@@ -57,11 +58,16 @@ export const getAccount = cache(async (): Promise<Account> => {
       educationLevel: settings?.education_level ?? "",
       educationField: settings?.education_field ?? "",
       bio: settings?.bio ?? "",
+      birthDate: settings?.birth_date ?? "",
+      gender: settings?.gender ?? "",
+      province: settings?.province ?? "",
+      town: settings?.town ?? "",
     },
     visibility: {
       fullNamePublic: settings?.full_name_public ?? true,
       educationPublic: settings?.education_public ?? true,
       bioPublic: settings?.bio_public ?? true,
+      townPublic: settings?.town_public ?? true,
     },
     isAdmin: isAdmin === true,
     isSuperAdmin: isSuperAdmin === true,

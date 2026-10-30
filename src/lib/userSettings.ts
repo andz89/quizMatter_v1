@@ -1,5 +1,7 @@
 import { z } from "zod";
+import { isAllowedBirthDate, todayInManila } from "./age";
 import { LEGAL_VERSION } from "./legal";
+import { PROVINCES } from "./provinces";
 import { createClient } from "./supabase/client";
 import { ELEMENT_PANEL_CATEGORIES, type ElementCategory } from "./svgLibrary";
 
@@ -36,6 +38,13 @@ export const CONTACT_NUMBER_MAX_LENGTH = 20;
 export const EDUCATION_FIELD_MAX_LENGTH = 100;
 // The bio on a teacher's profile page (optional).
 export const BIO_MAX_LENGTH = 300;
+// The city or town (with the province from src/lib/provinces.ts). Same as the database's check.
+export const TOWN_MAX_LENGTH = 60;
+
+// The Gender dropdown. The values are saved in user_settings.gender.
+export const GENDERS = ["male", "female"] as const;
+export type Gender = (typeof GENDERS)[number];
+export const GENDER_LABELS: Record<Gender, string> = { male: "Male", female: "Female" };
 
 // The Educational background dropdown. The values are saved in user_settings.education_level.
 export const EDUCATION_LEVELS = ["bachelor", "master", "doctorate", "other"] as const;
@@ -71,6 +80,17 @@ export const profileSchema = z.object({
     .trim()
     .min(1, "Enter your field or major.")
     .max(EDUCATION_FIELD_MAX_LENGTH, `Use at most ${EDUCATION_FIELD_MAX_LENGTH} characters for your field or major.`),
+  // "YYYY-MM-DD", 18 to 100 years old today in the Philippines (the database's check_birth_date, QMAGE, says the same).
+  birthDate: z
+    .string()
+    .refine((date) => isAllowedBirthDate(date, todayInManila()), "Enter your real birthday. You must be 18 to 100 years old."),
+  gender: z.enum(GENDERS, { error: "Pick your gender." }),
+  province: z.enum(PROVINCES, { error: "Pick your province." }),
+  town: z
+    .string()
+    .trim()
+    .min(1, "Enter your city or town.")
+    .max(TOWN_MAX_LENGTH, `Use at most ${TOWN_MAX_LENGTH} characters for your city or town.`),
   bio: z.string().trim().max(BIO_MAX_LENGTH, `Use at most ${BIO_MAX_LENGTH} characters for your bio.`),
 });
 
@@ -80,6 +100,8 @@ export const profileVisibilitySchema = z.object({
   fullNamePublic: z.boolean(),
   educationPublic: z.boolean(),
   bioPublic: z.boolean(),
+  // The town and province together.
+  townPublic: z.boolean(),
 });
 export type ProfileVisibility = z.infer<typeof profileVisibilitySchema>;
 
@@ -164,13 +186,14 @@ export async function saveDisplayName(name: string): Promise<DisplayNameResult> 
  * Makes a new account. Supabase emails a link to confirm it; the teacher can log in only after clicking it. The
  * details ride along as user metadata, and the handle_new_user trigger (20261113000000_display_name_rules.sql) copies
  * them into user_settings (with the agreed version, terms_version, and the time) and makes the display name from the
- * first + last name, then removes them from the metadata (20261218000000_terms_consent.sql). If the email already has an
+ * first + last name, then removes them from the metadata (newest: 20261220000000_age_gender_address.sql, which adds
+ * the birthday, gender, province and town). If the email already has an
  * account, Supabase answers the same way and sends nothing, so strangers can't find out who has one.
  * blockedDomains: the throwaway email services (see signUpSchema). Throws if it fails.
  */
 export async function signUp(fields: SignUpFields, captchaToken: string, blockedDomains: string[]) {
   // Checked with zod first (see CLAUDE.md, "Saving Data"): bad data throws here and is never saved.
-  const { email, password, firstName, lastName, contactNumber, educationLevel, educationField } =
+  const { email, password, firstName, lastName, contactNumber, educationLevel, educationField, birthDate, gender, province, town } =
     signUpSchema(blockedDomains).parse(fields);
   const { error } = await createClient().auth.signUp({
     email,
@@ -183,6 +206,10 @@ export async function signUp(fields: SignUpFields, captchaToken: string, blocked
         contact_number: contactNumber,
         education_level: educationLevel,
         education_field: educationField,
+        birth_date: birthDate,
+        gender,
+        province,
+        town,
         // Only a ticked box gets past the parse above.
         terms_version: LEGAL_VERSION,
       },
@@ -209,9 +236,14 @@ export async function saveProfile(fields: ProfileFields, visibility: ProfileVisi
     education_level: profile.educationLevel,
     education_field: profile.educationField,
     bio: profile.bio,
+    birth_date: profile.birthDate,
+    gender: profile.gender,
+    province: profile.province,
+    town: profile.town,
     full_name_public: shown.fullNamePublic,
     education_public: shown.educationPublic,
     bio_public: shown.bioPublic,
+    town_public: shown.townPublic,
     updated_at: new Date().toISOString(),
   });
   if (error) throw error;

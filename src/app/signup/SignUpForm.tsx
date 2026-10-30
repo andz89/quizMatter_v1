@@ -9,17 +9,22 @@ import { Logo } from "@/components/Logo";
 import { Spinner } from "@/components/Spinner";
 import { TopLoadingBar } from "@/components/TopLoadingBar";
 import { Turnstile, type TurnstileStatus } from "@/components/Turnstile";
+import { birthDateRange, todayInManila } from "@/lib/age";
 import { lockedUntil, recordTry, SIGN_UP_ADDRESS_MESSAGE, SIGN_UP_LIMIT, tryAgainAfter } from "@/lib/browserLimits";
+import { PROVINCES } from "@/lib/provinces";
 import {
   CONTACT_NUMBER_MAX_LENGTH,
   EDUCATION_FIELD_MAX_LENGTH,
   EDUCATION_LEVEL_LABELS,
   EDUCATION_LEVELS,
+  GENDER_LABELS,
+  GENDERS,
   NAME_MAX_LENGTH,
   PASSWORD_MAX_LENGTH,
   signUp,
   signUpSchema,
   THROWAWAY_EMAIL_MESSAGE,
+  TOWN_MAX_LENGTH,
   type SignUpFields,
 } from "@/lib/userSettings";
 
@@ -29,6 +34,10 @@ const emptyFields: SignUpFields = {
   contactNumber: "",
   educationLevel: "",
   educationField: "",
+  birthDate: "",
+  gender: "",
+  province: "",
+  town: "",
   email: "",
   password: "",
   confirmPassword: "",
@@ -49,6 +58,8 @@ export function SignUpForm({ blockedDomains }: { blockedDomains: string[] }) {
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const [captchaRound, setCaptchaRound] = useState(0);
   const [captchaStatus, setCaptchaStatus] = useState<TurnstileStatus>("checking");
+  // The birthday picker's limits: 18 to 100 years old today.
+  const birthDates = birthDateRange(todayInManila());
 
   // Back button: the browser may show its saved copy of this page with a used pass. Start over with a fresh check.
   useEffect(() => {
@@ -154,6 +165,59 @@ export function SignUpForm({ blockedDomains }: { blockedDomains: string[] }) {
                 className={inputClass}
               />
             </Field>
+            <Field id="birthDate" label="Birthday">
+              <input
+                id="birthDate"
+                type="date"
+                required
+                autoComplete="bday"
+                min={birthDates.min}
+                max={birthDates.max}
+                value={fields.birthDate}
+                onChange={update("birthDate")}
+                className={inputClass}
+              />
+            </Field>
+            <Field id="gender" label="Gender">
+              <select id="gender" required value={fields.gender} onChange={update("gender")} className={inputClass}>
+                <option value="" disabled>
+                  Pick one
+                </option>
+                {GENDERS.map((gender) => (
+                  <option key={gender} value={gender}>
+                    {GENDER_LABELS[gender]}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field id="province" label="Province">
+              <select id="province" required value={fields.province} onChange={update("province")} className={inputClass}>
+                <option value="" disabled>
+                  Pick one
+                </option>
+                {PROVINCES.map((province) => (
+                  <option key={province} value={province}>
+                    {province}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field id="town" label="City or town">
+              <input
+                id="town"
+                type="text"
+                required
+                maxLength={TOWN_MAX_LENGTH}
+                autoComplete="address-level2"
+                placeholder="e.g. Quezon City"
+                value={fields.town}
+                onChange={update("town")}
+                className={inputClass}
+              />
+            </Field>
+            <p className="-mt-2 text-xs text-text-secondary sm:col-span-2">
+              Your birthday and gender are private. Your town and province show on your profile.
+            </p>
             <Field id="educationLevel" label="Educational background">
               <select id="educationLevel" required value={fields.educationLevel} onChange={update("educationLevel")} className={inputClass}>
                 <option value="" disabled>
@@ -237,7 +301,7 @@ export function SignUpForm({ blockedDomains }: { blockedDomains: string[] }) {
               <Link href="/privacy" target="_blank" rel="noopener noreferrer" className="font-semibold text-accent hover:underline">
                 Privacy Policy
               </Link>
-              , including how QuizMatter keeps and shows my educational background.
+              , including how QuizMatter keeps and shows my personal details.
             </label>
           </div>
 
