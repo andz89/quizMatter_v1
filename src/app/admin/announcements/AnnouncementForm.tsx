@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition, type ReactNode } from "react";
+import { useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { EyeIcon } from "lucide-react";
@@ -54,6 +54,26 @@ const NEW_ANNOUNCEMENT: AnnouncementInput = {
   modal_size: "large",
 };
 
+// What each "show again" choice means, under its name in the form (how it works: AnnouncementsWatch and
+// my_announcements).
+const REPEAT_HELP: Record<(typeof REPEATS)[number], { when: string; goodFor: string }> = {
+  once: {
+    when:
+      "It shows until the teacher closes it, then never again for that teacher, on this computer or any other, even after they log out and back in.",
+    goodFor: "news they only need to see once, e.g. \"New Grade 5 lessons are here.\"",
+  },
+  daily: {
+    when:
+      "It shows once a day. After the teacher closes it, it stays closed for the rest of that day, on any computer, and comes back after midnight (Philippine time).",
+    goodFor: "a reminder during a short event, e.g. \"Training this week: sign up by Friday.\"",
+  },
+  every_visit: {
+    when:
+      "It shows each time the teacher opens QuizMatter in a new browser tab or window, or after they close and open the browser again. After they close it, it stays closed while they move between pages or reload in that same tab. It's remembered only in that tab, not on their account.",
+    goodFor: "something important they should see every time they come back, e.g. \"QuizMatter will be down on Saturday night.\"",
+  },
+};
+
 // The times are Philippine time (+08:00), whatever the computer's clock says. The box shows "YYYY-MM-DDTHH:mm".
 const PH_OFFSET_MS = 8 * 60 * 60 * 1000;
 const toTimeInput = (iso: string | null) => (iso ? new Date(new Date(iso).getTime() + PH_OFFSET_MS).toISOString().slice(0, 16) : "");
@@ -74,8 +94,9 @@ export function AnnouncementForm({ initial = NEW_ANNOUNCEMENT }: { initial?: Ann
   const [townText, setTownText] = useState(initial.town_words.join(", "));
   const [fieldText, setFieldText] = useState(initial.field_words.join(", "));
   const [provinceFilter, setProvinceFilter] = useState("");
-  // undefined = counting now; null = couldn't count (e.g. a filter isn't valid yet).
-  const [audience, setAudience] = useState<number | null | undefined>(undefined);
+  // The last "Count teachers" answer and the filters it was for (null = couldn't count, e.g. a filter isn't valid).
+  const [counted, setCounted] = useState<{ filters: string; count: number | null } | null>(null);
+  const [isCounting, startCounting] = useTransition();
   // A new number each time Preview is clicked, so the countdowns start again.
   const [preview, setPreview] = useState<{ key: number; modal: boolean; bar: boolean } | null>(null);
   const [isSaving, startSaving] = useTransition();
@@ -84,7 +105,8 @@ export function AnnouncementForm({ initial = NEW_ANNOUNCEMENT }: { initial?: Ann
   const toggleIn = <T extends string>(list: T[], value: T, on: boolean) => (on ? [...list, value] : list.filter((v) => v !== value));
   const input: AnnouncementInput = { ...form, town_words: splitWords(townText), field_words: splitWords(fieldText) };
 
-  // "Matches about N teachers now": asked half a second after the last change to a filter.
+  // "Count teachers" runs the matching rule over every account (slow with many teachers), so it's only asked on a
+  // click, never while typing. Its answer shows only while the filters are still the ones it counted.
   const filters = JSON.stringify({
     genders: input.genders,
     age_min: input.age_min,
@@ -97,18 +119,11 @@ export function AnnouncementForm({ initial = NEW_ANNOUNCEMENT }: { initial?: Ann
     presentations_max: input.presentations_max,
     roles: input.roles,
   });
-  useEffect(() => {
-    let isCurrent = true;
-    const timer = setTimeout(async () => {
-      setAudience(undefined);
-      const count = await countAudience({ ...NEW_ANNOUNCEMENT, ...JSON.parse(filters) });
-      if (isCurrent) setAudience(count);
-    }, 500);
-    return () => {
-      isCurrent = false;
-      clearTimeout(timer);
-    };
-  }, [filters]);
+  const countTeachers = () =>
+    startCounting(async () => {
+      setCounted({ filters, count: await countAudience({ ...NEW_ANNOUNCEMENT, ...JSON.parse(filters) }) });
+    });
+  const audience = counted?.filters === filters ? counted : null;
 
   const save = () => {
     // Checked here for a quick message; the server checks again before saving.
@@ -227,11 +242,27 @@ export function AnnouncementForm({ initial = NEW_ANNOUNCEMENT }: { initial?: Ann
       </Section>
 
       <Section title="After a teacher closes it, show it again">
-        <div className="flex flex-col gap-2">
+        <p className="mb-3 text-sm text-text-secondary">
+          This decides when a teacher sees the announcement again after closing it. The modal and the bar count
+          separately: closing the modal doesn&apos;t close the bar.
+        </p>
+        <div className="flex flex-col gap-3">
           {REPEATS.map((repeat) => (
-            <label key={repeat} className="flex w-fit items-center gap-2 text-sm text-text-primary">
-              <input type="radio" name="repeat" checked={form.repeat === repeat} onChange={() => set("repeat", repeat)} className={checkClass} />
-              {REPEAT_LABELS[repeat]}
+            <label key={repeat} className="flex items-start gap-2 text-sm text-text-primary">
+              <input
+                type="radio"
+                name="repeat"
+                checked={form.repeat === repeat}
+                onChange={() => set("repeat", repeat)}
+                className={`${checkClass} mt-0.5 shrink-0`}
+              />
+              <span>
+                <span className="font-semibold">{REPEAT_LABELS[repeat]}</span>
+                <span className="mt-0.5 block text-text-secondary">{REPEAT_HELP[repeat].when}</span>
+                <span className="mt-0.5 block text-text-secondary">
+                  <span className="font-semibold">Good for:</span> {REPEAT_HELP[repeat].goodFor}
+                </span>
+              </span>
             </label>
           ))}
         </div>
@@ -343,19 +374,31 @@ export function AnnouncementForm({ initial = NEW_ANNOUNCEMENT }: { initial?: Ann
             onChange={(key, on) => set("roles", toggleIn(form.roles, key, on))}
           />
         </div>
-        <p className="mt-4 flex items-center gap-2 rounded-input bg-accent-soft px-3 py-2 text-sm text-text-primary">
-          {audience === undefined ? (
-            <>
-              <Spinner size={14} /> Counting…
-            </>
-          ) : audience === null ? (
-            "Can't count yet: check the filters."
-          ) : (
-            <span>
-              Matches about <span className="font-semibold">{audience}</span> {audience === 1 ? "account" : "accounts"} now.
-            </span>
-          )}
-        </p>
+        <div className="mt-4 flex flex-wrap items-center gap-3 rounded-input bg-accent-soft px-3 py-2 text-sm text-text-primary">
+          <button
+            type="button"
+            onClick={countTeachers}
+            disabled={isCounting}
+            className="inline-flex items-center gap-1.5 rounded-dropdown border border-border-default bg-bg-surface px-3 py-1.5 text-[13px] font-semibold text-text-primary transition-colors hover:bg-bg-page disabled:opacity-60"
+          >
+            {isCounting && <Spinner size={12} />}
+            Count teachers
+          </button>
+          <span>
+            {isCounting ? (
+              "Counting… this can take a few seconds."
+            ) : !audience ? (
+              "See how many accounts these filters match now."
+            ) : audience.count === null ? (
+              "Can't count yet: check the filters."
+            ) : (
+              <>
+                Matches about <span className="font-semibold">{audience.count.toLocaleString("en-US")}</span>{" "}
+                {audience.count === 1 ? "account" : "accounts"} now.
+              </>
+            )}
+          </span>
+        </div>
       </Section>
 
       <div className="flex flex-wrap justify-end gap-3">

@@ -304,3 +304,11 @@ Claude's drafts and photo tickets are NOT here: they live in Cloudflare D1 (`d1/
   `supabase/tests/announcement_modal_size.sql`). `announcements.modal_size` (`small` / `medium` / `large`, default
   `large`; the app's `MODAL_SIZES` give their widths). Newest `save_announcement` (a save without it = `large`),
   `admin_announcements` and `my_announcements` (both return it; dropped and made again, with their grants).
+- Announcement counts: `20261223000000_announcement_counts.sql` (test `supabase/tests/announcement_counts.sql`).
+  `announcements.matched_count`, `closed_modal_count`, `closed_bar_count`, `counted_at`, `closed_cleared_at`.
+  `count_announcement(id)` (not granted) counts one now; newest `save_announcement` calls it, and
+  `recount_announcement(id)` (super admin, "Count again") too. Newest `admin_announcements` reads the kept numbers
+  (plus `counted_at`) instead of counting on every call. Newest `dismiss_announcement` writes only for a live one.
+  `cleanup_announcement_dismissals()` (service role, the daily timer): for one that ended over 30 days ago, keeps
+  the closed counts, deletes its dismissal rows and sets `closed_cleared_at` (a later Count again keeps those
+  closed numbers; saving it with a later end clears the mark, and its closes start over).

@@ -130,7 +130,9 @@ data. Spec: `docs/superpowers/specs/2026-10-23-stable-presentation-data-design.m
 - Claude (MCP): `drafts.ts` (drafts in Cloudflare D1), `importPresentation.ts`, `photoTickets.ts`.
 - Timers: `cleanupPhotos.ts`, `cleanupAccounts.ts` (run by `worker.ts`). `cleanupAccounts.ts`, daily: deletes
   accounts unconfirmed after 3 days, `sign_up_attempts` older than a day, and `click_history` and `admin_actions`
-  rows older than `KEEP_SAFETY_RECORDS_DAYS` (365, from each row's `created_at`; the Privacy Policy promises it).
+  rows older than `KEEP_SAFETY_RECORDS_DAYS` (365, from each row's `created_at`; the Privacy Policy promises it),
+  and who closed an announcement that ended over 30 days ago (`cleanup_announcement_dismissals`; the Privacy Policy
+  promises it too).
 - Drawings: `svgLibrary.tsx`, `flags.tsx`, `kids.tsx`, `solids.tsx`, and the big people drawings `schoolBoy.tsx` /
   `clipartKids.tsx`, which load only when needed (`peopleArt.ts`).
 - Text: `richText.ts` (tiptap setup, safe HTML), `format.ts` (dates, labels).

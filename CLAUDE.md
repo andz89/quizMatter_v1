@@ -282,6 +282,13 @@ The super admin shows a message to chosen teachers on chosen pages (Admin → An
 - **Modal size:** `modal_size` is `small` / `medium` / `large` (300 / 500 / 672 px wide; the height fits the text;
   `MODAL_SIZES`). Older rows and older app tabs count as `large` (`20261222000000_announcement_modal_size.sql`,
   test `supabase/tests/announcement_modal_size.sql`). The admin's text box takes the same width.
+- **Counts are kept, not live** (`20261223000000_announcement_counts.sql`, test
+  `supabase/tests/announcement_counts.sql`): matching runs over every account, so it's slow with many teachers. The
+  list reads `matched_count` / `closed_*_count` / `counted_at`, filled on save and by "Count again"
+  (`recount_announcement`); the form counts only on "Count teachers". Never count on page load or while typing.
+- **Old "closed" rows are deleted:** the daily timer's `cleanup_announcement_dismissals` keeps an announcement's
+  closed counts and deletes its `announcement_dismissals` rows 30 days after it ends (the Privacy Policy says so).
+  `dismiss_announcement` writes only for a live one.
 - **Hidden while presenting fullscreen** (`document.fullscreenElement`); a waiting modal shows after. On the editor
   page the bars float at the bottom.
 - **Safe text:** saved HTML is re-built through the editor's extensions (`toSafeAnnouncementHtml`,

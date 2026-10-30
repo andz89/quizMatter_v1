@@ -8,6 +8,8 @@ import { createClient } from "@supabase/supabase-js";
 // It also empties old rows of sign_up_attempts (the sign up limit per internet address, 20261108000000_sign_up_limit.sql),
 // and deletes the safety records older than a year: click_history (Admin → Safety → History) and admin_actions (the
 // Admin log). Both keep teachers' emails, and the Privacy Policy promises a year.
+// And it deletes who closed an announcement once it ended more than 30 days ago (cleanup_announcement_dismissals,
+// 20261223000000_announcement_counts.sql: the closed numbers are kept on the announcement first).
 
 type CleanupEnv = {
   SUPABASE_URL: string;
@@ -62,4 +64,8 @@ export async function cleanupUnconfirmedAccounts(env: CleanupEnv) {
   if (historyError) throw historyError;
   const { error: logError } = await supabase.from("admin_actions").delete().lt("created_at", safetyCutoff);
   if (logError) throw logError;
+
+  const { data: cleaned, error: announcementError } = await supabase.rpc("cleanup_announcement_dismissals");
+  if (announcementError) throw announcementError;
+  console.log(`Announcement cleanup: cleared who closed ${cleaned} ended announcements.`);
 }

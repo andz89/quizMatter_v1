@@ -1,6 +1,7 @@
 // The Worker Cloudflare runs. Visitors get the app (built by OpenNext into .open-next/worker.js), as before.
 // The timers in wrangler.jsonc ("triggers") run the weekly photo cleanup (see docs/photo-cleanup.md) and the daily
-// cleanup of accounts that were never confirmed and of safety records older than a year (src/lib/cleanupAccounts.ts).
+// cleanup of accounts that were never confirmed, of safety records older than a year, and of who closed an
+// announcement that ended over 30 days ago (src/lib/cleanupAccounts.ts).
 // Both wait during maintenance (Admin → Maintenance), so nothing is deleted while data is being fixed; if the status
 // can't be read they wait too. They run again at their next time.
 

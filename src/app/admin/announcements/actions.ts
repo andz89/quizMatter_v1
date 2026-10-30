@@ -59,6 +59,18 @@ export async function deleteAnnouncement(id: string): Promise<string | null> {
   return null;
 }
 
+/** "Count again": counts the matches and closes now and keeps them on the row (slow with many teachers). */
+export async function recountAnnouncement(id: string): Promise<string | null> {
+  const parsed = z.uuid().safeParse(id);
+  if (!parsed.success) return "Couldn't count. Please try again.";
+  if (!(await getAccount()).isSuperAdmin) return "Only the super admin can do this.";
+
+  const { error } = await (await createClient()).rpc("recount_announcement", { target: parsed.data });
+  if (error) return error.code === "P0002" ? error.message : "Couldn't count. Please try again.";
+  refresh();
+  return null;
+}
+
 // Only the filters are needed for a count; the text and times don't matter. (zod can't .pick() from a schema with
 // refinements, so the same fields are taken from its shape.)
 const S = announcementSchema.shape;
@@ -75,7 +87,7 @@ const audienceSchema = z.object({
   roles: S.roles,
 });
 
-/** How many accounts match these filters now (the form's "Matches about N teachers"), or null if it can't tell. */
+/** How many accounts match these filters now (the form's "Count teachers" button), or null if it can't tell. */
 export async function countAudience(input: AnnouncementInput): Promise<number | null> {
   const parsed = audienceSchema.safeParse(input);
   if (!parsed.success) return null;

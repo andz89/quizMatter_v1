@@ -225,7 +225,10 @@ export default function PrivacyPage() {
               </tr>
               <tr>
                 <td>Which announcements you closed, and when</td>
-                <td>Until the announcement or your account is deleted</td>
+                <td>
+                  Until 30 days after the announcement ends (we keep only how many people closed it), or until the
+                  announcement or your account is deleted, whichever comes first
+                </td>
               </tr>
               <tr>
                 <td>Pauses, bans and the admins’ log</td>
