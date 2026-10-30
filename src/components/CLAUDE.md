@@ -35,8 +35,8 @@ notes.
   (`isEditorPage` from `Footer.tsx`).
 - Announcements (root `CLAUDE.md`, "Announcements"): `Announcements.tsx` (server, root layout right after
   `MaintenanceBar`) renders `AnnouncementsWatch.tsx` only when the maintenance status's `announcementsKey` is filled.
-  The watch keeps the teacher's list in sessionStorage (`qm:announcements`: key, Philippine day, items, closed
-  parts), asks `my_announcements` only when the key or day changed and the page is in a page group, hides everything
+  The watch keeps the teacher's list in sessionStorage (`qm:announcements`: key, Philippine day, account id, items,
+  closed parts), asks `my_announcements` only when the key, day or logged-in account changed (`isSameVisit`) and the page is in a page group, hides everything
   while fullscreen, and on close marks the part closed in the tab and (`once` / `daily`) calls
   `dismiss_announcement`.
 - `AnnouncementView.tsx`: how an announcement looks (root `CLAUDE.md`, "Announcements"), for teachers and the admin's

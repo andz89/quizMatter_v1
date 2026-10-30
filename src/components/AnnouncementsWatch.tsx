@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { z } from "zod";
 import {
+  isSameVisit,
   manilaDay,
   myAnnouncementSchema,
   pageGroup,
@@ -16,11 +17,12 @@ import { AnnouncementBar, AnnouncementModal } from "./AnnouncementView";
 import { isEditorPage } from "./Footer";
 
 // What this tab knows (sessionStorage, so a new tab asks again): the key it was asked under, the Philippine date,
-// the caller's announcements and the parts closed in this tab ("<id>:modal" / "<id>:bar").
+// whose list it is, the caller's announcements and the parts closed in this tab ("<id>:modal" / "<id>:bar").
 const STORE = "qm:announcements";
 const storedSchema = z.object({
   key: z.string(),
   day: z.string(),
+  userId: z.string(),
   items: z.array(myAnnouncementSchema),
   closed: z.array(z.string()),
 });
@@ -55,32 +57,36 @@ export function AnnouncementsWatch({ announcementsKey }: { announcementsKey: str
   const canShow = group !== null;
   const [stored, setStored] = useState<Stored | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  // Worked out on every page change (in-app moves don't re-render the layout), so midnight is noticed without a
+  // reload.
+  const day = manilaDay(new Date());
 
   useEffect(() => {
     if (!canShow) return;
     let isCurrent = true;
-    const day = manilaDay(new Date());
-    const saved = readStored();
-    const load =
-      saved && saved.key === announcementsKey && saved.day === day
-        ? Promise.resolve(saved)
-        : createClient()
-            .rpc("my_announcements")
-            .then(({ data, error }): Stored | null => {
-              const items = z.array(myAnnouncementSchema).safeParse(data);
-              if (error || !items.success) return null;
-              // Closed parts stay closed for this tab, until a new day (a "once a day" one shows again then).
-              const next = { key: announcementsKey, day, items: items.data, closed: saved?.day === day ? saved.closed : [] };
-              writeStored(next);
-              return next;
-            });
-    void load.then((next) => {
-      if (isCurrent && next) setStored(next);
+    const load = async (): Promise<Stored | null> => {
+      const supabase = createClient();
+      // Read from the browser's cookie, no request. Logged out: nothing to show.
+      const userId = (await supabase.auth.getSession()).data.session?.user.id;
+      if (!userId) return null;
+      const saved = readStored();
+      // Closed parts stay closed for this visit: the same account, until a new day ("once a day" shows again).
+      const sameVisit = isSameVisit(saved, { day, userId });
+      if (saved && sameVisit && saved.key === announcementsKey) return saved;
+      const { data, error } = await supabase.rpc("my_announcements");
+      const items = z.array(myAnnouncementSchema).safeParse(data);
+      if (error || !items.success) return null;
+      const next = { key: announcementsKey, day, userId, items: items.data, closed: saved && sameVisit ? saved.closed : [] };
+      writeStored(next);
+      return next;
+    };
+    void load().then((next) => {
+      if (isCurrent) setStored(next);
     });
     return () => {
       isCurrent = false;
     };
-  }, [canShow, announcementsKey]);
+  }, [canShow, announcementsKey, day]);
 
   useEffect(() => {
     const handleChange = () => setIsFullscreen(document.fullscreenElement !== null);
@@ -88,7 +94,7 @@ export function AnnouncementsWatch({ announcementsKey }: { announcementsKey: str
     return () => document.removeEventListener("fullscreenchange", handleChange);
   }, []);
 
-  if (!group || !stored || isFullscreen) return null;
+  if (!group || !stored || stored.day !== day || isFullscreen) return null;
   const { modals, bars } = pickForPage(stored.items, group, new Set(stored.closed));
   const isFloating = isEditorPage(pathname);
 

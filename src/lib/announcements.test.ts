@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { announcementSchema, manilaDay, pageGroup, pickForPage, type MyAnnouncement } from "./announcements";
+import { announcementSchema, isSameVisit, manilaDay, pageGroup, pickForPage, type MyAnnouncement } from "./announcements";
 
 test("pageGroup maps paths to groups", () => {
   assert.equal(pageGroup("/"), "my_presentations");
@@ -103,4 +103,14 @@ test("pickForPage: 2 newest bars, modals newest first", () => {
 test("manilaDay uses Philippine time", () => {
   assert.equal(manilaDay(new Date("2026-10-30T16:30:00Z")), "2026-10-31");
   assert.equal(manilaDay(new Date("2026-10-30T15:59:00Z")), "2026-10-30");
+});
+
+test("isSameVisit: same account and same Philippine day only", () => {
+  const saved = { day: "2026-10-30", userId: "teacher-a" };
+  assert.equal(isSameVisit(saved, { day: "2026-10-30", userId: "teacher-a" }), true);
+  // Another teacher logged in on the same tab (a shared computer) never gets the first one's list.
+  assert.equal(isSameVisit(saved, { day: "2026-10-30", userId: "teacher-b" }), false);
+  // After midnight a "once a day" one may show again.
+  assert.equal(isSameVisit(saved, { day: "2026-10-31", userId: "teacher-a" }), false);
+  assert.equal(isSameVisit(null, { day: "2026-10-30", userId: "teacher-a" }), false);
 });

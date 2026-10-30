@@ -59,7 +59,7 @@
   `pageGroup(pathname)` (which group a page is in; null = never shows one), the limits (`ANNOUNCEMENT_LIMITS`, same as
   the database's checks), `announcementSchema` (zod, run before every save; keys = the column names),
   `myAnnouncementSchema` (a `my_announcements` row), `pickForPage` (what shows on a page: fits `pages`, skips closed
-  parts, newest first, 2 bars at most) and `manilaDay`. It repeats `EDUCATION_LEVELS` because `userSettings.ts`
+  parts, newest first, 2 bars at most), `manilaDay` and `isSameVisit` (a tab's saved list is reused only for the same account and Philippine day). It repeats `EDUCATION_LEVELS` because `userSettings.ts`
   can't load in a test. Tests: `announcements.test.ts`.
 - `announcementText.ts`: an announcement's text. `ANNOUNCEMENT_MODAL_EXTENSIONS` (the slide text styles + links +
   images) and `ANNOUNCEMENT_BAR_EXTENSIONS` (no images) for its editor; `toSafeAnnouncementHtml` (browser only)

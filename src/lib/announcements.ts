@@ -161,3 +161,14 @@ export function pickForPage(
 export function manilaDay(now: Date): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(now);
 }
+
+/**
+ * Whether a tab's saved announcements (and the parts closed in it) still belong to this visit: the same account and
+ * the same Philippine day. Another teacher logging in on a shared computer, or midnight, starts over.
+ */
+export function isSameVisit(
+  saved: { day: string; userId: string } | null,
+  now: { day: string; userId: string },
+): boolean {
+  return saved !== null && saved.day === now.day && saved.userId === now.userId;
+}

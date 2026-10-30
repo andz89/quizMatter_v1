@@ -274,8 +274,8 @@ The super admin shows a message to chosen teachers on chosen pages (Admin → An
   doesn't match a filter on it. Presentations count their own, not shared copies.
 - **The key rides on the maintenance status:** `maintenance_status()` returns `announcements_key` (null when nothing
   is live; an md5 of the live ids and `updated_at`s). `Announcements` (root layout) mounts `AnnouncementsWatch`
-  only when it's filled, so on a quiet day nothing extra runs. The watch asks `my_announcements()` once per key and
-  Philippine day (kept in sessionStorage, `qm:announcements`), never on pages outside the page groups
+  only when it's filled, so on a quiet day nothing extra runs. The watch asks `my_announcements()` once per key, account and
+  Philippine day (`isSameVisit`: another teacher on a shared computer starts over) (kept in sessionStorage, `qm:announcements`), never on pages outside the page groups
   (`pageGroup`), and picks what fits each page (`pickForPage`: modals one at a time, at most 2 bars, newest first).
 - **Show again:** `once` (an `announcement_dismissals` row, for good), `daily` (again after midnight Philippine
   time), `every_visit` (only sessionStorage: again in a new tab). The modal and the bar close separately.
