@@ -179,7 +179,7 @@ admin gets "page not found", and the actions refuse).
   9. Save: zod (`announcementSchema`) first, then `save_announcement`; a refusal shows as a toast. The Spinner
      shows while saving, and `loading.tsx` for the slow pages.
 - **Images:** chosen from the computer, shrunk by the browser like other photos (`src/lib/photos.tsx`), saved
-  through `upload-image` with a new `announcement` option. It stores the file in R2 and returns its `src`, without
+  through a new route, `src/app/api/announcement-image/` (kept apart from `upload-image`, which already handles teacher and shared photos). It stores the file in R2 and returns its `src`, without
   adding it to any photo list. Super admin only. It's counted like a shared photo (`count_write('photos')`).
 - New labels in `ADMIN_ACTION_LABELS`: `announcement_saved`, `announcement_deleted`.
 
@@ -221,7 +221,7 @@ accounts save it; it doesn't ask current teachers to agree again.
 
 - Root `CLAUDE.md`: a line in the map and an "Announcements" section with these rules.
 - `src/app/admin/CLAUDE.md`, `src/components/CLAUDE.md`, `src/lib/CLAUDE.md`, `src/app/api/CLAUDE.md`
-  (`upload-image`'s new option) and `supabase/migrations/CLAUDE.md`.
+  (the new `announcement-image` route) and `supabase/migrations/CLAUDE.md`.
 - The root `CLAUDE.md` "Maintenance" section and `src/lib/maintenance.ts`: `maintenance_status()` also carries
   `announcements_key`.
 
