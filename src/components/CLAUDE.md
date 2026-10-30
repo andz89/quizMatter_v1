@@ -7,7 +7,7 @@ notes.
   `<Link>` to show both at once on click (see the root `CLAUDE.md`).
   `FormPending.tsx`: put inside a `next/form` `Form` to show the top line at once on submit (`useFormStatus`).
 - `Modal.tsx`: the one modal box (title, ✕, Escape / click outside closes, `isBusy` blocks closing, optional footer,
-  `isNarrow` for a small box).
+  `isNarrow` for a small box, `canClose={false}` hides ✕ and ignores Escape / click outside).
   For "Are you sure?" use `editor/ConfirmModal.tsx` instead, never the browser's `confirm()`.
 - `NavBar.tsx` (server only): the top bar of every page, with the "Support" button (`KeepFreeButton`) and
   `AccountMenu.tsx` (an "Admin" or "Editor" label above the name, then Admin, Account settings, Help & support,
@@ -33,6 +33,11 @@ notes.
   `/login`). `MaintenanceBar.tsx` (server) shows the announcement to everyone, or "Maintenance is ON" to the super
   admin; `MaintenanceNotice.tsx` draws it: a bar on top, or a card floating at the bottom with ✕ in the editor
   (`isEditorPage` from `Footer.tsx`).
+- `AnnouncementView.tsx`: how an announcement looks (root `CLAUDE.md`, "Announcements"), for teachers and the admin's
+  preview. `AnnouncementModal` (the `Modal`, "You can close this in N…" until its close delay ends, then ✕ and a
+  Close button) and `AnnouncementBar` (a violet strip with a megaphone; ✕ after the countdown; `isFloating` = a card,
+  which the parent places at the bottom). The text goes through `toSafeAnnouncementHtml` in the browser; links into
+  the app move with `router.push`, others open in a new tab.
 - `Turnstile.tsx`: Cloudflare's "are you human" check on sign up (with its own retries).
 - `PeopleArtGate.tsx`: holds back a presentation until the big people drawings have downloaded
   (`src/lib/peopleArt.ts`).

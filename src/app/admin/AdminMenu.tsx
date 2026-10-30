@@ -40,6 +40,7 @@ const GROUPS: { label: string; items: Item[] }[] = [
     items: [
       { href: "/admin/activity", label: "Admin log", superOnly: true },
       { href: "/admin/maintenance", label: "Maintenance", superOnly: true },
+      { href: "/admin/announcements", label: "Announcements", superOnly: true },
     ],
   },
 ];
