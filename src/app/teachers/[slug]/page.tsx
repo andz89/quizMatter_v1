@@ -1,11 +1,11 @@
-import { LockIcon } from "lucide-react";
+import { LockIcon, MapPinIcon } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PhotoThumbnail } from "@/components/editor/PhotoTile";
 import { LinkPending } from "@/components/LinkPending";
 import { NavBar, navLinkClass } from "@/components/NavBar";
 import { loadEditorPresentationIds } from "@/lib/lessons";
-import { educationLine, loadSharedPresentationIds, loadTeacherProfile } from "@/lib/profiles";
+import { educationLine, loadSharedPresentationIds, loadTeacherProfile, placeLine } from "@/lib/profiles";
 import { DAYS, GRADES, SUBJECTS, TERMS, WEEKS, listOrder } from "@/lib/schema";
 import { createClient } from "@/lib/supabase/server";
 import { loadCardRows, toSavableCards, type CardPresentation } from "../../(home)/cards";
@@ -14,9 +14,9 @@ import { SavableCardGrid } from "../../SavableCardGrid";
 
 /**
  * A teacher's profile, at /teachers/<link name> (made from their display name): an editor's photo, display name, full
- * name, educational background and bio. Any logged-in user can open it with the link (the proxy sends logged-out people to log in
- * first). Never the contact number or email: see loadTeacherProfile. A full name, background or bio the teacher made
- * private is left out for others; on their own profile it shows marked "Only you can see this". Below it, the
+ * name, town and province, educational background and bio. Any logged-in user can open it with the link (the proxy sends logged-out people to log in
+ * first). Never the contact number, email, birthday or gender: see loadTeacherProfile. A full name, town and province,
+ * background or bio the teacher made private is left out for others; on their own profile it shows marked "Only you can see this". Below it, the
  * QuizMatter presentations they made as an editor, by subject, then grade (see the lesson_week migration), and the
  * presentations they published, last changed first (see the teacher_shared_presentations migration; editors can't
  * publish, so they have none).
@@ -40,6 +40,7 @@ export default async function TeacherProfilePage({ params }: PageProps<"/teacher
   const fullName = `${profile.firstName} ${profile.lastName}`.trim();
   const heading = profile.displayName || fullName || "QuizMatter teacher";
   const education = educationLine(profile.educationLevel, profile.educationField);
+  const place = placeLine(profile.town, profile.province);
 
   return (
     <>
@@ -67,6 +68,14 @@ export default async function TeacherProfilePage({ params }: PageProps<"/teacher
                 <p className="mt-1 flex flex-wrap items-center gap-2 text-sm text-text-secondary">
                   {fullName}
                   {!profile.fullNamePublic && <OnlyYouTag />}
+                </p>
+              )}
+              {/* Hidden: others get "" and nothing shows; the owner sees it marked. */}
+              {place && (
+                <p className="mt-1 flex flex-wrap items-center gap-2 text-sm text-text-secondary">
+                  <MapPinIcon size={14} />
+                  {place}
+                  {!profile.townPublic && <OnlyYouTag />}
                 </p>
               )}
             </div>

@@ -4,8 +4,8 @@ import { DISPLAY_NAME_MAX_LENGTH, EDUCATION_LEVEL_LABELS, EDUCATION_LEVELS, type
 
 // A teacher's profile page (/teachers/<link name>, e.g. /teachers/teacher-ria, made from the display name by the
 // database's profile_slug): the public part of their settings, which any logged-in user can open
-// with the link. It comes from the teacher_profile database function (newest: 20261215000000_profile_privacy.sql),
-// which never hands out the contact number or email, and hides admins from teachers. A field the teacher made private
+// with the link. It comes from the teacher_profile database function (newest: 20261220000000_age_gender_address.sql),
+// which never hands out the contact number, email, birthday or gender, and hides admins from teachers. A field the teacher made private
 // comes back "" for everyone but its owner.
 export type TeacherProfile = {
   displayName: string;
@@ -21,6 +21,10 @@ export type TeacherProfile = {
   fullNamePublic: boolean;
   educationPublic: boolean;
   bioPublic: boolean;
+  // City or town and province ("" when not given or hidden), and whether others see them (always for an editor).
+  town: string;
+  province: string;
+  townPublic: boolean;
 };
 
 // A link name: lowercase letters and digits in groups joined by "-" (what profile_slug makes), at most the display
@@ -43,6 +47,9 @@ export async function loadTeacherProfile(supabase: SupabaseClient, slug: string)
     full_name_public: boolean;
     education_public: boolean;
     bio_public: boolean;
+    town: string;
+    province: string;
+    town_public: boolean;
   }>();
   if (error) throw error;
   if (!data) return null;
@@ -57,6 +64,9 @@ export async function loadTeacherProfile(supabase: SupabaseClient, slug: string)
     fullNamePublic: data.full_name_public,
     educationPublic: data.education_public,
     bioPublic: data.bio_public,
+    town: data.town,
+    province: data.province,
+    townPublic: data.town_public,
   };
 }
 
@@ -86,6 +96,11 @@ export async function loadVisibleProfiles(supabase: SupabaseClient, ids: string[
 
 export function profileHref(slug: string) {
   return `/teachers/${slug}`;
+}
+
+/** "Quezon City, Metro Manila", or whichever of the two is set. "" when neither is. */
+export function placeLine(town: string, province: string): string {
+  return [town, province].filter(Boolean).join(", ");
 }
 
 /** "Master's degree in English", or just the field for "Other" (it says nothing alone). "" when neither is set. */
