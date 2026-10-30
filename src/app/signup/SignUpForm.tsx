@@ -301,7 +301,8 @@ export function SignUpForm({ blockedDomains }: { blockedDomains: string[] }) {
               <Link href="/privacy" target="_blank" rel="noopener noreferrer" className="font-semibold text-accent hover:underline">
                 Privacy Policy
               </Link>
-              , including how QuizMatter keeps and shows my personal details.
+              , including how QuizMatter keeps my birthday and gender (private) and my educational background, province
+              and town (shown on my profile).
             </label>
           </div>
 
