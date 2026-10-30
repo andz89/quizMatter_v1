@@ -4,7 +4,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent } from "r
 import { useRouter } from "next/navigation";
 import { MegaphoneIcon, XIcon } from "lucide-react";
 import { isInternalLink, toSafeAnnouncementHtml } from "@/lib/announcementText";
-import type { AnnouncementPart } from "@/lib/announcements";
+import { MODAL_SIZES, type AnnouncementPart, type ModalSize } from "@/lib/announcements";
 import { Modal } from "./Modal";
 
 // How an announcement looks (root CLAUDE.md, "Announcements"): what teachers see (AnnouncementsWatch) and the
@@ -31,8 +31,11 @@ function AnnouncementText({ html, part, className }: { html: string; part: Annou
 
   useLayoutEffect(() => {
     if (!ref.current) return;
-    // An empty paragraph (a blank line) gets a <br>, as the editor gives it, so it keeps one line of height.
-    ref.current.innerHTML = toSafeAnnouncementHtml(html, part).replace(/<p([^>]*)><\/p>/g, "<p$1><br></p>");
+    // Blank lines at the very start or end are left out (e.g. the one after a picture), so nothing adds space
+    // there. A blank line in between gets a <br>, as the editor gives it, so it keeps one line of height.
+    ref.current.innerHTML = toSafeAnnouncementHtml(html, part)
+      .replace(/^(<p[^>]*><\/p>)+|(<p[^>]*><\/p>)+$/g, "")
+      .replace(/<p([^>]*)><\/p>/g, "<p$1><br></p>");
     for (const link of ref.current.querySelectorAll("a")) {
       if (isInternalLink(link.getAttribute("href") ?? "")) {
         link.removeAttribute("target");
@@ -56,20 +59,37 @@ function AnnouncementText({ html, part, className }: { html: string; part: Annou
     <div
       ref={ref}
       onClick={handleClick}
-      className={`break-words [&_a]:font-semibold [&_a]:text-accent [&_a]:underline [&_img]:my-2 [&_img]:h-auto [&_img]:max-w-full [&_img]:rounded-dropdown ${className}`}
+      className={`break-words [&_a]:font-semibold [&_a]:text-accent [&_a]:underline [&_img]:mx-auto [&_img]:block [&_img]:h-auto [&_img]:max-w-full ${className}`}
     />
   );
 }
 
-/** The modal part: the app's Modal, with "You can close this in N…" until its close button may show. */
-export function AnnouncementModal({ html, closeAfter, onClose }: { html: string; closeAfter: number; onClose: () => void }) {
+/**
+ * The modal part: the app's Modal without its title row, at the chosen width (MODAL_SIZES; the height fits the
+ * text), with "You can close this in N…" until its close button may show.
+ */
+export function AnnouncementModal({
+  html,
+  closeAfter,
+  size,
+  onClose,
+}: {
+  html: string;
+  closeAfter: number;
+  size: ModalSize;
+  onClose: () => void;
+}) {
   const left = useCloseCountdown(closeAfter);
   const canClose = left <= 0;
+  const width = MODAL_SIZES.find((s) => s.key === size)?.width;
   return (
     <Modal
       title="Announcement"
       onClose={onClose}
       canClose={canClose}
+      hideHeader
+      width={width}
+      noPadding
       footer={
         canClose ? (
           <button

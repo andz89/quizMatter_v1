@@ -1,11 +1,12 @@
 import { MAX_STORED_PHOTO_BYTES, PHOTO_URL_PREFIX } from "@/lib/constants";
-import { photoFileName, readPhotoType, savePhotoFile } from "@/lib/photoFiles";
+import { photoFileName, savePhotoFile } from "@/lib/photoFiles";
+import { readAnnouncementImageType } from "@/lib/photoTypes";
 import { photoSchema } from "@/lib/schema";
 import { createClient } from "@/lib/supabase/server";
 
 /**
  * Saves a picture for an announcement's modal (Admin → Announcements; super admin only), already shrunk by the
- * browser (see lib/photos.tsx). The browser sends its size in the address: /api/announcement-image?width=…&height=…
+ * browser (see lib/photos.tsx), or a GIF sent as it is (so it keeps moving; 2 MB at most, like any stored photo). The browser sends its size in the address: /api/announcement-image?width=…&height=…
  * The file goes to the R2 bucket like every photo and nowhere else (no photo list): the weekly cleanup keeps it
  * while an announcement's modal_html uses it (used_photo_srcs). Returns { src }.
  */
@@ -22,8 +23,8 @@ export async function POST(request: Request) {
   if (body.byteLength > MAX_STORED_PHOTO_BYTES) return tooBig();
 
   // The file's first bytes tell what it really is, whatever it claims to be.
-  const type = readPhotoType(body);
-  if (!type) return Response.json({ error: "Only photos can be uploaded." }, { status: 415 });
+  const type = readAnnouncementImageType(body);
+  if (!type) return Response.json({ error: "Only photos and GIFs can be uploaded." }, { status: 415 });
 
   // Checked with zod before it's saved (see CLAUDE.md, "Saving Data").
   const { searchParams } = new URL(request.url);

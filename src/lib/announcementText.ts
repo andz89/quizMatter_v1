@@ -1,17 +1,63 @@
 import { generateHTML, generateJSON, type JSONContent } from "@tiptap/core";
 import Link from "@tiptap/extension-link";
 import Image from "@tiptap/extension-image";
+import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
+import type { NodeView } from "@tiptap/pm/view";
 import { TEXT_EXTENSIONS } from "./richText";
 import { PHOTO_URL_PREFIX } from "./constants";
 import type { AnnouncementPart } from "./announcements";
 
 // The text of an announcement (see announcements.ts): what its editor allows, and how saved text is made safe.
 
-/** The modal's text: the slide text styles plus links and our own photos. */
+/**
+ * Tiptap's resizable image shows a new size only while it's dragged: it never puts the saved width on the picture
+ * in the editor (when an announcement opens again, or after "Full width"). This does, after every change; the
+ * height follows the shape (h-auto).
+ */
+const SizedImage = Image.extend({
+  addNodeView() {
+    const makeView = this.parent?.();
+    if (!makeView) return null;
+    return (props) => {
+      const view = makeView(props) as NodeView;
+      const img = view.dom instanceof HTMLElement ? view.dom.querySelector("img") : null;
+      const showSize = (node: ProseMirrorNode) => {
+        if (!img) return;
+        img.style.width = node.attrs.width ? `${node.attrs.width}px` : "";
+        img.style.height = "";
+      };
+      showSize(props.node);
+      const update = view.update?.bind(view);
+      if (update) {
+        view.update = (node, decorations, innerDecorations) => {
+          const kept = update(node, decorations, innerDecorations);
+          if (kept) showSize(node);
+          return kept;
+        };
+      }
+      return view;
+    };
+  },
+});
+
+/**
+ * The modal's text: the slide text styles plus links and our own photos. A photo is always centered, on its own
+ * line; its corner handles resize it (shape kept), saved as its width and height.
+ */
 export const ANNOUNCEMENT_MODAL_EXTENSIONS = [
   ...TEXT_EXTENSIONS,
   Link.configure({ openOnClick: false, autolink: false }),
-  Image.configure({ inline: false, allowBase64: false }),
+  SizedImage.configure({
+    inline: false,
+    allowBase64: false,
+    resize: {
+      enabled: true,
+      directions: ["top-left", "top-right", "bottom-left", "bottom-right"],
+      minWidth: 40,
+      minHeight: 40,
+      alwaysPreserveAspectRatio: true,
+    },
+  }),
 ];
 
 /** The bar's text: the same, without images. */

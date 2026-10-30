@@ -279,6 +279,9 @@ The super admin shows a message to chosen teachers on chosen pages (Admin → An
   (`pageGroup`), and picks what fits each page (`pickForPage`: modals one at a time, at most 2 bars, newest first).
 - **Show again:** `once` (an `announcement_dismissals` row, for good), `daily` (again after midnight Philippine
   time), `every_visit` (only sessionStorage: again in a new tab). The modal and the bar close separately.
+- **Modal size:** `modal_size` is `small` / `medium` / `large` (300 / 500 / 672 px wide; the height fits the text;
+  `MODAL_SIZES`). Older rows and older app tabs count as `large` (`20261222000000_announcement_modal_size.sql`,
+  test `supabase/tests/announcement_modal_size.sql`). The admin's text box takes the same width.
 - **Hidden while presenting fullscreen** (`document.fullscreenElement`); a waiting modal shows after. On the editor
   page the bars float at the bottom.
 - **Safe text:** saved HTML is re-built through the editor's extensions (`toSafeAnnouncementHtml`,
@@ -383,6 +386,8 @@ Bright, rounded and friendly for kids, but clean enough to feel credible to teac
 - Row height: 48–56px
 - Gap between sections: 16–20px
 - Icon-to-label gap: 8–12px
+- Resize handles (an announcement's modal pictures): small violet squares with a white border in the picture's
+  corners (`.announcement-editor` in `globals.css`).
 - Editor side panels (Elements, Photos, Presentations, …): the `side-panel` class (all 320px wide; 20px padding, 8px on the right next to a thin scrollbar), not their own width or `p-5`. Sideways rows in them use `ScrollRow` (`src/components/editor/ScrollRow.tsx`).
 
 <!-- BEGIN:nextjs-agent-rules -->

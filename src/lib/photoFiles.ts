@@ -1,5 +1,6 @@
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import type { R2Bucket } from "@cloudflare/workers-types";
+import type { PhotoType } from "./photoTypes";
 
 // Saving photo files to the R2 bucket, for /api/upload-image (teachers and admins) and /api/claude-photo (Claude).
 // Server-only.
@@ -10,16 +11,8 @@ declare global {
   }
 }
 
-export type PhotoType = { contentType: string; extension: "webp" | "jpg" };
-
-/** WebP or JPEG (Safari can't make WebP, so it sends JPEG), from the file's first bytes. null = neither. */
-export function readPhotoType(body: ArrayBuffer): PhotoType | null {
-  const start = new Uint8Array(body, 0, Math.min(12, body.byteLength));
-  const text = (from: number, to: number) => String.fromCharCode(...start.subarray(from, to));
-  if (text(0, 4) === "RIFF" && text(8, 12) === "WEBP") return { contentType: "image/webp", extension: "webp" };
-  if (start[0] === 0xff && start[1] === 0xd8 && start[2] === 0xff) return { contentType: "image/jpeg", extension: "jpg" };
-  return null;
-}
+// The file's real type: photoTypes.ts (readPhotoType, readAnnouncementImageType).
+export { readPhotoType, type PhotoType } from "./photoTypes";
 
 /**
  * The photo's file name: its own fingerprint, so the same photo is stored once however many times it's added.

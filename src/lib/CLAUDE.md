@@ -59,10 +59,12 @@
   `pageGroup(pathname)` (which group a page is in; null = never shows one), the limits (`ANNOUNCEMENT_LIMITS`, same as
   the database's checks), `announcementSchema` (zod, run before every save; keys = the column names),
   `myAnnouncementSchema` (a `my_announcements` row), `pickForPage` (what shows on a page: fits `pages`, skips closed
-  parts, newest first, 2 bars at most), `manilaDay` and `isSameVisit` (a tab's saved list is reused only for the same account and Philippine day). It repeats `EDUCATION_LEVELS` because `userSettings.ts`
+  parts, newest first, 2 bars at most), `manilaDay`, `isSameVisit` and `MODAL_SIZES` (the modal's widths; a row without one counts as large), `fullWidthSize` (a picture's "Full width"
+  size: 672 wide, shape kept) (a tab's saved list is reused only for the same account and Philippine day). It repeats `EDUCATION_LEVELS` because `userSettings.ts`
   can't load in a test. Tests: `announcements.test.ts`.
 - `announcementText.ts`: an announcement's text. `ANNOUNCEMENT_MODAL_EXTENSIONS` (the slide text styles + links +
-  images) and `ANNOUNCEMENT_BAR_EXTENSIONS` (no images) for its editor; `toSafeAnnouncementHtml` (browser only)
+  images, always centered, resized by their corner handles with the shape kept, saved as `width` / `height`;
+  `SizedImage` shows the saved width in the editor, which Tiptap's resizable image doesn't do by itself) and `ANNOUNCEMENT_BAR_EXTENSIONS` (no images) for its editor; `toSafeAnnouncementHtml` (browser only)
   re-builds saved text through them, then `cleanAnnouncementDoc` drops images that aren't ours (`PHOTO_URL_PREFIX`)
   and links that aren't `http(s)://` or an app path (`isAllowedLink`; `isInternalLink` = opens in the same tab).
   Tests: `announcementText.test.ts`.
@@ -117,7 +119,9 @@ data. Spec: `docs/superpowers/specs/2026-10-23-stable-presentation-data-design.m
   speed bumps kept in the browser).
 - Photos: `photos.tsx` (upload, My photos, shared photos; `isPhotoLocked` / `PHOTO_LOCKED_MESSAGE` for `QMPHL`, a
   photo in something waiting for QuizMatter can't be removed; the editor's Photos panel shows only public shared
-  photos, even to admins), `photoFiles.ts` (R2 files, server), `photoTickets.ts`
+  photos, even to admins), `photoFiles.ts` (R2 files, server), `photoTypes.ts` (what a file really is, from its first bytes:
+  `readPhotoType` = WebP or JPEG for every upload, `readAnnouncementImageType` also takes a GIF; tests
+  `photoTypes.test.ts`), `photoTickets.ts`
   (Claude's photo uploads), `cleanupPhotos.ts` (weekly cleanup). `PHOTO_TYPES` (the files a teacher can pick) is in
   `constants.ts`, so pages outside the editor can use it without loading `photos.tsx` (which loads the editor's store).
   Editors' profile photos: `photoCrop.ts` (zoom and move math for the adjust box, with `photoCrop.test.ts`) and

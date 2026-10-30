@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { JSONContent } from "@tiptap/core";
-import { cleanAnnouncementDoc, isInternalLink } from "./announcementText";
+import { ANNOUNCEMENT_MODAL_EXTENSIONS, cleanAnnouncementDoc, isInternalLink } from "./announcementText";
 import { PHOTO_URL_PREFIX } from "./constants";
 
 const image = (src: string): JSONContent => ({ type: "image", attrs: { src } });
@@ -37,4 +37,20 @@ test("isInternalLink is true only for a path in the app", () => {
   assert.equal(isInternalLink("/saved"), true);
   assert.equal(isInternalLink("//x.com"), false);
   assert.equal(isInternalLink("https://x.com"), false);
+});
+
+test("modal pictures can be resized, keeping their shape", () => {
+  const image = ANNOUNCEMENT_MODAL_EXTENSIONS.find((extension) => extension.name === "image");
+  assert.deepEqual(image?.options.resize, {
+    enabled: true,
+    directions: ["top-left", "top-right", "bottom-left", "bottom-right"],
+    minWidth: 40,
+    minHeight: 40,
+    alwaysPreserveAspectRatio: true,
+  });
+});
+
+test("cleanAnnouncementDoc keeps a resized picture's size", () => {
+  const resized: JSONContent = { type: "image", attrs: { src: `${PHOTO_URL_PREFIX}abc.webp`, width: 320, height: 180 } };
+  assert.deepEqual(cleanAnnouncementDoc({ type: "doc", content: [resized] }).content, [resized]);
 });

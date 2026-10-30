@@ -9,6 +9,7 @@ import { Spinner } from "@/components/Spinner";
 import {
   ANNOUNCEMENT_LIMITS as L,
   ANNOUNCEMENT_ROLES,
+  MODAL_SIZES,
   PAGE_GROUPS,
   REPEATS,
   REPEAT_LABELS,
@@ -50,6 +51,7 @@ const NEW_ANNOUNCEMENT: AnnouncementInput = {
   presentations_min: null,
   presentations_max: null,
   roles: [],
+  modal_size: "large",
 };
 
 // The times are Philippine time (+08:00), whatever the computer's clock says. The box shows "YYYY-MM-DDTHH:mm".
@@ -183,7 +185,29 @@ export function AnnouncementForm({ initial = NEW_ANNOUNCEMENT }: { initial?: Ann
         </label>
         {form.show_modal && (
           <div className="mt-3 flex flex-col gap-3">
-            <AnnouncementTextEditor part="modal" value={form.modal_html} onChange={(html) => set("modal_html", html)} />
+            <div>
+              <span className={labelClass}>Size</span>
+              <div className="flex flex-wrap gap-x-4 gap-y-2">
+                {MODAL_SIZES.map((size) => (
+                  <label key={size.key} className="flex items-center gap-2 text-sm text-text-primary">
+                    <input
+                      type="radio"
+                      name="modal-size"
+                      checked={form.modal_size === size.key}
+                      onChange={() => set("modal_size", size.key)}
+                      className={checkClass}
+                    />
+                    {size.label}
+                  </label>
+                ))}
+              </div>
+            </div>
+            <AnnouncementTextEditor
+              part="modal"
+              value={form.modal_html}
+              width={MODAL_SIZES.find((size) => size.key === form.modal_size)?.width}
+              onChange={(html) => set("modal_html", html)}
+            />
             <CloseAfter value={form.modal_close_after} onChange={(n) => set("modal_close_after", n)} />
           </div>
         )}
@@ -369,6 +393,7 @@ export function AnnouncementForm({ initial = NEW_ANNOUNCEMENT }: { initial?: Ann
           key={preview.key}
           html={form.modal_html}
           closeAfter={form.modal_close_after}
+          size={form.modal_size}
           onClose={() => setPreview((p) => (p && p.bar ? { ...p, modal: false } : null))}
         />
       )}

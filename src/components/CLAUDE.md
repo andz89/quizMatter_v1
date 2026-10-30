@@ -7,7 +7,7 @@ notes.
   `<Link>` to show both at once on click (see the root `CLAUDE.md`).
   `FormPending.tsx`: put inside a `next/form` `Form` to show the top line at once on submit (`useFormStatus`).
 - `Modal.tsx`: the one modal box (title, ✕, Escape / click outside closes, `isBusy` blocks closing, optional footer,
-  `isNarrow` for a small box, `canClose={false}` hides ✕ and ignores Escape / click outside).
+  `isNarrow` for a small box, `canClose={false}` hides ✕ and ignores Escape / click outside, `hideHeader` leaves out the title row and ✕, `width` sets an exact width in px, `noPadding` lets the content reach the edges).
   For "Are you sure?" use `editor/ConfirmModal.tsx` instead, never the browser's `confirm()`.
 - `NavBar.tsx` (server only): the top bar of every page, with the "Support" button (`KeepFreeButton`) and
   `AccountMenu.tsx` (an "Admin" or "Editor" label above the name, then Admin, Account settings, Help & support,
@@ -40,8 +40,8 @@ notes.
   while fullscreen, and on close marks the part closed in the tab and (`once` / `daily`) calls
   `dismiss_announcement`.
 - `AnnouncementView.tsx`: how an announcement looks (root `CLAUDE.md`, "Announcements"), for teachers and the admin's
-  preview. `AnnouncementModal` (the `Modal`, "You can close this in N…" until its close delay ends, then ✕ and a
-  Close button) and `AnnouncementBar` (a violet strip with a megaphone; ✕ after the countdown; `isFloating` = a card,
+  preview. `AnnouncementModal` (the `Modal` with no title row, `hideHeader`, at the chosen width, `MODAL_SIZES`, no padding (`noPadding`); "You can close this in N…" until its close
+  delay ends, then a Close button, Escape and a click outside close it) and `AnnouncementBar` (a violet strip with a megaphone; ✕ after the countdown; `isFloating` = a card,
   which the parent places at the bottom). The text goes through `toSafeAnnouncementHtml` in the browser; links into
   the app move with `router.push`, others open in a new tab.
 - `Turnstile.tsx`: Cloudflare's "are you human" check on sign up (with its own retries).

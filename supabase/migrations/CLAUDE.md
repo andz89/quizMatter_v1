@@ -300,3 +300,7 @@ A refusal raises an error with its own code. The app turns the code into a messa
   (`announcement_saved`, `announcement_deleted`, target `announcement`).
 
 Claude's drafts and photo tickets are NOT here: they live in Cloudflare D1 (`d1/migrations`).
+- Announcement modal size: `20261222000000_announcement_modal_size.sql` (test
+  `supabase/tests/announcement_modal_size.sql`). `announcements.modal_size` (`small` / `medium` / `large`, default
+  `large`; the app's `MODAL_SIZES` give their widths). Newest `save_announcement` (a save without it = `large`),
+  `admin_announcements` and `my_announcements` (both return it; dropped and made again, with their grants).

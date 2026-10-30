@@ -1,6 +1,16 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { announcementSchema, isSameVisit, manilaDay, pageGroup, pickForPage, type MyAnnouncement } from "./announcements";
+import {
+  MODAL_SIZES,
+  fullWidthSize,
+  announcementSchema,
+  isSameVisit,
+  manilaDay,
+  myAnnouncementSchema,
+  pageGroup,
+  pickForPage,
+  type MyAnnouncement,
+} from "./announcements";
 
 test("pageGroup maps paths to groups", () => {
   assert.equal(pageGroup("/"), "my_presentations");
@@ -41,6 +51,7 @@ const valid = {
   presentations_min: null,
   presentations_max: null,
   roles: [],
+  modal_size: "large",
 };
 
 test("announcementSchema accepts a valid input", () => {
@@ -78,6 +89,7 @@ function row(id: string, createdAt: string, change: Partial<MyAnnouncement> = {}
     repeat: "once",
     pages: ["all"],
     created_at: createdAt,
+    modal_size: "large",
     ...change,
   };
 }
@@ -113,4 +125,32 @@ test("isSameVisit: same account and same Philippine day only", () => {
   // After midnight a "once a day" one may show again.
   assert.equal(isSameVisit(saved, { day: "2026-10-31", userId: "teacher-a" }), false);
   assert.equal(isSameVisit(null, { day: "2026-10-30", userId: "teacher-a" }), false);
+});
+
+test("announcementSchema takes the three modal sizes only", () => {
+  for (const modal_size of ["small", "medium", "large"]) {
+    assert.equal(announcementSchema.safeParse({ ...valid, modal_size }).success, true, modal_size);
+  }
+  assert.equal(announcementSchema.safeParse({ ...valid, modal_size: "huge" }).success, false);
+  // Only the width is set; the height always fits the text.
+  assert.deepEqual(
+    MODAL_SIZES.map((size) => ({ ...size, label: undefined })),
+    [
+      { key: "small", width: 300, label: undefined },
+      { key: "medium", width: 500, label: undefined },
+      { key: "large", width: 672, label: undefined },
+    ],
+  );
+});
+
+test("a my_announcements row without a size (saved before sizes) is large", () => {
+  const { modal_size, ...old } = row("a", "2026-01-01T00:00:00Z");
+  void modal_size;
+  assert.equal(myAnnouncementSchema.parse(old).modal_size, "large");
+});
+
+test("fullWidthSize makes a picture as wide as the widest modal, keeping its shape", () => {
+  assert.deepEqual(fullWidthSize(400, 300), { width: 672, height: 504 });
+  assert.deepEqual(fullWidthSize(1000, 333), { width: 672, height: 224 });
+  assert.deepEqual(fullWidthSize(672, 100), { width: 672, height: 100 });
 });

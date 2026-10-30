@@ -54,6 +54,27 @@ export const ROLE_LABELS: Record<(typeof ANNOUNCEMENT_ROLES)[number], string> = 
 
 export type AnnouncementPart = "modal" | "bar";
 
+/**
+ * The modal's widths, in px. The height always fits the text. Large is the normal modal (Modal's max-w-2xl). The
+ * admin form's text box takes the same width, so a picture's size there is its size for teachers.
+ */
+export const MODAL_SIZES = [
+  { key: "small", label: "Small (300 wide)", width: 300 },
+  { key: "medium", label: "Medium (500 wide)", width: 500 },
+  { key: "large", label: "Large (672 wide, normal)", width: 672 },
+] as const;
+export type ModalSize = (typeof MODAL_SIZES)[number]["key"];
+const MODAL_SIZE_KEYS = MODAL_SIZES.map((size) => size.key) as [ModalSize, ...ModalSize[]];
+
+/**
+ * A picture's "Full width" size: as wide as the widest modal, keeping its shape. A picture is never wider than its
+ * modal (max-width 100%), so it fills every size, also after the size is changed.
+ */
+export function fullWidthSize(width: number, height: number): { width: number; height: number } {
+  const full = MODAL_SIZES[MODAL_SIZES.length - 1].width;
+  return { width: full, height: Math.round((height * full) / width) };
+}
+
 export const ANNOUNCEMENT_LIMITS = {
   name: 100,
   modalHtml: 20_000,
@@ -106,6 +127,7 @@ export const announcementSchema = z
     presentations_min: count,
     presentations_max: count,
     roles: z.array(z.enum(ANNOUNCEMENT_ROLES)),
+    modal_size: z.enum(MODAL_SIZE_KEYS),
   })
   .refine((a) => a.show_modal || a.show_bar, { message: "Turn on the modal or the bar.", path: ["show_modal"] })
   .refine((a) => !a.show_modal || a.modal_html.trim() !== "", { message: "The modal needs text.", path: ["modal_html"] })
@@ -136,6 +158,8 @@ export const myAnnouncementSchema = z.object({
   repeat: z.enum(REPEATS),
   pages: z.array(z.string()),
   created_at: z.string(),
+  // Missing (a row from before sizes, e.g. kept in a tab) = large, the size modals had then.
+  modal_size: z.enum(MODAL_SIZE_KEYS).catch("large"),
 });
 export type MyAnnouncement = z.infer<typeof myAnnouncementSchema>;
 

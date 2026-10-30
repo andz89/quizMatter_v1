@@ -122,11 +122,12 @@ async function sendPhoto(shrunk: ShrunkPhoto, shared?: { categoryId: string; sou
 
 /**
  * Shrinks and uploads a picture for an announcement's modal (super admin; app/api/announcement-image) and returns
- * its src. Throws an Error whose message can be shown as it is.
+ * its src. A GIF is sent as it is (redrawing it would stop it moving), if it's small enough. Throws an Error whose
+ * message can be shown as it is.
  */
 export async function uploadAnnouncementPhoto(file: Blob): Promise<string> {
   try {
-    const shrunk = await shrinkPhoto(file);
+    const shrunk = file.type === "image/gif" ? await readGif(file) : await shrinkPhoto(file);
     const params = new URLSearchParams({ width: String(shrunk.width), height: String(shrunk.height) });
     const response = await fetch(`/api/announcement-image?${params}`, {
       method: "POST",
@@ -142,6 +143,20 @@ export async function uploadAnnouncementPhoto(file: Blob): Promise<string> {
     if (error instanceof PhotoError) throw error;
     throw new PhotoError("Couldn't upload the photo. Please try again.");
   }
+}
+
+/** A GIF as it is, with its size, if it fits what the server stores (2 MB, PHOTO_MAX_SIDE). */
+async function readGif(file: Blob): Promise<ShrunkPhoto> {
+  if (file.size > MAX_STORED_PHOTO_BYTES) throw new PhotoError("This GIF is too big (2 MB at most). Try a smaller one.");
+  const bitmap = await createImageBitmap(file).catch(() => {
+    throw new PhotoError("This file couldn't be opened as a GIF.");
+  });
+  const { width, height } = bitmap;
+  bitmap.close();
+  if (Math.max(width, height) > PHOTO_MAX_SIDE) {
+    throw new PhotoError(`This GIF is too large (${PHOTO_MAX_SIDE} px on its longest side at most).`);
+  }
+  return { blob: file, width, height, original: { type: file.type, bytes: file.size, width, height } };
 }
 
 // Whether a teacher's photo is uploading now: teachers add one photo at a time.

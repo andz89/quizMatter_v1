@@ -136,6 +136,7 @@ export function AnnouncementsWatch({ announcementsKey }: { announcementsKey: str
           key={modal.id}
           html={modal.modal_html}
           closeAfter={modal.modal_close_after}
+          size={modal.modal_size}
           onClose={() => close(modal, "modal")}
         />
       )}
