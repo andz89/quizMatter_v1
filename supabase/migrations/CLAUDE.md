@@ -80,8 +80,8 @@ A refusal raises an error with its own code. The app turns the code into a messa
   `save_presentation` also refuses (`QMOLD`) a new presentation whose `copiedFrom` source has a higher
   `data_version` than its `app_version` (an old tab's Make a copy), and `share_presentation` gives the shared copy
   its original's `data_version`, so copies of a published presentation are checked too.
-- Photos and the weekly cleanup: `used_photo_srcs` (drafts' photos and profile photos count as used; newest in
-  `20261214000000_profile_photos.sql`).
+- Photos and the weekly cleanup: `used_photo_srcs` (drafts' photos, profile photos and announcement modal images
+  count as used; newest in `20261221000000_announcements.sql`).
 - Editor photos (`20261126000000_editor_photos.sql`): an editor's WebP upload also becomes a shared photo with
   `is_public = false` ("From editors" category), hidden from teachers and `search_shared_photos`. It turns public
   for good when a live QuizMatter presentation uses it (triggers on `slide_photos` and `presentations`). The
@@ -258,8 +258,8 @@ A refusal raises an error with its own code. The app turns the code into a messa
   (`QMBAN`), editor (`42501`) and that `src` is one of our photo files (`22023`), then counts under a row lock: 3 a
   day by the `Asia/Manila` date (`QMPPL`), returning how many are left. `remove_profile_photo()` and
   `admin_remove_profile_photo(target)` (any admin; logs `profile_photo_removed`) only empty `src`, so the day's count
-  stays. `my_profile_photo()` gives the account page `src` and `left_today`. Newest `used_photo_srcs` (adds profile
-  photos) is in this file, and so is the newest `admin_actions` action list.
+  stays. `my_profile_photo()` gives the account page `src` and `left_today`. It adds profile photos
+  to `used_photo_srcs` (newest now in `20261221000000_announcements.sql`, with the newest `admin_actions` lists).
 - Profile privacy: `20261215000000_profile_privacy.sql` (test `supabase/tests/profile_privacy.sql`; spec
   `docs/superpowers/specs/2026-10-28-profile-privacy-design.md`). `user_settings.full_name_public`,
   `education_public`, `bio_public` (default `true`; the owner writes them with their details). Its
@@ -278,5 +278,25 @@ A refusal raises an error with its own code. The app turns the code into a messa
   `admin_teacher_breakdown()` (admins only, `42501` otherwise): `(kind, label, total)` per province, age group
   (`18–24` … `55+`) and gender, `''` = not given. Apply it before the app deploys: `getAccount` reads these columns
   on every page.
+- Announcements: `20261221000000_announcements.sql` (test `supabase/tests/announcements.sql`; spec
+  `docs/superpowers/specs/2026-10-30-announcements-design.md`). `announcements` (one row each: name, on/off, optional
+  `starts_at` / `ends_at`, the modal and bar parts, `repeat` `once` / `daily` / `every_visit`, `pages`, and the
+  filters) and `announcement_dismissals` (who closed which part, `modal` or `bar`, and when; gone with the
+  announcement or the account). RLS on, no policies, no grants: only the functions read and write them. Every limit
+  is a check on the table (word lists through `announcement_words_ok`, provinces through
+  `announcement_provinces_ok`, `is_province`); the same limits go in the app's zod `announcementSchema`.
+  `announcement_matches(a, uid)` is the one matching rule (empty filter = everyone, a banned account never, an empty
+  detail never matches a filter on it; age by `age_on(birth_date, manila_today())`; words anywhere in the town or
+  field/major, ignoring case; presentations they own, not shared copies; roles: `editor` / `admin` by the tables,
+  `teacher` = neither). `announcement_is_live(a)`: on, started, not ended. Super admin only (`42501`):
+  `save_announcement(jsonb)` (keys = column names, no id = new; `updated_at` takes `clock_timestamp()`),
+  `set_announcement_on`, `delete_announcement`, `admin_announcements()` (status `live` / `scheduled` / `ended` /
+  `off`, matched accounts now, closed counts), `announcement_audience(jsonb)`. At most 20 on and not ended
+  (`check_announcement_limit`, `22023`). Logged in: `my_announcements()` (live and matching; a closed part comes
+  back off with no text: `once` = ever closed, `daily` = closed on today's Philippine date; both off = left out)
+  and `dismiss_announcement(id, part)` (nothing for `every_visit`). Newest `maintenance_status` (adds
+  `announcements_key`: an md5 of the live ones' ids and `updated_at`, null when none) and `used_photo_srcs` (adds
+  every `<img src>` in `modal_html`) are in this file, and so are the newest `admin_actions` lists
+  (`announcement_saved`, `announcement_deleted`, target `announcement`).
 
 Claude's drafts and photo tickets are NOT here: they live in Cloudflare D1 (`d1/migrations`).
