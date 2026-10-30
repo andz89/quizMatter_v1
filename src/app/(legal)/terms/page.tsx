@@ -98,7 +98,7 @@ export default function TermsPage() {
           presentations to QuizMatter. Being an editor means:
         </p>
         <ul>
-          <li>Your full name, educational background and bio always show on your profile page.</li>
+          <li>Your full name, province and city or town, educational background and bio always show on your profile page.</li>
           <li>
             <strong>
               Your name, email and the review date show on every QuizMatter lesson you review, to every logged-in

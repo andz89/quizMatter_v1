@@ -19,7 +19,7 @@ export default function PrivacyPage() {
           <li>We keep only what we need to run QuizMatter.</li>
           <li>We never sell your information, and we don’t show ads.</li>
           <li>
-            Other teachers can see your profile, but never your email or contact number. If you’re an editor, your
+            Other teachers can see your profile, but never your email, contact number, birthday or gender. If you’re an editor, your
             email shows on the QuizMatter lessons you review.
           </li>
           <li>You can see, fix or delete your information.</li>
@@ -50,6 +50,18 @@ export default function PrivacyPage() {
           <strong>Your profile.</strong> Your first and last name, and your display name (made from them, and you can
           change it later). They show on your profile page and on the work you share. Your contact number, so QuizMatter
           can reach you about your account; only QuizMatter’s admins see it. A short bio, if you write one.
+        </p>
+        <p>
+          <strong>Your birthday and gender.</strong> You must give them to make an account (you must be 18 to 100 years
+          old). The law calls age and gender <em>sensitive personal information</em> (Section 3(l)), so we ask for your
+          clear consent when you sign up (Section 13(a)). Why we ask: to know who uses QuizMatter, and to count teachers
+          by age group and gender. Only you and QuizMatter’s admins see them; they never show on your profile.
+        </p>
+        <p>
+          <strong>Your province and city or town.</strong> You must give them to make an account (not your street or
+          house address). Why we ask: they show on your profile page, so teachers can see where the person who made a
+          lesson teaches, and we count teachers by province. You can hide them from your profile page (“Show on my
+          profile”), unless you’re an editor.
         </p>
         <p>
           <strong>Your educational background</strong> (your level, like a master’s degree, and your field or major).
@@ -85,7 +97,7 @@ export default function PrivacyPage() {
           <strong>Why the law allows this</strong> (our <em>legal grounds</em>):
         </p>
         <ul>
-          <li>your consent (Section 12(a), and Section 13(a) for your educational background);</li>
+          <li>your consent (Section 12(a), and Section 13(a) for your educational background, age and gender);</li>
           <li>running the service you signed up for (Section 12(b));</li>
           <li>
             keeping QuizMatter safe from misuse (Section 12(f), <em>legitimate interests</em>, means: a fair reason
@@ -108,18 +120,20 @@ export default function PrivacyPage() {
         <p>
           <strong>Other teachers</strong> (only when logged in; QuizMatter’s pages are closed to everyone else, except
           sign up, log in and these two pages). On your profile page: your display name, your first and last name, your
-          educational background and your bio (you can hide these three, unless you’re an editor), an editor’s profile
-          photo, the presentations you published, and the QuizMatter lessons you made as an editor. Your display name or
-          the Author name shows on the work you share. They never see your email or contact number.
+          province and city or town, your educational background and your bio (you can hide these four, unless you’re
+          an editor), an editor’s profile photo, the presentations you published, and the QuizMatter lessons you made as
+          an editor. Your display name or the Author name shows on the work you share. They never see your email,
+          contact number, birthday or gender.
         </p>
         <p>
           <strong>If you’re an editor:</strong> your name, email and the date show on every QuizMatter lesson you
           review, to every logged-in teacher, and they stay there even after your account is deleted. Your full name,
-          educational background and bio always show on your profile.
+          province and city or town, educational background and bio always show on your profile.
         </p>
         <p>
-          <strong>QuizMatter’s admins</strong> see your email, names, contact number and educational background (even
-          the ones you hid from your profile). To run and protect QuizMatter, for example to check a report, they can
+          <strong>QuizMatter’s admins</strong> see your email, names, contact number, birthday (as your age), gender,
+          province and city or town, and educational background (even the ones you hid from your profile). Admin pages
+          also count teachers by province, age group and gender, without names. To run and protect QuizMatter, for example to check a report, they can
           open any presentation, private ones too. They can hide or delete presentations, remove an editor’s profile
           photo, and pause or ban accounts.
         </p>
@@ -180,7 +194,7 @@ export default function PrivacyPage() {
             </thead>
             <tbody className="align-top [&_td]:border-t [&_td]:border-border-default [&_td]:px-3 [&_td]:py-2">
               <tr>
-                <td>Your account, profile, work and agreement</td>
+                <td>Your account, profile (with your birthday, gender, province and town), work and agreement</td>
                 <td>Until you delete your account</td>
               </tr>
               <tr>
