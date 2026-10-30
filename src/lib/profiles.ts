@@ -17,7 +17,8 @@ export type TeacherProfile = {
   // Editors' profile photo ("" when none; only editors have one, see 20261214000000_profile_photos.sql).
   photoSrc: string;
   // Whether others see the full name, educational background and bio (the teacher's "Show on my profile"; always
-  // true for an editor). Off with the field filled in = the owner looking at their own profile.
+  // true for an editor). Off with the field filled in = the owner looking at their own profile. townPublic below
+  // works the same way.
   fullNamePublic: boolean;
   educationPublic: boolean;
   bioPublic: boolean;

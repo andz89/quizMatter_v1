@@ -392,7 +392,7 @@ export default async function AdminSafetyPage() {
         <Item
           name="Profiles show only public details"
           where="Database"
-          rule="Every teacher has a profile page that any logged-in user can open with its link: display name, first and last name, educational background and bio. A teacher can make their full name, educational background or bio private (an editor's always show). The profile page never shows the contact number or email. Admin profiles stay hidden from teachers: their names on presentations aren't links"
+          rule="Every teacher has a profile page that any logged-in user can open with its link: display name, first and last name, town and province, educational background and bio. A teacher can make their full name, town and province, educational background or bio private (an editor's always show). The profile page never shows the contact number, email, birthday or gender. Admin profiles stay hidden from teachers: their names on presentations aren't links"
           sees="Their profile, from “View my profile” on the Account page, or the Publisher and Reviewer names on a presentation."
           more={{
             what: [
