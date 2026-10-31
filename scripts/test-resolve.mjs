@@ -5,6 +5,8 @@ import { fileURLToPath } from "node:url";
 const SRC = new URL("../src/", import.meta.url);
 registerHooks({
   resolve(specifier, context, next) {
+    // Packages resolve their own files (rewriting theirs breaks CommonJS ones when the folder has a space in it).
+    if (context.parentURL?.includes("/node_modules/")) return next(specifier, context);
     let target = specifier;
     if (target.startsWith("@/")) target = new URL(target.slice(2), SRC).href;
     if (target.startsWith(".") || target.startsWith("file:")) {

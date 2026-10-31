@@ -18,8 +18,13 @@ import { SUPPORT_EMAIL } from "./support";
 export class SaveRefusedError extends Error {
   // isConflict: someone saved a newer copy (another tab or device) since this one was opened or saved.
   // isOutdated: newer app code saved it (QMOLD), so this tab's older code must reload first (see keptWork.ts).
-  constructor(message: string, readonly isConflict = false, readonly isOutdated = false) {
+  // (Written out, not `readonly isConflict` in the constructor: Node's test runner can't read that shortcut.)
+  readonly isConflict: boolean;
+  readonly isOutdated: boolean;
+  constructor(message: string, isConflict = false, isOutdated = false) {
     super(message);
+    this.isConflict = isConflict;
+    this.isOutdated = isOutdated;
   }
 }
 

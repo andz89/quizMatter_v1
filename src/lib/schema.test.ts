@@ -2,15 +2,21 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   DATA_VERSION,
+  DETAIL_MAX_LENGTH,
+  MAX_SLIDES,
+  TOO_MANY_SLIDES_MESSAGE,
   isNewerThanApp,
   isSafeColor,
   parseSlide,
+  presentationSchema,
   slideProblems,
+  slideSchema,
   svgElementSchema,
   upgradePresentation,
   upgradeSlide,
 } from "./schema";
 import { DEFAULT_TEXT_COLOR } from "./constants";
+import { createBlankPresentation, createBlankSlide } from "./factories";
 import { BACKGROUND_COLORS, BACKGROUND_GRADIENTS, BACKGROUND_MESHES } from "./slideBackground";
 
 test("upgradePresentation runs twice with the same result", () => {
@@ -114,4 +120,31 @@ test("a slide with an unsafe color still opens, without it", () => {
   assert.ok(slide);
   assert.equal(slide.background, undefined);
   assert.equal(slide.elements[0].color, DEFAULT_TEXT_COLOR);
+});
+
+test(`a presentation can have ${MAX_SLIDES} slides, not one more`, () => {
+  const withSlides = (count: number) =>
+    presentationSchema.safeParse({ ...createBlankPresentation(), slides: Array.from({ length: count }, () => createBlankSlide()) });
+  assert.ok(withSlides(MAX_SLIDES).success);
+  const tooMany = withSlides(MAX_SLIDES + 1);
+  assert.equal(tooMany.success, false);
+  assert.equal(tooMany.error?.issues[0].message, TOO_MANY_SLIDES_MESSAGE);
+});
+
+test("a title or question longer than its limit is refused", () => {
+  const title = (length: number) => presentationSchema.safeParse({ ...createBlankPresentation(), title: "a".repeat(length) }).success;
+  assert.ok(title(DETAIL_MAX_LENGTH.title));
+  assert.equal(title(DETAIL_MAX_LENGTH.title + 1), false);
+  const question = (length: number) => slideSchema.safeParse({ ...createBlankSlide(), question: "a".repeat(length) }).success;
+  assert.ok(question(5_000));
+  assert.equal(question(5_001), false);
+});
+
+test("an embed slide only keeps a link its kind can show", () => {
+  const embed = (type: "video" | "image", embedUrl: string) => slideSchema.safeParse({ ...createBlankSlide(type), embedUrl }).success;
+  assert.ok(embed("video", "https://www.youtube.com/embed/dQw4w9WgXcQ"));
+  assert.equal(embed("video", "https://example.com/video.mp4"), false);
+  assert.ok(embed("image", "https://example.com/cat.png"));
+  assert.equal(embed("image", "http://example.com/cat.png"), false);
+  assert.equal(embed("image", "javascript:alert(1)"), false);
 });

@@ -106,7 +106,7 @@ Keep the code:
 
 # Tests
 
-Run `npm test` (Node's built-in test runner). Tests sit next to the code as `*.test.ts` in `src/`. A test can import only `.ts` files whose own imports are `.ts` (no `.tsx`, no JSON); `@/` means `src/`. SQL tests are in `supabase/tests/`; each rolls back what it did. All testing uses Docker: run them only on the local Docker
+Run `npm test` (Node's built-in test runner). Tests sit next to the code as `*.test.ts` in `src/`. A test can import only `.ts` files whose own imports are `.ts` (no `.tsx`, no JSON) or packages; `@/` means `src/`. Node only strips the types, so those files can't use TypeScript-only code like `constructor(readonly x: …)` or `enum` (e.g. `SaveRefusedError` writes its fields out). SQL tests are in `supabase/tests/`; each rolls back what it did. All testing uses Docker: run them only on the local Docker
 database, never the live one: `npm run test:sql` resets it (replays every migration) and runs every SQL test
 (`npm run test:sql -- <file>.sql` runs only that one). By hand: `npx -y supabase@latest db reset`, then
 `docker exec -i supabase_db_quizBuilder psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/<file>.sql`. A file's
