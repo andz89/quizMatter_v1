@@ -40,10 +40,14 @@ notes.
   while fullscreen, and on close marks the part closed in the tab and (`once` / `daily`) calls
   `dismiss_announcement`.
 - `AnnouncementView.tsx`: how an announcement looks (root `CLAUDE.md`, "Announcements"), for teachers and the admin's
-  preview. `AnnouncementModal` (the `Modal` with no title row, `hideHeader`, at the chosen width, `MODAL_SIZES`, no padding (`noPadding`); "You can close this in N…" until its close
-  delay ends, then a Close button, Escape and a click outside close it) and `AnnouncementBar` (a violet strip with a megaphone; ✕ after the countdown; `isFloating` = a card,
-  which the parent places at the bottom). The text goes through `toSafeAnnouncementHtml` in the browser; links into
-  the app move with `router.push`, others open in a new tab.
+  preview. `AnnouncementModal`, like a post: the `Modal` with no title row (`hideHeader`), at the chosen width
+  (`MODAL_SIZES`), no padding (`noPadding`); the plain text with padding (`LinkifiedText`), then
+  `AnnouncementAttachment` edge to edge (our photo, or a YouTube card: our copy of the thumbnail in a 16:9 box with a
+  play icon, then the title; opens YouTube in a new tab; or a Facebook post / video in Facebook's own sandboxed frame:
+  a video 16:9 edge to edge, a post 350–500 px wide and 500 px tall, centered); "You can close this in N…" until its close delay ends,
+  then a Close button, Escape and a click outside close it. `AnnouncementBar`: a violet strip with a megaphone; ✕
+  after the countdown; `isFloating` = a card, which the parent places at the bottom. The bar's text goes through
+  `toSafeAnnouncementHtml` in the browser; links into the app move with `router.push`, others open in a new tab.
 - `Turnstile.tsx`: Cloudflare's "are you human" check on sign up (with its own retries).
 - `PeopleArtGate.tsx`: holds back a presentation until the big people drawings have downloaded
   (`src/lib/peopleArt.ts`).

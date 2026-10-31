@@ -52,7 +52,7 @@ select set_config('quizmatter.sharing', '', true);
 create function pg_temp.ann(extra jsonb) returns jsonb language sql as $$
   select '{
     "name": "Test", "is_on": true, "starts_at": null, "ends_at": null,
-    "show_modal": true, "modal_html": "<p>Hello</p>", "modal_close_after": 0,
+    "show_modal": true, "modal_text": "Hello", "modal_close_after": 0,
     "show_bar": false, "bar_html": "", "bar_close_after": 0,
     "repeat": "once", "pages": ["all"],
     "genders": [], "age_min": null, "age_max": null, "provinces": [], "town_words": [],
@@ -230,7 +230,7 @@ begin
   end if;
   perform pg_temp.save(pg_temp.ann('{"name": "Main"}') || jsonb_build_object('id', a));
   key_before := pg_temp.key();
-  perform pg_temp.save(pg_temp.ann('{"name": "Main", "modal_html": "<p>Changed</p>"}') || jsonb_build_object('id', a));
+  perform pg_temp.save(pg_temp.ann('{"name": "Main", "modal_text": "Changed"}') || jsonb_build_object('id', a));
   if pg_temp.key() is null or pg_temp.key() = key_before then
     raise exception 'FAIL: the key did not change after an edit';
   end if;
@@ -388,6 +388,8 @@ begin
   off := pg_temp.save(pg_temp.ann('{"name": "Off", "is_on": false}'));
 
   perform set_config('request.jwt.claims', json_build_object('sub', a1, 'role', 'authenticated')::text, true);
+  -- Saving doesn't count (20261224000000_announcement_fast_counts.sql); the app asks for it next, like this.
+  perform public.recount_announcement(main_id);
   for r in select * from public.admin_announcements() loop
     if r.id = main_id and (r.status <> 'live'
       or r.matched <> (select accounts from before_test) + 5 or r.closed_modal <> 1 or r.closed_bar <> 0) then
@@ -421,11 +423,11 @@ begin
 end;
 $$;
 
--- ─── 12. Modal images count as used photos ────────────────────────────────────────────────────────────────────
+-- ─── 12. A modal picture counts as a used photo ─────────────────────────────────────────────────────────────────────
 do $$
 begin
   perform pg_temp.save(pg_temp.ann('{"name": "Picture"}') || jsonb_build_object(
-    'modal_html', '<p><img src="https://images.quizmatter.com/uploads/abc.webp"></p>'));
+    'modal_attachment', '{"kind": "photo", "src": "https://images.quizmatter.com/uploads/abc.webp", "width": 800, "height": 600}'::jsonb));
 end;
 $$;
 

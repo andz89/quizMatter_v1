@@ -312,3 +312,27 @@ Claude's drafts and photo tickets are NOT here: they live in Cloudflare D1 (`d1/
   `cleanup_announcement_dismissals()` (service role, the daily timer): for one that ended over 30 days ago, keeps
   the closed counts, deletes its dismissal rows and sets `closed_cleared_at` (a later Count again keeps those
   closed numbers; saving it with a later end clears the mark, and its closes start over).
+- Announcement fast counts: `20261224000000_announcement_fast_counts.sql` (tests
+  `supabase/tests/announcement_fast_counts.sql`, `announcement_counts.sql`). `announcement_count(a)` (not granted)
+  counts every matching account in one query: a second copy of `announcement_matches`'s rule, since Postgres won't
+  merge a function rule into a query this size (one account at a time took ~5 s per 100,000; the logged-in role
+  stops at 8 s). Change both together; the test checks they agree on 21 filter sets. Newest `announcement_audience`
+  and `count_announcement` use it. Newest `save_announcement` doesn't count (the app calls `recount_announcement`
+  next). `cleanup_announcement_dismissals(batch_size default 50000)` replaces the one without a size: it first keeps
+  the closed counts of each announcement newly 30 days past its end, then deletes at most `batch_size` of the rows
+  of those announcements and returns how many.
+- Announcement as a post: `20261225000000_announcement_post.sql` (test `supabase/tests/announcement_post.sql`; spec
+  `docs/superpowers/specs/2026-10-31-announcement-post-design.md`). `announcements.modal_text` (≤ 5,000) and
+  `modal_attachment` (jsonb: null, `{kind: "photo", src, width?, height?}` or `{kind: "youtube", video_id, title,
+  src, width?, height?}`; `announcement_attachment_ok`: `src` only our R2 address, sizes 1–1920, an 11-character
+  video id, a title ≤ 200, no other keys) replace `modal_html` (dropped, with its checks; existing rows converted by
+  `announcement_text_from_html` / `announcement_attachment_from_html`, kept for the test; a shown modal left empty
+  gets its name as text). A shown modal needs text or an attachment (`announcements_modal_has_content`). Newest
+  `save_announcement`, `admin_announcements` and `my_announcements` (the two fields instead of `modal_html`) and
+  `used_photo_srcs` (the attachment's `src` instead of the `<img>` tags).
+- Announcement Facebook posts: `20261226000000_announcement_facebook.sql` (test
+  `supabase/tests/announcement_facebook.sql`). Newest `announcement_attachment_ok` also takes `{kind: "facebook",
+  href, video}` (href https on facebook.com / www. / m. / web. or fb.watch, ≤ 500, no spaces, quotes or < >; video a
+  boolean; no other keys), and turns a missing key into "no" (`coalesce(…, false)`; the `20261225` version let a
+  YouTube card without a title through, since a check passes SQL's "unknown"). `announcement_picture_ok` (not granted)
+  checks a photo's or YouTube card's picture. Newest `used_photo_srcs` takes only attachments with a `src`.

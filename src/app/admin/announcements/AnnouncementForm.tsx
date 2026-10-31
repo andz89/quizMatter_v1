@@ -21,6 +21,7 @@ import { PROVINCES } from "@/lib/provinces";
 import { EDUCATION_LEVELS, EDUCATION_LEVEL_LABELS, GENDERS, GENDER_LABELS } from "@/lib/userSettings";
 import { countAudience, saveAnnouncement } from "./actions";
 import { AnnouncementTextEditor } from "./AnnouncementTextEditor";
+import { ModalPostEditor } from "./ModalPostEditor";
 
 const labelClass = "mb-1 block text-[11px] font-bold tracking-[0.05em] text-text-header uppercase";
 const inputClass =
@@ -34,7 +35,8 @@ const NEW_ANNOUNCEMENT: AnnouncementInput = {
   starts_at: null,
   ends_at: null,
   show_modal: true,
-  modal_html: "",
+  modal_text: "",
+  modal_attachment: null,
   modal_close_after: 3,
   show_bar: false,
   bar_html: "",
@@ -132,15 +134,16 @@ export function AnnouncementForm({ initial = NEW_ANNOUNCEMENT }: { initial?: Ann
     startSaving(async () => {
       const result = await saveAnnouncement(parsed.data);
       if ("error" in result) return void toast.error(result.error);
-      toast.success("Announcement saved.");
+      if (result.countFailed) toast.warning("Saved, but the teachers couldn't be counted yet. Use Count again in the list.");
+      else toast.success("Announcement saved.");
       router.push("/admin/announcements");
     });
   };
 
   const showPreview = () => {
-    const modal = form.show_modal && form.modal_html !== "";
+    const modal = form.show_modal && (form.modal_text.trim() !== "" || form.modal_attachment !== null);
     const bar = form.show_bar && form.bar_html !== "";
-    if (!modal && !bar) return toast.error("Write the modal's or the bar's text first.");
+    if (!modal && !bar) return toast.error("Write the modal or the bar first.");
     setPreview({ key: Date.now(), modal, bar });
   };
 
@@ -217,11 +220,12 @@ export function AnnouncementForm({ initial = NEW_ANNOUNCEMENT }: { initial?: Ann
                 ))}
               </div>
             </div>
-            <AnnouncementTextEditor
-              part="modal"
-              value={form.modal_html}
-              width={MODAL_SIZES.find((size) => size.key === form.modal_size)?.width}
-              onChange={(html) => set("modal_html", html)}
+            <ModalPostEditor
+              text={form.modal_text}
+              attachment={form.modal_attachment}
+              width={MODAL_SIZES.find((size) => size.key === form.modal_size)?.width ?? MODAL_SIZES[2].width}
+              onText={(text) => set("modal_text", text)}
+              onAttachment={(attachment) => set("modal_attachment", attachment)}
             />
             <CloseAfter value={form.modal_close_after} onChange={(n) => set("modal_close_after", n)} />
           </div>
@@ -235,7 +239,7 @@ export function AnnouncementForm({ initial = NEW_ANNOUNCEMENT }: { initial?: Ann
         </label>
         {form.show_bar && (
           <div className="mt-3 flex flex-col gap-3">
-            <AnnouncementTextEditor part="bar" value={form.bar_html} onChange={(html) => set("bar_html", html)} />
+            <AnnouncementTextEditor value={form.bar_html} onChange={(html) => set("bar_html", html)} />
             <CloseAfter value={form.bar_close_after} onChange={(n) => set("bar_close_after", n)} />
           </div>
         )}
@@ -434,7 +438,8 @@ export function AnnouncementForm({ initial = NEW_ANNOUNCEMENT }: { initial?: Ann
       {preview?.modal && (
         <AnnouncementModal
           key={preview.key}
-          html={form.modal_html}
+          text={form.modal_text}
+          attachment={form.modal_attachment}
           closeAfter={form.modal_close_after}
           size={form.modal_size}
           onClose={() => setPreview((p) => (p && p.bar ? { ...p, modal: false } : null))}

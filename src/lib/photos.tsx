@@ -16,6 +16,8 @@ import {
   type SharedPhotoWithInfo,
 } from "./schema";
 import { contains } from "./search";
+import { modalAttachmentSchema, type ModalAttachment } from "./announcements";
+import { MAX_GIF_BYTES } from "./photoTypes";
 import { useEditorStore } from "./store";
 import { createClient } from "./supabase/client";
 import { PHOTO_ID } from "./svgLibrary";
@@ -122,10 +124,10 @@ async function sendPhoto(shrunk: ShrunkPhoto, shared?: { categoryId: string; sou
 
 /**
  * Shrinks and uploads a picture for an announcement's modal (super admin; app/api/announcement-image) and returns
- * its src. A GIF is sent as it is (redrawing it would stop it moving), if it's small enough. Throws an Error whose
+ * it as the modal's attachment. A GIF is sent as it is (redrawing it would stop it moving), if it's small enough. Throws an Error whose
  * message can be shown as it is.
  */
-export async function uploadAnnouncementPhoto(file: Blob): Promise<string> {
+export async function uploadAnnouncementPhoto(file: Blob): Promise<ModalAttachment> {
   try {
     const shrunk = file.type === "image/gif" ? await readGif(file) : await shrinkPhoto(file);
     const params = new URLSearchParams({ width: String(shrunk.width), height: String(shrunk.height) });
@@ -135,19 +137,39 @@ export async function uploadAnnouncementPhoto(file: Blob): Promise<string> {
       headers: { "Content-Type": shrunk.blob.type },
     });
     const result = await response.json().catch(() => null);
-    if (!response.ok || typeof result?.src !== "string") {
-      throw new PhotoError(result?.error ?? "Couldn't upload the photo. Please try again.");
-    }
-    return result.src;
+    const photo = modalAttachmentSchema.safeParse({ kind: "photo", src: result?.src, width: shrunk.width, height: shrunk.height });
+    if (!response.ok || !photo.success) throw new PhotoError(result?.error ?? "Couldn't upload the photo. Please try again.");
+    return photo.data;
   } catch (error) {
     if (error instanceof PhotoError) throw error;
     throw new PhotoError("Couldn't upload the photo. Please try again.");
   }
 }
 
-/** A GIF as it is, with its size, if it fits what the server stores (2 MB, PHOTO_MAX_SIDE). */
+/**
+ * A YouTube card for an announcement's modal from a pasted link (super admin; app/api/announcement-youtube copies
+ * its thumbnail into our storage). Throws an Error whose message can be shown as it is.
+ */
+export async function fetchYouTubeCard(link: string): Promise<ModalAttachment> {
+  try {
+    const response = await fetch("/api/announcement-youtube", {
+      method: "POST",
+      body: JSON.stringify({ url: link }),
+      headers: { "Content-Type": "application/json" },
+    });
+    const result = await response.json().catch(() => null);
+    const card = modalAttachmentSchema.safeParse(result);
+    if (!response.ok || !card.success) throw new PhotoError(result?.error ?? "Couldn't add the video. Please try again.");
+    return card.data;
+  } catch (error) {
+    if (error instanceof PhotoError) throw error;
+    throw new PhotoError("Couldn't add the video. Please try again.");
+  }
+}
+
+/** A GIF as it is, with its size, if it fits what the server takes (MAX_GIF_BYTES, PHOTO_MAX_SIDE). */
 async function readGif(file: Blob): Promise<ShrunkPhoto> {
-  if (file.size > MAX_STORED_PHOTO_BYTES) throw new PhotoError("This GIF is too big (2 MB at most). Try a smaller one.");
+  if (file.size > MAX_GIF_BYTES) throw new PhotoError("This GIF is too big (1 MB at most). Try a smaller one.");
   const bitmap = await createImageBitmap(file).catch(() => {
     throw new PhotoError("This file couldn't be opened as a GIF.");
   });

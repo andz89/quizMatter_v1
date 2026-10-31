@@ -9,7 +9,7 @@ import { createClient } from "@supabase/supabase-js";
 // and deletes the safety records older than a year: click_history (Admin → Safety → History) and admin_actions (the
 // Admin log). Both keep teachers' emails, and the Privacy Policy promises a year.
 // And it deletes who closed an announcement once it ended more than 30 days ago (cleanup_announcement_dismissals,
-// 20261223000000_announcement_counts.sql: the closed numbers are kept on the announcement first).
+// 20261224000000_announcement_fast_counts.sql: the closed numbers are kept on the announcement first), in rounds.
 
 type CleanupEnv = {
   SUPABASE_URL: string;
@@ -26,6 +26,10 @@ const KEEP_SIGN_UP_ATTEMPTS_MS = 24 * 60 * 60 * 1000;
 export const KEEP_SAFETY_RECORDS_DAYS = 365;
 const KEEP_SAFETY_RECORDS_MS = KEEP_SAFETY_RECORDS_DAYS * 24 * 60 * 60 * 1000;
 const PAGE_SIZE = 1000;
+// Who closed an announcement that ended over 30 days ago: deleted this many rows per call, at most this many calls
+// a day (1 million rows).
+const ANNOUNCEMENT_CLEANUP_BATCH = 50_000;
+const ANNOUNCEMENT_CLEANUP_ROUNDS = 20;
 
 export async function cleanupUnconfirmedAccounts(env: CleanupEnv) {
   const supabase = createClient(env.SUPABASE_URL, env.SUPABASE_SECRET_KEY, { auth: { persistSession: false } });
@@ -65,7 +69,15 @@ export async function cleanupUnconfirmedAccounts(env: CleanupEnv) {
   const { error: logError } = await supabase.from("admin_actions").delete().lt("created_at", safetyCutoff);
   if (logError) throw logError;
 
-  const { data: cleaned, error: announcementError } = await supabase.rpc("cleanup_announcement_dismissals");
-  if (announcementError) throw announcementError;
-  console.log(`Announcement cleanup: cleared who closed ${cleaned} ended announcements.`);
+  // In rounds, so one announcement closed by a million teachers isn't one huge delete. What's left waits a day.
+  let deleted = 0;
+  for (let round = 0; round < ANNOUNCEMENT_CLEANUP_ROUNDS; round++) {
+    const { data, error: announcementError } = await supabase.rpc("cleanup_announcement_dismissals", {
+      batch_size: ANNOUNCEMENT_CLEANUP_BATCH,
+    });
+    if (announcementError) throw announcementError;
+    deleted += data as number;
+    if ((data as number) < ANNOUNCEMENT_CLEANUP_BATCH) break;
+  }
+  console.log(`Announcement cleanup: deleted ${deleted} rows of who closed ended announcements.`);
 }

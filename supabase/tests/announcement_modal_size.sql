@@ -14,7 +14,7 @@ insert into public.admins (user_id, is_super) values ('00000000-0000-4000-8000-0
 create function pg_temp.ann(extra jsonb) returns jsonb language sql as $$
   select '{
     "name": "Size test", "is_on": true, "starts_at": null, "ends_at": null,
-    "show_modal": true, "modal_html": "<p>Hello</p>", "modal_close_after": 0,
+    "show_modal": true, "modal_text": "Hello", "modal_close_after": 0,
     "show_bar": false, "bar_html": "", "bar_close_after": 0,
     "repeat": "once", "pages": ["all"],
     "genders": [], "age_min": null, "age_max": null, "provinces": [], "town_words": [],

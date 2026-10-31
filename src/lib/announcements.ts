@@ -1,6 +1,9 @@
 import { z } from "zod";
+import { PHOTO_MAX_SIDE, PHOTO_URL_PREFIX } from "./constants";
+import { facebookLink } from "./facebook";
 import { PROVINCES } from "./provinces";
 import type { EducationLevel } from "./userSettings";
+import { YOUTUBE_ID } from "./youtube";
 
 // Announcements: the super admin shows a modal and/or a top bar to chosen teachers.
 // Design: docs/superpowers/specs/2026-10-30-announcements-design.md. Database: 20261221000000_announcements.sql.
@@ -54,10 +57,7 @@ export const ROLE_LABELS: Record<(typeof ANNOUNCEMENT_ROLES)[number], string> = 
 
 export type AnnouncementPart = "modal" | "bar";
 
-/**
- * The modal's widths, in px. The height always fits the text. Large is the normal modal (Modal's max-w-2xl). The
- * admin form's text box takes the same width, so a picture's size there is its size for teachers.
- */
+/** The modal's widths, in px. The height always fits its text and attachment. Large is the normal modal (Modal's max-w-2xl). */
 export const MODAL_SIZES = [
   { key: "small", label: "Small (300 wide)", width: 300 },
   { key: "medium", label: "Medium (500 wide)", width: 500 },
@@ -66,18 +66,10 @@ export const MODAL_SIZES = [
 export type ModalSize = (typeof MODAL_SIZES)[number]["key"];
 const MODAL_SIZE_KEYS = MODAL_SIZES.map((size) => size.key) as [ModalSize, ...ModalSize[]];
 
-/**
- * A picture's "Full width" size: as wide as the widest modal, keeping its shape. A picture is never wider than its
- * modal (max-width 100%), so it fills every size, also after the size is changed.
- */
-export function fullWidthSize(width: number, height: number): { width: number; height: number } {
-  const full = MODAL_SIZES[MODAL_SIZES.length - 1].width;
-  return { width: full, height: Math.round((height * full) / width) };
-}
-
 export const ANNOUNCEMENT_LIMITS = {
   name: 100,
-  modalHtml: 20_000,
+  modalText: 5_000,
+  videoTitle: 200,
   barHtml: 1_000,
   closeAfter: 60,
   ageMin: 18,
@@ -102,6 +94,33 @@ const count = z.number().int().min(0).max(L.presentationsMax).nullable();
 const time = z.iso.datetime({ offset: true }).nullable();
 
 // Every key the database's save_announcement reads (a missing key counts as empty there and is refused).
+// The modal's one attachment, under its text (spec docs/superpowers/specs/2026-10-31-announcement-post-design.md):
+// one of our photos, a YouTube card whose thumbnail is our own copy, or a Facebook post / video (only its link; shown
+// with Facebook's own player). Same rules as announcement_attachment_ok in 20261226000000_announcement_facebook.sql
+// (src our R2 address; sizes 1–1920; a Facebook link as facebookLink gives it; only these keys).
+const ourPhoto = z
+  .string()
+  .max(300)
+  .refine((src) => src.startsWith(PHOTO_URL_PREFIX) && !/[\s"'<>]/.test(src), "Only our own photos.");
+const side = z.number().int().min(1).max(PHOTO_MAX_SIDE).optional();
+export const modalAttachmentSchema = z.discriminatedUnion("kind", [
+  z.strictObject({ kind: z.literal("photo"), src: ourPhoto, width: side, height: side }),
+  z.strictObject({
+    kind: z.literal("youtube"),
+    video_id: z.string().regex(YOUTUBE_ID),
+    title: z.string().max(L.videoTitle),
+    src: ourPhoto,
+    width: side,
+    height: side,
+  }),
+  z.strictObject({
+    kind: z.literal("facebook"),
+    href: z.string().refine((href) => facebookLink(href)?.href === href, "Only a Facebook post or video link."),
+    video: z.boolean(),
+  }),
+]);
+export type ModalAttachment = z.infer<typeof modalAttachmentSchema>;
+
 export const announcementSchema = z
   .object({
     id: z.uuid().nullable(),
@@ -110,7 +129,8 @@ export const announcementSchema = z
     starts_at: time,
     ends_at: time,
     show_modal: z.boolean(),
-    modal_html: z.string().max(L.modalHtml),
+    modal_text: z.string().max(L.modalText),
+    modal_attachment: modalAttachmentSchema.nullable(),
     modal_close_after: z.number().int().min(0).max(L.closeAfter),
     show_bar: z.boolean(),
     bar_html: z.string().max(L.barHtml),
@@ -130,7 +150,10 @@ export const announcementSchema = z
     modal_size: z.enum(MODAL_SIZE_KEYS),
   })
   .refine((a) => a.show_modal || a.show_bar, { message: "Turn on the modal or the bar.", path: ["show_modal"] })
-  .refine((a) => !a.show_modal || a.modal_html.trim() !== "", { message: "The modal needs text.", path: ["modal_html"] })
+  .refine((a) => !a.show_modal || a.modal_text.trim() !== "" || a.modal_attachment !== null, {
+    message: "The modal needs text, a picture or a YouTube video.",
+    path: ["modal_text"],
+  })
   .refine((a) => !a.show_bar || a.bar_html.trim() !== "", { message: "The bar needs text.", path: ["bar_html"] })
   .refine((a) => a.age_min === null || a.age_max === null || a.age_min <= a.age_max, {
     message: "The youngest age can't be above the oldest.",
@@ -146,11 +169,13 @@ export const announcementSchema = z
   });
 export type AnnouncementInput = z.infer<typeof announcementSchema>;
 
-// One row of my_announcements(). A closed part comes back with show_* false and no text.
+// One row of my_announcements(). A closed part comes back with show_* false and no text. A row kept in a tab from
+// before the post fields has none: no text, no attachment.
 export const myAnnouncementSchema = z.object({
   id: z.string(),
   show_modal: z.boolean(),
-  modal_html: z.string(),
+  modal_text: z.string().catch(""),
+  modal_attachment: modalAttachmentSchema.nullable().catch(null),
   modal_close_after: z.number(),
   show_bar: z.boolean(),
   bar_html: z.string(),

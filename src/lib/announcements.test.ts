@@ -2,7 +2,6 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   MODAL_SIZES,
-  fullWidthSize,
   announcementSchema,
   isSameVisit,
   manilaDay,
@@ -34,7 +33,8 @@ const valid = {
   starts_at: null,
   ends_at: null,
   show_modal: true,
-  modal_html: "<p>Hi</p>",
+  modal_text: "Hi",
+  modal_attachment: null,
   modal_close_after: 0,
   show_bar: false,
   bar_html: "",
@@ -54,8 +54,31 @@ const valid = {
   modal_size: "large",
 };
 
+const PHOTO = "https://images.quizmatter.com/uploads/";
+
 test("announcementSchema accepts a valid input", () => {
   assert.equal(announcementSchema.safeParse(valid).success, true);
+});
+
+test("announcementSchema takes a picture, a YouTube card or a Facebook post, with or without text", () => {
+  for (const change of [
+    { modal_text: "", modal_attachment: { kind: "photo", src: `${PHOTO}a.webp`, width: 800, height: 600 } },
+    { modal_attachment: { kind: "photo", src: `${PHOTO}a.webp` } },
+    {
+      modal_attachment: {
+        kind: "youtube",
+        video_id: "dQw4w9WgXcQ",
+        title: "A song",
+        src: `${PHOTO}t.jpg`,
+        width: 1280,
+        height: 720,
+      },
+    },
+    { modal_attachment: { kind: "facebook", href: "https://www.facebook.com/DepEd/posts/1", video: false } },
+    { modal_attachment: { kind: "facebook", href: "https://fb.watch/abcDEF123/", video: true } },
+  ]) {
+    assert.equal(announcementSchema.safeParse({ ...valid, ...change }).success, true, JSON.stringify(change));
+  }
 });
 
 test("announcementSchema refuses bad input", () => {
@@ -69,6 +92,19 @@ test("announcementSchema refuses bad input", () => {
     { field_words: ["x".repeat(61)] },
     { show_modal: false, show_bar: false },
     { show_bar: true, bar_html: "" },
+    { modal_text: "x".repeat(5001) },
+    { modal_text: "  ", modal_attachment: null },
+    { modal_attachment: { kind: "photo", src: "https://evil.example/a.png" } },
+    { modal_attachment: { kind: "photo", src: `${PHOTO}a.webp`, width: 0 } },
+    { modal_attachment: { kind: "photo", src: `${PHOTO}a.webp`, onerror: "alert(1)" } },
+    { modal_attachment: { kind: "youtube", video_id: "bad id", title: "x", src: `${PHOTO}t.jpg` } },
+    { modal_attachment: { kind: "youtube", video_id: "dQw4w9WgXcQ", title: "t".repeat(201), src: `${PHOTO}t.jpg` } },
+    { modal_attachment: { kind: "youtube", video_id: "dQw4w9WgXcQ", title: "x", src: "https://i.ytimg.com/vi/x/hq.jpg" } },
+    { modal_attachment: { kind: "iframe", src: `${PHOTO}a.webp` } },
+    { modal_attachment: { kind: "facebook", href: "https://evil.example/facebook.com/posts/1", video: false } },
+    { modal_attachment: { kind: "facebook", href: "https://www.facebook.com/DepEd", video: false } },
+    { modal_attachment: { kind: "facebook", href: "https://www.facebook.com/DepEd/posts/1" } },
+    { modal_attachment: { kind: "facebook", href: "https://www.facebook.com/watch/?v=1", video: true, src: `${PHOTO}a.webp` } },
     { starts_at: "2026-11-02T00:00:00Z", ends_at: "2026-11-01T00:00:00Z" },
     { pages: [] },
   ];
@@ -81,7 +117,8 @@ function row(id: string, createdAt: string, change: Partial<MyAnnouncement> = {}
   return {
     id,
     show_modal: true,
-    modal_html: "m",
+    modal_text: "m",
+    modal_attachment: null,
     modal_close_after: 0,
     show_bar: true,
     bar_html: "b",
@@ -147,10 +184,4 @@ test("a my_announcements row without a size (saved before sizes) is large", () =
   const { modal_size, ...old } = row("a", "2026-01-01T00:00:00Z");
   void modal_size;
   assert.equal(myAnnouncementSchema.parse(old).modal_size, "large");
-});
-
-test("fullWidthSize makes a picture as wide as the widest modal, keeping its shape", () => {
-  assert.deepEqual(fullWidthSize(400, 300), { width: 672, height: 504 });
-  assert.deepEqual(fullWidthSize(1000, 333), { width: 672, height: 224 });
-  assert.deepEqual(fullWidthSize(672, 100), { width: 672, height: 100 });
 });

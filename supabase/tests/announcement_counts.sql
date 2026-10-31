@@ -1,5 +1,6 @@
 -- Announcement counts kept on the row, and the cleanup of old "closed" rows
--- (supabase/migrations/20261223000000_announcement_counts.sql).
+-- (supabase/migrations/20261223000000_announcement_counts.sql; saving without counting and the cleanup in batches:
+-- 20261224000000_announcement_fast_counts.sql).
 -- Run on a local database with every migration applied:
 --   psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/announcement_counts.sql
 -- Passes when it ends without an error. Everything is rolled back.
@@ -23,7 +24,7 @@ create temp table accounts_now as
 create function pg_temp.ann(extra jsonb) returns jsonb language sql as $$
   select '{
     "name": "Count test", "is_on": true, "starts_at": null, "ends_at": null,
-    "show_modal": true, "modal_html": "<p>Hello</p>", "modal_close_after": 0,
+    "show_modal": true, "modal_text": "Hello", "modal_close_after": 0,
     "show_bar": true, "bar_html": "<p>Bar</p>", "bar_close_after": 0,
     "repeat": "once", "pages": ["all"], "modal_size": "large",
     "genders": [], "age_min": null, "age_max": null, "provinces": [], "town_words": [],
@@ -52,7 +53,7 @@ create temp table ids (name text primary key, id uuid);
 grant all on ids to authenticated;
 set local role authenticated;
 
--- ─── 1. A save counts the matches; closing doesn't change the saved numbers until "Count again" ──────────────
+-- ─── 1. A save doesn't count; "Count again" does; closing doesn't change the numbers until the next count ───
 do $$
 declare
   s1 constant uuid := '00000000-0000-4000-8000-0000000000d1';
@@ -68,10 +69,18 @@ begin
   live_id := public.save_announcement(pg_temp.ann('{}'));
   insert into ids values ('live', live_id);
 
+  select r.matched, r.counted_at into matched, counted_at
+  from pg_temp.row_of(live_id) as r(matched int, closed_modal int, closed_bar int, counted_at timestamptz);
+  if matched is not null or counted_at is not null then
+    raise exception 'FAIL: the save counted (matched %, counted at %); the app counts in a separate step', matched, counted_at;
+  end if;
+
+  perform pg_temp.act_as(s1);
+  perform public.recount_announcement(live_id);
   select r.matched, r.closed_modal, r.closed_bar, r.counted_at into matched, closed_modal, closed_bar, counted_at
   from pg_temp.row_of(live_id) as r(matched int, closed_modal int, closed_bar int, counted_at timestamptz);
   if matched is distinct from (select n from accounts_now) or closed_modal <> 0 or counted_at is null then
-    raise exception 'FAIL: after a save: matched %, closed %, counted at %', matched, closed_modal, counted_at;
+    raise exception 'FAIL: after Count again: matched %, closed %, counted at %', matched, closed_modal, counted_at;
   end if;
 
   perform pg_temp.act_as(t1);
@@ -118,7 +127,7 @@ begin
 
   was_refused := false;
   begin
-    perform public.cleanup_announcement_dismissals();
+    perform public.cleanup_announcement_dismissals(50000);
   exception when others then
     was_refused := true;
   end;
@@ -145,7 +154,7 @@ begin
 end;
 $$;
 
--- ─── 4. The cleanup: ended over 30 days ago → counts kept, rows deleted; ended 10 days ago → untouched ────────
+-- ─── 4. The cleanup, in batches: ended over 30 days ago → counts kept, rows deleted; ended 10 days ago → kept ─
 reset role;
 do $$
 declare
@@ -153,8 +162,8 @@ declare
   recent_id uuid := gen_random_uuid();
 begin
   -- A second announcement that ended 10 days ago, with one close (written straight in, as postgres).
-  insert into public.announcements (id, name, is_on, ends_at, show_modal, modal_html, created_by)
-  values (recent_id, 'Recent', true, now() - interval '10 days', true, '<p>Hi</p>',
+  insert into public.announcements (id, name, is_on, ends_at, show_modal, modal_text, created_by)
+  values (recent_id, 'Recent', true, now() - interval '10 days', true, 'Hi',
     '00000000-0000-4000-8000-0000000000d1');
   insert into public.announcement_dismissals (announcement_id, user_id, part)
   values (recent_id, '00000000-0000-4000-8000-0000000000d3', 'modal');
@@ -164,9 +173,23 @@ begin
 end;
 $$;
 
+-- Batches of 1 row: 3 rows take 3 rounds, and the 4th deletes nothing. The counts are kept from the first round.
+create temp table rounds (round int, deleted int);
+grant all on rounds to service_role;
 set local role service_role;
-select public.cleanup_announcement_dismissals();
+insert into rounds select 1, public.cleanup_announcement_dismissals(1);
+insert into rounds select 2, public.cleanup_announcement_dismissals(1);
+insert into rounds select 3, public.cleanup_announcement_dismissals(1);
+insert into rounds select 4, public.cleanup_announcement_dismissals(1);
 reset role;
+
+do $$
+begin
+  if (select array_agg(deleted order by round) from rounds) <> array[1, 1, 1, 0] then
+    raise exception 'FAIL: the cleanup rounds deleted % (want 1, 1, 1, 0)', (select array_agg(deleted order by round) from rounds);
+  end if;
+end;
+$$;
 
 do $$
 declare

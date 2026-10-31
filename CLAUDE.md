@@ -283,17 +283,35 @@ The super admin shows a message to chosen teachers on chosen pages (Admin → An
   `MODAL_SIZES`). Older rows and older app tabs count as `large` (`20261222000000_announcement_modal_size.sql`,
   test `supabase/tests/announcement_modal_size.sql`). The admin's text box takes the same width.
 - **Counts are kept, not live** (`20261223000000_announcement_counts.sql`, test
-  `supabase/tests/announcement_counts.sql`): matching runs over every account, so it's slow with many teachers. The
-  list reads `matched_count` / `closed_*_count` / `counted_at`, filled on save and by "Count again"
-  (`recount_announcement`); the form counts only on "Count teachers". Never count on page load or while typing.
-- **Old "closed" rows are deleted:** the daily timer's `cleanup_announcement_dismissals` keeps an announcement's
-  closed counts and deletes its `announcement_dismissals` rows 30 days after it ends (the Privacy Policy says so).
-  `dismiss_announcement` writes only for a live one.
+  `supabase/tests/announcement_counts.sql`). The list reads `matched_count` / `closed_*_count` / `counted_at`,
+  filled by "Count again" (`recount_announcement`), which the app also calls right after each save as a separate
+  step (`save_announcement` doesn't count, so a failed count can't undo a save); the form counts only on "Count
+  teachers". Never count on page load or while typing.
+- **Counting is one query** (`announcement_count`, `20261224000000_announcement_fast_counts.sql`): about 0.2 s
+  per 100,000 accounts at worst, against the logged-in role's 8-second limit (checking one account at a time took
+  ~5 s per 100,000). It's a second copy of the matching rule (`announcement_matches` checks one teacher): change
+  both together; `supabase/tests/announcement_fast_counts.sql` checks they agree.
+- **Old "closed" rows are deleted:** the daily timer's `cleanup_announcement_dismissals(batch_size)` keeps an
+  announcement's closed counts and deletes its `announcement_dismissals` rows 30 days after it ends, 50,000 a call,
+  up to 20 calls a day (the Privacy Policy says so). `dismiss_announcement` writes only for a live one.
 - **Hidden while presenting fullscreen** (`document.fullscreenElement`); a waiting modal shows after. On the editor
   page the bars float at the bottom.
-- **Safe text:** saved HTML is re-built through the editor's extensions (`toSafeAnnouncementHtml`,
-  `src/lib/announcementText.ts`); only our R2 photos and `http(s)://` or in-app links survive. Modal pictures upload
-  through `/api/announcement-image` and are kept by the photo cleanup (`used_photo_srcs` reads `modal_html`).
+- **The modal is a post** (`20261225000000_announcement_post.sql`, spec
+  `docs/superpowers/specs/2026-10-31-announcement-post-design.md`, test `supabase/tests/announcement_post.sql`):
+  plain text (`modal_text`, padding, links clickable) and at most one attachment (`modal_attachment`, edge to edge):
+  one of our photos / GIFs (`/api/announcement-image`) or a YouTube card. Pasting a YouTube link makes the card:
+  `/api/announcement-youtube` gets the title and **copies the thumbnail into R2**, so teachers never contact YouTube
+  unless they click (it opens in a new tab), the picture can't change behind the admin's back, and no Privacy Policy
+  line is needed. Every attachment `src` must be our R2 address (`announcement_attachment_ok` / `modalAttachmentSchema`);
+  `used_photo_srcs` keeps them.
+- **Facebook posts and videos** (`20261226000000_announcement_facebook.sql`, test
+  `supabase/tests/announcement_facebook.sql`, `src/lib/facebook.ts`): Facebook gives other sites no preview, so a
+  pasted Facebook link is shown with **Facebook's own embedded player / post box** (a sandboxed frame; the app builds
+  its address from the checked link). Only `{kind: "facebook", href, video}` is saved. Every teacher who sees one
+  loads it from Facebook, so the Privacy Policy names Facebook (Meta); keep that true. The attachment check turns a
+  missing key into "no" (`coalesce(…, false)`): a check lets SQL's "unknown" through.
+- **Safe text:** the modal is plain text (no HTML). The bar's saved HTML is re-built through its editor's extensions
+  (`toSafeAnnouncementHtml`, `src/lib/announcementText.ts`); only `http(s)://` or in-app links survive.
 - **Privacy:** what's used to choose them, and the closed records, are in the Privacy Policy. A new filter on another
   detail updates it too.
 
@@ -393,8 +411,6 @@ Bright, rounded and friendly for kids, but clean enough to feel credible to teac
 - Row height: 48–56px
 - Gap between sections: 16–20px
 - Icon-to-label gap: 8–12px
-- Resize handles (an announcement's modal pictures): small violet squares with a white border in the picture's
-  corners (`.announcement-editor` in `globals.css`).
 - Editor side panels (Elements, Photos, Presentations, …): the `side-panel` class (all 320px wide; 20px padding, 8px on the right next to a thin scrollbar), not their own width or `p-5`. Sideways rows in them use `ScrollRow` (`src/components/editor/ScrollRow.tsx`).
 
 <!-- BEGIN:nextjs-agent-rules -->

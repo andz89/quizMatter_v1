@@ -18,17 +18,24 @@ function refusal(error: { code?: string; message: string }) {
   return error.code === "22023" || error.code === "P0002" ? error.message : FAILED;
 }
 
-/** Adds (no id) or changes an announcement. Returns its id, or the words to show. */
-export async function saveAnnouncement(input: AnnouncementInput): Promise<{ error: string } | { id: string }> {
+/**
+ * Adds (no id) or changes an announcement, then counts it as a separate step, so a count that fails can't undo the
+ * save. Returns its id (with `countFailed` when the count didn't work), or the words to show.
+ */
+export async function saveAnnouncement(
+  input: AnnouncementInput,
+): Promise<{ error: string } | { id: string; countFailed: boolean }> {
   const parsed = announcementSchema.safeParse(input);
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   if (!(await getAccount()).isSuperAdmin) return { error: "Only the super admin can do this." };
 
-  const { data, error } = await (await createClient()).rpc("save_announcement", { a: parsed.data });
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("save_announcement", { a: parsed.data });
   if (error) return { error: refusal(error) };
   forgetMaintenanceStatus();
+  const { error: countError } = await supabase.rpc("recount_announcement", { target: data });
   refresh();
-  return { id: data as string };
+  return { id: data as string, countFailed: countError !== null };
 }
 
 const switchSchema = z.object({ target: z.uuid(), turn_on: z.boolean() });

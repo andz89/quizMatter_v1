@@ -130,37 +130,6 @@ body {
   word-wrap: normal;
 }
 
-/* Admin → Announcements, the modal's text box: a picture is centered, and violet corner handles (Tiptap's resizable
-   image) show on hover or when it's selected; dragging one resizes it, keeping its shape. */
-.announcement-editor [data-resize-container] {
-  justify-content: center;
-}
-.announcement-editor [data-resize-handle] {
-  width: 12px;
-  height: 12px;
-  background: var(--accent);
-  border: 1.5px solid var(--bg-surface);
-  border-radius: 4px;
-  opacity: 0;
-  transition: opacity 0.15s;
-}
-.announcement-editor [data-resize-container]:hover [data-resize-handle],
-.announcement-editor .ProseMirror-selectednode [data-resize-handle],
-.announcement-editor [data-resize-state="true"] [data-resize-handle] {
-  opacity: 1;
-}
-.announcement-editor .ProseMirror-selectednode img {
-  outline: 2px solid var(--accent);
-}
-.announcement-editor [data-resize-handle="top-left"],
-.announcement-editor [data-resize-handle="bottom-right"] {
-  cursor: nwse-resize;
-}
-.announcement-editor [data-resize-handle="top-right"],
-.announcement-editor [data-resize-handle="bottom-left"] {
-  cursor: nesw-resize;
-}
-
 /* The editor's side panels (Elements, Photos, Presentations, …): all the same width, a thin scrollbar, and less
    padding on the right, where the scrollbar's space (always kept, so nothing shifts) makes up the rest.
    ScrollRow stretches over these paddings, so change both together. */

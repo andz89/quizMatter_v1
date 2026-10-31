@@ -59,15 +59,22 @@
   `pageGroup(pathname)` (which group a page is in; null = never shows one), the limits (`ANNOUNCEMENT_LIMITS`, same as
   the database's checks), `announcementSchema` (zod, run before every save; keys = the column names),
   `myAnnouncementSchema` (a `my_announcements` row), `pickForPage` (what shows on a page: fits `pages`, skips closed
-  parts, newest first, 2 bars at most), `manilaDay`, `isSameVisit` and `MODAL_SIZES` (the modal's widths; a row without one counts as large), `fullWidthSize` (a picture's "Full width"
-  size: 672 wide, shape kept) (a tab's saved list is reused only for the same account and Philippine day). It repeats `EDUCATION_LEVELS` because `userSettings.ts`
+  parts, newest first, 2 bars at most), `manilaDay`, `isSameVisit` and `MODAL_SIZES` (the modal's widths; a row without one counts as large), `modalAttachmentSchema` (the modal's one
+  picture, YouTube card or Facebook post / video; `src` only our R2 address, a Facebook `href` only as `facebookLink`
+  gives it) (a tab's saved list is reused only for the same account and Philippine day). It repeats `EDUCATION_LEVELS` because `userSettings.ts`
   can't load in a test. Tests: `announcements.test.ts`.
-- `announcementText.ts`: an announcement's text. `ANNOUNCEMENT_MODAL_EXTENSIONS` (the slide text styles + links +
-  images, always centered, resized by their corner handles with the shape kept, saved as `width` / `height`;
-  `SizedImage` shows the saved width in the editor, which Tiptap's resizable image doesn't do by itself) and `ANNOUNCEMENT_BAR_EXTENSIONS` (no images) for its editor; `toSafeAnnouncementHtml` (browser only)
-  re-builds saved text through them, then `cleanAnnouncementDoc` drops images that aren't ours (`PHOTO_URL_PREFIX`)
-  and links that aren't `http(s)://` or an app path (`isAllowedLink`; `isInternalLink` = opens in the same tab).
-  Tests: `announcementText.test.ts`.
+- `announcementText.ts`: the top bar's text (the modal is plain text). `ANNOUNCEMENT_BAR_EXTENSIONS` (the slide text
+  styles + links) for its editor; `toSafeAnnouncementHtml` (browser only) re-builds saved text through them, then
+  `cleanAnnouncementDoc` drops links that aren't `http(s)://` or an app path (`isAllowedLink`; `isInternalLink` =
+  opens in the same tab). Tests: `announcementText.test.ts`.
+- `facebook.ts`: Facebook links for the modal's attachment: `facebookLink` (posts, videos, reels, watch, share and
+  fb.watch links as https; null for pages, other sites or unsafe links), `findFacebookLink` (the first one in pasted
+  text), `facebookEmbedUrl` (Facebook's own player / post box) and `facebookPostWidth` (the post box is 350–500 px).
+  Tests: `facebook.test.ts`.
+- `youtube.ts`: YouTube links for the modal's card: `youTubeVideoId` (watch, youtu.be, shorts and embed links; null
+  for anything else), `findYouTubeVideoId` (the first one in pasted text), `youTubeWatchUrl`. Tests:
+  `youtube.test.ts`. `photos.tsx`'s `fetchYouTubeCard` asks `/api/announcement-youtube` for the card, and
+  `uploadAnnouncementPhoto` returns a photo attachment.
 - `reviews.ts` (reviewer's saves) / `reviewStatus.ts` (reads), `submissions.ts` (Submit to QuizMatter reads).
 - `lessons.ts`: reads for "This week's lessons", "You may also like" and an editor's profile list (only ids; see `src/app/CLAUDE.md`).
 - `folders.ts`, `userSettings.ts`, `profiles.ts`, `account.ts` (`getAccount`: who is logged in, `isAdmin`).
@@ -120,7 +127,8 @@ data. Spec: `docs/superpowers/specs/2026-10-23-stable-presentation-data-design.m
 - Photos: `photos.tsx` (upload, My photos, shared photos; `isPhotoLocked` / `PHOTO_LOCKED_MESSAGE` for `QMPHL`, a
   photo in something waiting for QuizMatter can't be removed; the editor's Photos panel shows only public shared
   photos, even to admins), `photoFiles.ts` (R2 files, server), `photoTypes.ts` (what a file really is, from its first bytes:
-  `readPhotoType` = WebP or JPEG for every upload, `readAnnouncementImageType` also takes a GIF; tests
+  `readPhotoType` = WebP or JPEG for every upload, `readAnnouncementImageType` also takes a GIF, `MAX_GIF_BYTES`
+  = 1 MB; tests
   `photoTypes.test.ts`), `photoTickets.ts`
   (Claude's photo uploads), `cleanupPhotos.ts` (weekly cleanup). `PHOTO_TYPES` (the files a teacher can pick) is in
   `constants.ts`, so pages outside the editor can use it without loading `photos.tsx` (which loads the editor's store).
@@ -131,8 +139,8 @@ data. Spec: `docs/superpowers/specs/2026-10-23-stable-presentation-data-design.m
 - Timers: `cleanupPhotos.ts`, `cleanupAccounts.ts` (run by `worker.ts`). `cleanupAccounts.ts`, daily: deletes
   accounts unconfirmed after 3 days, `sign_up_attempts` older than a day, and `click_history` and `admin_actions`
   rows older than `KEEP_SAFETY_RECORDS_DAYS` (365, from each row's `created_at`; the Privacy Policy promises it),
-  and who closed an announcement that ended over 30 days ago (`cleanup_announcement_dismissals`; the Privacy Policy
-  promises it too).
+  and who closed an announcement that ended over 30 days ago (`cleanup_announcement_dismissals`, 50,000 rows a call,
+  up to 20 calls a day; the Privacy Policy promises it too).
 - Drawings: `svgLibrary.tsx`, `flags.tsx`, `kids.tsx`, `solids.tsx`, and the big people drawings `schoolBoy.tsx` /
   `clipartKids.tsx`, which load only when needed (`peopleArt.ts`).
 - Text: `richText.ts` (tiptap setup, safe HTML), `format.ts` (dates, labels).

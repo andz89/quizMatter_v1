@@ -1,6 +1,10 @@
 // What kind of picture an uploaded file really is, from its first bytes (whatever it claims to be). Kept apart from
 // photoFiles.ts (which needs Cloudflare) so tests can load it.
 
+// A GIF in an announcement is sent as it is (not shrunk), and every teacher who sees it downloads it, often on phone
+// data, so it's kept smaller than a photo (MAX_STORED_PHOTO_BYTES, 2 MB).
+export const MAX_GIF_BYTES = 1024 * 1024;
+
 export type PhotoType = { contentType: string; extension: "webp" | "jpg" | "gif" };
 
 const firstText = (body: ArrayBuffer, from: number, to: number) =>

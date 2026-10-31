@@ -1,76 +1,46 @@
 "use client";
 
-import { useRef, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { EditorContent, useEditor, useEditorState, type Editor } from "@tiptap/react";
-import { toast } from "sonner";
 import {
   BoldIcon,
-  ImageIcon,
   ItalicIcon,
   LinkIcon,
-  MoveHorizontalIcon,
   TextAlignCenterIcon,
   TextAlignEndIcon,
   TextAlignStartIcon,
   UnderlineIcon,
 } from "lucide-react";
 import { Modal } from "@/components/Modal";
-import { Spinner } from "@/components/Spinner";
-import { ANNOUNCEMENT_BAR_EXTENSIONS, ANNOUNCEMENT_MODAL_EXTENSIONS, isAllowedLink } from "@/lib/announcementText";
-import { fullWidthSize, type AnnouncementPart } from "@/lib/announcements";
-import { DEFAULT_TEXT_COLOR, PHOTO_TYPES } from "@/lib/constants";
-import { uploadAnnouncementPhoto } from "@/lib/photos";
+import { ANNOUNCEMENT_BAR_EXTENSIONS, isAllowedLink } from "@/lib/announcementText";
+import { DEFAULT_TEXT_COLOR } from "@/lib/constants";
 
 type Align = "left" | "center" | "right";
 
 /**
- * The text box for an announcement's modal or bar: bold, italic, underline, color, align and links; pictures in the
- * modal only. Sends its HTML up on every change ("" when empty). The saved text is made safe again where it's shown.
+ * The text box for an announcement's top bar: bold, italic, underline, color, align and links. Sends its HTML up on
+ * every change ("" when empty). The saved text is made safe again where it's shown. (The modal is a plain text box
+ * in AnnouncementForm.)
  */
-export function AnnouncementTextEditor({
-  part,
-  value,
-  width,
-  onChange,
-}: {
-  part: AnnouncementPart;
-  value: string;
-  // The box's width in px (the modal's chosen size), so a picture's size here is its size for teachers.
-  width?: number;
-  onChange: (html: string) => void;
-}) {
+export function AnnouncementTextEditor({ value, onChange }: { value: string; onChange: (html: string) => void }) {
   const editor = useEditor({
-    extensions: part === "modal" ? ANNOUNCEMENT_MODAL_EXTENSIONS : ANNOUNCEMENT_BAR_EXTENSIONS,
+    extensions: ANNOUNCEMENT_BAR_EXTENSIONS,
     content: value,
     // Next.js renders this on the server first; the editor can only be built in the browser.
     immediatelyRender: false,
-    editorProps: {
-      attributes: {
-        // The modal's box is like the real modal: no padding and, from `width`, its width.
-        class: `outline-none text-sm text-text-primary ${part === "modal" ? "min-h-40" : "min-h-12 px-3 py-2"}`,
-      },
-    },
+    editorProps: { attributes: { class: "outline-none min-h-12 px-3 py-2 text-sm text-text-primary" } },
     onUpdate: ({ editor }) => onChange(editor.isEmpty ? "" : editor.getHTML()),
   });
 
   return (
-    <div
-      className={`rounded-input border border-border-default bg-bg-surface focus-within:border-text-secondary ${
-        // box-content: the border sits outside `width`, so the text area is exactly the modal's width.
-        part === "modal" ? "announcement-editor box-content" : ""
-      }`}
-      style={width ? { maxWidth: width } : undefined}
-    >
-      {editor && <Toolbar editor={editor} part={part} />}
-      <EditorContent
-        editor={editor}
-        className="[&_a]:font-semibold [&_a]:text-accent [&_a]:underline [&_img]:h-auto [&_img]:max-w-full"
-      />
+    <div className="rounded-input border border-border-default bg-bg-surface focus-within:border-text-secondary">
+      {editor && <Toolbar editor={editor} />}
+      <EditorContent editor={editor} className="[&_a]:font-semibold [&_a]:text-accent [&_a]:underline" />
     </div>
   );
 }
 
-function Toolbar({ editor, part }: { editor: Editor; part: AnnouncementPart }) {
+function Toolbar({ editor }: { editor: Editor }) {
   const state = useEditorState({
     editor,
     selector: ({ editor }) => ({
@@ -78,40 +48,13 @@ function Toolbar({ editor, part }: { editor: Editor; part: AnnouncementPart }) {
       italic: editor.isActive("italic"),
       underline: editor.isActive("underline"),
       link: editor.isActive("link"),
-      image: editor.isActive("image"),
       href: (editor.getAttributes("link").href as string | undefined) ?? "",
       align: (["left", "center", "right"] as Align[]).find((a) => editor.isActive({ textAlign: a })) ?? "left",
       color: (editor.getAttributes("textStyle").color as string | undefined) ?? DEFAULT_TEXT_COLOR,
     }),
   });
   const [linkHref, setLinkHref] = useState<string | null>(null);
-  const [isUploading, setIsUploading] = useState(false);
-  const fileInput = useRef<HTMLInputElement>(null);
   const chain = () => editor.chain().focus();
-
-  // The selected picture fills the modal from edge to edge. A picture never resized has no saved size yet, so its
-  // own size is read from the page.
-  const makeFullWidth = () => {
-    const { width, height } = editor.getAttributes("image") as { width?: number | null; height?: number | null };
-    const dom = editor.view.nodeDOM(editor.state.selection.from);
-    const img = dom instanceof HTMLImageElement ? dom : dom instanceof HTMLElement ? dom.querySelector("img") : null;
-    const own = { width: width || img?.naturalWidth, height: height || img?.naturalHeight };
-    if (!own.width || !own.height) return;
-    chain().updateAttributes("image", fullWidthSize(own.width, own.height)).run();
-  };
-
-  const addPicture = async (file: File | undefined) => {
-    if (!file) return;
-    setIsUploading(true);
-    try {
-      const src = await uploadAnnouncementPhoto(file);
-      chain().setImage({ src }).run();
-    } catch (error) {
-      toast.error((error as Error).message);
-    } finally {
-      setIsUploading(false);
-    }
-  };
 
   return (
     <div className="flex flex-wrap items-center gap-0.5 border-b border-border-default p-1">
@@ -146,31 +89,6 @@ function Toolbar({ editor, part }: { editor: Editor; part: AnnouncementPart }) {
       <ToolButton title="Link" active={state.link} onClick={() => setLinkHref(state.href)}>
         <LinkIcon size={16} />
       </ToolButton>
-      {part === "modal" && (
-        <>
-          <ToolButton title="Add a picture or GIF" active={false} disabled={isUploading} onClick={() => fileInput.current?.click()}>
-            {isUploading ? <Spinner size={14} /> : <ImageIcon size={16} />}
-          </ToolButton>
-          <ToolButton
-            title={state.image ? "Full width" : "Full width (select a picture first)"}
-            active={false}
-            disabled={!state.image}
-            onClick={makeFullWidth}
-          >
-            <MoveHorizontalIcon size={16} />
-          </ToolButton>
-          <input
-            ref={fileInput}
-            type="file"
-            accept={[...PHOTO_TYPES, "image/gif"].join(",")}
-            className="hidden"
-            onChange={(e) => {
-              void addPicture(e.target.files?.[0]);
-              e.target.value = "";
-            }}
-          />
-        </>
-      )}
 
       {linkHref !== null && (
         <LinkBox
