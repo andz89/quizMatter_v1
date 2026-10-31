@@ -1,0 +1,31 @@
+# Runs only when the database changes: starts Supabase in GitHub's own Docker (never the live project), replays
+# every migration, runs every SQL test, then checks supabase/schema.sql and src/lib/database.types.ts were remade.
+# It only warns (a red X and an email): Cloudflare deploys on its own.
+name: Database
+
+on:
+  push:
+    branches: [main]
+    paths: [supabase/**, src/lib/database.types.ts, scripts/test-sql.mjs, scripts/db-snapshot.mjs, .github/workflows/database.yml]
+  pull_request:
+    paths: [supabase/**, src/lib/database.types.ts, scripts/test-sql.mjs, scripts/db-snapshot.mjs, .github/workflows/database.yml]
+
+jobs:
+  sql:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npx -y supabase@latest start
+      # Resets the database, then runs every file in supabase/tests.
+      - run: npm run test:sql
+      - run: npm run db:snapshot
+      - name: Snapshot is up to date
+        run: |
+          if ! git diff --exit-code -- supabase/schema.sql src/lib/database.types.ts; then
+            echo "::error::Run 'npx -y supabase@latest db reset' then 'npm run db:snapshot', and commit both files."
+            exit 1
+          fi

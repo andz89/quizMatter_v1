@@ -1,0 +1,26 @@
+# Checks every push: types, lint and the unit tests. It only warns (a red X and an email): Cloudflare deploys on
+# its own, whatever this says.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  app:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      # npm 10.9.2, like Cloudflare's build (see CLAUDE.md, "Installing Packages").
+      - run: npx -y npm@10.9.2 ci
+      # next-env.d.ts and the route types aren't in git; next dev / build make them, typegen does it alone.
+      - run: npx next typegen
+      - run: npx tsc --noEmit
+      - run: npm run lint
+      - run: npm test

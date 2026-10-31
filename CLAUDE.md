@@ -22,7 +22,7 @@ first.
   `supabase/schema.sql`: the whole database as it is now (every function's newest version), made by
   `npm run db:snapshot` with `src/lib/database.types.ts`; read a function there, never edit it.
 - `scripts/`: `test-sql.mjs` (`npm run test:sql`), `db-snapshot.mjs` (`npm run db:snapshot`), `test-resolve.mjs`
-  (lets `npm test` import app files).
+  (lets `npm test` import app files). `.github/workflows/`: GitHub's checks on push (see "Tests").
 - `src/pages/api/` **(notes)**: Claude's connector (MCP server). Its drafts live in Cloudflare D1 (`d1/migrations`).
 - `src/proxy.ts`: the login check before each page (logged-out visitors may open only login, sign up, the email
   confirm link, Privacy and Terms), and the maintenance stop (see "Maintenance" below; `src/app/maintenance/` is
@@ -113,6 +113,11 @@ database, never the live one: `npm run test:sql` resets it (replays every migrat
 first lines say when it must run as `-U supabase_admin -d postgres` instead (`account_delete.sql`,
 `blocked_email_domains.sql`; the script reads "as supabase_admin" there). It passes when it ends with `ROLLBACK` and
 no `FAIL` or `ERROR`.
+
+GitHub checks every push to `main` (`.github/workflows/`): `ci.yml` runs `tsc`, lint and `npm test`;
+`database.yml` (only when `supabase/` or the snapshot changes) starts Supabase in GitHub's own Docker, runs
+`npm run test:sql`, and fails if `supabase/schema.sql` or `src/lib/database.types.ts` weren't remade. They only warn
+(a red X and an email): Cloudflare deploys on its own.
 
 # Saving Data
 
