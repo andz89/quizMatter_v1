@@ -13,6 +13,8 @@ const eslintConfig = defineConfig([
     "build/**",
     "next-env.d.ts",
     ".claude/**",
+    // Made by scripts/db-snapshot.mjs.
+    "src/lib/database.types.ts",
   ]),
 ]);
 

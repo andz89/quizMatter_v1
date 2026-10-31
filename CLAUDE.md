@@ -19,6 +19,10 @@ first.
   Facebook link: `src/lib/support.ts`.
 - `src/lib/` **(notes)**: helpers, zod schemas (`schema.ts`), saving and loading.
 - `supabase/migrations/` **(notes)**: the database. Its functions and triggers hold the real rules and limits.
+  `supabase/schema.sql`: the whole database as it is now (every function's newest version), made by
+  `npm run db:snapshot` with `src/lib/database.types.ts`; read a function there, never edit it.
+- `scripts/`: `test-sql.mjs` (`npm run test:sql`), `db-snapshot.mjs` (`npm run db:snapshot`), `test-resolve.mjs`
+  (lets `npm test` import app files).
 - `src/pages/api/` **(notes)**: Claude's connector (MCP server). Its drafts live in Cloudflare D1 (`d1/migrations`).
 - `src/proxy.ts`: the login check before each page (logged-out visitors may open only login, sign up, the email
   confirm link, Privacy and Terms), and the maintenance stop (see "Maintenance" below; `src/app/maintenance/` is
@@ -103,10 +107,12 @@ Keep the code:
 # Tests
 
 Run `npm test` (Node's built-in test runner). Tests sit next to the code as `*.test.ts` in `src/`. A test can import only `.ts` files whose own imports are `.ts` (no `.tsx`, no JSON); `@/` means `src/`. SQL tests are in `supabase/tests/`; each rolls back what it did. All testing uses Docker: run them only on the local Docker
-database, never the live one: `npx -y supabase@latest db reset` (replays every migration), then
+database, never the live one: `npm run test:sql` resets it (replays every migration) and runs every SQL test
+(`npm run test:sql -- <file>.sql` runs only that one). By hand: `npx -y supabase@latest db reset`, then
 `docker exec -i supabase_db_quizBuilder psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/<file>.sql`. A file's
 first lines say when it must run as `-U supabase_admin -d postgres` instead (`account_delete.sql`,
-`blocked_email_domains.sql`). It passes when it ends with `ROLLBACK` and no `FAIL` or `ERROR`.
+`blocked_email_domains.sql`; the script reads "as supabase_admin" there). It passes when it ends with `ROLLBACK` and
+no `FAIL` or `ERROR`.
 
 # Saving Data
 

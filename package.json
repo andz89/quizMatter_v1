@@ -8,6 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "test": "node --no-warnings --import ./scripts/test-resolve.mjs --test \"src/**/*.test.ts\"",
+    "test:sql": "node scripts/test-sql.mjs",
+    "db:snapshot": "node scripts/db-snapshot.mjs",
     "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
     "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy"
   },

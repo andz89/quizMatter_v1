@@ -25,6 +25,9 @@ even if the app has a bug. The app's checks (zod, hidden buttons) are only the f
   recursion"): read it in a `security definer` function instead (e.g. `admin_may_delete`).
 - A limit checked here (text length, counts) must match the same limit in `src/lib/schema.ts` (or the file named
   in the comment), so the app and the database agree. Write "Same limit as …" next to it.
+- After writing one: `npm run test:sql` (resets the local Docker database, replays every migration, runs every test
+  in `supabase/tests`), then `npm run db:snapshot`, and commit `supabase/schema.sql` and `src/lib/database.types.ts`
+  with the migration. GitHub's Database check (`.github/workflows/database.yml`) fails if they weren't remade.
 
 ## Deploying (database first)
 
@@ -37,10 +40,10 @@ even if the app has a bug. The app's checks (zod, hidden buttons) are only the f
 
 ## Finding a function's newest version
 
-Many functions were changed again in later files (`create or replace function`). The newest version is in the
-**latest** file that defines it. Find it with a search, e.g. `create or replace function public.save_presentation`
-(today: `20261210000000_data_version_cap.sql`; `publish_review`: `20261209000000_data_version.sql`). Always start a
-change from that newest version, or older fixes get lost.
+Many functions were changed again in later files (`create or replace function`). `supabase/schema.sql` (made by
+`npm run db:snapshot`) has every table, function, trigger and policy as it is now, in one file: read a function
+there. To change one, copy it from there (or from the **latest** migration that defines it) into a new migration,
+so older fixes aren't lost. Never edit `schema.sql` by hand.
 
 ## Refusal codes
 
