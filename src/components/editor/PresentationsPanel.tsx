@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/lib/database.types";
 import { useEditorStore, isPanelEscape } from "@/lib/store";
 import { createClient } from "@/lib/supabase/client";
 import { CANVAS_WIDTH, CANVAS_HEIGHT, SLIDE_DRAG_MIME, getSlideNumbers } from "@/lib/constants";
@@ -424,7 +425,7 @@ export function PresentationsPanel() {
 }
 
 /** Published presentations (except the one being edited and its shared copy), each with its first slide only. */
-function publishedPresentations(supabase: SupabaseClient, presentationId: string) {
+function publishedPresentations(supabase: SupabaseClient<Database>, presentationId: string) {
   return (
     supabase
       .from("presentations")
@@ -457,7 +458,7 @@ type SummaryRow = {
   reviewers: { name: string }[];
 };
 
-async function toSummaries(supabase: SupabaseClient, rows: SummaryRow[]): Promise<PresentationSummary[]> {
+async function toSummaries(supabase: SupabaseClient<Database>, rows: SummaryRow[]): Promise<PresentationSummary[]> {
   const publisherNames = await loadPublisherNames(supabase, rows.map((row) => row.owner_id));
   return rows.map((row) => ({
     id: row.id,

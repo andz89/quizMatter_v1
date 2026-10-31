@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/lib/database.types";
 import { z } from "zod";
 import { DISPLAY_NAME_MAX_LENGTH, EDUCATION_LEVEL_LABELS, EDUCATION_LEVELS, type EducationLevel } from "./userSettings";
 
@@ -33,7 +34,7 @@ export type TeacherProfile = {
 export const profileSlugSchema = z.string().max(DISPLAY_NAME_MAX_LENGTH).regex(/^[a-z0-9]+(-[a-z0-9]+)*$/);
 
 /** The profile, or null if no teacher has this link (or it's an admin the viewer may not see). Throws if it fails. */
-export async function loadTeacherProfile(supabase: SupabaseClient, slug: string): Promise<TeacherProfile | null> {
+export async function loadTeacherProfile(supabase: SupabaseClient<Database>, slug: string): Promise<TeacherProfile | null> {
   // Capitals in a typed link still work; anything else that isn't a link name (e.g. /teachers/a%20b) isn't anyone.
   const checked = profileSlugSchema.safeParse(slug.toLowerCase());
   if (!checked.success) return null;
@@ -75,7 +76,7 @@ export async function loadTeacherProfile(supabase: SupabaseClient, slug: string)
  * The ids of the presentations this teacher published (their shared copies, not hidden), last changed first; empty
  * for a link that isn't anyone, a hidden admin, or if it fails. See the teacher_shared_presentations migration.
  */
-export async function loadSharedPresentationIds(supabase: SupabaseClient, slug: string): Promise<string[]> {
+export async function loadSharedPresentationIds(supabase: SupabaseClient<Database>, slug: string): Promise<string[]> {
   const checked = profileSlugSchema.safeParse(slug.toLowerCase());
   if (!checked.success) return [];
   const { data, error } = await supabase.rpc("teacher_shared_presentations", { slug: checked.data });
@@ -88,7 +89,7 @@ export async function loadSharedPresentationIds(supabase: SupabaseClient, slug: 
  * have a display name), by account id, so a page links only those names. Empty if the lookup fails: names then just
  * aren't links.
  */
-export async function loadVisibleProfiles(supabase: SupabaseClient, ids: string[]): Promise<Map<string, string>> {
+export async function loadVisibleProfiles(supabase: SupabaseClient<Database>, ids: string[]): Promise<Map<string, string>> {
   if (ids.length === 0) return new Map();
   const { data, error } = await supabase.rpc("visible_profiles", { profile_ids: ids });
   if (error) return new Map();

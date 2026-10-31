@@ -1,4 +1,5 @@
 import { createClient, type User } from "@supabase/supabase-js";
+import type { Database } from "../database.types";
 
 /**
  * Supabase with the secret key, for server code that has no logged-in user (the MCP server, Claude's photo
@@ -7,7 +8,7 @@ import { createClient, type User } from "@supabase/supabase-js";
  */
 export function createAdminClient() {
   const key = process.env.SUPABASE_SECRET_KEY;
-  return key ? createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, key, { auth: { persistSession: false } }) : null;
+  return key ? createClient<Database>(process.env.NEXT_PUBLIC_SUPABASE_URL!, key, { auth: { persistSession: false } }) : null;
 }
 
 /** Every account (Supabase gives them in pages of 1,000). Throws if a page fails. */

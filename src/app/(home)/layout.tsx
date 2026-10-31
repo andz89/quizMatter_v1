@@ -1,5 +1,6 @@
 import { Suspense, type ReactNode } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/lib/database.types";
 import { BanIcon } from "lucide-react";
 import { NavBar } from "@/components/NavBar";
 import { SupportEmail } from "@/components/SupportEmail";
@@ -50,7 +51,7 @@ export default async function HomeLayout({ children }: { children: ReactNode }) 
  * The number on each tab. Only counts come back (no rows), with the same filters as each page. Claude's drafts
  * aren't counted, so no page waits for them here.
  */
-async function loadTabCounts(supabase: SupabaseClient, me: string, isEditor: boolean): Promise<Record<HomeTab, number>> {
+async function loadTabCounts(supabase: SupabaseClient<Database>, me: string, isEditor: boolean): Promise<Record<HomeTab, number>> {
   const count = () => supabase.from("presentations").select("id", { count: "exact", head: true });
   const [mine, quizmatter, teachers, saved, liked, reviewed, myReviews, mySubmissions] = await Promise.all([
     // QuizMatter presentations an admin made are on Admin → Presentations, not in "mine".

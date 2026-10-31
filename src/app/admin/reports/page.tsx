@@ -40,7 +40,7 @@ export default async function AdminReportsPage() {
 
   // A report belongs to one presentation, so `presentation` comes as one object (the untyped client guesses a list).
   const reportRecords = reports.data as unknown as ReportRecord[];
-  const hiddenRecords: HiddenRecord[] = hidden.data;
+  const hiddenRecords = hidden.data as HiddenRecord[]; // hidden_at is never null here (the filter above)
   const names = await loadPublisherNames(supabase, [
     ...reportRecords.map((report) => report.presentation.owner_id),
     ...hiddenRecords.map((presentation) => presentation.owner_id),

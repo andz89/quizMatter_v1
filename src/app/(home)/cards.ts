@@ -1,4 +1,5 @@
 import type { PostgrestFilterBuilder, SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/lib/database.types";
 import { getAccount } from "@/lib/account";
 import type { DraftSummary } from "@/lib/drafts";
 import { loadPublisherNames } from "@/lib/publishers";
@@ -46,7 +47,7 @@ export type SavedPresentation = CardPresentation & { saved?: { saved_at: string 
 type PresentationQuery = PostgrestFilterBuilder<any, any, any, any, any, any, any>;
 
 /** The logged-in teacher's id ("" if none). */
-export async function myId(supabase: SupabaseClient): Promise<string> {
+export async function myId(supabase: SupabaseClient<Database>): Promise<string> {
   const { data } = await supabase.auth.getClaims();
   return data?.claims.sub ?? "";
 }
@@ -117,7 +118,7 @@ function inList(list: readonly string[]): string {
  * These presentations as card rows (first slide only), in the order of `ids`. One the user can't read (the database
  * decides) is left out, and so is a batch whose lookup fails. Read 50 at a time, so the request's link stays short.
  */
-export async function loadCardRows(supabase: SupabaseClient, ids: string[]): Promise<CardPresentation[]> {
+export async function loadCardRows(supabase: SupabaseClient<Database>, ids: string[]): Promise<CardPresentation[]> {
   const batches = Array.from({ length: Math.ceil(ids.length / 50) }, (_, i) => ids.slice(i * 50, i * 50 + 50));
   const results = await Promise.all(
     batches.map((batch) =>
@@ -137,7 +138,7 @@ export async function loadCardRows(supabase: SupabaseClient, ids: string[]): Pro
  * Cards of QuizMatter presentations (or other people's), like the home tabs: Author / Publisher / Reviewer rows and the
  * Save (bookmark) button. If the saved lookup fails, plain cards without them.
  */
-export async function toSavableCards(supabase: SupabaseClient, rows: CardPresentation[]): Promise<PresentationCardData[]> {
+export async function toSavableCards(supabase: SupabaseClient<Database>, rows: CardPresentation[]): Promise<PresentationCardData[]> {
   try {
     const { toSavableCard } = await loadCardContext(supabase, rows, await myId(supabase));
     return rows.map(toSavableCard);
@@ -163,7 +164,7 @@ export function toCard(presentation: CardPresentation, href: string, now: number
 }
 
 /** My submissions' statuses by presentation id (editors only; see the quizmatter_submissions migration). */
-export async function mySubmissionStatuses(supabase: SupabaseClient, isEditor: boolean): Promise<Map<string, SubmissionStatus>> {
+export async function mySubmissionStatuses(supabase: SupabaseClient<Database>, isEditor: boolean): Promise<Map<string, SubmissionStatus>> {
   if (!isEditor) return new Map();
   const submissions = await loadMySubmissions(supabase);
   // A receipt whose original I deleted has no card.
@@ -171,7 +172,7 @@ export async function mySubmissionStatuses(supabase: SupabaseClient, isEditor: b
 }
 
 /** My shared copies by their original's id (see the shared_copy migration): my published presentations. */
-export async function mySharedCopies(supabase: SupabaseClient): Promise<Map<string, { hiddenAt: string | null }>> {
+export async function mySharedCopies(supabase: SupabaseClient<Database>): Promise<Map<string, { hiddenAt: string | null }>> {
   const { data, error } = await supabase
     .from("presentations")
     .select("shared_from, hidden_at")
@@ -224,7 +225,7 @@ export function draftCard(draft: DraftSummary, now: number) {
  * Which of these presentations I liked: only these ids are read, never every like (a request returns 1,000 rows at
  * the most). The database only gives back my own likes. 50 ids at a time, so the request's link stays short.
  */
-async function myLikedIds(supabase: SupabaseClient, ids: string[]): Promise<string[]> {
+async function myLikedIds(supabase: SupabaseClient<Database>, ids: string[]): Promise<string[]> {
   const batches = Array.from({ length: Math.ceil(ids.length / 50) }, (_, i) => ids.slice(i * 50, i * 50 + 50));
   const results = await Promise.all(batches.map((batch) => supabase.from("presentation_likes").select("presentation_id").in("presentation_id", batch)));
   return results.flatMap(({ data, error }) => {
@@ -246,7 +247,7 @@ export function bySubjectChip<Q extends PresentationQuery>(query: Q, chip: strin
  * (not admins: they only see the count) from its card.
  * An admin's own QuizMatter ones show in "From QuizMatter" too, but the database doesn't let anyone save their own.
  */
-export async function loadCardContext(supabase: SupabaseClient, rows: CardPresentation[], me: string) {
+export async function loadCardContext(supabase: SupabaseClient<Database>, rows: CardPresentation[], me: string) {
   const [savedRows, likedRows, publisherNames, account] = await Promise.all([
     supabase.from("saved_presentations").select("presentation_id"),
     myLikedIds(supabase, rows.map((p) => p.id)),

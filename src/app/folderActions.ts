@@ -69,11 +69,11 @@ export async function moveToFolder(presentationIds: string[], folderId: string |
 async function saveMove(presentationIds: string[], folderId: string | null): Promise<string | null> {
   const parsed = z.object({ ids: presentationIdsSchema, folderId: folderIdSchema.nullable() }).safeParse({ ids: presentationIds, folderId });
   if (!parsed.success) return "Couldn't move the presentations. Please try again.";
-  const { ids } = parsed.data;
+  const { ids, folderId: target } = parsed.data;
   const supabase = await createClient();
-  const { error } = parsed.data.folderId
+  const { error } = target
     ? await supabase.from("folder_items").upsert(
-        ids.map((id) => ({ presentation_id: id, folder_id: parsed.data.folderId })),
+        ids.map((id) => ({ presentation_id: id, folder_id: target })),
         { onConflict: "presentation_id" }
       )
     : await supabase.from("folder_items").delete().in("presentation_id", ids);

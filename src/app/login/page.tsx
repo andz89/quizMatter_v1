@@ -185,7 +185,8 @@ const inputClass =
  * MaintenanceWatch leaves this page alone, so the logout finishes.
  */
 async function mayLogInNow(supabase: ReturnType<typeof createClient>): Promise<boolean> {
-  const { data: status } = await supabase.rpc("maintenance_status");
+  const { data } = await supabase.rpc("maintenance_status");
+  const status = data as { is_on?: boolean } | null;
   if (status?.is_on !== true) return true;
   const { data: isSuperAdmin } = await supabase.rpc("is_super_admin");
   return isSuperAdmin === true;

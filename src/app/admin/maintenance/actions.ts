@@ -30,7 +30,11 @@ export async function announceMaintenance(planned: string | null, note: string):
   if (!parsed.success) return parsed.error.issues[0].message;
   if (!(await getAccount()).isSuperAdmin) return "Only the super admin can do this.";
 
-  const { error } = await (await createClient()).rpc("announce_maintenance", parsed.data);
+  const { error } = await (await createClient()).rpc(
+    "announce_maintenance",
+    // planned null takes the announcement away; the generated types can't say an argument may be null.
+    parsed.data as { planned: string; note: string }
+  );
   // 22023: the time is past, or maintenance is already on (the database's own words).
   if (error) return error.code === "22023" ? error.message : "Couldn't save the announcement. Please try again.";
   forgetMaintenanceStatus();

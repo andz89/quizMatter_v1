@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/lib/database.types";
 import { photoCategoryNameSchema } from "./schema";
 
 // Server only: used by Claude's photo tools (/api/claude-photo, and save_photo_details in /api/mcp).
@@ -8,7 +9,7 @@ import { photoCategoryNameSchema } from "./schema";
  * made. Null if it failed.
  */
 export async function findOrCreateCategory(
-  supabase: SupabaseClient,
+  supabase: SupabaseClient<Database>,
   name: string,
 ): Promise<{ id: string; isNew: boolean } | null> {
   const find = async () => {

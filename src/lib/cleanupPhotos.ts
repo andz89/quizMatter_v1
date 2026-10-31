@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import type { Database } from "./database.types";
 import { z } from "zod";
 import type { R2Bucket } from "@cloudflare/workers-types";
 
@@ -23,7 +24,7 @@ export type UnusedPhoto = { key: string; src: string; uploaded: Date; size: numb
 
 export async function cleanupPhotos(env: CleanupEnv) {
   // Asked first: if this fails, the job stops before deleting anything.
-  const supabase = createClient(env.SUPABASE_URL, env.SUPABASE_SECRET_KEY, { auth: { persistSession: false } });
+  const supabase = createClient<Database>(env.SUPABASE_URL, env.SUPABASE_SECRET_KEY, { auth: { persistSession: false } });
   const { data, error } = await supabase.rpc("used_photo_srcs");
   if (error) throw error;
 

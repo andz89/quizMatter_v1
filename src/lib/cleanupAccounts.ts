@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import type { Database } from "./database.types";
 
 // The daily account cleanup, run by Cloudflare on a timer (see worker.ts and "triggers" in wrangler.jsonc).
 // It deletes accounts whose email was never confirmed (fake or mistyped sign ups), so they don't pile up.
@@ -32,7 +33,7 @@ const ANNOUNCEMENT_CLEANUP_BATCH = 50_000;
 const ANNOUNCEMENT_CLEANUP_ROUNDS = 20;
 
 export async function cleanupUnconfirmedAccounts(env: CleanupEnv) {
-  const supabase = createClient(env.SUPABASE_URL, env.SUPABASE_SECRET_KEY, { auth: { persistSession: false } });
+  const supabase = createClient<Database>(env.SUPABASE_URL, env.SUPABASE_SECRET_KEY, { auth: { persistSession: false } });
   const cutoff = Date.now() - KEEP_UNCONFIRMED_MS;
 
   // Find them all first, then delete: deleting while paging would shift the pages.

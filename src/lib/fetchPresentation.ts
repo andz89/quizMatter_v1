@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/lib/database.types";
 import { createClient } from "./supabase/server";
 import { loadVisibleProfiles } from "./profiles";
 import { loadPublisherNames } from "./publishers";
@@ -77,7 +78,7 @@ export async function fetchPresentation(id: string): Promise<{
     reviewers,
     submission,
     sharedFrom: result.sharedFrom,
-    sharedCopy: isMine && copy ? { id: copy.id, sharedAt: Date.parse(copy.shared_at), isHidden: copy.hidden_at !== null } : null,
+    sharedCopy: isMine && copy ? { id: copy.id, sharedAt: Date.parse(copy.shared_at!), isHidden: copy.hidden_at !== null } : null,
     authorId: result.authorId,
   };
 }
@@ -88,7 +89,7 @@ export async function fetchPresentation(id: string): Promise<{
  * Claude's token.
  */
 export async function loadPresentation(
-  supabase: SupabaseClient,
+  supabase: SupabaseClient<Database>,
   id: string,
 ): Promise<{ presentation: Presentation; ownerId: string; sharedFrom: string | null; authorId: string | null } | null> {
   const { data, error } = await supabase

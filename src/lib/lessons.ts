@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/lib/database.types";
 import { z } from "zod";
 import { profileSlugSchema } from "./profiles";
 
@@ -22,7 +23,7 @@ export type LessonWeek = {
  * best first, in one call (see the lesson_extras migration). Nothing if it fails.
  */
 export async function loadLessonExtras(
-  supabase: SupabaseClient,
+  supabase: SupabaseClient<Database>,
   id: string,
 ): Promise<{ week: LessonWeek | null; suggestionIds: string[] }> {
   const nothing = { week: null, suggestionIds: [] };
@@ -44,7 +45,7 @@ export async function loadLessonExtras(
 }
 
 /** The live QuizMatter presentations this profile's owner made as an editor (any order). */
-export async function loadEditorPresentationIds(supabase: SupabaseClient, slug: string): Promise<string[]> {
+export async function loadEditorPresentationIds(supabase: SupabaseClient<Database>, slug: string): Promise<string[]> {
   // Capitals in a typed link still work, like loadTeacherProfile.
   const checked = profileSlugSchema.safeParse(slug.toLowerCase());
   if (!checked.success) return [];

@@ -102,7 +102,8 @@ export async function savePresentationToDb(
       copiedFrom: copiedFrom && idSchema.parse(copiedFrom),
     },
     slide_ids: slideIds,
-    base_updated_at: baseUpdatedAt,
+    // null = a new presentation; the generated types can't say an argument may be null.
+    base_updated_at: baseUpdatedAt as number,
     app_version: DATA_VERSION,
   });
   const refusal = error && refusalFromCode(error.code);

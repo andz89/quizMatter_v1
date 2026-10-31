@@ -70,9 +70,10 @@ export async function checkSavedData(): Promise<{ checked: number; problems: Dat
   for (const row of drafts) {
     const result = presentationSchema.safeParse(row.draft);
     if (!result.success) {
+      const draft = row.draft as { title?: unknown }; // never null here (the filter above)
       problems.push({
         id: row.presentation_id,
-        title: typeof row.draft?.title === "string" ? row.draft.title : "",
+        title: typeof draft.title === "string" ? draft.title : "",
         ownerId: row.reviewer_id ?? "",
         isReviewDraft: true,
         isSubmitted: row.status === "submitted",

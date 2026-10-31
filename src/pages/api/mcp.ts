@@ -1,6 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/lib/database.types";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { z } from "zod";
 import { buildSlides, getClaudeFormat, claudeDetailsSchema } from "@/lib/importPresentation";
@@ -25,7 +26,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
  * token the answer is 401, which points Claude to /.well-known/oauth-protected-resource to start the login.
  * For now only admins can use it.
  */
-function createServer(appUrl: string, userId: string, supabase: SupabaseClient) {
+function createServer(appUrl: string, userId: string, supabase: SupabaseClient<Database>) {
   const server = new McpServer({ name: "quizmatter", version: "1.0.0" });
 
   // Each tool also answers to its old names (from when presentations were called quizzes, then lessons): Claude keeps the
@@ -337,9 +338,9 @@ async function loadPicture(src: string): Promise<{ type: "image"; data: string; 
  * they're an admin, or null if the token is missing, wrong or expired, or the user is banned (Admin → Teachers).
  * If the database can't say whether they're banned, it's null too (refused, to be safe).
  */
-async function checkLogin(token: string): Promise<{ id: string; isAdmin: boolean; supabase: SupabaseClient } | null> {
+async function checkLogin(token: string): Promise<{ id: string; isAdmin: boolean; supabase: SupabaseClient<Database> } | null> {
   // Acts as that user, so is_admin() answers for them.
-  const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
+  const supabase = createClient<Database>(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
     global: { headers: { Authorization: `Bearer ${token}` } },
     auth: { persistSession: false },
   });
@@ -355,7 +356,7 @@ async function checkLogin(token: string): Promise<{ id: string; isAdmin: boolean
 
 /** Whether Claude's login token belongs to the super admin (only asked during maintenance). */
 async function isSuperAdminToken(token: string): Promise<boolean> {
-  const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
+  const supabase = createClient<Database>(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
     global: { headers: { Authorization: `Bearer ${token}` } },
     auth: { persistSession: false },
   });

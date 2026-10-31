@@ -49,11 +49,12 @@ export default async function AdminPhotosPage({ searchParams }: PageProps<"/admi
   const counts: PhotoCounts = { total: 0, byCategory: {}, noDescription: 0, noSource: 0, waiting: 0 };
   for (const row of perCategory.data) {
     // One row per category and uploader, so they're added up.
-    counts.byCategory[row.category_id] = (counts.byCategory[row.category_id] ?? 0) + row.photos;
-    counts.total += row.photos;
-    counts.noDescription += row.no_description;
-    counts.noSource += row.no_source;
-    counts.waiting += row.waiting;
+    // A view's columns are typed "maybe null", but its counts never are.
+    counts.byCategory[row.category_id] = (counts.byCategory[row.category_id] ?? 0) + row.photos!;
+    counts.total += row.photos!;
+    counts.noDescription += row.no_description!;
+    counts.noSource += row.no_source!;
+    counts.waiting += row.waiting!;
   }
 
   return (

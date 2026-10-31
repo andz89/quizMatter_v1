@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/lib/database.types";
 
 /** A presentation sent to QuizMatter (see the quizmatter_submissions migration). */
 export type SubmissionStatus = "submitted" | "sent_back" | "approved" | "canceled";
@@ -35,7 +36,7 @@ type MySubmissionRow = {
 };
 
 /** My submissions, newest first, with each one's current title. Throws if the lookup fails. */
-export async function loadMySubmissions(supabase: SupabaseClient): Promise<MySubmission[]> {
+export async function loadMySubmissions(supabase: SupabaseClient<Database>): Promise<MySubmission[]> {
   const { data, error } = await supabase.rpc("my_submissions");
   if (error) throw error;
   return (data as MySubmissionRow[]).map((row) => ({
@@ -51,7 +52,7 @@ export async function loadMySubmissions(supabase: SupabaseClient): Promise<MySub
 
 /** One presentation's submission (its owner or an admin), or null. Throws if the lookup fails. */
 export async function loadSubmissionStatus(
-  supabase: SupabaseClient,
+  supabase: SupabaseClient<Database>,
   id: string,
 ): Promise<{ status: SubmissionStatus; adminNote: string; submittedAt: number } | null> {
   const { data, error } = await supabase

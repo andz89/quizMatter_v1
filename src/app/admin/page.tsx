@@ -20,7 +20,7 @@ const TODO = [
   { key: "reports", label: "Reports", href: "/admin/reports" },
 ] as const;
 
-type RecentAction = { id: string; admin_name: string; action: AdminAction; target_title: string | null; created_at: string };
+type RecentAction = { id: number; admin_name: string; action: AdminAction; target_title: string | null; created_at: string };
 
 const sectionLabel = "text-[11px] font-bold tracking-[0.05em] text-text-header uppercase";
 

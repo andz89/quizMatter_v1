@@ -30,11 +30,12 @@ export async function saveReviewDraft(presentation: Presentation, baseUpdatedAt:
   const { data, error } = await createClient().rpc("save_review_draft", {
     target_id: presentation.id,
     review_draft: parseDraft(presentation),
-    base_updated_at: baseUpdatedAt,
+    // null = no draft yet; the generated types can't say an argument may be null.
+    base_updated_at: baseUpdatedAt as number,
     app_version: DATA_VERSION,
   });
   throwIfRefused(error);
-  return data;
+  return data!; // throwIfRefused threw if there was no data
 }
 
 /**
@@ -47,7 +48,7 @@ export async function submitReview(presentation: Presentation, baseUpdatedAt: nu
     target_id: presentation.id,
     review_draft: parseDraft(presentation),
     reviewed_on: reviewedOnSchema.parse(todayIso()),
-    base_updated_at: baseUpdatedAt,
+    base_updated_at: baseUpdatedAt as number, // null = no draft yet (see saveReviewDraft)
     app_version: DATA_VERSION,
   });
   throwIfRefused(error);

@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/lib/database.types";
 import type { ReviewerFields } from "./schema";
 
 /**
@@ -32,7 +33,7 @@ export const NO_REVIEW: ReviewStatus = {
 export type Reviewer = ReviewerFields & { reviewerId: string | null };
 
 /** The review status, with the server or browser client. Throws if the lookup fails. */
-export async function loadReviewStatus(supabase: SupabaseClient, id: string): Promise<ReviewStatus> {
+export async function loadReviewStatus(supabase: SupabaseClient<Database>, id: string): Promise<ReviewStatus> {
   const { data, error } = await supabase.rpc("review_status", { target_id: id }).maybeSingle<{
     status: ReviewStatus["status"];
     reviewer_name: string;
@@ -56,7 +57,7 @@ export async function loadReviewStatus(supabase: SupabaseClient, id: string): Pr
 }
 
 /** Everyone who reviewed the presentation, newest review first. Throws if the lookup fails. */
-export async function loadReviewers(supabase: SupabaseClient, id: string): Promise<Reviewer[]> {
+export async function loadReviewers(supabase: SupabaseClient<Database>, id: string): Promise<Reviewer[]> {
   const { data, error } = await supabase
     .from("presentation_reviewers")
     .select("reviewer_id, name, email, reviewed_on")

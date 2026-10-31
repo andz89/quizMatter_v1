@@ -283,7 +283,7 @@ export function loadPhotoCategoriesInUse(): Promise<PhotoCategory[]> {
     if (categories.error) throw categories.error;
     if (counts.error) throw counts.error;
     // Only public photos count: admins can read editors' waiting ones too, but the panel leaves them out.
-    const inUse = new Set(counts.data.filter((row) => row.photos > row.waiting).map((row) => row.category_id));
+    const inUse = new Set(counts.data.filter((row) => row.photos! > row.waiting!).map((row) => row.category_id));
     return categories.data.filter((c) => inUse.has(c.id));
   });
 }

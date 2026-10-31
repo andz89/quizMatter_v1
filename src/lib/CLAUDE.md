@@ -94,6 +94,11 @@
   name itself is saved. The database's `is_province` has the same list; `provinces.test.ts` fails if they differ.
 - `supabase/`: `client.ts` (browser), `server.ts` (server, with the login cookies), `admin.ts` (secret key, server
   only, skips the database rules: use only when there is no other way).
+  Every client is typed with `Database` from `database.types.ts` (made by `npm run db:snapshot`, never edited), so
+  `tsc` catches a wrong function, table or column name. A helper that takes a client uses
+  `SupabaseClient<Database>`. The generated types can't say a function argument may be null, that a view's column
+  is never null, or what a `json` result holds: cast at the call, with a short comment why (e.g.
+  `base_updated_at: baseUpdatedAt as number` in `presentations.ts`).
   `listAllUsers` there pages through every account (1,000 at a time); Admin → Teachers uses it (Admin → Editors
   gets its editors' emails from the `admin_editors` rpc instead).
 - `adminActions.ts`: `ADMIN_ACTION_LABELS` (the words for the Admin log), `AdminAction` and `adminActionSchema`. Its keys
