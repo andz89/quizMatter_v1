@@ -13,38 +13,51 @@ import { createClient } from "@/lib/supabase/server";
 
 const FAILED = "Couldn't save the announcement. Please try again.";
 
-// 22023: a limit the database checks (e.g. at most 20 on at once), in its own words. P0002: deleted meanwhile.
-function refusal(error: { code?: string; message: string }) {
-  return error.code === "22023" || error.code === "P0002" ? error.message : FAILED;
+// 22023: a limit the database checks (e.g. not both a modal and a bar), in its own words. P0002: deleted meanwhile.
+// QMONE: another one of the same type is on; its message is that one's name, so the page can ask to turn it off.
+function refusal(error: { code?: string; message: string }): { error: string } | { conflict: string } {
+  if (error.code === "QMONE") return { conflict: error.message };
+  return { error: error.code === "22023" || error.code === "P0002" ? error.message : FAILED };
 }
 
 /**
  * Adds (no id) or changes an announcement, then counts it as a separate step, so a count that fails can't undo the
- * save. Returns its id (with `countFailed` when the count didn't work), or the words to show.
+ * save. Returns its id (with `countFailed` when the count didn't work), the name of the one of the same type that is
+ * on (`conflict`: nothing was saved; send again with `replaceCurrent` to turn that one off), or the words to show.
  */
 export async function saveAnnouncement(
   input: AnnouncementInput,
-): Promise<{ error: string } | { id: string; countFailed: boolean }> {
+  replaceCurrent = false,
+): Promise<{ error: string } | { conflict: string } | { id: string; countFailed: boolean }> {
   const parsed = announcementSchema.safeParse(input);
   if (!parsed.success) return { error: parsed.error.issues[0].message };
+  const replace = z.boolean().safeParse(replaceCurrent);
+  if (!replace.success) return { error: FAILED };
   if (!(await getAccount()).isSuperAdmin) return { error: "Only the super admin can do this." };
 
   const supabase = await createClient();
-  const { data, error } = await supabase.rpc("save_announcement", { a: parsed.data });
-  if (error) return { error: refusal(error) };
+  const { data, error } = await supabase.rpc("save_announcement", { a: parsed.data, replace_current: replace.data });
+  if (error) return refusal(error);
   forgetMaintenanceStatus();
   const { error: countError } = await supabase.rpc("recount_announcement", { target: data });
   refresh();
   return { id: data as string, countFailed: countError !== null };
 }
 
-const switchSchema = z.object({ target: z.uuid(), turn_on: z.boolean() });
+const switchSchema = z.object({ target: z.uuid(), turn_on: z.boolean(), replace_current: z.boolean() });
 
-/** Turns an announcement on or off. Returns null, or the words to show. */
-export async function setAnnouncementOn(id: string, turnOn: boolean): Promise<string | null> {
-  const parsed = switchSchema.safeParse({ target: id, turn_on: turnOn });
-  if (!parsed.success) return FAILED;
-  if (!(await getAccount()).isSuperAdmin) return "Only the super admin can do this.";
+/**
+ * Turns an announcement on or off. Returns null, the words to show, or `conflict` (like saveAnnouncement: nothing
+ * changed; send again with `replaceCurrent`).
+ */
+export async function setAnnouncementOn(
+  id: string,
+  turnOn: boolean,
+  replaceCurrent = false,
+): Promise<{ error: string } | { conflict: string } | null> {
+  const parsed = switchSchema.safeParse({ target: id, turn_on: turnOn, replace_current: replaceCurrent });
+  if (!parsed.success) return { error: FAILED };
+  if (!(await getAccount()).isSuperAdmin) return { error: "Only the super admin can do this." };
 
   const { error } = await (await createClient()).rpc("set_announcement_on", parsed.data);
   if (error) return refusal(error);
@@ -85,8 +98,6 @@ const audienceSchema = z.object({
   genders: S.genders,
   age_min: S.age_min,
   age_max: S.age_max,
-  provinces: S.provinces,
-  town_words: S.town_words,
   education_levels: S.education_levels,
   field_words: S.field_words,
   presentations_min: S.presentations_min,

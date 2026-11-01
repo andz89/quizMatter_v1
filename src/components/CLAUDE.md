@@ -35,16 +35,20 @@ notes.
   (`isEditorPage` from `Footer.tsx`).
 - Announcements (root `CLAUDE.md`, "Announcements"): `Announcements.tsx` (server, root layout right after
   `MaintenanceBar`) renders `AnnouncementsWatch.tsx` only when the maintenance status's `announcementsKey` is filled.
-  The watch keeps the teacher's list in sessionStorage (`qm:announcements`: key, Philippine day, account id, items,
+  It re-reads the logged-in account (from the cookie) on every page change and shows a list only to the account it
+  was asked for: logging out and in doesn't reload the page. Logging out (`AccountMenu`) also forgets the tab's list
+  (`forgetAnnouncements`). The watch keeps the teacher's list in sessionStorage (`qm:announcements`: key, Philippine day, account id, items,
   closed parts), asks `my_announcements` only when the key, day or logged-in account changed (`isSameVisit`) and the page is in a page group, hides everything
-  while fullscreen, and on close marks the part closed in the tab and (`once` / `daily`) calls
+  while presenting (fullscreen, or `PresentationView`'s `data-presenting` mark on `<html>`, for when the browser
+  refuses fullscreen), and on close marks the part closed in the tab and (`once` / `daily`) calls
   `dismiss_announcement`.
 - `AnnouncementView.tsx`: how an announcement looks (root `CLAUDE.md`, "Announcements"), for teachers and the admin's
   preview. `AnnouncementModal`, like a post: the `Modal` with no title row (`hideHeader`), at the chosen width
   (`MODAL_SIZES`), no padding (`noPadding`); the plain text with padding (`LinkifiedText`), then
   `AnnouncementAttachment` edge to edge (our photo, or a YouTube card: our copy of the thumbnail in a 16:9 box with a
   play icon, then the title; opens YouTube in a new tab; or a Facebook post / video in Facebook's own sandboxed frame:
-  a video 16:9 edge to edge, a post 350–500 px wide and 500 px tall, centered); "You can close this in N…" until its close delay ends,
+  a video 16:9 edge to edge, a post 350–500 px wide and 500 px tall, centered, scrolling sideways in a narrower modal; both with an "Open on
+  Facebook" link under the frame, for networks that block Facebook); "You can close this in N…" until its close delay ends,
   then a Close button, Escape and a click outside close it. `AnnouncementBar`: a violet strip with a megaphone; ✕
   after the countdown; `isFloating` = a card, which the parent places at the bottom. The bar's text goes through
   `toSafeAnnouncementHtml` in the browser; links into the app move with `router.push`, others open in a new tab.

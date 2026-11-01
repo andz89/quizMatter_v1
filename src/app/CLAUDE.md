@@ -88,11 +88,12 @@ Draft / Shared switch on the presentation itself, and aren't counted.
 
 - `account/`: display name (kept 30 days once changed; `display_name` click limit), personal details and bio
   (the `settings` click limit, like the Elements panel's favorite stars), password (`AccountForms.tsx`). Rules and
-  limits: `src/lib/userSettings.ts`. Personal details include the birthday, gender, province and town (spec
-  `docs/superpowers/specs/2026-10-30-age-gender-address-design.md`), all required, like at sign up: an account with
-  none (e.g. made in the Supabase dashboard) must fill them in to save.
+  limits: `src/lib/userSettings.ts`. Personal details include the birthday and gender (spec
+  `docs/superpowers/specs/2026-10-30-age-gender-address-design.md`), both required, like at sign up: an account with
+  none (e.g. made in the Supabase dashboard) must fill them in to save. The province and town were removed
+  (`docs/superpowers/specs/2026-11-01-remove-address-design.md`).
 - Profile privacy (spec `docs/superpowers/specs/2026-10-28-profile-privacy-design.md`): in Personal details, plain
-  teachers get a "Show on my profile" checkbox under the full name, the town and province (together), the
+  teachers get a "Show on my profile" checkbox under the full name, the
   educational background (degree and field together) and the bio, saved with Save details
   (`saveProfile(fields, visibility)`, `profileVisibilitySchema`; all on until turned off). The birthday and gender
   never show on a profile. With the full name off and both names still in the display name (sign up makes it from
@@ -110,8 +111,7 @@ Draft / Shared switch on the presentation itself, and aren't counted.
   An editor's profile photo (`photoSrc`, from `teacher_profile`) shows round next to the name; none = the name alone.
   A private full name, background or bio comes back empty for others, so it isn't shown (a private bio has no
   section at all); the owner sees it with an "Only you can see this" tag (`fullNamePublic` / `educationPublic` /
-  `bioPublic` off). Under the name: "Town, Province" with a map pin (`placeLine`), hidden the same way
-  (`townPublic`); never the birthday or gender.
+  `bioPublic` off). Never the birthday or gender.
   Below it, the QuizMatter presentations they made as an editor (`editor_presentations`, `src/lib/lessons.ts`), by
   subject, then first grade; then "Shared presentations", the ones they published (their shared copies, not hidden,
   last changed first; `teacher_shared_presentations` via `loadSharedPresentationIds` in `src/lib/profiles.ts`).
@@ -126,8 +126,7 @@ Draft / Shared switch on the presentation itself, and aren't counted.
   Terms of Use and Privacy Policy…"; its two links open a new tab, so the filled form isn't lost): zod refuses it
   unticked, and the account saves the agreed version (`LEGAL_VERSION`) and the time in `user_settings`. A hint under
   educational background (here and on the Account page) says it shows on the profile. Also required: Birthday (a date
-  picker limited to 18–100 years old, `src/lib/age.ts`), Gender (Male / Female), Province (`src/lib/provinces.ts`)
-  and City or town; a hint says the birthday and gender are private and the town and province show on the profile.
+  picker limited to 18–100 years old, `src/lib/age.ts`), and Gender (Male / Female); a hint says the birthday and gender are private.
   They ride along as metadata like the other details; the database refuses a bad one (`QMAGE` for the birthday) and
   sign up saves a bad one empty (`20261220000000_age_gender_address.sql`). The email link opens
   `auth/confirm/route.ts`: it checks `type` with zod (only `email`, the sign up email; add a type there if a new

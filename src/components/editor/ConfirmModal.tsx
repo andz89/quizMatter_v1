@@ -12,6 +12,9 @@ interface ConfirmModalProps {
   // false: the confirm button isn't focused when the box opens, for a box that can pop up while someone types
   // (Enter or Space would press it by accident).
   autoFocus?: boolean;
+  // An optional third choice between Cancel and confirm (e.g. "Save as draft" when turning on an announcement).
+  secondaryLabel?: string;
+  onSecondary?: () => void;
   onConfirm: () => void;
   onCancel: () => void;
 }
@@ -23,6 +26,8 @@ export function ConfirmModal({
   confirmLabel,
   danger = false,
   autoFocus = true,
+  secondaryLabel,
+  onSecondary,
   onConfirm,
   onCancel,
 }: ConfirmModalProps) {
@@ -50,7 +55,7 @@ export function ConfirmModal({
       <div role="dialog" aria-modal="true" className="flex w-full max-w-[420px] flex-col gap-3 rounded-card bg-bg-surface px-6 py-5">
         <h2 className="text-base font-extrabold text-text-primary">{title}</h2>
         <p className="text-sm leading-relaxed text-text-primary">{message}</p>
-        <div className="mt-2 flex justify-end gap-2">
+        <div className="mt-2 flex flex-wrap justify-end gap-2">
           <button
             type="button"
             onClick={onCancel}
@@ -58,6 +63,15 @@ export function ConfirmModal({
           >
             Cancel
           </button>
+          {secondaryLabel && onSecondary && (
+            <button
+              type="button"
+              onClick={onSecondary}
+              className="h-9 rounded-button border border-border-default px-4 text-sm font-semibold text-text-primary hover:bg-bg-page"
+            >
+              {secondaryLabel}
+            </button>
+          )}
           <button
             type="button"
             autoFocus={autoFocus}

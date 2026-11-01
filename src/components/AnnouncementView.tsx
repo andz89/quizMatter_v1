@@ -1,10 +1,9 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent } from "react";
+import { useEffect, useRef, useState, type MouseEvent } from "react";
 import { useRouter } from "next/navigation";
-import { MegaphoneIcon, PlayIcon, XIcon } from "lucide-react";
-import { isInternalLink, toSafeAnnouncementHtml } from "@/lib/announcementText";
-import { MODAL_SIZES, type ModalAttachment, type ModalSize } from "@/lib/announcements";
+import { ExternalLinkIcon, MegaphoneIcon, PlayIcon, XIcon } from "lucide-react";
+import { MODAL_SIZES, isInternalLink, type ModalAttachment, type ModalSize } from "@/lib/announcements";
 import { facebookEmbedUrl, facebookPostWidth } from "@/lib/facebook";
 import { youTubeWatchUrl } from "@/lib/youtube";
 import { LinkifiedText } from "./LinkifiedText";
@@ -26,28 +25,35 @@ function useCloseCountdown(closeAfter: number) {
 
 /**
  * The bar's saved text, made safe first (toSafeAnnouncementHtml needs the browser's DOM, so it's filled in here, not
- * in JSX). Links into QuizMatter open in the same tab; other sites in a new tab.
+ * in JSX). Its code (Tiptap) is loaded only once a bar shows, so a teacher's page doesn't carry it for a modal or for
+ * nothing. Links into QuizMatter open in the same tab; other sites in a new tab.
  */
 function BarText({ html, className }: { html: string; className: string }) {
   const ref = useRef<HTMLDivElement>(null);
   const router = useRouter();
 
-  useLayoutEffect(() => {
-    if (!ref.current) return;
-    // Blank lines at the very start or end are left out (e.g. the one after a picture), so nothing adds space
-    // there. A blank line in between gets a <br>, as the editor gives it, so it keeps one line of height.
-    ref.current.innerHTML = toSafeAnnouncementHtml(html)
-      .replace(/^(<p[^>]*><\/p>)+|(<p[^>]*><\/p>)+$/g, "")
-      .replace(/<p([^>]*)><\/p>/g, "<p$1><br></p>");
-    for (const link of ref.current.querySelectorAll("a")) {
-      if (isInternalLink(link.getAttribute("href") ?? "")) {
-        link.removeAttribute("target");
-        link.removeAttribute("rel");
-      } else {
-        link.target = "_blank";
-        link.rel = "noopener noreferrer";
+  useEffect(() => {
+    let isCurrent = true;
+    void import("@/lib/announcementText").then(({ toSafeAnnouncementHtml }) => {
+      if (!isCurrent || !ref.current) return;
+      // Blank lines at the very start or end are left out (e.g. the one after a picture), so nothing adds space
+      // there. A blank line in between gets a <br>, as the editor gives it, so it keeps one line of height.
+      ref.current.innerHTML = toSafeAnnouncementHtml(html)
+        .replace(/^(<p[^>]*><\/p>)+|(<p[^>]*><\/p>)+$/g, "")
+        .replace(/<p([^>]*)><\/p>/g, "<p$1><br></p>");
+      for (const link of ref.current.querySelectorAll("a")) {
+        if (isInternalLink(link.getAttribute("href") ?? "")) {
+          link.removeAttribute("target");
+          link.removeAttribute("rel");
+        } else {
+          link.target = "_blank";
+          link.rel = "noopener noreferrer";
+        }
       }
-    }
+    });
+    return () => {
+      isCurrent = false;
+    };
   }, [html]);
 
   // An in-app link moves inside the app (no full page load), unless it's opened in a new tab (Ctrl, middle click).
@@ -81,32 +87,45 @@ const FACEBOOK_POST_HEIGHT = 500;
 export function AnnouncementAttachment({ attachment, width }: { attachment: ModalAttachment; width: number }) {
   if (attachment.kind === "facebook") {
     const src = facebookEmbedUrl(attachment, width);
-    if (attachment.video) {
-      return (
-        <div className="relative aspect-video w-full bg-text-primary">
-          <iframe
-            src={src}
-            title="Facebook video"
-            sandbox={FACEBOOK_SANDBOX}
-            allow={FACEBOOK_ALLOW}
-            allowFullScreen
-            referrerPolicy="strict-origin-when-cross-origin"
-            className="absolute inset-0 h-full w-full border-0"
-          />
-        </div>
-      );
-    }
     return (
-      <div className="flex justify-center bg-bg-page">
-        <iframe
-          src={src}
-          title="Facebook post"
-          sandbox={FACEBOOK_SANDBOX}
-          allow={FACEBOOK_ALLOW}
-          referrerPolicy="strict-origin-when-cross-origin"
-          style={{ width: facebookPostWidth(width), height: FACEBOOK_POST_HEIGHT }}
-          className="max-w-full border-0"
-        />
+      <div className="bg-bg-page">
+        {attachment.video ? (
+          <div className="relative aspect-video w-full bg-text-primary">
+            <iframe
+              src={src}
+              title="Facebook video"
+              sandbox={FACEBOOK_SANDBOX}
+              allow={FACEBOOK_ALLOW}
+              allowFullScreen
+              referrerPolicy="strict-origin-when-cross-origin"
+              className="absolute inset-0 h-full w-full border-0"
+            />
+          </div>
+        ) : (
+          // Facebook's post box is at least 350 px wide: in a narrower modal (Small, a phone) it scrolls sideways
+          // instead of being cut off.
+          <div className="flex overflow-x-auto">
+            <iframe
+              src={src}
+              title="Facebook post"
+              sandbox={FACEBOOK_SANDBOX}
+              allow={FACEBOOK_ALLOW}
+              referrerPolicy="strict-origin-when-cross-origin"
+              style={{ width: facebookPostWidth(width), height: FACEBOOK_POST_HEIGHT }}
+              className="mx-auto shrink-0 border-0"
+            />
+          </div>
+        )}
+        {/* School networks and blockers often stop Facebook's frame (an empty box); this still reaches the post. */}
+        <a
+          href={attachment.href}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-2 px-5 py-3 text-sm font-semibold text-accent hover:underline"
+        >
+          <ExternalLinkIcon size={16} />
+          Open on Facebook
+        </a>
       </div>
     );
   }

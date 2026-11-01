@@ -223,6 +223,15 @@ export function PresentationView() {
     };
   }, []);
 
+  // Tells AnnouncementsWatch (root layout) a presentation is showing, also when the browser refused fullscreen.
+  useEffect(() => {
+    const root = document.documentElement;
+    root.dataset.presenting = "true";
+    return () => {
+      delete root.dataset.presenting;
+    };
+  }, []);
+
   useEffect(() => {
     const handleFullscreenChange = () => {
       if (!document.fullscreenElement) exitPresentation();

@@ -31,10 +31,10 @@ insert into public.banned_users (user_id, reason) values ('00000000-0000-4000-80
 -- t1 is 36 today, whatever day the test runs (born 36½ years ago), so the age checks don't go stale.
 update public.user_settings set
   birth_date = (public.manila_today() - interval '36 years 6 months')::date,
-  gender = 'female', province = 'Cebu', town = 'Mandaue City',
+  gender = 'female',
   education_level = 'master', education_field = 'Secondary Education, major in English'
 where user_id in ('00000000-0000-4000-8000-0000000000f3', '00000000-0000-4000-8000-0000000000f6');
-update public.user_settings set birth_date = null, gender = '', province = '', town = '', education_level = '',
+update public.user_settings set birth_date = null, gender = '', education_level = '',
   education_field = ''
 where user_id = '00000000-0000-4000-8000-0000000000f4';
 
@@ -55,7 +55,7 @@ create function pg_temp.ann(extra jsonb) returns jsonb language sql as $$
     "show_modal": true, "modal_text": "Hello", "modal_close_after": 0,
     "show_bar": false, "bar_html": "", "bar_close_after": 0,
     "repeat": "once", "pages": ["all"],
-    "genders": [], "age_min": null, "age_max": null, "provinces": [], "town_words": [],
+    "genders": [], "age_min": null, "age_max": null,
     "education_levels": [], "field_words": [], "presentations_min": null, "presentations_max": null, "roles": []
   }'::jsonb || extra;
 $$;
@@ -73,13 +73,13 @@ exception when others then
 end;
 $$;
 
--- Saves as the super admin; returns the id.
-create function pg_temp.save(a jsonb) returns uuid language plpgsql as $$
+-- Saves as the super admin; returns the id. replace_current: turn off the one of the same type that is on.
+create function pg_temp.save(a jsonb, replace_current boolean default false) returns uuid language plpgsql as $$
 begin
   perform set_config('request.jwt.claims',
     json_build_object('sub', '00000000-0000-4000-8000-0000000000f1', 'role', 'authenticated')::text, true);
   perform set_config('quizmatter.admin_logged', '', true);
-  return public.save_announcement(a);
+  return public.save_announcement(a, replace_current);
 end;
 $$;
 
@@ -167,10 +167,8 @@ begin
     ('{"genders": ["male"]}', t1, 0),
     ('{"age_min": 30, "age_max": 40}', t1, 1),
     ('{"age_min": 40}', t1, 0),
-    ('{"provinces": ["Cebu"]}', t1, 1),
-    ('{"provinces": ["Bohol"]}', t1, 0),
-    ('{"town_words": ["mandaue"]}', t1, 1),
-    ('{"town_words": ["lapu"]}', t1, 0),
+    -- An old admin tab's province and town filters are ignored (the address was removed).
+    ('{"provinces": ["Bohol"], "town_words": ["lapu"]}', t1, 1),
     ('{"education_levels": ["master"]}', t1, 1),
     ('{"education_levels": ["doctorate"]}', t1, 0),
     ('{"field_words": ["ENGLISH", "filipino"]}', t1, 1),
@@ -196,7 +194,7 @@ declare
   f text;
 begin
   foreach f in array array[
-    '{"age_min": 18}', '{"provinces": ["Cebu"]}', '{"town_words": ["a"]}', '{"education_levels": ["master"]}',
+    '{"age_min": 18}', '{"education_levels": ["master"]}',
     '{"field_words": ["a"]}', '{"genders": ["female"]}'
   ] loop
     perform pg_temp.save(pg_temp.ann('{"name": "Main"}') || jsonb_build_object('id', a) || f::jsonb);
@@ -237,11 +235,11 @@ begin
 end;
 $$;
 
--- ─── 6. once: closing hides it for that teacher only; the modal and the bar close apart ───────────────────────
+-- ─── 6. once: closing hides it for that teacher only; closing the modal leaves a bar that is on ──────────────
 do $$
 declare
   a uuid := (select id from ids where name = 'main');
-  both_parts uuid;
+  bar uuid;
   t1 constant uuid := '00000000-0000-4000-8000-0000000000f3';
   r record;
 begin
@@ -251,13 +249,13 @@ begin
     raise exception 'FAIL: once: closing did not hide it for t1 only';
   end if;
 
-  both_parts := pg_temp.save(pg_temp.ann('{"name": "Both", "show_bar": true, "bar_html": "<p>Bar</p>"}'));
-  insert into ids values ('both', both_parts);
+  -- An announcement is a modal or a bar (20261228000000_announcement_one_on.sql); one of each can be on.
+  bar := pg_temp.save(pg_temp.ann('{"name": "Bar", "show_modal": false, "modal_text": "", "show_bar": true, "bar_html": "<p>Bar</p>"}'));
+  insert into ids values ('bar', bar);
   perform set_config('request.jwt.claims', json_build_object('sub', t1, 'role', 'authenticated')::text, true);
-  perform public.dismiss_announcement(both_parts, 'modal');
-  select * into r from public.my_announcements() m where m.id = both_parts;
+  select * into r from public.my_announcements() m where m.id = bar;
   if r.id is null or r.show_modal or not r.show_bar then
-    raise exception 'FAIL: closing the modal did not leave the bar';
+    raise exception 'FAIL: closing the modal hid the bar';
   end if;
 end;
 $$;
@@ -335,41 +333,21 @@ begin
     '{"modal_close_after": 61}',
     '{"age_min": 17}',
     '{"age_min": 40, "age_max": 30}',
-    '{"provinces": ["Atlantis"]}',
     jsonb_build_object('field_words', (select jsonb_agg('w' || g) from generate_series(1, 21) g))::text,
     '{"show_modal": false, "show_bar": false}',
     '{"show_bar": true, "bar_html": ""}',
+    '{"show_modal": false, "show_bar": true, "bar_html": ""}',
+    '{"show_bar": true, "bar_html": "<p>Both</p>"}',
     '{"pages": ["dashboard"]}',
     '{"pages": []}'
   ] loop
-    if not pg_temp.refused(a1, format('select public.save_announcement(pg_temp.ann(%L))', bad)) then
+    -- Saved as off, so only the bad key can refuse it (Main is the modal that is on).
+    if not pg_temp.refused(a1, format('select public.save_announcement(pg_temp.ann(''{"is_on": false}''::jsonb || %L::jsonb))', bad)) then
       raise exception 'FAIL: a bad announcement was saved: %', bad;
     end if;
   end loop;
 end;
 $$;
-
--- At most 20 on and not ended: fill up to 20 (as postgres), then the 21st is refused (an off one is fine).
-reset role;
-insert into public.announcements (name, is_on, show_bar, bar_html)
-select 'Filler ' || g, true, true, '<p>x</p>'
-from generate_series(1, 20 - (select count(*)::int from public.announcements
-  where is_on and (ends_at is null or ends_at > now()))) g;
-set local role authenticated;
-do $$
-begin
-  if not pg_temp.refused('00000000-0000-4000-8000-0000000000f1', 'select public.save_announcement(pg_temp.ann(''{}''))') then
-    raise exception 'FAIL: a 21st announcement that is on was saved';
-  end if;
-  if pg_temp.refused('00000000-0000-4000-8000-0000000000f1',
-    'select public.save_announcement(pg_temp.ann(''{"is_on": false}''))') then
-    raise exception 'FAIL: an announcement that is off was refused at the limit';
-  end if;
-end;
-$$;
-reset role;
-delete from public.announcements where name like 'Filler %' or (name = 'Test' and not is_on);
-set local role authenticated;
 
 -- ─── 10. admin_announcements: status, matched, closed ─────────────────────────────────────────────────────────
 do $$
@@ -383,7 +361,9 @@ declare
 begin
   -- Main back to once, so t1's modal dismissal counts as closed.
   perform pg_temp.save(pg_temp.ann('{"name": "Main"}') || jsonb_build_object('id', main_id));
-  scheduled := pg_temp.save(pg_temp.ann('{"name": "Later"}') || jsonb_build_object('starts_at', now() + interval '1 day'));
+  -- A bar, since Main is the modal that is on; it takes the bar's place (Bar goes off).
+  scheduled := pg_temp.save(pg_temp.ann('{"name": "Later", "show_modal": false, "modal_text": "", "show_bar": true, "bar_html": "<p>Later</p>"}')
+    || jsonb_build_object('starts_at', now() + interval '1 day'), true);
   ended := pg_temp.save(pg_temp.ann('{"name": "Done"}') || jsonb_build_object('ends_at', now() - interval '1 hour'));
   off := pg_temp.save(pg_temp.ann('{"name": "Off", "is_on": false}'));
 
@@ -411,7 +391,8 @@ begin
 
   -- set_announcement_on and delete_announcement
   perform set_config('quizmatter.admin_logged', '', true);
-  perform public.set_announcement_on(off, true);
+  -- Main is the modal that is on, so turning on another modal turns Main off.
+  perform public.set_announcement_on(off, true, true);
   if not (select x.is_on from public.admin_announcements() x where x.id = off) then
     raise exception 'FAIL: set_announcement_on did not turn it on';
   end if;

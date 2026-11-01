@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { EyeIcon } from "lucide-react";
 import { AnnouncementBar, AnnouncementModal } from "@/components/AnnouncementView";
 import { Spinner } from "@/components/Spinner";
+import { ConfirmModal } from "@/components/editor/ConfirmModal";
 import {
   ANNOUNCEMENT_LIMITS as L,
   ANNOUNCEMENT_ROLES,
@@ -17,7 +18,6 @@ import {
   announcementSchema,
   type AnnouncementInput,
 } from "@/lib/announcements";
-import { PROVINCES } from "@/lib/provinces";
 import { EDUCATION_LEVELS, EDUCATION_LEVEL_LABELS, GENDERS, GENDER_LABELS } from "@/lib/userSettings";
 import { countAudience, saveAnnouncement } from "./actions";
 import { AnnouncementTextEditor } from "./AnnouncementTextEditor";
@@ -31,7 +31,8 @@ const checkClass = "h-4 w-4 accent-accent";
 const NEW_ANNOUNCEMENT: AnnouncementInput = {
   id: null,
   name: "",
-  is_on: true,
+  // Set by the button: Save as draft (off) or Save and turn on.
+  is_on: false,
   starts_at: null,
   ends_at: null,
   show_modal: true,
@@ -46,8 +47,6 @@ const NEW_ANNOUNCEMENT: AnnouncementInput = {
   genders: [],
   age_min: null,
   age_max: null,
-  provinces: [],
-  town_words: [],
   education_levels: [],
   field_words: [],
   presentations_min: null,
@@ -55,6 +54,12 @@ const NEW_ANNOUNCEMENT: AnnouncementInput = {
   roles: [],
   modal_size: "large",
 };
+
+// The Type choice: an announcement is a modal or a top bar, never both.
+const TYPES = [
+  { label: "Modal", bar: false },
+  { label: "Top bar (text only)", bar: true },
+];
 
 // What each "show again" choice means, under its name in the form (how it works: AnnouncementsWatch and
 // my_announcements).
@@ -93,19 +98,22 @@ const toNumber = (value: string) => (value === "" ? null : Number(value));
 export function AnnouncementForm({ initial = NEW_ANNOUNCEMENT }: { initial?: AnnouncementInput }) {
   const router = useRouter();
   const [form, setForm] = useState(initial);
-  const [townText, setTownText] = useState(initial.town_words.join(", "));
   const [fieldText, setFieldText] = useState(initial.field_words.join(", "));
-  const [provinceFilter, setProvinceFilter] = useState("");
   // The last "Count teachers" answer and the filters it was for (null = couldn't count, e.g. a filter isn't valid).
   const [counted, setCounted] = useState<{ filters: string; count: number | null } | null>(null);
   const [isCounting, startCounting] = useTransition();
   // A new number each time Preview is clicked, so the countdowns start again.
   const [preview, setPreview] = useState<{ key: number; modal: boolean; bar: boolean } | null>(null);
   const [isSaving, startSaving] = useTransition();
+  // Which button is saving (true = turn on), for its spinner.
+  const [savingOn, setSavingOn] = useState(false);
+  // The name of the one of the same type that is on, when Save and turn on was refused for it (the box asks).
+  const [conflict, setConflict] = useState<string | null>(null);
+  const typeWord = form.show_bar ? "top bar" : "modal";
 
-  const set = <K extends keyof AnnouncementInput>(key: K, value: AnnouncementInput[K]) => setForm((f) => ({ ...f, [key]: value }));
+  const set =<K extends keyof AnnouncementInput>(key: K, value: AnnouncementInput[K]) => setForm((f) => ({ ...f, [key]: value }));
   const toggleIn = <T extends string>(list: T[], value: T, on: boolean) => (on ? [...list, value] : list.filter((v) => v !== value));
-  const input: AnnouncementInput = { ...form, town_words: splitWords(townText), field_words: splitWords(fieldText) };
+  const input: AnnouncementInput = { ...form, field_words: splitWords(fieldText) };
 
   // "Count teachers" runs the matching rule over every account (slow with many teachers), so it's only asked on a
   // click, never while typing. Its answer shows only while the filters are still the ones it counted.
@@ -113,8 +121,6 @@ export function AnnouncementForm({ initial = NEW_ANNOUNCEMENT }: { initial?: Ann
     genders: input.genders,
     age_min: input.age_min,
     age_max: input.age_max,
-    provinces: input.provinces,
-    town_words: input.town_words,
     education_levels: input.education_levels,
     field_words: input.field_words,
     presentations_min: input.presentations_min,
@@ -127,15 +133,19 @@ export function AnnouncementForm({ initial = NEW_ANNOUNCEMENT }: { initial?: Ann
     });
   const audience = counted?.filters === filters ? counted : null;
 
-  const save = () => {
+  // turnOn false = Save as draft. replaceCurrent: turn off the one of the same type that is on (after the box asked).
+  const save = (turnOn: boolean, replaceCurrent = false) => {
+    setConflict(null);
     // Checked here for a quick message; the server checks again before saving.
-    const parsed = announcementSchema.safeParse(input);
+    const parsed = announcementSchema.safeParse({ ...input, is_on: turnOn });
     if (!parsed.success) return toast.error(parsed.error.issues[0].message);
+    setSavingOn(turnOn);
     startSaving(async () => {
-      const result = await saveAnnouncement(parsed.data);
+      const result = await saveAnnouncement(parsed.data, replaceCurrent);
+      if ("conflict" in result) return setConflict(result.conflict);
       if ("error" in result) return void toast.error(result.error);
       if (result.countFailed) toast.warning("Saved, but the teachers couldn't be counted yet. Use Count again in the list.");
-      else toast.success("Announcement saved.");
+      else toast.success(turnOn ? "Announcement saved and on." : "Saved as a draft.");
       router.push("/admin/announcements");
     });
   };
@@ -148,7 +158,6 @@ export function AnnouncementForm({ initial = NEW_ANNOUNCEMENT }: { initial?: Ann
   };
 
   const isAllPages = form.pages.includes("all");
-  const shownProvinces = PROVINCES.filter((p) => p.toLowerCase().includes(provinceFilter.trim().toLowerCase()));
 
   return (
     <div className="flex max-w-3xl flex-col gap-5">
@@ -164,10 +173,6 @@ export function AnnouncementForm({ initial = NEW_ANNOUNCEMENT }: { initial?: Ann
           placeholder="e.g. New lessons for Grade 5"
           className={inputClass}
         />
-        <label className="mt-3 flex w-fit items-center gap-2 text-sm text-text-primary">
-          <input type="checkbox" checked={form.is_on} onChange={(e) => set("is_on", e.target.checked)} className={checkClass} />
-          On
-        </label>
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
           <div>
             <label htmlFor="announcement-starts" className={labelClass}>
@@ -196,13 +201,27 @@ export function AnnouncementForm({ initial = NEW_ANNOUNCEMENT }: { initial?: Ann
         </div>
       </Section>
 
-      <Section title="Modal">
-        <label className="flex w-fit items-center gap-2 text-sm text-text-primary">
-          <input type="checkbox" checked={form.show_modal} onChange={(e) => set("show_modal", e.target.checked)} className={checkClass} />
-          Show a modal
-        </label>
-        {form.show_modal && (
-          <div className="mt-3 flex flex-col gap-3">
+      {/* One type per announcement. Switching keeps what was typed in the other one; only the chosen one is saved on. */}
+      <Section title="Type">
+        <div className="flex flex-wrap gap-x-4 gap-y-2">
+          {TYPES.map((type) => (
+            <label key={type.label} className="flex items-center gap-2 text-sm text-text-primary">
+              <input
+                type="radio"
+                name="announcement-type"
+                checked={form.show_bar === type.bar}
+                onChange={() => setForm((f) => ({ ...f, show_modal: !type.bar, show_bar: type.bar }))}
+                className={checkClass}
+              />
+              {type.label}
+            </label>
+          ))}
+        </div>
+      </Section>
+
+      {form.show_modal && (
+        <Section title="Modal">
+          <div className="flex flex-col gap-3">
             <div>
               <span className={labelClass}>Size</span>
               <div className="flex flex-wrap gap-x-4 gap-y-2">
@@ -229,26 +248,21 @@ export function AnnouncementForm({ initial = NEW_ANNOUNCEMENT }: { initial?: Ann
             />
             <CloseAfter value={form.modal_close_after} onChange={(n) => set("modal_close_after", n)} />
           </div>
-        )}
-      </Section>
+        </Section>
+      )}
 
-      <Section title="Top bar">
-        <label className="flex w-fit items-center gap-2 text-sm text-text-primary">
-          <input type="checkbox" checked={form.show_bar} onChange={(e) => set("show_bar", e.target.checked)} className={checkClass} />
-          Show a bar at the top (text only)
-        </label>
-        {form.show_bar && (
-          <div className="mt-3 flex flex-col gap-3">
+      {form.show_bar && (
+        <Section title="Top bar">
+          <div className="flex flex-col gap-3">
             <AnnouncementTextEditor value={form.bar_html} onChange={(html) => set("bar_html", html)} />
             <CloseAfter value={form.bar_close_after} onChange={(n) => set("bar_close_after", n)} />
           </div>
-        )}
-      </Section>
+        </Section>
+      )}
 
       <Section title="After a teacher closes it, show it again">
         <p className="mb-3 text-sm text-text-secondary">
-          This decides when a teacher sees the announcement again after closing it. The modal and the bar count
-          separately: closing the modal doesn&apos;t close the bar.
+          This decides when a teacher sees the announcement again after closing it.
         </p>
         <div className="flex flex-col gap-3">
           {REPEATS.map((repeat) => (
@@ -318,37 +332,6 @@ export function AnnouncementForm({ initial = NEW_ANNOUNCEMENT }: { initial?: Ann
             onFrom={(n) => set("age_min", n)}
             onTo={(n) => set("age_max", n)}
           />
-          <div>
-            <span className={labelClass}>
-              Provinces{form.provinces.length > 0 && ` (${form.provinces.length} chosen)`}
-            </span>
-            <input
-              value={provinceFilter}
-              onChange={(e) => setProvinceFilter(e.target.value)}
-              placeholder="Find a province"
-              className={`${inputClass} mb-2`}
-            />
-            <div className="grid max-h-48 gap-2 overflow-y-auto rounded-input border border-border-default px-3 py-2 sm:grid-cols-2">
-              {shownProvinces.map((province) => (
-                <label key={province} className="flex items-center gap-2 text-sm text-text-primary">
-                  <input
-                    type="checkbox"
-                    checked={form.provinces.includes(province)}
-                    onChange={(e) => set("provinces", toggleIn(form.provinces, province, e.target.checked))}
-                    className={checkClass}
-                  />
-                  {province}
-                </label>
-              ))}
-            </div>
-          </div>
-          <WordsInput
-            id="announcement-towns"
-            label="City or town has any of these words"
-            value={townText}
-            onChange={setTownText}
-            placeholder="e.g. Mandaue, Lapu-Lapu"
-          />
           <CheckRow
             label="Educational background"
             options={EDUCATION_LEVELS.map((level) => ({ key: level, label: EDUCATION_LEVEL_LABELS[level] }))}
@@ -416,14 +399,36 @@ export function AnnouncementForm({ initial = NEW_ANNOUNCEMENT }: { initial?: Ann
         </button>
         <button
           type="button"
-          onClick={save}
+          onClick={() => save(false)}
+          disabled={isSaving}
+          className="inline-flex items-center gap-2 rounded-button border border-border-default bg-bg-surface px-4 py-2 text-sm font-semibold text-text-primary hover:bg-bg-page disabled:opacity-60"
+        >
+          {isSaving && !savingOn && <Spinner size={14} />}
+          Save as draft
+        </button>
+        <button
+          type="button"
+          onClick={() => save(true)}
           disabled={isSaving}
           className="inline-flex items-center gap-2 rounded-button bg-accent btn-press px-4 py-2 text-sm font-semibold text-white hover:bg-accent-hover disabled:opacity-60"
         >
-          {isSaving && <Spinner size={14} />}
-          Save
+          {isSaving && savingOn && <Spinner size={14} />}
+          {initial.is_on ? "Save" : "Save and turn on"}
         </button>
       </div>
+
+      {/* Nothing was saved yet: Cancel goes back to the form with the work still in it. */}
+      {conflict !== null && (
+        <ConfirmModal
+          title={`Turn off the current ${typeWord}?`}
+          message={`"${conflict}" is the ${typeWord} that's on now. Only one ${typeWord} can be on at a time. Turn it off and turn this one on, or save this one as a draft for later.`}
+          confirmLabel="Turn it off and turn this on"
+          secondaryLabel="Save as draft"
+          onSecondary={() => save(false)}
+          onConfirm={() => save(true, true)}
+          onCancel={() => setConflict(null)}
+        />
+      )}
 
       {preview?.bar && (
         <div className="fixed inset-x-0 top-0 z-[70]">

@@ -15,7 +15,7 @@ create function pg_temp.ann(extra jsonb) returns jsonb language sql as $$
     "show_modal": true, "modal_text": "", "modal_attachment": null, "modal_close_after": 0,
     "show_bar": false, "bar_html": "", "bar_close_after": 0,
     "repeat": "once", "pages": ["all"], "modal_size": "large",
-    "genders": [], "age_min": null, "age_max": null, "provinces": [], "town_words": [],
+    "genders": [], "age_min": null, "age_max": null,
     "education_levels": [], "field_words": [], "presentations_min": null, "presentations_max": null, "roles": []
   }'::jsonb || extra;
 $$;
@@ -25,7 +25,8 @@ begin
   perform set_config('request.jwt.claims',
     json_build_object('sub', '00000000-0000-4000-8000-000000000071', 'role', 'authenticated')::text, true);
   perform set_config('quizmatter.admin_logged', '', true);
-  return public.save_announcement(a);
+  -- One modal on at a time (20261228000000_announcement_one_on.sql): each save takes the place of the last.
+  return public.save_announcement(a, true);
 end;
 $$;
 

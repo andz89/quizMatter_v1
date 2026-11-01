@@ -18,15 +18,10 @@ export type TeacherProfile = {
   // Editors' profile photo ("" when none; only editors have one, see 20261214000000_profile_photos.sql).
   photoSrc: string;
   // Whether others see the full name, educational background and bio (the teacher's "Show on my profile"; always
-  // true for an editor). Off with the field filled in = the owner looking at their own profile. townPublic below
-  // works the same way.
+  // true for an editor). Off with the field filled in = the owner looking at their own profile.
   fullNamePublic: boolean;
   educationPublic: boolean;
   bioPublic: boolean;
-  // City or town and province ("" when not given or hidden), and whether others see them (always for an editor).
-  town: string;
-  province: string;
-  townPublic: boolean;
 };
 
 // A link name: lowercase letters and digits in groups joined by "-" (what profile_slug makes), at most the display
@@ -49,9 +44,6 @@ export async function loadTeacherProfile(supabase: SupabaseClient<Database>, slu
     full_name_public: boolean;
     education_public: boolean;
     bio_public: boolean;
-    town: string;
-    province: string;
-    town_public: boolean;
   }>();
   if (error) throw error;
   if (!data) return null;
@@ -66,9 +58,6 @@ export async function loadTeacherProfile(supabase: SupabaseClient<Database>, slu
     fullNamePublic: data.full_name_public,
     educationPublic: data.education_public,
     bioPublic: data.bio_public,
-    town: data.town,
-    province: data.province,
-    townPublic: data.town_public,
   };
 }
 
@@ -98,11 +87,6 @@ export async function loadVisibleProfiles(supabase: SupabaseClient<Database>, id
 
 export function profileHref(slug: string) {
   return `/teachers/${slug}`;
-}
-
-/** "Quezon City, Metro Manila", or whichever of the two is set. "" when neither is. */
-export function placeLine(town: string, province: string): string {
-  return [town, province].filter(Boolean).join(", ");
 }
 
 /** "Master's degree in English", or just the field for "Other" (it says nothing alone). "" when neither is set. */

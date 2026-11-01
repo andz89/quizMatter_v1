@@ -23,7 +23,7 @@ COMMENT ON SCHEMA "public" IS 'standard public schema';
 
 
 
-CREATE OR REPLACE FUNCTION "public"."admin_announcements"() RETURNS TABLE("id" "uuid", "name" "text", "is_on" boolean, "starts_at" timestamp with time zone, "ends_at" timestamp with time zone, "show_modal" boolean, "modal_text" "text", "modal_attachment" "jsonb", "modal_close_after" integer, "show_bar" boolean, "bar_html" "text", "bar_close_after" integer, "repeat" "text", "pages" "text"[], "genders" "text"[], "age_min" integer, "age_max" integer, "provinces" "text"[], "town_words" "text"[], "education_levels" "text"[], "field_words" "text"[], "presentations_min" integer, "presentations_max" integer, "roles" "text"[], "created_by" "uuid", "created_at" timestamp with time zone, "updated_at" timestamp with time zone, "modal_size" "text", "status" "text", "matched" integer, "closed_modal" integer, "closed_bar" integer, "counted_at" timestamp with time zone)
+CREATE OR REPLACE FUNCTION "public"."admin_announcements"() RETURNS TABLE("id" "uuid", "name" "text", "is_on" boolean, "starts_at" timestamp with time zone, "ends_at" timestamp with time zone, "show_modal" boolean, "modal_text" "text", "modal_attachment" "jsonb", "modal_close_after" integer, "show_bar" boolean, "bar_html" "text", "bar_close_after" integer, "repeat" "text", "pages" "text"[], "genders" "text"[], "age_min" integer, "age_max" integer, "education_levels" "text"[], "field_words" "text"[], "presentations_min" integer, "presentations_max" integer, "roles" "text"[], "created_by" "uuid", "created_at" timestamp with time zone, "updated_at" timestamp with time zone, "modal_size" "text", "status" "text", "matched" integer, "closed_modal" integer, "closed_bar" integer, "counted_at" timestamp with time zone)
     LANGUAGE "plpgsql" STABLE SECURITY DEFINER
     SET "search_path" TO ''
     AS $$
@@ -36,7 +36,7 @@ begin
   select
     a.id, a.name, a.is_on, a.starts_at, a.ends_at,
     a.show_modal, a.modal_text, a.modal_attachment, a.modal_close_after, a.show_bar, a.bar_html, a.bar_close_after,
-    a.repeat, a.pages, a.genders, a.age_min, a.age_max, a.provinces, a.town_words,
+    a.repeat, a.pages, a.genders, a.age_min, a.age_max,
     a.education_levels, a.field_words, a.presentations_min, a.presentations_max, a.roles,
     a.created_by, a.created_at, a.updated_at, a.modal_size,
     case
@@ -285,8 +285,6 @@ begin
     raise exception 'Admins only.' using errcode = '42501';
   end if;
   return query
-    select 'province', s.province, count(*) from public.user_settings s group by s.province
-    union all
     select 'age', a.label, count(*)
     from public.user_settings s
     cross join lateral (
@@ -467,17 +465,6 @@ $$;
 ALTER FUNCTION "public"."announcement_audience"("a" "jsonb") OWNER TO "postgres";
 
 
-CREATE OR REPLACE FUNCTION "public"."announcement_provinces_ok"("names" "text"[]) RETURNS boolean
-    LANGUAGE "sql" IMMUTABLE
-    SET "search_path" TO ''
-    AS $$
-  select not exists (select 1 from unnest(names) n where n is null or not public.is_province(n));
-$$;
-
-
-ALTER FUNCTION "public"."announcement_provinces_ok"("names" "text"[]) OWNER TO "postgres";
-
-
 CREATE OR REPLACE FUNCTION "public"."announcement_words_ok"("words" "text"[]) RETURNS boolean
     LANGUAGE "sql" IMMUTABLE
     SET "search_path" TO ''
@@ -510,8 +497,6 @@ CREATE TABLE IF NOT EXISTS "public"."announcements" (
     "genders" "text"[] DEFAULT '{}'::"text"[] NOT NULL,
     "age_min" integer,
     "age_max" integer,
-    "provinces" "text"[] DEFAULT '{}'::"text"[] NOT NULL,
-    "town_words" "text"[] DEFAULT '{}'::"text"[] NOT NULL,
     "education_levels" "text"[] DEFAULT '{}'::"text"[] NOT NULL,
     "field_words" "text"[] DEFAULT '{}'::"text"[] NOT NULL,
     "presentations_min" integer,
@@ -549,10 +534,8 @@ CREATE TABLE IF NOT EXISTS "public"."announcements" (
     CONSTRAINT "announcements_pages_check" CHECK ((("cardinality"("pages") > 0) AND ("pages" <@ ARRAY['all'::"text", 'my_presentations'::"text", 'quizmatter'::"text", 'other_teachers'::"text", 'saved'::"text", 'liked'::"text", 'reviews_submissions'::"text", 'search'::"text", 'presentation_view'::"text", 'editor'::"text", 'account'::"text", 'teacher_profiles'::"text"]))),
     CONSTRAINT "announcements_presentations_max_check" CHECK ((("presentations_max" >= 0) AND ("presentations_max" <= 50))),
     CONSTRAINT "announcements_presentations_min_check" CHECK ((("presentations_min" >= 0) AND ("presentations_min" <= 50))),
-    CONSTRAINT "announcements_provinces_check" CHECK ("public"."announcement_provinces_ok"("provinces")),
     CONSTRAINT "announcements_repeat_check" CHECK (("repeat" = ANY (ARRAY['once'::"text", 'daily'::"text", 'every_visit'::"text"]))),
-    CONSTRAINT "announcements_roles_check" CHECK (("roles" <@ ARRAY['teacher'::"text", 'editor'::"text", 'admin'::"text"])),
-    CONSTRAINT "announcements_town_words_check" CHECK ("public"."announcement_words_ok"("town_words"))
+    CONSTRAINT "announcements_roles_check" CHECK (("roles" <@ ARRAY['teacher'::"text", 'editor'::"text", 'admin'::"text"]))
 );
 
 
@@ -586,9 +569,6 @@ begin
         extract(year from today)::int - extract(year from s.birth_date)::int
         - case when (extract(month from today), extract(day from today))
             < (extract(month from s.birth_date), extract(day from s.birth_date)) then 1 else 0 end <= a.age_max))
-      and (coalesce(cardinality(a.provinces), 0) = 0 or s.province = any (a.provinces))
-      and (coalesce(cardinality(a.town_words), 0) = 0 or (s.town <> '' and exists (
-        select 1 from unnest(a.town_words) w where position(lower(w) in lower(s.town)) > 0)))
       and (coalesce(cardinality(a.education_levels), 0) = 0 or s.education_level = any (a.education_levels))
       and (coalesce(cardinality(a.field_words), 0) = 0 or (s.education_field <> '' and exists (
         select 1 from unnest(a.field_words) w where position(lower(w) in lower(s.education_field)) > 0)))
@@ -633,9 +613,6 @@ CREATE OR REPLACE FUNCTION "public"."announcement_matches"("a" "public"."announc
         or (s.birth_date is not null and public.age_on(s.birth_date, public.manila_today()) >= a.age_min))
       and (a.age_max is null
         or (s.birth_date is not null and public.age_on(s.birth_date, public.manila_today()) <= a.age_max))
-      and (coalesce(cardinality(a.provinces), 0) = 0 or s.province = any (a.provinces))
-      and (coalesce(cardinality(a.town_words), 0) = 0 or (s.town <> '' and exists (
-        select 1 from unnest(a.town_words) w where position(lower(w) in lower(s.town)) > 0)))
       and (coalesce(cardinality(a.education_levels), 0) = 0 or s.education_level = any (a.education_levels))
       and (coalesce(cardinality(a.field_words), 0) = 0 or (s.education_field <> '' and exists (
         select 1 from unnest(a.field_words) w where position(lower(w) in lower(s.education_field)) > 0)))
@@ -846,22 +823,6 @@ $$;
 ALTER FUNCTION "public"."cap_review_draft_version"() OWNER TO "postgres";
 
 
-CREATE OR REPLACE FUNCTION "public"."check_announcement_limit"() RETURNS "void"
-    LANGUAGE "plpgsql"
-    SET "search_path" TO ''
-    AS $$
-begin
-  perform pg_advisory_xact_lock(hashtext('public.announcements'));
-  if (select count(*) from public.announcements a where a.is_on and (a.ends_at is null or a.ends_at > now())) > 20 then
-    raise exception 'At most 20 announcements can be on at once.' using errcode = '22023';
-  end if;
-end;
-$$;
-
-
-ALTER FUNCTION "public"."check_announcement_limit"() OWNER TO "postgres";
-
-
 CREATE OR REPLACE FUNCTION "public"."check_ban_target"() RETURNS "trigger"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO ''
@@ -1006,6 +967,41 @@ $$;
 
 
 ALTER FUNCTION "public"."check_maintenance"() OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."check_one_on"("saved" "uuid", "replace_current" boolean) RETURNS "text"
+    LANGUAGE "plpgsql"
+    SET "search_path" TO ''
+    AS $$
+declare
+  is_modal boolean;
+  other_id uuid;
+  other_name text;
+begin
+  -- One at a time, so two tabs can't both turn one on (the lock waits for the other step to finish, then this
+  -- step's next query sees what it saved).
+  perform pg_advisory_xact_lock(hashtext('public.announcements'));
+
+  select a.show_modal into is_modal from public.announcements a where a.id = saved;
+  select a.id, a.name into other_id, other_name
+  from public.announcements a
+  where a.id <> saved and a.is_on and (a.ends_at is null or a.ends_at > now())
+    and (case when is_modal then a.show_modal else a.show_bar end)
+  limit 1;
+
+  if other_id is null then
+    return null;
+  end if;
+  if not replace_current then
+    raise exception '%', other_name using errcode = 'QMONE';
+  end if;
+  update public.announcements set is_on = false, updated_at = clock_timestamp() where id = other_id;
+  return other_name;
+end;
+$$;
+
+
+ALTER FUNCTION "public"."check_one_on"("saved" "uuid", "replace_current" boolean) OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."check_presentation_limit"() RETURNS "trigger"
@@ -1849,7 +1845,6 @@ declare
   birth_text text := coalesce(new.raw_user_meta_data ->> 'birth_date', '');
   birth date;
   given_gender text := coalesce(new.raw_user_meta_data ->> 'gender', '');
-  given_province text := coalesce(new.raw_user_meta_data ->> 'province', '');
 begin
   if public.profile_slug(base_name) = '' then
     base_name := 'Teacher';
@@ -1878,12 +1873,9 @@ begin
   if given_gender not in ('male', 'female') then
     given_gender := '';
   end if;
-  if not public.is_province(given_province) then
-    given_province := '';
-  end if;
   insert into public.user_settings
     (user_id, display_name, first_name, last_name, contact_number, education_level, education_field,
-     terms_version, terms_accepted_at, birth_date, gender, province, town)
+     terms_version, terms_accepted_at, birth_date, gender)
   values (
     new.id,
     new_name,
@@ -1895,12 +1887,11 @@ begin
     agreed_version,
     case when agreed_version is not null then now() end,
     birth,
-    given_gender,
-    given_province,
-    left(trim(coalesce(new.raw_user_meta_data ->> 'town', '')), 60)
+    given_gender
   )
   on conflict (user_id) do nothing;
 
+  -- 'province' and 'town' stay in the list: an old open sign up tab may still send them.
   update auth.users
   set raw_user_meta_data = raw_user_meta_data - array['first_name', 'last_name', 'contact_number',
     'education_level', 'education_field', 'display_name', 'terms_version', 'birth_date', 'gender', 'province',
@@ -2022,32 +2013,6 @@ $$;
 
 
 ALTER FUNCTION "public"."is_editor"() OWNER TO "postgres";
-
-
-CREATE OR REPLACE FUNCTION "public"."is_province"("name" "text") RETURNS boolean
-    LANGUAGE "sql" IMMUTABLE
-    SET "search_path" TO ''
-    AS $$
-  select name = any (array[
-    -- provinces:start
-    'Abra', 'Agusan del Norte', 'Agusan del Sur', 'Aklan', 'Albay', 'Antique', 'Apayao', 'Aurora', 'Basilan',
-    'Bataan', 'Batanes', 'Batangas', 'Benguet', 'Biliran', 'Bohol', 'Bukidnon', 'Bulacan', 'Cagayan',
-    'Camarines Norte', 'Camarines Sur', 'Camiguin', 'Capiz', 'Catanduanes', 'Cavite', 'Cebu', 'Cotabato',
-    'Davao de Oro', 'Davao del Norte', 'Davao del Sur', 'Davao Occidental', 'Davao Oriental', 'Dinagat Islands',
-    'Eastern Samar', 'Guimaras', 'Ifugao', 'Ilocos Norte', 'Ilocos Sur', 'Iloilo', 'Isabela', 'Kalinga', 'La Union',
-    'Laguna', 'Lanao del Norte', 'Lanao del Sur', 'Leyte', 'Maguindanao del Norte', 'Maguindanao del Sur',
-    'Marinduque', 'Masbate', 'Metro Manila', 'Misamis Occidental', 'Misamis Oriental', 'Mountain Province',
-    'Negros Occidental', 'Negros Oriental', 'Northern Samar', 'Nueva Ecija', 'Nueva Vizcaya', 'Occidental Mindoro',
-    'Oriental Mindoro', 'Palawan', 'Pampanga', 'Pangasinan', 'Quezon', 'Quirino', 'Rizal', 'Romblon', 'Samar',
-    'Sarangani', 'Siquijor', 'Sorsogon', 'South Cotabato', 'Southern Leyte', 'Sultan Kudarat', 'Sulu',
-    'Surigao del Norte', 'Surigao del Sur', 'Tarlac', 'Tawi-Tawi', 'Zambales', 'Zamboanga del Norte',
-    'Zamboanga del Sur', 'Zamboanga Sibugay', 'Outside the Philippines'
-    -- provinces:end
-  ]);
-$$;
-
-
-ALTER FUNCTION "public"."is_province"("name" "text") OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."is_review_locked"("target_id" "text") RETURNS boolean
@@ -3080,26 +3045,31 @@ $$;
 ALTER FUNCTION "public"."review_status"("target_id" "text") OWNER TO "postgres";
 
 
-CREATE OR REPLACE FUNCTION "public"."save_announcement"("a" "jsonb") RETURNS "uuid"
+CREATE OR REPLACE FUNCTION "public"."save_announcement"("a" "jsonb", "replace_current" boolean DEFAULT false) RETURNS "uuid"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO ''
     AS $$
 declare
   r public.announcements := jsonb_populate_record(null::public.announcements, a);
   saved_id uuid;
+  turned_off text;
 begin
   if not public.is_super_admin() then
     raise exception 'Only the super admin can do this.' using errcode = '42501';
+  end if;
+  -- Same rule as announcementSchema (src/lib/announcements.ts).
+  if r.show_modal and r.show_bar then
+    raise exception 'Pick a modal or a top bar, not both.' using errcode = '22023';
   end if;
 
   if r.id is null then
     insert into public.announcements (
       name, is_on, starts_at, ends_at, show_modal, modal_text, modal_attachment, modal_close_after, show_bar, bar_html,
-      bar_close_after, repeat, pages, genders, age_min, age_max, provinces, town_words, education_levels,
+      bar_close_after, repeat, pages, genders, age_min, age_max, education_levels,
       field_words, presentations_min, presentations_max, roles, modal_size, created_by, created_at, updated_at
     ) values (
       btrim(r.name), r.is_on, r.starts_at, r.ends_at, r.show_modal, coalesce(r.modal_text, ''), r.modal_attachment, r.modal_close_after, r.show_bar,
-      r.bar_html, r.bar_close_after, r.repeat, r.pages, r.genders, r.age_min, r.age_max, r.provinces, r.town_words,
+      r.bar_html, r.bar_close_after, r.repeat, r.pages, r.genders, r.age_min, r.age_max,
       r.education_levels, r.field_words, r.presentations_min, r.presentations_max, r.roles, coalesce(r.modal_size, 'large'), auth.uid(), now(),
       clock_timestamp()
     )
@@ -3109,8 +3079,8 @@ begin
       name = btrim(r.name), is_on = r.is_on, starts_at = r.starts_at, ends_at = r.ends_at,
       show_modal = r.show_modal, modal_text = coalesce(r.modal_text, ''), modal_attachment = r.modal_attachment, modal_close_after = r.modal_close_after,
       show_bar = r.show_bar, bar_html = r.bar_html, bar_close_after = r.bar_close_after, repeat = r.repeat,
-      pages = r.pages, genders = r.genders, age_min = r.age_min, age_max = r.age_max, provinces = r.provinces,
-      town_words = r.town_words, education_levels = r.education_levels, field_words = r.field_words,
+      pages = r.pages, genders = r.genders, age_min = r.age_min, age_max = r.age_max,
+      education_levels = r.education_levels, field_words = r.field_words,
       presentations_min = r.presentations_min, presentations_max = r.presentations_max, roles = r.roles,
       modal_size = coalesce(r.modal_size, 'large'), updated_at = clock_timestamp(),
       -- Ending later again after its cleanup: its closed rows start over (they were deleted).
@@ -3122,14 +3092,17 @@ begin
     end if;
   end if;
 
-  perform public.check_announcement_limit();
-  perform public.log_admin_action('announcement_saved', 'announcement', saved_id::text, btrim(r.name), null);
+  if r.is_on and (r.ends_at is null or r.ends_at > now()) then
+    turned_off := public.check_one_on(saved_id, replace_current);
+  end if;
+  perform public.log_admin_action('announcement_saved', 'announcement', saved_id::text, btrim(r.name),
+    case when turned_off is null then null else jsonb_build_object('turned_off', turned_off) end);
   return saved_id;
 end;
 $$;
 
 
-ALTER FUNCTION "public"."save_announcement"("a" "jsonb") OWNER TO "postgres";
+ALTER FUNCTION "public"."save_announcement"("a" "jsonb", "replace_current" boolean) OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."save_presentation"("presentation" "jsonb", "slide_ids" "text"[], "base_updated_at" bigint, "app_version" integer DEFAULT 0) RETURNS bigint
@@ -3366,12 +3339,14 @@ $$;
 ALTER FUNCTION "public"."send_back_submission"("target_id" "text", "note" "text") OWNER TO "postgres";
 
 
-CREATE OR REPLACE FUNCTION "public"."set_announcement_on"("target" "uuid", "turn_on" boolean) RETURNS "void"
+CREATE OR REPLACE FUNCTION "public"."set_announcement_on"("target" "uuid", "turn_on" boolean, "replace_current" boolean DEFAULT false) RETURNS "void"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO ''
     AS $$
 declare
   saved_name text;
+  saved_ends timestamptz;
+  turned_off text;
 begin
   if not public.is_super_admin() then
     raise exception 'Only the super admin can do this.' using errcode = '42501';
@@ -3379,20 +3354,23 @@ begin
 
   update public.announcements set is_on = turn_on, updated_at = clock_timestamp()
   where id = target
-  returning name into saved_name;
+  returning name, ends_at into saved_name, saved_ends;
   if saved_name is null then
     raise exception 'This announcement was deleted.' using errcode = 'P0002';
   end if;
 
-  perform public.check_announcement_limit();
+  if turn_on and (saved_ends is null or saved_ends > now()) then
+    turned_off := public.check_one_on(target, replace_current);
+  end if;
   perform public.log_admin_action(
-    'announcement_saved', 'announcement', target::text, saved_name, jsonb_build_object('is_on', turn_on)
+    'announcement_saved', 'announcement', target::text, saved_name,
+    jsonb_strip_nulls(jsonb_build_object('is_on', turn_on, 'turned_off', turned_off))
   );
 end;
 $$;
 
 
-ALTER FUNCTION "public"."set_announcement_on"("target" "uuid", "turn_on" boolean) OWNER TO "postgres";
+ALTER FUNCTION "public"."set_announcement_on"("target" "uuid", "turn_on" boolean, "replace_current" boolean) OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."set_click_history_email"() RETURNS "trigger"
@@ -4078,7 +4056,7 @@ CREATE OR REPLACE FUNCTION "public"."tags_text"("tags" "text"[]) RETURNS "text"
 ALTER FUNCTION "public"."tags_text"("tags" "text"[]) OWNER TO "postgres";
 
 
-CREATE OR REPLACE FUNCTION "public"."teacher_profile"("slug" "text") RETURNS TABLE("display_name" "text", "first_name" "text", "last_name" "text", "education_level" "text", "education_field" "text", "bio" "text", "photo_src" "text", "full_name_public" boolean, "education_public" boolean, "bio_public" boolean, "town" "text", "province" "text", "town_public" boolean)
+CREATE OR REPLACE FUNCTION "public"."teacher_profile"("slug" "text") RETURNS TABLE("display_name" "text", "first_name" "text", "last_name" "text", "education_level" "text", "education_field" "text", "bio" "text", "photo_src" "text", "full_name_public" boolean, "education_public" boolean, "bio_public" boolean)
     LANGUAGE "sql" STABLE SECURITY DEFINER
     SET "search_path" TO ''
     AS $$
@@ -4092,10 +4070,7 @@ CREATE OR REPLACE FUNCTION "public"."teacher_profile"("slug" "text") RETURNS TAB
     coalesce(pp.src, ''),
     v.full_name,
     v.education,
-    v.bio,
-    case when v.town or v.mine then s.town else '' end,
-    case when v.town or v.mine then s.province else '' end,
-    v.town
+    v.bio
   from public.user_settings s
   left join public.profile_photos pp on pp.user_id = s.user_id
   cross join lateral (
@@ -4103,7 +4078,6 @@ CREATE OR REPLACE FUNCTION "public"."teacher_profile"("slug" "text") RETURNS TAB
       s.full_name_public or e.is_editor as full_name,
       s.education_public or e.is_editor as education,
       s.bio_public or e.is_editor as bio,
-      s.town_public or e.is_editor as town,
       s.user_id = (select auth.uid()) as mine
     from (select exists (select 1 from public.editors ed where ed.user_id = s.user_id) as is_editor) e
   ) v
@@ -4676,9 +4650,6 @@ CREATE TABLE IF NOT EXISTS "public"."user_settings" (
     "terms_accepted_at" timestamp with time zone,
     "birth_date" "date",
     "gender" "text" DEFAULT ''::"text" NOT NULL,
-    "province" "text" DEFAULT ''::"text" NOT NULL,
-    "town" "text" DEFAULT ''::"text" NOT NULL,
-    "town_public" boolean DEFAULT true NOT NULL,
     CONSTRAINT "user_settings_bio_check" CHECK (("char_length"("bio") <= 300)),
     CONSTRAINT "user_settings_contact_number_check" CHECK (("length"("contact_number") <= 20)),
     CONSTRAINT "user_settings_display_name_check" CHECK (("length"("display_name") <= 80)),
@@ -4688,9 +4659,7 @@ CREATE TABLE IF NOT EXISTS "public"."user_settings" (
     CONSTRAINT "user_settings_first_name_check" CHECK (("length"("first_name") <= 35)),
     CONSTRAINT "user_settings_gender_check" CHECK (("gender" = ANY (ARRAY[''::"text", 'male'::"text", 'female'::"text"]))),
     CONSTRAINT "user_settings_last_name_check" CHECK (("length"("last_name") <= 35)),
-    CONSTRAINT "user_settings_province_check" CHECK ((("province" = ''::"text") OR "public"."is_province"("province"))),
-    CONSTRAINT "user_settings_terms_version_check" CHECK (("char_length"("terms_version") <= 20)),
-    CONSTRAINT "user_settings_town_check" CHECK (("char_length"("town") <= 60))
+    CONSTRAINT "user_settings_terms_version_check" CHECK (("char_length"("terms_version") <= 20))
 );
 
 
@@ -5857,11 +5826,6 @@ GRANT ALL ON FUNCTION "public"."announcement_audience"("a" "jsonb") TO "service_
 
 
 
-REVOKE ALL ON FUNCTION "public"."announcement_provinces_ok"("names" "text"[]) FROM PUBLIC;
-GRANT ALL ON FUNCTION "public"."announcement_provinces_ok"("names" "text"[]) TO "service_role";
-
-
-
 REVOKE ALL ON FUNCTION "public"."announcement_words_ok"("words" "text"[]) FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."announcement_words_ok"("words" "text"[]) TO "service_role";
 
@@ -5927,11 +5891,6 @@ GRANT ALL ON FUNCTION "public"."cap_review_draft_version"() TO "service_role";
 
 
 
-REVOKE ALL ON FUNCTION "public"."check_announcement_limit"() FROM PUBLIC;
-GRANT ALL ON FUNCTION "public"."check_announcement_limit"() TO "service_role";
-
-
-
 REVOKE ALL ON FUNCTION "public"."check_ban_target"() FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."check_ban_target"() TO "service_role";
 
@@ -5969,6 +5928,11 @@ REVOKE ALL ON FUNCTION "public"."check_maintenance"() FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."check_maintenance"() TO "anon";
 GRANT ALL ON FUNCTION "public"."check_maintenance"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."check_maintenance"() TO "service_role";
+
+
+
+REVOKE ALL ON FUNCTION "public"."check_one_on"("saved" "uuid", "replace_current" boolean) FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."check_one_on"("saved" "uuid", "replace_current" boolean) TO "service_role";
 
 
 
@@ -6185,12 +6149,6 @@ GRANT ALL ON FUNCTION "public"."is_banned"() TO "service_role";
 REVOKE ALL ON FUNCTION "public"."is_editor"() FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."is_editor"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."is_editor"() TO "service_role";
-
-
-
-GRANT ALL ON FUNCTION "public"."is_province"("name" "text") TO "anon";
-GRANT ALL ON FUNCTION "public"."is_province"("name" "text") TO "authenticated";
-GRANT ALL ON FUNCTION "public"."is_province"("name" "text") TO "service_role";
 
 
 
@@ -6449,9 +6407,9 @@ GRANT ALL ON FUNCTION "public"."review_status"("target_id" "text") TO "service_r
 
 
 
-REVOKE ALL ON FUNCTION "public"."save_announcement"("a" "jsonb") FROM PUBLIC;
-GRANT ALL ON FUNCTION "public"."save_announcement"("a" "jsonb") TO "authenticated";
-GRANT ALL ON FUNCTION "public"."save_announcement"("a" "jsonb") TO "service_role";
+REVOKE ALL ON FUNCTION "public"."save_announcement"("a" "jsonb", "replace_current" boolean) FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."save_announcement"("a" "jsonb", "replace_current" boolean) TO "authenticated";
+GRANT ALL ON FUNCTION "public"."save_announcement"("a" "jsonb", "replace_current" boolean) TO "service_role";
 
 
 
@@ -6484,9 +6442,9 @@ GRANT ALL ON FUNCTION "public"."send_back_submission"("target_id" "text", "note"
 
 
 
-REVOKE ALL ON FUNCTION "public"."set_announcement_on"("target" "uuid", "turn_on" boolean) FROM PUBLIC;
-GRANT ALL ON FUNCTION "public"."set_announcement_on"("target" "uuid", "turn_on" boolean) TO "authenticated";
-GRANT ALL ON FUNCTION "public"."set_announcement_on"("target" "uuid", "turn_on" boolean) TO "service_role";
+REVOKE ALL ON FUNCTION "public"."set_announcement_on"("target" "uuid", "turn_on" boolean, "replace_current" boolean) FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."set_announcement_on"("target" "uuid", "turn_on" boolean, "replace_current" boolean) TO "authenticated";
+GRANT ALL ON FUNCTION "public"."set_announcement_on"("target" "uuid", "turn_on" boolean, "replace_current" boolean) TO "service_role";
 
 
 

@@ -12,7 +12,8 @@ Slides drawn without the editor: fullscreen presenting, cards, the view page, re
 - `PresentationView.tsx`: fullscreen presenting. It reads the presentation from the editor store
   (`isPresenting`, `presentationIndex`), so whoever opens it first calls `store.loadPresentation`. Click the left
   25% of the screen = previous slide; the top buttons hide after 3 seconds; the next 2 slides are drawn hidden so
-  they're ready; a slide change waits at most 400 ms for photos.
+  they're ready; a slide change waits at most 400 ms for photos. While open it puts `data-presenting` on `<html>`, so
+  announcements hide even when the browser refused fullscreen.
 - **Slide effects** (Fade, Slide, Zoom): played by `startSlideEffect` with the `motion` library (`motion/mini`), even
   when the computer asks to reduce motion (the teacher picked one on purpose; "None" turns them off). Speed 1–5 (default 3):
   seconds in `SLIDE_EFFECT_SECONDS` / `SLIDE_FADE_SECONDS` (`constants.ts`). A new effect goes in

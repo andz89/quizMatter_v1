@@ -11,7 +11,6 @@ import { Spinner } from "@/components/Spinner";
 import { birthDateRange, todayInManila } from "@/lib/age";
 import { checkPauses, pauseFeature, pausedUntilFromError, useIsPaused } from "@/lib/clickLimits";
 import { formatDate } from "@/lib/format";
-import { PROVINCES } from "@/lib/provinces";
 import {
   BIO_MAX_LENGTH,
   changePassword,
@@ -30,7 +29,6 @@ import {
   profileSchema,
   saveDisplayName,
   saveProfile,
-  TOWN_MAX_LENGTH,
   type ProfileFields,
   type ProfileVisibility,
 } from "@/lib/userSettings";
@@ -133,9 +131,8 @@ export function ProfileForm({
 }
 
 /**
- * First and last name, contact number, birthday, gender, province and town, and educational background (given at sign
- * up), and the bio for the profile page. Plain teachers pick which of the name, town and province, background and bio
- * their profile shows ("Show on my profile"); an editor's always show (see 20261215000000_profile_privacy.sql), so
+ * First and last name, contact number, birthday, gender and educational background (given at sign up), and the bio
+ * for the profile page. Plain teachers pick which of the name, background and bio their profile shows ("Show on my profile"); an editor's always show (see 20261215000000_profile_privacy.sql), so
  * they get no checkboxes. The birthday and gender never show.
  */
 export function PersonalDetailsForm({
@@ -245,67 +242,37 @@ export function PersonalDetailsForm({
           className={inputClass}
         />
       </div>
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div>
-          <label htmlFor="birthDate" className={labelClass}>Birthday</label>
-          <input
-            id="birthDate"
-            type="date"
-            required
-            autoComplete="bday"
-            min={birthDates.min}
-            max={birthDates.max}
-            value={fields.birthDate}
-            onChange={update("birthDate")}
-            className={inputClass}
-          />
-        </div>
-        <div>
-          <label htmlFor="gender" className={labelClass}>Gender</label>
-          <select id="gender" required value={fields.gender} onChange={update("gender")} className={inputClass}>
-            <option value="" disabled>
-              Pick one
-            </option>
-            {GENDERS.map((gender) => (
-              <option key={gender} value={gender}>
-                {GENDER_LABELS[gender]}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
       <div>
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
-            <label htmlFor="province" className={labelClass}>Province</label>
-            <select id="province" required value={fields.province} onChange={update("province")} className={inputClass}>
+            <label htmlFor="birthDate" className={labelClass}>Birthday</label>
+            <input
+              id="birthDate"
+              type="date"
+              required
+              autoComplete="bday"
+              min={birthDates.min}
+              max={birthDates.max}
+              value={fields.birthDate}
+              onChange={update("birthDate")}
+              className={inputClass}
+            />
+          </div>
+          <div>
+            <label htmlFor="gender" className={labelClass}>Gender</label>
+            <select id="gender" required value={fields.gender} onChange={update("gender")} className={inputClass}>
               <option value="" disabled>
                 Pick one
               </option>
-              {PROVINCES.map((province) => (
-                <option key={province} value={province}>
-                  {province}
+              {GENDERS.map((gender) => (
+                <option key={gender} value={gender}>
+                  {GENDER_LABELS[gender]}
                 </option>
               ))}
             </select>
           </div>
-          <div>
-            <label htmlFor="town" className={labelClass}>City or town</label>
-            <input
-              id="town"
-              type="text"
-              required
-              maxLength={TOWN_MAX_LENGTH}
-              autoComplete="address-level2"
-              placeholder="e.g. Quezon City"
-              value={fields.town}
-              onChange={update("town")}
-              className={inputClass}
-            />
-          </div>
         </div>
         <p className="mt-1 text-xs text-text-secondary">Your birthday and gender are private.</p>
-        {!isEditor && <ShowOnProfile checked={shown.townPublic} onChange={show("townPublic")} />}
       </div>
       <div>
         <label htmlFor="educationLevel" className={labelClass}>Educational background</label>
@@ -353,7 +320,7 @@ export function PersonalDetailsForm({
         </p>
         {isEditor ? (
           <p className="mt-1 text-xs text-text-secondary">
-            As an editor, your profile always shows your full name, town and province, educational background and bio.
+            As an editor, your profile always shows your full name, educational background and bio.
           </p>
         ) : (
           <ShowOnProfile checked={shown.bioPublic} onChange={show("bioPublic")} />

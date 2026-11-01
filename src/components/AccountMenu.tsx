@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { CopyIcon, HeartIcon, LifeBuoyIcon, LogOutIcon, SettingsIcon, ShieldIcon } from "lucide-react";
 import type { Account } from "@/lib/account";
+import { forgetAnnouncements } from "@/lib/announcements";
 import { createClient } from "@/lib/supabase/client";
 import { SUPPORT_EMAIL } from "@/lib/support";
 import { KeepFreeModal } from "./KeepFree";
@@ -45,6 +46,7 @@ export function AccountMenu({ account }: { account: Account }) {
   const logOut = async () => {
     setIsLoggingOut(true);
     await createClient().auth.signOut();
+    forgetAnnouncements();
     router.push("/login");
     router.refresh();
   };

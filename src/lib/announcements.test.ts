@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   MODAL_SIZES,
   announcementSchema,
+  isInternalLink,
   isSameVisit,
   manilaDay,
   myAnnouncementSchema,
@@ -44,8 +45,6 @@ const valid = {
   genders: [],
   age_min: null,
   age_max: null,
-  provinces: [],
-  town_words: [],
   education_levels: [],
   field_words: [],
   presentations_min: null,
@@ -92,6 +91,7 @@ test("announcementSchema refuses bad input", () => {
     { field_words: ["x".repeat(61)] },
     { show_modal: false, show_bar: false },
     { show_bar: true, bar_html: "" },
+    { show_bar: true, bar_html: "<p>Both</p>" },
     { modal_text: "x".repeat(5001) },
     { modal_text: "  ", modal_attachment: null },
     { modal_attachment: { kind: "photo", src: "https://evil.example/a.png" } },
@@ -162,6 +162,16 @@ test("isSameVisit: same account and same Philippine day only", () => {
   // After midnight a "once a day" one may show again.
   assert.equal(isSameVisit(saved, { day: "2026-10-31", userId: "teacher-a" }), false);
   assert.equal(isSameVisit(null, { day: "2026-10-30", userId: "teacher-a" }), false);
+});
+
+test("isInternalLink is true only for a path in the app", () => {
+  assert.equal(isInternalLink("/saved"), true);
+  assert.equal(isInternalLink("/teachers/ana?tab=1"), true);
+  assert.equal(isInternalLink("//x.com"), false);
+  assert.equal(isInternalLink("https://x.com"), false);
+  // Browsers read a backslash as a slash, so these go to x.com.
+  assert.equal(isInternalLink("/\\x.com"), false);
+  assert.equal(isInternalLink("/\t/x.com"), false);
 });
 
 test("announcementSchema takes the three modal sizes only", () => {

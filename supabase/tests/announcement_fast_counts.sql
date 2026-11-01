@@ -20,15 +20,15 @@ insert into public.banned_users (user_id, reason) values ('00000000-0000-4000-80
 
 update public.user_settings set
   birth_date = (public.manila_today() - interval '36 years 6 months')::date,
-  gender = 'female', province = 'Cebu', town = 'Mandaue City',
+  gender = 'female',
   education_level = 'master', education_field = 'Secondary Education, major in English'
 where user_id in ('00000000-0000-4000-8000-0000000000b2', '00000000-0000-4000-8000-0000000000b5');
-update public.user_settings set birth_date = null, gender = '', province = '', town = '', education_level = '',
+update public.user_settings set birth_date = null, gender = '', education_level = '',
   education_field = ''
 where user_id in ('00000000-0000-4000-8000-0000000000b1', '00000000-0000-4000-8000-0000000000b3');
 update public.user_settings set
   birth_date = (public.manila_today() - interval '52 years')::date,
-  gender = 'male', province = 'Bohol', town = 'Tagbilaran City',
+  gender = 'male',
   education_level = 'doctorate', education_field = 'Mathematics'
 where user_id = '00000000-0000-4000-8000-0000000000b4';
 
@@ -51,10 +51,6 @@ insert into filter_sets values
   ('age 30-40', '{"age_min": 30, "age_max": 40}'),
   ('age 50+', '{"age_min": 50}'),
   ('age 18 (empty birthday fails)', '{"age_min": 18}'),
-  ('Cebu', '{"provinces": ["Cebu"]}'),
-  ('Bohol or Cebu', '{"provinces": ["Bohol", "Cebu"]}'),
-  ('town mandaue', '{"town_words": ["MANDAUE"]}'),
-  ('town a', '{"town_words": ["a"]}'),
   ('master', '{"education_levels": ["master"]}'),
   ('field english/math', '{"field_words": ["english", "math"]}'),
   ('3 presentations', '{"presentations_min": 3, "presentations_max": 3}'),
@@ -64,8 +60,8 @@ insert into filter_sets values
   ('editors', '{"roles": ["editor"]}'),
   ('admins', '{"roles": ["admin"]}'),
   ('editors or admins', '{"roles": ["editor", "admin"]}'),
-  ('female Cebu master 1+', '{"genders": ["female"], "provinces": ["Cebu"], "education_levels": ["master"], "presentations_min": 1}'),
-  ('nobody', '{"genders": ["male"], "provinces": ["Cebu"]}');
+  ('female master 1+', '{"genders": ["female"], "education_levels": ["master"], "presentations_min": 1}'),
+  ('nobody', '{"genders": ["male"], "education_levels": ["master"]}');
 
 -- What the per-teacher rule says (announcement_matches, as each teacher's own list checks it), counted one by one.
 create temp table expected as

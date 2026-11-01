@@ -280,7 +280,13 @@ The super admin shows a message to chosen teachers on chosen pages (Admin → An
 - **The rules live in the database functions** (`save_announcement`, `set_announcement_on`, `delete_announcement`,
   `admin_announcements`, `announcement_audience`, `my_announcements`, `dismiss_announcement`), with the matching
   rule written once (`announcement_matches`). Nobody reads the tables directly. The limits are in both the database
-  and `announcementSchema` (`src/lib/announcements.ts`), number for number; at most 20 on and not ended.
+  and `announcementSchema` (`src/lib/announcements.ts`), number for number.
+- **One of each on:** an announcement is a modal or a top bar, never both, and at most one modal and one bar are on
+  (switched on and not ended; a scheduled one counts). Turning on a second one is refused (`QMONE`, with the name
+  of the one that is on), so the admin page asks to turn that one off (or, in the form, to save as a draft); sent
+  again with `replace_current`, the database swaps them in one step (`check_one_on`,
+  `20261228000000_announcement_one_on.sql`, spec `docs/superpowers/specs/2026-11-01-announcement-one-on-design.md`,
+  test `supabase/tests/announcement_one_on.sql`).
 - **Filters:** empty = everyone; every filled one must match. A teacher with that detail empty (e.g. no birthday)
   doesn't match a filter on it. Presentations count their own, not shared copies.
 - **The key rides on the maintenance status:** `maintenance_status()` returns `announcements_key` (null when nothing
@@ -305,7 +311,9 @@ The super admin shows a message to chosen teachers on chosen pages (Admin → An
 - **Old "closed" rows are deleted:** the daily timer's `cleanup_announcement_dismissals(batch_size)` keeps an
   announcement's closed counts and deletes its `announcement_dismissals` rows 30 days after it ends, 50,000 a call,
   up to 20 calls a day (the Privacy Policy says so). `dismiss_announcement` writes only for a live one.
-- **Hidden while presenting fullscreen** (`document.fullscreenElement`); a waiting modal shows after. On the editor
+- **Hidden while presenting** (`document.fullscreenElement`, or `data-presenting` on `<html>` when the browser
+  refused fullscreen); a waiting modal shows after. A list shows only to the account it was asked for (logging out
+  and in doesn't reload the tab). On the editor
   page the bars float at the bottom.
 - **The modal is a post** (`20261225000000_announcement_post.sql`, spec
   `docs/superpowers/specs/2026-10-31-announcement-post-design.md`, test `supabase/tests/announcement_post.sql`):

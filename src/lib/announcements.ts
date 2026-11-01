@@ -1,7 +1,6 @@
 import { z } from "zod";
 import { PHOTO_MAX_SIDE, PHOTO_URL_PREFIX } from "./constants";
 import { facebookLink } from "./facebook";
-import { PROVINCES } from "./provinces";
 import type { EducationLevel } from "./userSettings";
 import { YOUTUBE_ID } from "./youtube";
 
@@ -140,8 +139,6 @@ export const announcementSchema = z
     genders: z.array(z.enum(["male", "female"])),
     age_min: age,
     age_max: age,
-    provinces: z.array(z.enum(PROVINCES)),
-    town_words: words,
     education_levels: z.array(z.enum(EDUCATION_LEVELS)),
     field_words: words,
     presentations_min: count,
@@ -150,6 +147,8 @@ export const announcementSchema = z
     modal_size: z.enum(MODAL_SIZE_KEYS),
   })
   .refine((a) => a.show_modal || a.show_bar, { message: "Turn on the modal or the bar.", path: ["show_modal"] })
+  // One type per announcement; the database refuses both too (20261228000000_announcement_one_on.sql).
+  .refine((a) => !(a.show_modal && a.show_bar), { message: "Pick a modal or a top bar, not both.", path: ["show_bar"] })
   .refine((a) => !a.show_modal || a.modal_text.trim() !== "" || a.modal_attachment !== null, {
     message: "The modal needs text, a picture or a YouTube video.",
     path: ["modal_text"],
@@ -204,6 +203,31 @@ export function pickForPage(
     modals: fits.filter((a) => a.show_modal && !closed.has(`${a.id}:modal`)),
     bars: fits.filter((a) => a.show_bar && !closed.has(`${a.id}:bar`)).slice(0, 2),
   };
+}
+
+/**
+ * A path inside QuizMatter ("/saved"), not another site ("//x.com", "https://…"). Browsers read "\" as "/" and skip
+ * tabs and line breaks, so "/\x.com" and "/<tab>/x.com" are other sites too: a path has no "\" or spaces.
+ */
+export function isInternalLink(href: string): boolean {
+  return href.startsWith("/") && !href.startsWith("//") && !/[\s\\]/.test(href);
+}
+
+/** Links an announcement may hold: http(s) addresses and paths inside the app. */
+export function isAllowedLink(href: string): boolean {
+  return /^https?:\/\//i.test(href) || isInternalLink(href);
+}
+
+/** Where a tab keeps the teacher's announcements (sessionStorage; AnnouncementsWatch). */
+export const ANNOUNCEMENTS_STORE = "qm:announcements";
+
+/** Forgets this tab's list (on log out), so the next teacher on a shared computer can't find the last one's. */
+export function forgetAnnouncements() {
+  try {
+    sessionStorage.removeItem(ANNOUNCEMENTS_STORE);
+  } catch {
+    // Storage blocked: nothing was kept.
+  }
 }
 
 /** The date in the Philippines, "YYYY-MM-DD" (the database's manila_today). */

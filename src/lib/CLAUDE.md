@@ -65,8 +65,9 @@
   can't load in a test. Tests: `announcements.test.ts`.
 - `announcementText.ts`: the top bar's text (the modal is plain text). `ANNOUNCEMENT_BAR_EXTENSIONS` (the slide text
   styles + links) for its editor; `toSafeAnnouncementHtml` (browser only) re-builds saved text through them, then
-  `cleanAnnouncementDoc` drops links that aren't `http(s)://` or an app path (`isAllowedLink`; `isInternalLink` =
-  opens in the same tab). Tests: `announcementText.test.ts`.
+  `cleanAnnouncementDoc` drops links that aren't `http(s)://` or an app path (`isAllowedLink` in `announcements.ts`;
+  `isInternalLink` = opens in the same tab; no `\` or spaces, which browsers turn into another site). It loads Tiptap,
+  so teachers' pages import it only when a bar shows (`BarText`). Tests: `announcementText.test.ts`.
 - `facebook.ts`: Facebook links for the modal's attachment: `facebookLink` (posts, videos, reels, watch, share and
   fb.watch links as https; null for pages, other sites or unsafe links), `findFacebookLink` (the first one in pasted
   text), `facebookEmbedUrl` (Facebook's own player / post box) and `facebookPostWidth` (the post box is 350–500 px).
@@ -90,8 +91,6 @@
   `isAllowedBirthDate`, `birthDateRange` (the date picker's limits) and `todayInManila`. The database does the same
   math (`age_on`, `manila_today`, `20261220000000_age_gender_address.sql`): change both together. No imports, so
   tests load it (`userSettings.ts` can't be loaded by tests).
-- `provinces.ts`: `PROVINCES`, the Province dropdown (82 provinces, Metro Manila, "Outside the Philippines"); the
-  name itself is saved. The database's `is_province` has the same list; `provinces.test.ts` fails if they differ.
 - `supabase/`: `client.ts` (browser), `server.ts` (server, with the login cookies), `admin.ts` (secret key, server
   only, skips the database rules: use only when there is no other way).
   Every client is typed with `Database` from `database.types.ts` (made by `npm run db:snapshot`, never edited), so

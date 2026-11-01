@@ -31,7 +31,11 @@ even if the app has a bug. The app's checks (zod, hidden buttons) are only the f
 
 ## Deploying (database first)
 
-- Apply new migrations, in file-name order, **before** deploying the app code that uses them. Otherwise the app
+- Apply new migrations, in file-name order, **before** deploying the app code that uses them (one exception:
+  `20261227000000_remove_address.sql` goes **after** the app, see "Removing the address"; so does
+  `20261228000000_announcement_one_on.sql`, which comes after it in order: apply both right after the app deploys,
+  and until then only the super admin's announcement Save / Turn on fails, since the new app sends
+  `replace_current`). Otherwise the app
   calls functions or reads tables that aren't there yet: for example, without `20261210000500` Admin → Editors fails
   (it calls `admin_editors`), and without `20261210000400` Admin → Safety fails and the sign up page loses its
   throwaway email check (they read `blocked_email_domains`).
@@ -65,6 +69,8 @@ A refusal raises an error with its own code. The app turns the code into a messa
 - `QMBLK`: a click limit paused the feature (the pause end time is in `details`), read by `pausedUntilFromError`
   (`src/lib/clickLimits.ts`).
 - `QMPPL`: an editor already saved 3 profile photos today (`set_profile_photo`).
+- `QMONE`: another announcement of the same type (modal or bar) is on; the message is its name, and Admin →
+  Announcements asks to turn it off (`check_one_on`).
 
 ## Where the big features live
 
@@ -84,7 +90,7 @@ A refusal raises an error with its own code. The app turns the code into a messa
   `data_version` than its `app_version` (an old tab's Make a copy), and `share_presentation` gives the shared copy
   its original's `data_version`, so copies of a published presentation are checked too.
 - Photos and the weekly cleanup: `used_photo_srcs` (drafts' photos, profile photos and announcement modal images
-  count as used; newest in `20261221000000_announcements.sql`).
+  count as used; newest in `20261226000000_announcement_facebook.sql`).
 - Editor photos (`20261126000000_editor_photos.sql`): an editor's WebP upload also becomes a shared photo with
   `is_public = false` ("From editors" category), hidden from teachers and `search_shared_photos`. It turns public
   for good when a live QuizMatter presentation uses it (triggers on `slide_photos` and `presentations`). The
@@ -262,7 +268,8 @@ A refusal raises an error with its own code. The app turns the code into a messa
   day by the `Asia/Manila` date (`QMPPL`), returning how many are left. `remove_profile_photo()` and
   `admin_remove_profile_photo(target)` (any admin; logs `profile_photo_removed`) only empty `src`, so the day's count
   stays. `my_profile_photo()` gives the account page `src` and `left_today`. It adds profile photos
-  to `used_photo_srcs` (newest now in `20261221000000_announcements.sql`, with the newest `admin_actions` lists).
+  to `used_photo_srcs` (newest now in `20261226000000_announcement_facebook.sql`; the newest `admin_actions` lists
+  are in `20261221000000_announcements.sql`).
 - Profile privacy: `20261215000000_profile_privacy.sql` (test `supabase/tests/profile_privacy.sql`; spec
   `docs/superpowers/specs/2026-10-28-profile-privacy-design.md`). `user_settings.full_name_public`,
   `education_public`, `bio_public` (default `true`; the owner writes them with their details). Its
@@ -270,32 +277,36 @@ A refusal raises an error with its own code. The app turns the code into a messa
   an editor): a private field comes back `''` for everyone but its owner, admins too. Apply it (after
   `20261214000000_profile_photos.sql`, whose table it joins) before the app deploys: `getAccount` reads these columns
   on every page.
-- Birthday, gender, province and town: `20261220000000_age_gender_address.sql` (test
-  `supabase/tests/age_gender_address.sql`; spec `docs/superpowers/specs/2026-10-30-age-gender-address-design.md`).
-  `user_settings.birth_date` (empty allowed; `check_birth_date` refuses under 18, over 100 or a future date on
-  today's Philippine date, `QMAGE`), `gender` (`''`, `male`, `female`), `province` (`''` or `is_province`, the same
-  list as `src/lib/provinces.ts`), `town` (60 characters), `town_public` (default `true`). `age_on(birth, today)` and
-  `manila_today()` are the age math (same as `src/lib/age.ts`). Newest `handle_new_user` and
-  `strip_sign_up_details` (copy the four from the sign up metadata, a bad one saved empty, then remove them). Newest
-  `teacher_profile` (adds `town`, `province`, `town_public`; never the birthday or gender).
-  `admin_teacher_breakdown()` (admins only, `42501` otherwise): `(kind, label, total)` per province, age group
-  (`18–24` … `55+`) and gender, `''` = not given. Apply it before the app deploys: `getAccount` reads these columns
-  on every page.
+- Birthday and gender: `20261220000000_age_gender_address.sql` (test `supabase/tests/age_gender_address.sql`; spec
+  `docs/superpowers/specs/2026-10-30-age-gender-address-design.md`). `user_settings.birth_date` (empty allowed;
+  `check_birth_date` refuses under 18, over 100 or a future date on today's Philippine date, `QMAGE`), `gender`
+  (`''`, `male`, `female`). `age_on(birth, today)` and `manila_today()` are the age math (same as `src/lib/age.ts`).
+  `strip_sign_up_details` (newest here) removes the sign up keys from the login record. It also added the province
+  and town, removed again by `20261227000000_remove_address.sql` (next entry).
+- Removing the address: `20261227000000_remove_address.sql` (test `supabase/tests/age_gender_address.sql`; spec
+  `docs/superpowers/specs/2026-11-01-remove-address-design.md`). Drops `user_settings.province`, `town`,
+  `town_public`, `announcements.provinces`, `town_words` (every saved value is gone) and `is_province`,
+  `announcement_provinces_ok`. Newest `handle_new_user` (copies the birthday and gender, a bad one saved empty; still
+  removes the old `province` / `town` keys, so an old sign up tab leaves nothing), `teacher_profile` (never the
+  birthday or gender), `admin_teacher_breakdown()` (admins only, `42501` otherwise: `(kind, label, total)` per age
+  group `18–24` … `55+` and gender, `''` = not given), `announcement_count`, `announcement_matches`,
+  `save_announcement` and `admin_announcements`. An old admin tab's `provinces` / `town_words` keys are ignored
+  (`jsonb_populate_record` skips unknown keys). Apply it **after** the app deploys: the older app reads the dropped
+  columns on every page (`getAccount`).
 - Announcements: `20261221000000_announcements.sql` (test `supabase/tests/announcements.sql`; spec
   `docs/superpowers/specs/2026-10-30-announcements-design.md`). `announcements` (one row each: name, on/off, optional
   `starts_at` / `ends_at`, the modal and bar parts, `repeat` `once` / `daily` / `every_visit`, `pages`, and the
   filters) and `announcement_dismissals` (who closed which part, `modal` or `bar`, and when; gone with the
   announcement or the account). RLS on, no policies, no grants: only the functions read and write them. Every limit
-  is a check on the table (word lists through `announcement_words_ok`, provinces through
-  `announcement_provinces_ok`, `is_province`); the same limits go in the app's zod `announcementSchema`.
+  is a check on the table (word lists through `announcement_words_ok`); the same limits go in the app's zod `announcementSchema`.
   `announcement_matches(a, uid)` is the one matching rule (empty filter = everyone, a banned account never, an empty
-  detail never matches a filter on it; age by `age_on(birth_date, manila_today())`; words anywhere in the town or
+  detail never matches a filter on it; age by `age_on(birth_date, manila_today())`; words anywhere in the
   field/major, ignoring case; presentations they own, not shared copies; roles: `editor` / `admin` by the tables,
   `teacher` = neither). `announcement_is_live(a)`: on, started, not ended. Super admin only (`42501`):
   `save_announcement(jsonb)` (keys = column names, no id = new; `updated_at` takes `clock_timestamp()`),
   `set_announcement_on`, `delete_announcement`, `admin_announcements()` (status `live` / `scheduled` / `ended` /
   `off`, matched accounts now, closed counts), `announcement_audience(jsonb)`. At most 20 on and not ended
-  (`check_announcement_limit`, `22023`). Logged in: `my_announcements()` (live and matching; a closed part comes
+  (`check_announcement_limit`, `22023`; replaced by one modal and one bar, `20261228000000`, below). Logged in: `my_announcements()` (live and matching; a closed part comes
   back off with no text: `once` = ever closed, `daily` = closed on today's Philippine date; both off = left out)
   and `dismiss_announcement(id, part)` (nothing for `every_visit`). Newest `maintenance_status` (adds
   `announcements_key`: an md5 of the live ones' ids and `updated_at`, null when none) and `used_photo_srcs` (adds
@@ -319,7 +330,7 @@ Claude's drafts and photo tickets are NOT here: they live in Cloudflare D1 (`d1/
   `supabase/tests/announcement_fast_counts.sql`, `announcement_counts.sql`). `announcement_count(a)` (not granted)
   counts every matching account in one query: a second copy of `announcement_matches`'s rule, since Postgres won't
   merge a function rule into a query this size (one account at a time took ~5 s per 100,000; the logged-in role
-  stops at 8 s). Change both together; the test checks they agree on 21 filter sets. Newest `announcement_audience`
+  stops at 8 s). Change both together; the test checks they agree on 17 filter sets. Newest `announcement_audience`
   and `count_announcement` use it. Newest `save_announcement` doesn't count (the app calls `recount_announcement`
   next). `cleanup_announcement_dismissals(batch_size default 50000)` replaces the one without a size: it first keeps
   the closed counts of each announcement newly 30 days past its end, then deletes at most `batch_size` of the rows
@@ -339,3 +350,12 @@ Claude's drafts and photo tickets are NOT here: they live in Cloudflare D1 (`d1/
   boolean; no other keys), and turns a missing key into "no" (`coalesce(…, false)`; the `20261225` version let a
   YouTube card without a title through, since a check passes SQL's "unknown"). `announcement_picture_ok` (not granted)
   checks a photo's or YouTube card's picture. Newest `used_photo_srcs` takes only attachments with a `src`.
+- One modal and one top bar on: `20261228000000_announcement_one_on.sql` (test
+  `supabase/tests/announcement_one_on.sql`; spec `docs/superpowers/specs/2026-11-01-announcement-one-on-design.md`).
+  An announcement is a modal or a bar, never both (`save_announcement` refuses both, `22023`). At most one of each
+  is on and not ended (a scheduled one counts): `check_one_on(saved, replace_current)` (not granted; takes the
+  announcements lock) refuses another with `QMONE` (the message is the name of the one that is on) or, with
+  `replace_current`, turns that one off and returns its name (the Admin log row's `details.turned_off`). Newest
+  `save_announcement(a, replace_current default false)` and `set_announcement_on(target, turn_on, replace_current
+  default false)` call it (the old versions were dropped: next to the new ones a call would be ambiguous).
+  `check_announcement_limit` (at most 20 on) is gone.

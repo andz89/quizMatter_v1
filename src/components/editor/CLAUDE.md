@@ -36,7 +36,8 @@ editor / view / review, and renders `Editor.tsx`, which calls `store.loadPresent
 - Modals: `AnswerModal`, `DetailsModal` (title, grades, subject…; the Author is locked text in review mode, on an
   editor's own presentation, and when the presentation is linked to an editor, store `isAuthorLinked` from the edit
   page's `authorId`: the database always writes their name there), `SlideGridModal`, `ConfirmModal` (the app's one
-  confirm box, used on every page; never the browser's `confirm()`).
+  confirm box, used on every page; never the browser's `confirm()`; an optional middle button, `secondaryLabel` +
+  `onSecondary`, for a third choice like Admin → Announcements' "Save as draft").
 - A Claude draft whose slides can't be built (`buildSlides` errors) opens a `Modal` in `Editor` listing the errors.
 - Review mode: `ReviewControls.tsx` (Save as draft + the ⋮ menu, and `ReviewBanner`).
 - `SentBackBanner.tsx`: the yellow "QuizMatter sent this back" bar (a sent-back submission, or `ReviewBanner`), with

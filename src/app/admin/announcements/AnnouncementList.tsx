@@ -26,7 +26,7 @@ const STATUS: Record<AnnouncementRow["status"], { label: string; className: stri
   live: { label: "Live", className: "bg-success-soft text-success-strong" },
   scheduled: { label: "Scheduled", className: "bg-highlight-soft text-text-primary" },
   ended: { label: "Ended", className: "bg-bg-page text-text-secondary" },
-  off: { label: "Off", className: "bg-bg-page text-text-secondary" },
+  off: { label: "Draft", className: "bg-bg-page text-text-secondary" },
 };
 
 // "Oct 31, 2:05 PM" in Philippine time.
@@ -54,7 +54,8 @@ export function AnnouncementList({ rows }: { rows: AnnouncementRow[] }) {
         <div className="min-w-0 flex-1">
           <h2 className="text-[15px] font-extrabold text-text-primary">Announcements</h2>
           <p className="mt-1 text-sm text-text-secondary">
-            A modal and/or a bar at the top for the teachers you choose, on the pages you choose.
+            A modal or a bar at the top for the teachers you choose, on the pages you choose. One modal and one bar
+            can be on at a time.
           </p>
         </div>
         {rows.length > 0 && newButton}
@@ -79,15 +80,22 @@ export function AnnouncementList({ rows }: { rows: AnnouncementRow[] }) {
 function Row({ row }: { row: AnnouncementRow }) {
   const [isBusy, startTransition] = useTransition();
   const [isConfirming, setIsConfirming] = useState(false);
+  // The name of the one of the same type that is on, when Turn on was refused for it (the box asks).
+  const [conflict, setConflict] = useState<string | null>(null);
   const status = STATUS[row.status];
   const parts = [row.show_modal && "Modal", row.show_bar && "Bar"].filter(Boolean).join(" + ");
+  const typeWord = row.show_bar ? "top bar" : "modal";
 
-  const toggle = () =>
+  // replaceCurrent: turn off the one of the same type that is on (after the box asked).
+  const toggle = (replaceCurrent = false) => {
+    setConflict(null);
     startTransition(async () => {
-      const error = await setAnnouncementOn(row.id, !row.is_on);
-      if (error) toast.error(error);
+      const result = await setAnnouncementOn(row.id, !row.is_on, replaceCurrent);
+      if (result && "conflict" in result) setConflict(result.conflict);
+      else if (result) toast.error(result.error);
       else toast.success(row.is_on ? "Turned off." : "Turned on.");
     });
+  };
 
   // Runs the matching rule over every account, so it can take a few seconds with many teachers.
   const recount = () =>
@@ -134,7 +142,7 @@ function Row({ row }: { row: AnnouncementRow }) {
             Count again
           </button>
           {row.status !== "ended" && (
-            <button type="button" onClick={toggle} disabled={isBusy} className={SMALL_BUTTON_CLASS}>
+            <button type="button" onClick={() => toggle()} disabled={isBusy} className={SMALL_BUTTON_CLASS}>
               {row.is_on ? "Turn off" : "Turn on"}
             </button>
           )}
@@ -159,6 +167,15 @@ function Row({ row }: { row: AnnouncementRow }) {
           danger
           onConfirm={remove}
           onCancel={() => setIsConfirming(false)}
+        />
+      )}
+      {conflict !== null && (
+        <ConfirmModal
+          title={`Turn off the current ${typeWord}?`}
+          message={`"${conflict}" is the ${typeWord} that's on now. Only one ${typeWord} can be on at a time. Turn it off and turn "${row.name}" on?`}
+          confirmLabel="Turn it off and turn this on"
+          onConfirm={() => toggle(true)}
+          onCancel={() => setConflict(null)}
         />
       )}
     </div>

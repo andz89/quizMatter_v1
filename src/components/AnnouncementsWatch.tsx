@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { z } from "zod";
 import {
+  ANNOUNCEMENTS_STORE,
   isSameVisit,
   manilaDay,
   myAnnouncementSchema,
@@ -18,7 +19,6 @@ import { isEditorPage } from "./Footer";
 
 // What this tab knows (sessionStorage, so a new tab asks again): the key it was asked under, the Philippine date,
 // whose list it is, the caller's announcements and the parts closed in this tab ("<id>:modal" / "<id>:bar").
-const STORE = "qm:announcements";
 const storedSchema = z.object({
   key: z.string(),
   day: z.string(),
@@ -30,7 +30,7 @@ type Stored = z.infer<typeof storedSchema>;
 
 function readStored(): Stored | null {
   try {
-    const parsed = storedSchema.safeParse(JSON.parse(sessionStorage.getItem(STORE) ?? "null"));
+    const parsed = storedSchema.safeParse(JSON.parse(sessionStorage.getItem(ANNOUNCEMENTS_STORE) ?? "null"));
     return parsed.success ? parsed.data : null;
   } catch {
     return null;
@@ -39,7 +39,7 @@ function readStored(): Stored | null {
 
 function writeStored(stored: Stored) {
   try {
-    sessionStorage.setItem(STORE, JSON.stringify(stored));
+    sessionStorage.setItem(ANNOUNCEMENTS_STORE, JSON.stringify(stored));
   } catch {
     // Storage blocked: it still works for this page, it just asks again on the next one.
   }
@@ -48,27 +48,40 @@ function writeStored(stored: Stored) {
 /**
  * Shows the logged-in teacher's announcements (root CLAUDE.md, "Announcements"). Only mounted when something is live
  * (`Announcements`, from the maintenance status's key). Asks my_announcements once per key and Philippine day, never
- * on pages that can't show one, and picks what fits each page from the saved list. Nothing shows while presenting
- * fullscreen; a waiting modal shows once fullscreen ends.
+ * on pages that can't show one, and picks what fits each page from the saved list. A list shows only to the account
+ * it was asked for. Nothing shows while presenting; a waiting modal shows once the presentation ends.
  */
 export function AnnouncementsWatch({ announcementsKey }: { announcementsKey: string }) {
   const pathname = usePathname() ?? "";
   const group = pageGroup(pathname);
   const canShow = group !== null;
+  const [userId, setUserId] = useState<string | null>(null);
   const [stored, setStored] = useState<Stored | null>(null);
-  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isPresenting, setIsPresenting] = useState(false);
   // Worked out on every page change (in-app moves don't re-render the layout), so midnight is noticed without a
   // reload.
   const day = manilaDay(new Date());
 
+  // Who is logged in, read again on every page change (from the browser's cookie, no request): logging out and in
+  // moves between pages without a reload, so this tab may now belong to another teacher.
   useEffect(() => {
-    if (!canShow) return;
+    let isCurrent = true;
+    void createClient()
+      .auth.getSession()
+      .then(({ data }) => {
+        if (isCurrent) setUserId(data.session?.user.id ?? null);
+      });
+    return () => {
+      isCurrent = false;
+    };
+  }, [pathname]);
+
+  useEffect(() => {
+    // Logged out: nothing to show.
+    if (!canShow || !userId) return;
     let isCurrent = true;
     const load = async (): Promise<Stored | null> => {
       const supabase = createClient();
-      // Read from the browser's cookie, no request. Logged out: nothing to show.
-      const userId = (await supabase.auth.getSession()).data.session?.user.id;
-      if (!userId) return null;
       const saved = readStored();
       // Closed parts stay closed for this visit: the same account, until a new day ("once a day" shows again).
       const sameVisit = isSameVisit(saved, { day, userId });
@@ -86,15 +99,23 @@ export function AnnouncementsWatch({ announcementsKey }: { announcementsKey: str
     return () => {
       isCurrent = false;
     };
-  }, [canShow, announcementsKey, day]);
+  }, [canShow, announcementsKey, day, userId]);
 
+  // Presenting: fullscreen, or PresentationView's data-presenting mark on <html> (Present still opens when the
+  // browser refuses fullscreen, e.g. on an iPhone, and the modal must not cover the class's slides).
   useEffect(() => {
-    const handleChange = () => setIsFullscreen(document.fullscreenElement !== null);
+    const root = document.documentElement;
+    const handleChange = () => setIsPresenting(document.fullscreenElement !== null || root.dataset.presenting !== undefined);
+    const observer = new MutationObserver(handleChange);
+    observer.observe(root, { attributes: true, attributeFilter: ["data-presenting"] });
     document.addEventListener("fullscreenchange", handleChange);
-    return () => document.removeEventListener("fullscreenchange", handleChange);
+    return () => {
+      observer.disconnect();
+      document.removeEventListener("fullscreenchange", handleChange);
+    };
   }, []);
 
-  if (!group || !stored || stored.day !== day || isFullscreen) return null;
+  if (!group || !stored || !userId || !isSameVisit(stored, { day, userId }) || isPresenting) return null;
   const { modals, bars } = pickForPage(stored.items, group, new Set(stored.closed));
   const isFloating = isEditorPage(pathname);
 

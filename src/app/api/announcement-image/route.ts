@@ -8,7 +8,7 @@ import { createClient } from "@/lib/supabase/server";
  * Saves a picture for an announcement's modal (Admin → Announcements; super admin only), already shrunk by the
  * browser (see lib/photos.tsx), or a GIF sent as it is (so it keeps moving; 1 MB at most, MAX_GIF_BYTES). The browser sends its size in the address: /api/announcement-image?width=…&height=…
  * The file goes to the R2 bucket like every photo and nowhere else (no photo list): the weekly cleanup keeps it
- * while an announcement's modal_html uses it (used_photo_srcs). Returns { src }.
+ * while an announcement's modal attachment uses it (used_photo_srcs). Returns { src }.
  */
 export async function POST(request: Request) {
   const supabase = await createClient();

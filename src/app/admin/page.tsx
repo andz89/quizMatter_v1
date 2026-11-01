@@ -25,8 +25,8 @@ type RecentAction = { id: number; admin_name: string; action: AdminAction; targe
 const sectionLabel = "text-[11px] font-bold tracking-[0.05em] text-text-header uppercase";
 
 /**
- * Admin → Overview: what is waiting for you, how busy the app is (bars per day), how many teachers by province, age
- * group and gender, and, for the super admin, the latest admin actions. The range is `?days=7|30|90`. (../layout.tsx checks the user is an admin.)
+ * Admin → Overview: what is waiting for you, how busy the app is (bars per day), how many teachers by age group and
+ * gender, and, for the super admin, the latest admin actions. The range is `?days=7|30|90`. (../layout.tsx checks the user is an admin.)
  */
 export default async function AdminOverviewPage({ searchParams }: PageProps<"/admin">) {
   const { isAdmin, isSuperAdmin } = await getAccount();

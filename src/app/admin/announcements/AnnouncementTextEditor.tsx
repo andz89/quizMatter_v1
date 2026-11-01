@@ -12,7 +12,8 @@ import {
   UnderlineIcon,
 } from "lucide-react";
 import { Modal } from "@/components/Modal";
-import { ANNOUNCEMENT_BAR_EXTENSIONS, isAllowedLink } from "@/lib/announcementText";
+import { isAllowedLink } from "@/lib/announcements";
+import { ANNOUNCEMENT_BAR_EXTENSIONS } from "@/lib/announcementText";
 import { DEFAULT_TEXT_COLOR } from "@/lib/constants";
 
 type Align = "left" | "center" | "right";

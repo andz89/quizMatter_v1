@@ -1,6 +1,7 @@
--- Birthday, gender, province and town (supabase/migrations/20261220000000_age_gender_address.sql): sign up copies them
--- and leaves none in the login metadata, bad ones are refused, the birthday and gender stay private, the profile
--- shows the town and province unless hidden, and only admins get the counts.
+-- Birthday and gender (supabase/migrations/20261220000000_age_gender_address.sql): sign up copies them and leaves
+-- none in the login metadata, bad ones are refused, they stay private, and only admins get the counts. The province
+-- and town were removed (supabase/migrations/20261227000000_remove_address.sql): an old sign up tab that still sends
+-- them leaves nothing behind, and their columns and helper functions are gone.
 -- Run on a local database with every migration applied:
 --   psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/age_gender_address.sql
 -- Passes when it ends without an error. Everything is rolled back.
@@ -12,10 +13,9 @@ begin;
 insert into auth.users (id, email, raw_user_meta_data) values
   ('00000000-0000-4000-8000-0000000000e1', 'ag-teacher@example.com',
     '{"first_name": "Ag", "last_name": "Teacher", "birth_date": "1990-06-15", "gender": "female",
-      "province": "Metro Manila", "town": "  Quezon City "}'),
+      "province": "Metro Manila", "town": "Quezon City"}'),
   ('00000000-0000-4000-8000-0000000000e2', 'ag-young@example.com',
-    '{"first_name": "Ag", "last_name": "Young", "birth_date": "2020-01-01", "gender": "other",
-      "province": "Cebu Prov.", "town": "Cebu City"}'),
+    '{"first_name": "Ag", "last_name": "Young", "birth_date": "2020-01-01", "gender": "other"}'),
   ('00000000-0000-4000-8000-0000000000e3', 'ag-baddate@example.com',
     '{"first_name": "Ag", "last_name": "Baddate", "birth_date": "not a date"}'),
   ('00000000-0000-4000-8000-0000000000e4', 'ag-viewer@example.com', '{"first_name": "Ag", "last_name": "Viewer"}'),
@@ -28,16 +28,35 @@ begin
   if not exists (
     select 1 from public.user_settings
     where user_id = '00000000-0000-4000-8000-0000000000e1'
-      and birth_date = '1990-06-15' and gender = 'female' and province = 'Metro Manila' and town = 'Quezon City'
-      and town_public
+      and birth_date = '1990-06-15' and gender = 'female'
   ) then
-    raise exception 'FAIL: the sign up did not save the birthday, gender, province and town';
+    raise exception 'FAIL: the sign up did not save the birthday and gender';
   end if;
   if (
     select coalesce(raw_user_meta_data, '{}'::jsonb) ?| array['birth_date', 'gender', 'province', 'town']
     from auth.users where id = '00000000-0000-4000-8000-0000000000e1'
   ) then
-    raise exception 'FAIL: the new details stayed in the login metadata';
+    raise exception 'FAIL: the new details (or an old tab''s province and town) stayed in the login metadata';
+  end if;
+end $$;
+
+-- ─── 1b. The address is gone: its columns and helper functions ────────────────────────────────────────────────
+do $$
+begin
+  if exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public'
+      and ((table_name = 'user_settings' and column_name in ('province', 'town', 'town_public'))
+        or (table_name = 'announcements' and column_name in ('provinces', 'town_words')))
+  ) then
+    raise exception 'FAIL: an address column is still there';
+  end if;
+  if to_regprocedure('public.is_province(text)') is not null
+      or to_regprocedure('public.announcement_provinces_ok(text[])') is not null then
+    raise exception 'FAIL: an address helper function is still there';
+  end if;
+  if pg_get_function_result('public.teacher_profile(text)'::regprocedure) ~ '(town|province)' then
+    raise exception 'FAIL: teacher_profile still returns the town or province';
   end if;
 end $$;
 
@@ -47,7 +66,7 @@ begin
   if not exists (
     select 1 from public.user_settings
     where user_id = '00000000-0000-4000-8000-0000000000e2'
-      and birth_date is null and gender = '' and province = '' and town = 'Cebu City'
+      and birth_date is null and gender = ''
   ) then
     raise exception 'FAIL: bad sign up details were not left empty';
   end if;
@@ -102,18 +121,6 @@ begin
   exception when check_violation then null;
   end;
 
-  begin
-    update public.user_settings set province = 'Cebu Prov.' where user_id = '00000000-0000-4000-8000-0000000000e1';
-    raise exception 'FAIL: an unknown province was saved';
-  exception when check_violation then null;
-  end;
-
-  begin
-    update public.user_settings set town = repeat('a', 61) where user_id = '00000000-0000-4000-8000-0000000000e1';
-    raise exception 'FAIL: a 61-character town was saved';
-  exception when check_violation then null;
-  end;
-
   -- Back to the sign up birthday for the counts below.
   update public.user_settings set birth_date = '1990-06-15' where user_id = '00000000-0000-4000-8000-0000000000e1';
 end $$;
@@ -129,58 +136,14 @@ begin
   end if;
 end $$;
 
--- ─── 5. The profile shows the town and province unless hidden; never the birthday or gender ───────────────────
+-- ─── 5. The profile never hands out the birthday or gender ───────────────────────────────────────────────────
 do $$
-declare p record;
 begin
-  select * into p from public.teacher_profile('ag-teacher');
-  if p.town is distinct from 'Quezon City' or p.province is distinct from 'Metro Manila' or not p.town_public then
-    raise exception 'FAIL: the profile doesn''t show the town and province: %', row_to_json(p);
-  end if;
   if pg_get_function_result('public.teacher_profile(text)'::regprocedure) ~ '(birth_date|gender)' then
     raise exception 'FAIL: teacher_profile hands out the birthday or gender';
   end if;
-end $$;
-
-select set_config('request.jwt.claims',
-  json_build_object('sub', '00000000-0000-4000-8000-0000000000e1', 'role', 'authenticated')::text, true);
-update public.user_settings set town_public = false where user_id = '00000000-0000-4000-8000-0000000000e1';
-
--- The owner still sees them, marked not public.
-do $$
-declare p record;
-begin
-  select * into p from public.teacher_profile('ag-teacher');
-  if p.town is distinct from 'Quezon City' or p.town_public then
-    raise exception 'FAIL: the owner doesn''t see their hidden town: %', row_to_json(p);
-  end if;
-end $$;
-
-select set_config('request.jwt.claims',
-  json_build_object('sub', '00000000-0000-4000-8000-0000000000e4', 'role', 'authenticated')::text, true);
-
-do $$
-declare p record;
-begin
-  select * into p from public.teacher_profile('ag-teacher');
-  if p.town <> '' or p.province <> '' or p.town_public then
-    raise exception 'FAIL: a hidden town and province still show: %', row_to_json(p);
-  end if;
-end $$;
-
--- An editor's always show.
-reset role;
-insert into public.editors (user_id) values ('00000000-0000-4000-8000-0000000000e1');
-set local role authenticated;
-select set_config('request.jwt.claims',
-  json_build_object('sub', '00000000-0000-4000-8000-0000000000e4', 'role', 'authenticated')::text, true);
-
-do $$
-declare p record;
-begin
-  select * into p from public.teacher_profile('ag-teacher');
-  if p.town is distinct from 'Quezon City' or not p.town_public then
-    raise exception 'FAIL: an editor''s town doesn''t show: %', row_to_json(p);
+  if not exists (select 1 from public.teacher_profile('ag-teacher')) then
+    raise exception 'FAIL: the profile doesn''t open';
   end if;
 end $$;
 
@@ -213,6 +176,9 @@ begin
   end if;
   if not exists (select 1 from public.admin_teacher_breakdown() where kind = 'age' and label = e1_group and total >= 1) then
     raise exception 'FAIL: the counts miss the teacher''s age group %', e1_group;
+  end if;
+  if exists (select 1 from public.admin_teacher_breakdown() where kind not in ('age', 'gender')) then
+    raise exception 'FAIL: the counts still have a province (or another kind)';
   end if;
   if (select sum(total) from public.admin_teacher_breakdown() where kind = 'age') <> (select total from ag_everyone) then
     raise exception 'FAIL: the age counts don''t add up to every teacher';

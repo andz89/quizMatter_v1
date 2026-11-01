@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { JSONContent } from "@tiptap/core";
-import { cleanAnnouncementDoc, isInternalLink } from "./announcementText";
+import { cleanAnnouncementDoc } from "./announcementText";
 
 const linked = (href: string): JSONContent => ({
   type: "text",
@@ -25,8 +25,7 @@ test("cleanAnnouncementDoc keeps https and in-app links", () => {
   }
 });
 
-test("isInternalLink is true only for a path in the app", () => {
-  assert.equal(isInternalLink("/saved"), true);
-  assert.equal(isInternalLink("//x.com"), false);
-  assert.equal(isInternalLink("https://x.com"), false);
+test("cleanAnnouncementDoc drops a backslash path (browsers open /\\x.com as x.com)", () => {
+  const text = cleanAnnouncementDoc(doc(linked("/\\x.com"))).content![0].content![0];
+  assert.deepEqual(text.marks, [{ type: "bold" }]);
 });

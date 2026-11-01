@@ -25,9 +25,9 @@ create function pg_temp.ann(extra jsonb) returns jsonb language sql as $$
   select '{
     "name": "Count test", "is_on": true, "starts_at": null, "ends_at": null,
     "show_modal": true, "modal_text": "Hello", "modal_close_after": 0,
-    "show_bar": true, "bar_html": "<p>Bar</p>", "bar_close_after": 0,
+    "show_bar": false, "bar_html": "", "bar_close_after": 0,
     "repeat": "once", "pages": ["all"], "modal_size": "large",
-    "genders": [], "age_min": null, "age_max": null, "provinces": [], "town_words": [],
+    "genders": [], "age_min": null, "age_max": null,
     "education_levels": [], "field_words": [], "presentations_min": null, "presentations_max": null, "roles": []
   }'::jsonb || extra;
 $$;
@@ -87,6 +87,7 @@ begin
   perform public.dismiss_announcement(live_id, 'modal');
   perform pg_temp.act_as(t2);
   perform public.dismiss_announcement(live_id, 'modal');
+  -- A bar close on a modal: what stays when the admin switches a bar to a modal; it still counts as a bar close.
   perform public.dismiss_announcement(live_id, 'bar');
 
   select r.closed_modal into closed_modal

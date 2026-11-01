@@ -58,12 +58,6 @@ export default function PrivacyPage() {
           by age group and gender. Only you and QuizMatter’s admins see them; they never show on your profile.
         </p>
         <p>
-          <strong>Your province and city or town.</strong> You must give them to make an account (not your street or
-          house address). Why we ask: they show on your profile page, so teachers can see where the person who made a
-          lesson teaches, and we count teachers by province. You can hide them from your profile page (“Show on my
-          profile”), unless you’re an editor.
-        </p>
-        <p>
           <strong>Your educational background</strong> (your level, like a master’s degree, and your field or major).
           You must give it to make an account. The law calls it <em>sensitive personal information</em> (Section 3(l)),
           so we ask for your clear consent when you sign up (Section 13(a)). Why we ask: teachers share lessons on
@@ -81,7 +75,7 @@ export default function PrivacyPage() {
         </p>
         <p>
           <strong>Announcements.</strong> QuizMatter sometimes shows a message (a pop-up or a bar at the top) to some
-          teachers. Your age, gender, province and city or town, educational background, how many presentations you
+          teachers. Your age, gender, educational background, how many presentations you
           made, and your role (teacher, editor or admin) are used to choose which announcements you see. Nobody else
           learns which ones you get. We keep which announcements you closed, and when, so they don’t show again too
           soon.
@@ -128,20 +122,19 @@ export default function PrivacyPage() {
         <p>
           <strong>Other teachers</strong> (only when logged in; QuizMatter’s pages are closed to everyone else, except
           sign up, log in and these two pages). On your profile page: your display name, your first and last name, your
-          province and city or town, your educational background and your bio (you can hide these four, unless you’re
-          an editor), an editor’s profile photo, the presentations you published, and the QuizMatter lessons you made as
+          educational background and your bio (you can hide these three, unless you’re an editor), an editor’s profile photo, the presentations you published, and the QuizMatter lessons you made as
           an editor. Your display name or the Author name shows on the work you share. They never see your email,
           contact number, birthday or gender.
         </p>
         <p>
           <strong>If you’re an editor:</strong> your name, email and the date show on every QuizMatter lesson you
           review, to every logged-in teacher, and they stay there even after your account is deleted. Your full name,
-          province and city or town, educational background and bio always show on your profile.
+          educational background and bio always show on your profile.
         </p>
         <p>
-          <strong>QuizMatter’s admins</strong> see your email, names, contact number, birthday (as your age), gender,
-          province and city or town, and educational background (even the ones you hid from your profile). Admin pages
-          also count teachers by province, age group and gender, without names. To run and protect QuizMatter, for example to check a report, they can
+          <strong>QuizMatter’s admins</strong> see your email, names, contact number, birthday (as your age), gender
+          and educational background (even the ones you hid from your profile). Admin pages also count teachers by age
+          group and gender, without names. To run and protect QuizMatter, for example to check a report, they can
           open any presentation, private ones too. They can hide or delete presentations, remove an editor’s profile
           photo, and pause or ban accounts.
         </p>
@@ -208,7 +201,7 @@ export default function PrivacyPage() {
             </thead>
             <tbody className="align-top [&_td]:border-t [&_td]:border-border-default [&_td]:px-3 [&_td]:py-2">
               <tr>
-                <td>Your account, profile (with your birthday, gender, province and town), work and agreement</td>
+                <td>Your account, profile (with your birthday and gender), work and agreement</td>
                 <td>Until you delete your account</td>
               </tr>
               <tr>
