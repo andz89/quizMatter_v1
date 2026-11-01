@@ -23,7 +23,57 @@ COMMENT ON SCHEMA "public" IS 'standard public schema';
 
 
 
-CREATE OR REPLACE FUNCTION "public"."admin_announcements"() RETURNS TABLE("id" "uuid", "name" "text", "is_on" boolean, "starts_at" timestamp with time zone, "ends_at" timestamp with time zone, "show_modal" boolean, "modal_text" "text", "modal_attachment" "jsonb", "modal_close_after" integer, "show_bar" boolean, "bar_html" "text", "bar_close_after" integer, "repeat" "text", "pages" "text"[], "genders" "text"[], "age_min" integer, "age_max" integer, "education_levels" "text"[], "field_words" "text"[], "presentations_min" integer, "presentations_max" integer, "roles" "text"[], "created_by" "uuid", "created_at" timestamp with time zone, "updated_at" timestamp with time zone, "modal_size" "text", "status" "text", "matched" integer, "closed_modal" integer, "closed_bar" integer, "counted_at" timestamp with time zone)
+CREATE OR REPLACE FUNCTION "public"."add_announcement_photo"("photo_src" "text", "photo_width" integer, "photo_height" integer) RETURNS "void"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+begin
+  if not public.is_super_admin() then
+    raise exception 'Only the super admin can do this.' using errcode = '42501';
+  end if;
+  if exists (select 1 from public.announcement_photos p where p.src = photo_src) then
+    return;
+  end if;
+  -- One at a time, so two uploads can't both pass the limit.
+  perform pg_advisory_xact_lock(hashtext('public.announcement_photos'));
+  -- Same limit as ANNOUNCEMENT_PHOTOS_MAX (src/lib/announcements.ts).
+  if (select count(*) from public.announcement_photos) >= 500 then
+    raise exception 'At most 500 announcement photos. Delete some first.' using errcode = '22023';
+  end if;
+  insert into public.announcement_photos (src, width, height, uploaded_by)
+  values (photo_src, photo_width, photo_height, auth.uid())
+  on conflict (src) do nothing;
+end;
+$$;
+
+
+ALTER FUNCTION "public"."add_announcement_photo"("photo_src" "text", "photo_width" integer, "photo_height" integer) OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."admin_announcement_photos"() RETURNS TABLE("src" "text", "width" integer, "height" integer, "created_at" timestamp with time zone, "used_by" "text"[])
+    LANGUAGE "plpgsql" STABLE SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+begin
+  if not public.is_super_admin() then
+    raise exception 'Only the super admin can do this.' using errcode = '42501';
+  end if;
+  return query
+  select p.src, p.width, p.height, p.created_at,
+    coalesce((
+      select array_agg(a.name order by a.name) from public.announcements a
+      where public.announcement_uses_photo(a, p.src)
+    ), '{}')
+  from public.announcement_photos p
+  order by p.created_at desc, p.src;
+end;
+$$;
+
+
+ALTER FUNCTION "public"."admin_announcement_photos"() OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."admin_announcements"() RETURNS TABLE("id" "uuid", "name" "text", "is_on" boolean, "starts_at" timestamp with time zone, "ends_at" timestamp with time zone, "show_modal" boolean, "modal_text" "text", "modal_attachment" "jsonb", "modal_close_after" integer, "show_bar" boolean, "bar_html" "text", "bar_close_after" integer, "repeat" "text", "pages" "text"[], "genders" "text"[], "age_min" integer, "age_max" integer, "education_levels" "text"[], "field_words" "text"[], "presentations_min" integer, "presentations_max" integer, "roles" "text"[], "created_by" "uuid", "created_at" timestamp with time zone, "updated_at" timestamp with time zone, "modal_size" "text", "modal_format" "text", "modal_html" "text", "modal_height" integer, "bar_format" "text", "bar_height" integer, "status" "text", "matched" integer, "closed_modal" integer, "closed_bar" integer, "counted_at" timestamp with time zone)
     LANGUAGE "plpgsql" STABLE SECURITY DEFINER
     SET "search_path" TO ''
     AS $$
@@ -39,6 +89,7 @@ begin
     a.repeat, a.pages, a.genders, a.age_min, a.age_max,
     a.education_levels, a.field_words, a.presentations_min, a.presentations_max, a.roles,
     a.created_by, a.created_at, a.updated_at, a.modal_size,
+    a.modal_format, a.modal_html, a.modal_height, a.bar_format, a.bar_height,
     case
       when a.ends_at is not null and a.ends_at <= now() then 'ended'
       when not a.is_on then 'off'
@@ -513,10 +564,21 @@ CREATE TABLE IF NOT EXISTS "public"."announcements" (
     "closed_cleared_at" timestamp with time zone,
     "modal_text" "text" DEFAULT ''::"text" NOT NULL,
     "modal_attachment" "jsonb",
+    "modal_format" "text" DEFAULT 'post'::"text" NOT NULL,
+    "modal_html" "text" DEFAULT ''::"text" NOT NULL,
+    "modal_height" integer DEFAULT 400 NOT NULL,
+    "bar_format" "text" DEFAULT 'text'::"text" NOT NULL,
+    "bar_height" integer DEFAULT 60 NOT NULL,
     CONSTRAINT "announcements_age_max_check" CHECK ((("age_max" >= 18) AND ("age_max" <= 100))),
     CONSTRAINT "announcements_age_min_check" CHECK ((("age_min" >= 18) AND ("age_min" <= 100))),
     CONSTRAINT "announcements_bar_close_after_check" CHECK ((("bar_close_after" >= 0) AND ("bar_close_after" <= 60))),
-    CONSTRAINT "announcements_bar_html_check" CHECK (("char_length"("bar_html") <= 1000)),
+    CONSTRAINT "announcements_bar_format_check" CHECK (("bar_format" = ANY (ARRAY['text'::"text", 'html'::"text"]))),
+    CONSTRAINT "announcements_bar_height_check" CHECK ((("bar_height" >= 30) AND ("bar_height" <= 300))),
+    CONSTRAINT "announcements_bar_html_check" CHECK (("char_length"("bar_html") <=
+CASE
+    WHEN ("bar_format" = 'html'::"text") THEN 100000
+    ELSE 1000
+END)),
     CONSTRAINT "announcements_check" CHECK ((("ends_at" IS NULL) OR ("starts_at" IS NULL) OR ("ends_at" > "starts_at"))),
     CONSTRAINT "announcements_check1" CHECK ((("age_min" IS NULL) OR ("age_max" IS NULL) OR ("age_min" <= "age_max"))),
     CONSTRAINT "announcements_check2" CHECK ((("presentations_min" IS NULL) OR ("presentations_max" IS NULL) OR ("presentations_min" <= "presentations_max"))),
@@ -527,7 +589,10 @@ CREATE TABLE IF NOT EXISTS "public"."announcements" (
     CONSTRAINT "announcements_genders_check" CHECK (("genders" <@ ARRAY['male'::"text", 'female'::"text"])),
     CONSTRAINT "announcements_modal_attachment_check" CHECK ("public"."announcement_attachment_ok"("modal_attachment")),
     CONSTRAINT "announcements_modal_close_after_check" CHECK ((("modal_close_after" >= 0) AND ("modal_close_after" <= 60))),
-    CONSTRAINT "announcements_modal_has_content" CHECK (((NOT "show_modal") OR ("btrim"("modal_text") <> ''::"text") OR ("modal_attachment" IS NOT NULL))),
+    CONSTRAINT "announcements_modal_format_check" CHECK (("modal_format" = ANY (ARRAY['post'::"text", 'html'::"text"]))),
+    CONSTRAINT "announcements_modal_has_content" CHECK (((NOT "show_modal") OR (("modal_format" = 'post'::"text") AND (("btrim"("modal_text") <> ''::"text") OR ("modal_attachment" IS NOT NULL))) OR (("modal_format" = 'html'::"text") AND ("btrim"("modal_html") <> ''::"text")))),
+    CONSTRAINT "announcements_modal_height_check" CHECK ((("modal_height" >= 100) AND ("modal_height" <= 1000))),
+    CONSTRAINT "announcements_modal_html_check" CHECK (("char_length"("modal_html") <= 100000)),
     CONSTRAINT "announcements_modal_size_check" CHECK (("modal_size" = ANY (ARRAY['small'::"text", 'medium'::"text", 'large'::"text"]))),
     CONSTRAINT "announcements_modal_text_check" CHECK (("char_length"("modal_text") <= 5000)),
     CONSTRAINT "announcements_name_check" CHECK ((("char_length"("name") >= 1) AND ("char_length"("name") <= 100))),
@@ -665,6 +730,19 @@ $$;
 
 
 ALTER FUNCTION "public"."announcement_text_from_html"("html" "text") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."announcement_uses_photo"("a" "public"."announcements", "photo_src" "text") RETURNS boolean
+    LANGUAGE "sql" STABLE
+    SET "search_path" TO ''
+    AS $$
+  select (a.modal_attachment ->> 'kind' = 'photo' and a.modal_attachment ->> 'src' = photo_src)
+    or (a.modal_format = 'html' and strpos(a.modal_html, photo_src) > 0)
+    or (a.bar_format = 'html' and strpos(a.bar_html, photo_src) > 0);
+$$;
+
+
+ALTER FUNCTION "public"."announcement_uses_photo"("a" "public"."announcements", "photo_src" "text") OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."approve_submission"("target_id" "text") RETURNS "text"
@@ -1655,6 +1733,31 @@ $$;
 ALTER FUNCTION "public"."delete_announcement"("target" "uuid") OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."delete_announcement_photo"("photo_src" "text") RETURNS "void"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+declare
+  user_name text;
+begin
+  if not public.is_super_admin() then
+    raise exception 'Only the super admin can do this.' using errcode = '42501';
+  end if;
+  select a.name into user_name from public.announcements a
+  where public.announcement_uses_photo(a, photo_src)
+  order by a.name
+  limit 1;
+  if user_name is not null then
+    raise exception '"%" uses this photo. Take it out of that announcement first.', user_name using errcode = '22023';
+  end if;
+  delete from public.announcement_photos p where p.src = photo_src;
+end;
+$$;
+
+
+ALTER FUNCTION "public"."delete_announcement_photo"("photo_src" "text") OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."dismiss_announcement"("target" "uuid", "part" "text") RETURNS "void"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO ''
@@ -2540,7 +2643,7 @@ $$;
 ALTER FUNCTION "public"."manila_today"() OWNER TO "postgres";
 
 
-CREATE OR REPLACE FUNCTION "public"."my_announcements"() RETURNS TABLE("id" "uuid", "show_modal" boolean, "modal_text" "text", "modal_attachment" "jsonb", "modal_close_after" integer, "show_bar" boolean, "bar_html" "text", "bar_close_after" integer, "repeat" "text", "pages" "text"[], "created_at" timestamp with time zone, "modal_size" "text")
+CREATE OR REPLACE FUNCTION "public"."my_announcements"() RETURNS TABLE("id" "uuid", "show_modal" boolean, "modal_text" "text", "modal_attachment" "jsonb", "modal_close_after" integer, "show_bar" boolean, "bar_html" "text", "bar_close_after" integer, "repeat" "text", "pages" "text"[], "created_at" timestamp with time zone, "modal_size" "text", "modal_format" "text", "modal_html" "text", "modal_height" integer, "bar_format" "text", "bar_height" integer)
     LANGUAGE "sql" STABLE SECURITY DEFINER
     SET "search_path" TO ''
     AS $$
@@ -2565,7 +2668,9 @@ CREATE OR REPLACE FUNCTION "public"."my_announcements"() RETURNS TABLE("id" "uui
   select
     m.id, m.modal_open, case when m.modal_open then m.modal_text else '' end, case when m.modal_open then m.modal_attachment end, m.modal_close_after,
     m.bar_open, case when m.bar_open then m.bar_html else '' end, m.bar_close_after,
-    m.repeat, m.pages, m.created_at, m.modal_size
+    m.repeat, m.pages, m.created_at, m.modal_size,
+    m.modal_format, case when m.modal_open then m.modal_html else '' end, m.modal_height,
+    m.bar_format, m.bar_height
   from mine m
   where m.modal_open or m.bar_open
   order by m.created_at desc, m.id;
@@ -3066,12 +3171,15 @@ begin
     insert into public.announcements (
       name, is_on, starts_at, ends_at, show_modal, modal_text, modal_attachment, modal_close_after, show_bar, bar_html,
       bar_close_after, repeat, pages, genders, age_min, age_max, education_levels,
-      field_words, presentations_min, presentations_max, roles, modal_size, created_by, created_at, updated_at
+      field_words, presentations_min, presentations_max, roles, modal_size, modal_format, modal_html, modal_height,
+      bar_format, bar_height, created_by, created_at, updated_at
     ) values (
       btrim(r.name), r.is_on, r.starts_at, r.ends_at, r.show_modal, coalesce(r.modal_text, ''), r.modal_attachment, r.modal_close_after, r.show_bar,
       r.bar_html, r.bar_close_after, r.repeat, r.pages, r.genders, r.age_min, r.age_max,
-      r.education_levels, r.field_words, r.presentations_min, r.presentations_max, r.roles, coalesce(r.modal_size, 'large'), auth.uid(), now(),
-      clock_timestamp()
+      r.education_levels, r.field_words, r.presentations_min, r.presentations_max, r.roles, coalesce(r.modal_size, 'large'),
+      coalesce(r.modal_format, 'post'), coalesce(r.modal_html, ''), coalesce(r.modal_height, 400),
+      coalesce(r.bar_format, 'text'), coalesce(r.bar_height, 60),
+      auth.uid(), now(), clock_timestamp()
     )
     returning id into saved_id;
   else
@@ -3082,7 +3190,10 @@ begin
       pages = r.pages, genders = r.genders, age_min = r.age_min, age_max = r.age_max,
       education_levels = r.education_levels, field_words = r.field_words,
       presentations_min = r.presentations_min, presentations_max = r.presentations_max, roles = r.roles,
-      modal_size = coalesce(r.modal_size, 'large'), updated_at = clock_timestamp(),
+      modal_size = coalesce(r.modal_size, 'large'), modal_format = coalesce(r.modal_format, 'post'),
+      modal_html = coalesce(r.modal_html, ''), modal_height = coalesce(r.modal_height, 400),
+      bar_format = coalesce(r.bar_format, 'text'), bar_height = coalesce(r.bar_height, 60),
+      updated_at = clock_timestamp(),
       -- Ending later again after its cleanup: its closed rows start over (they were deleted).
       closed_cleared_at = case when r.ends_at is null or r.ends_at > now() then null else x.closed_cleared_at end
     where x.id = r.id
@@ -4152,6 +4263,14 @@ CREATE OR REPLACE FUNCTION "public"."used_photo_srcs"() RETURNS "text"[]
     select pp.src from public.profile_photos pp where pp.src <> ''
     union
     select a.modal_attachment ->> 'src' from public.announcements a where a.modal_attachment ? 'src'
+    union
+    select ap.src from public.announcement_photos ap
+    union
+    select (regexp_matches(a.modal_html, 'https://images\.quizmatter\.com/uploads/[A-Za-z0-9._-]+', 'g'))[1]
+    from public.announcements a where a.modal_format = 'html'
+    union
+    select (regexp_matches(a.bar_html, 'https://images\.quizmatter\.com/uploads/[A-Za-z0-9._-]+', 'g'))[1]
+    from public.announcements a where a.bar_format = 'html'
   ) as used (src);
 $$;
 
@@ -4244,6 +4363,19 @@ CREATE TABLE IF NOT EXISTS "public"."announcement_dismissals" (
 
 
 ALTER TABLE "public"."announcement_dismissals" OWNER TO "postgres";
+
+
+CREATE TABLE IF NOT EXISTS "public"."announcement_photos" (
+    "src" "text" NOT NULL,
+    "width" integer,
+    "height" integer,
+    "uploaded_by" "uuid",
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    CONSTRAINT "announcement_photos_src_ok" CHECK ("public"."announcement_picture_ok"("jsonb_strip_nulls"("jsonb_build_object"('src', "src", 'width', "width", 'height', "height"))))
+);
+
+
+ALTER TABLE "public"."announcement_photos" OWNER TO "postgres";
 
 
 CREATE TABLE IF NOT EXISTS "public"."banned_users" (
@@ -4694,6 +4826,11 @@ ALTER TABLE ONLY "public"."admins"
 
 ALTER TABLE ONLY "public"."announcement_dismissals"
     ADD CONSTRAINT "announcement_dismissals_pkey" PRIMARY KEY ("announcement_id", "user_id", "part");
+
+
+
+ALTER TABLE ONLY "public"."announcement_photos"
+    ADD CONSTRAINT "announcement_photos_pkey" PRIMARY KEY ("src");
 
 
 
@@ -5222,6 +5359,11 @@ ALTER TABLE ONLY "public"."announcement_dismissals"
 
 
 
+ALTER TABLE ONLY "public"."announcement_photos"
+    ADD CONSTRAINT "announcement_photos_uploaded_by_fkey" FOREIGN KEY ("uploaded_by") REFERENCES "auth"."users"("id") ON DELETE SET NULL;
+
+
+
 ALTER TABLE ONLY "public"."announcements"
     ADD CONSTRAINT "announcements_created_by_fkey" FOREIGN KEY ("created_by") REFERENCES "auth"."users"("id") ON DELETE SET NULL;
 
@@ -5632,6 +5774,9 @@ ALTER TABLE "public"."admins" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "public"."announcement_dismissals" ENABLE ROW LEVEL SECURITY;
 
 
+ALTER TABLE "public"."announcement_photos" ENABLE ROW LEVEL SECURITY;
+
+
 ALTER TABLE "public"."announcements" ENABLE ROW LEVEL SECURITY;
 
 
@@ -5718,6 +5863,18 @@ GRANT USAGE ON SCHEMA "public" TO "anon";
 GRANT USAGE ON SCHEMA "public" TO "authenticated";
 GRANT USAGE ON SCHEMA "public" TO "service_role";
 GRANT USAGE ON SCHEMA "public" TO "supabase_auth_admin";
+
+
+
+REVOKE ALL ON FUNCTION "public"."add_announcement_photo"("photo_src" "text", "photo_width" integer, "photo_height" integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."add_announcement_photo"("photo_src" "text", "photo_width" integer, "photo_height" integer) TO "authenticated";
+GRANT ALL ON FUNCTION "public"."add_announcement_photo"("photo_src" "text", "photo_width" integer, "photo_height" integer) TO "service_role";
+
+
+
+REVOKE ALL ON FUNCTION "public"."admin_announcement_photos"() FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."admin_announcement_photos"() TO "authenticated";
+GRANT ALL ON FUNCTION "public"."admin_announcement_photos"() TO "service_role";
 
 
 
@@ -5857,6 +6014,11 @@ GRANT ALL ON FUNCTION "public"."announcement_picture_ok"("a" "jsonb") TO "servic
 
 REVOKE ALL ON FUNCTION "public"."announcement_text_from_html"("html" "text") FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."announcement_text_from_html"("html" "text") TO "service_role";
+
+
+
+REVOKE ALL ON FUNCTION "public"."announcement_uses_photo"("a" "public"."announcements", "photo_src" "text") FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."announcement_uses_photo"("a" "public"."announcements", "photo_src" "text") TO "service_role";
 
 
 
@@ -6070,6 +6232,12 @@ GRANT ALL ON FUNCTION "public"."current_data_version"() TO "service_role";
 REVOKE ALL ON FUNCTION "public"."delete_announcement"("target" "uuid") FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."delete_announcement"("target" "uuid") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."delete_announcement"("target" "uuid") TO "service_role";
+
+
+
+REVOKE ALL ON FUNCTION "public"."delete_announcement_photo"("photo_src" "text") FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."delete_announcement_photo"("photo_src" "text") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."delete_announcement_photo"("photo_src" "text") TO "service_role";
 
 
 
@@ -6621,6 +6789,10 @@ GRANT ALL ON TABLE "public"."admins" TO "service_role";
 
 
 GRANT ALL ON TABLE "public"."announcement_dismissals" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."announcement_photos" TO "service_role";
 
 
 

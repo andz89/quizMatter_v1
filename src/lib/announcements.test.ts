@@ -9,6 +9,7 @@ import {
   myAnnouncementSchema,
   pageGroup,
   pickForPage,
+  sandboxedHtml,
   type MyAnnouncement,
 } from "./announcements";
 
@@ -51,9 +52,65 @@ const valid = {
   presentations_max: null,
   roles: [],
   modal_size: "large",
+  modal_format: "post",
+  modal_html: "",
+  modal_height: 400,
+  bar_format: "text",
+  bar_height: 60,
 };
 
 const PHOTO = "https://images.quizmatter.com/uploads/";
+
+test("announcementSchema takes an html bar up to 100,000 characters, a text bar up to 1,000", () => {
+  const bar = { ...valid, show_modal: false, modal_text: "", show_bar: true, bar_format: "html", bar_html: `<b>Hi</b>${" ".repeat(2000)}`, bar_height: 80 };
+  assert.equal(announcementSchema.safeParse(bar).success, true);
+  for (const change of [
+    { bar_format: "text" },
+    { bar_html: "x".repeat(100_001) },
+    { bar_height: 29 },
+    { bar_height: 301 },
+    { bar_format: "script" },
+  ]) {
+    assert.equal(announcementSchema.safeParse({ ...bar, ...change }).success, false, JSON.stringify(change).slice(0, 80));
+  }
+});
+
+test("announcementSchema takes an html modal with its html and height", () => {
+  const html = { ...valid, modal_format: "html", modal_text: "", modal_html: "<h1>Hi</h1><script>go()</script>", modal_height: 300 };
+  assert.equal(announcementSchema.safeParse(html).success, true);
+  assert.equal(announcementSchema.safeParse({ ...html, modal_html: "x".repeat(100_000) }).success, true);
+  for (const change of [
+    { modal_html: "  " },
+    { modal_html: "x".repeat(100_001) },
+    { modal_height: 99 },
+    { modal_height: 1_001 },
+    { modal_format: "script" },
+  ]) {
+    assert.equal(announcementSchema.safeParse({ ...html, ...change }).success, false, JSON.stringify(change).slice(0, 80));
+  }
+});
+
+test("sandboxedHtml puts the lock list first, then the html", () => {
+  const doc = sandboxedHtml("<p>Hi</p>");
+  const lock = doc.indexOf('http-equiv="Content-Security-Policy"');
+  assert.ok(lock > 0 && lock < doc.indexOf("<p>Hi</p>"));
+  assert.match(doc, /default-src 'none'/);
+  assert.match(doc, /img-src https:\/\/images\.quizmatter\.com /);
+  assert.doesNotMatch(doc, /connect-src/);
+  assert.match(doc, /<base target="_blank">/);
+});
+
+test("a my_announcements row without the html fields (saved before them) is a post", () => {
+  const row = myAnnouncementSchema.parse({
+    id: "a", show_modal: true, modal_text: "m", modal_attachment: null, modal_close_after: 0, show_bar: false,
+    bar_html: "", bar_close_after: 0, repeat: "once", pages: ["all"], created_at: "2026-01-01T00:00:00Z",
+  });
+  assert.equal(row.modal_format, "post");
+  assert.equal(row.modal_html, "");
+  assert.equal(row.modal_height, 400);
+  assert.equal(row.bar_format, "text");
+  assert.equal(row.bar_height, 60);
+});
 
 test("announcementSchema accepts a valid input", () => {
   assert.equal(announcementSchema.safeParse(valid).success, true);
@@ -127,6 +184,11 @@ function row(id: string, createdAt: string, change: Partial<MyAnnouncement> = {}
     pages: ["all"],
     created_at: createdAt,
     modal_size: "large",
+    modal_format: "post",
+    modal_html: "",
+    modal_height: 400,
+    bar_format: "text",
+    bar_height: 60,
     ...change,
   };
 }

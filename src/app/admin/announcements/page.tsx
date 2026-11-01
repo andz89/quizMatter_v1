@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { getAccount } from "@/lib/account";
 import { createClient } from "@/lib/supabase/server";
 import { AnnouncementList, type AnnouncementRow } from "./AnnouncementList";
+import { AnnouncementTabs } from "./AnnouncementTabs";
 
 /**
  * Admin → Announcements (super admin only): every announcement, newest first, with its status, how many accounts
@@ -12,5 +13,10 @@ export default async function AdminAnnouncementsPage() {
   if (!(await getAccount()).isSuperAdmin) notFound();
   const { data, error } = await (await createClient()).rpc("admin_announcements");
   if (error) throw error;
-  return <AnnouncementList rows={data as AnnouncementRow[]} />;
+  return (
+    <div className="flex flex-col gap-5">
+      <AnnouncementTabs />
+      <AnnouncementList rows={data as AnnouncementRow[]} />
+    </div>
+  );
 }

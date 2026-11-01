@@ -1,15 +1,18 @@
 "use client";
 
-import { useRef, useState, type ClipboardEvent } from "react";
+import { useEffect, useRef, useState, type ClipboardEvent } from "react";
 import { toast } from "sonner";
-import { ImageIcon, XIcon } from "lucide-react";
+import { ImageIcon, UploadIcon, XIcon } from "lucide-react";
 import { AnnouncementAttachment } from "@/components/AnnouncementView";
+import { Modal } from "@/components/Modal";
 import { Spinner } from "@/components/Spinner";
-import { ANNOUNCEMENT_LIMITS, type ModalAttachment } from "@/lib/announcements";
+import { ANNOUNCEMENT_LIMITS, type AnnouncementPhoto, type ModalAttachment } from "@/lib/announcements";
 import { PHOTO_TYPES } from "@/lib/constants";
 import { fetchYouTubeCard, uploadAnnouncementPhoto } from "@/lib/photos";
 import { findFacebookLink } from "@/lib/facebook";
 import { findYouTubeVideoId, youTubeWatchUrl } from "@/lib/youtube";
+import { listAnnouncementPhotos } from "./actions";
+import { AnnouncementPhotoGrid } from "./AnnouncementPhotoGrid";
 
 /**
  * The modal's text box, like a post (spec docs/superpowers/specs/2026-10-31-announcement-post-design.md): plain text,
@@ -31,7 +34,14 @@ export function ModalPostEditor({
   onAttachment: (attachment: ModalAttachment | null) => void;
 }) {
   const [busy, setBusy] = useState<"photo" | "video" | null>(null);
+  const [isChoosing, setIsChoosing] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
+
+  // A photo from the Photos tab. One copied from an older announcement may have no size; the modal then fits it.
+  const pick = (photo: AnnouncementPhoto) => {
+    setIsChoosing(false);
+    onAttachment({ kind: "photo", src: photo.src, ...(photo.width && photo.height ? { width: photo.width, height: photo.height } : {}) });
+  };
 
   const attach = async (kind: "photo" | "video", make: () => Promise<ModalAttachment>) => {
     setBusy(kind);
@@ -99,7 +109,7 @@ export function ModalPostEditor({
           <>
             <button
               type="button"
-              onClick={() => fileInput.current?.click()}
+              onClick={() => setIsChoosing(true)}
               disabled={busy !== null}
               className="inline-flex items-center gap-1.5 rounded-dropdown border border-border-default bg-bg-surface px-3 py-1.5 text-[13px] font-semibold text-text-primary transition-colors hover:bg-bg-page disabled:opacity-60"
             >
@@ -124,6 +134,72 @@ export function ModalPostEditor({
           if (file) void attach("photo", () => uploadAnnouncementPhoto(file));
         }}
       />
+      {isChoosing && (
+        <ChoosePhotoModal
+          onPick={pick}
+          onUpload={() => {
+            setIsChoosing(false);
+            fileInput.current?.click();
+          }}
+          onClose={() => setIsChoosing(false)}
+        />
+      )}
     </div>
+  );
+}
+
+/** "Choose a photo": the Photos tab's photos (click one to use it) and "Upload new" (the file picker, as before). */
+function ChoosePhotoModal({
+  onPick,
+  onUpload,
+  onClose,
+}: {
+  onPick: (photo: AnnouncementPhoto) => void;
+  onUpload: () => void;
+  onClose: () => void;
+}) {
+  // undefined while loading, null if it couldn't be read.
+  const [photos, setPhotos] = useState<AnnouncementPhoto[] | null | undefined>(undefined);
+  useEffect(() => {
+    let isCurrent = true;
+    listAnnouncementPhotos()
+      .catch(() => null)
+      .then((list) => {
+        if (isCurrent) setPhotos(list);
+      });
+    return () => {
+      isCurrent = false;
+    };
+  }, []);
+
+  return (
+    <Modal
+      title="Choose a photo"
+      onClose={onClose}
+      footer={
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={onUpload}
+            className="inline-flex items-center gap-2 rounded-button bg-accent btn-press px-4 py-2 text-sm font-semibold text-white hover:bg-accent-hover"
+          >
+            <UploadIcon size={16} />
+            Upload new
+          </button>
+        </div>
+      }
+    >
+      {photos === undefined ? (
+        <div className="flex justify-center py-10">
+          <Spinner size={24} />
+        </div>
+      ) : photos === null ? (
+        <p className="py-6 text-center text-sm text-text-secondary">Couldn&apos;t load the photos. Please try again.</p>
+      ) : photos.length === 0 ? (
+        <p className="py-6 text-center text-sm text-text-secondary">No photos yet. Upload one.</p>
+      ) : (
+        <AnnouncementPhotoGrid photos={photos} onPick={onPick} />
+      )}
+    </Modal>
   );
 }

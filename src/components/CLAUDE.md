@@ -49,7 +49,12 @@ notes.
   play icon, then the title; opens YouTube in a new tab; or a Facebook post / video in Facebook's own sandboxed frame:
   a video 16:9 edge to edge, a post 350–500 px wide and 500 px tall, centered, scrolling sideways in a narrower modal; both with an "Open on
   Facebook" link under the frame, for networks that block Facebook); "You can close this in N…" until its close delay ends,
-  then a Close button, Escape and a click outside close it. `AnnouncementBar`: a violet strip with a megaphone; ✕
+  then a Close button, Escape and a click outside close it. An HTML modal (`format` "html") shows instead the admin's
+  HTML in the sealed box: an `<iframe sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox">` whose
+  `srcDoc` is `sandboxedHtml(html)` (`src/lib/announcements.ts`: the lock list first, `<base target="_blank">`), edge
+  to edge at the chosen `height` (`SealedBox`, shared with the bar). Never add `allow-same-origin` (it would give
+  the box QuizMatter's login) or `allow-top-navigation`. An html bar (`format` "html") shows `SealedBox` at its
+  `height` instead of the megaphone and text, with the countdown and ✕ outside it. `AnnouncementBar`: a violet strip with a megaphone; ✕
   after the countdown; `isFloating` = a card, which the parent places at the bottom. The bar's text goes through
   `toSafeAnnouncementHtml` in the browser; links into the app move with `router.push`, others open in a new tab.
 - `Turnstile.tsx`: Cloudflare's "are you human" check on sign up (with its own retries).

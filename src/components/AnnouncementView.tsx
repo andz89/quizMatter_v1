@@ -3,7 +3,15 @@
 import { useEffect, useRef, useState, type MouseEvent } from "react";
 import { useRouter } from "next/navigation";
 import { ExternalLinkIcon, MegaphoneIcon, PlayIcon, XIcon } from "lucide-react";
-import { MODAL_SIZES, isInternalLink, type ModalAttachment, type ModalSize } from "@/lib/announcements";
+import {
+  MODAL_SIZES,
+  isInternalLink,
+  sandboxedHtml,
+  type BarFormat,
+  type ModalAttachment,
+  type ModalFormat,
+  type ModalSize,
+} from "@/lib/announcements";
 import { facebookEmbedUrl, facebookPostWidth } from "@/lib/facebook";
 import { youTubeWatchUrl } from "@/lib/youtube";
 import { LinkifiedText } from "./LinkifiedText";
@@ -162,20 +170,46 @@ export function AnnouncementAttachment({ attachment, width }: { attachment: Moda
   );
 }
 
+// The sealed box may run its own scripts and open links in a new tab, and nothing else: without allow-same-origin it
+// is its own unknown site, so it can't reach QuizMatter's page, cookies, storage or the teacher's login; without
+// allow-top-navigation, allow-forms and allow-modals it can't move this page, send forms or show alerts.
+const SEALED_BOX_SANDBOX = "allow-scripts allow-popups allow-popups-to-escape-sandbox";
+
+/** The admin's HTML in the sealed box (sandboxedHtml), `height` px tall; taller content scrolls inside. */
+function SealedBox({ html, height, className }: { html: string; height: number | undefined; className: string }) {
+  return (
+    <iframe
+      srcDoc={sandboxedHtml(html)}
+      sandbox={SEALED_BOX_SANDBOX}
+      title="Announcement"
+      referrerPolicy="no-referrer"
+      style={{ height }}
+      className={`block border-0 ${className}`}
+    />
+  );
+}
+
 /**
- * The modal part, like a post: the app's Modal without its title row, at the chosen width (MODAL_SIZES; the height
- * fits), with the text (padding, links clickable) and then the attachment (edge to edge). "You can close this in N…"
+ * The modal part. A post: the app's Modal without its title row, at the chosen width (MODAL_SIZES; the height fits),
+ * with the text (padding, links clickable) and then the attachment (edge to edge). An HTML modal (`format` "html"):
+ * the admin's HTML in the sealed box (sandboxedHtml), edge to edge at the chosen `height`. "You can close this in N…"
  * until its close button may show.
  */
 export function AnnouncementModal({
   text,
   attachment,
+  format = "post",
+  html = "",
+  height,
   closeAfter,
   size,
   onClose,
 }: {
   text: string;
   attachment: ModalAttachment | null;
+  format?: ModalFormat;
+  html?: string;
+  height?: number;
   closeAfter: number;
   size: ModalSize;
   onClose: () => void;
@@ -205,27 +239,39 @@ export function AnnouncementModal({
         )
       }
     >
-      {text.trim() !== "" && (
-        <p className="whitespace-pre-line break-words px-5 py-4 text-sm text-text-primary">
-          <LinkifiedText text={text.trim()} />
-        </p>
+      {format === "html" ? (
+        <SealedBox html={html} height={height} className="w-full" />
+      ) : (
+        <>
+          {text.trim() !== "" && (
+            <p className="whitespace-pre-line break-words px-5 py-4 text-sm text-text-primary">
+              <LinkifiedText text={text.trim()} />
+            </p>
+          )}
+          {attachment && <AnnouncementAttachment attachment={attachment} width={width} />}
+        </>
       )}
-      {attachment && <AnnouncementAttachment attachment={attachment} width={width} />}
     </Modal>
   );
 }
 
 /**
  * The bar part: a violet strip at the top of the page, or (`isFloating`, for the editor, which fills the screen) a
- * card; the parent places floating cards at the bottom. ✕ shows after the countdown.
+ * card; the parent places floating cards at the bottom. ✕ shows after the countdown. A text bar shows the megaphone
+ * and its cleaned text; an html bar (`format` "html") the admin's HTML in the sealed box, `height` px tall. The
+ * countdown and ✕ stay outside the box, so the HTML can't cover them.
  */
 export function AnnouncementBar({
   html,
+  format = "text",
+  height,
   closeAfter,
   onClose,
   isFloating = false,
 }: {
   html: string;
+  format?: BarFormat;
+  height?: number;
   closeAfter: number;
   onClose: () => void;
   isFloating?: boolean;
@@ -239,8 +285,14 @@ export function AnnouncementBar({
           : "justify-center px-4 py-2"
       }`}
     >
-      <MegaphoneIcon size={16} className="shrink-0 text-accent" />
-      <BarText html={html} className={isFloating ? "min-w-0 flex-1" : "min-w-0"} />
+      {format === "html" ? (
+        <SealedBox html={html} height={height} className="min-w-0 flex-1" />
+      ) : (
+        <>
+          <MegaphoneIcon size={16} className="shrink-0 text-accent" />
+          <BarText html={html} className={isFloating ? "min-w-0 flex-1" : "min-w-0"} />
+        </>
+      )}
       {left > 0 ? (
         <span title="You can close this soon" className="w-5 shrink-0 text-center text-[12px] text-text-secondary">
           {left}

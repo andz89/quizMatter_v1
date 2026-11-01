@@ -76,8 +76,24 @@ export const ANNOUNCEMENT_LIMITS = {
   presentationsMax: 50,
   words: 20,
   wordLength: 60,
+  // The HTML modal (20261230000000_announcement_html.sql checks the same numbers).
+  modalHtml: 100_000,
+  modalHeightMin: 100,
+  modalHeightMax: 1_000,
+  // The HTML top bar (20261231000000_announcement_bar_html.sql): its HTML has modalHtml's limit, a text bar barHtml's.
+  barHeightMin: 30,
+  barHeightMax: 300,
 };
 const L = ANNOUNCEMENT_LIMITS;
+
+// A modal is a post (text + one attachment) or HTML in a sealed box (sandboxedHtml); a top bar is text (the editor's
+// cleaned HTML) or HTML in a sealed box.
+export const MODAL_FORMATS = ["post", "html"] as const;
+export type ModalFormat = (typeof MODAL_FORMATS)[number];
+export const DEFAULT_MODAL_HEIGHT = 400;
+export const BAR_FORMATS = ["text", "html"] as const;
+export type BarFormat = (typeof BAR_FORMATS)[number];
+export const DEFAULT_BAR_HEIGHT = 60;
 
 // Same values as EDUCATION_LEVELS in userSettings.ts. That file can't load in a test (it imports svgLibrary,
 // which a test can't load), so they're repeated here; the type check below fails if the two ever differ.
@@ -97,7 +113,8 @@ const time = z.iso.datetime({ offset: true }).nullable();
 // one of our photos, a YouTube card whose thumbnail is our own copy, or a Facebook post / video (only its link; shown
 // with Facebook's own player). Same rules as announcement_attachment_ok in 20261226000000_announcement_facebook.sql
 // (src our R2 address; sizes 1–1920; a Facebook link as facebookLink gives it; only these keys).
-const ourPhoto = z
+// A picture's address must be ours (R2); also checks an announcement photo before its delete.
+export const ourPhoto = z
   .string()
   .max(300)
   .refine((src) => src.startsWith(PHOTO_URL_PREFIX) && !/[\s"'<>]/.test(src), "Only our own photos.");
@@ -120,6 +137,19 @@ export const modalAttachmentSchema = z.discriminatedUnion("kind", [
 ]);
 export type ModalAttachment = z.infer<typeof modalAttachmentSchema>;
 
+// Admin → Announcements → Photos (20261229000000_announcement_photos.sql). Same limit as add_announcement_photo.
+export const ANNOUNCEMENT_PHOTOS_MAX = 500;
+
+/** One row of admin_announcement_photos(): `used_by` = the names of the announcements whose modal shows it. */
+export type AnnouncementPhoto = {
+  src: string;
+  // Empty only for a photo copied from an older announcement that didn't keep its size.
+  width: number | null;
+  height: number | null;
+  created_at: string;
+  used_by: string[];
+};
+
 export const announcementSchema = z
   .object({
     id: z.uuid().nullable(),
@@ -132,7 +162,8 @@ export const announcementSchema = z
     modal_attachment: modalAttachmentSchema.nullable(),
     modal_close_after: z.number().int().min(0).max(L.closeAfter),
     show_bar: z.boolean(),
-    bar_html: z.string().max(L.barHtml),
+    // Up to modalHtml for an html bar; a text bar is held to barHtml below.
+    bar_html: z.string().max(L.modalHtml),
     bar_close_after: z.number().int().min(0).max(L.closeAfter),
     repeat: z.enum(REPEATS),
     pages: z.array(z.enum(["all", ...PAGE_GROUPS.map((g) => g.key)])).min(1),
@@ -145,11 +176,24 @@ export const announcementSchema = z
     presentations_max: count,
     roles: z.array(z.enum(ANNOUNCEMENT_ROLES)),
     modal_size: z.enum(MODAL_SIZE_KEYS),
+    modal_format: z.enum(MODAL_FORMATS),
+    modal_html: z.string().max(L.modalHtml),
+    modal_height: z.number().int().min(L.modalHeightMin).max(L.modalHeightMax),
+    bar_format: z.enum(BAR_FORMATS),
+    bar_height: z.number().int().min(L.barHeightMin).max(L.barHeightMax),
+  })
+  .refine((a) => a.bar_format !== "text" || a.bar_html.length <= L.barHtml, {
+    message: `The bar's text is too long (${L.barHtml} characters at most, with its formatting).`,
+    path: ["bar_html"],
   })
   .refine((a) => a.show_modal || a.show_bar, { message: "Turn on the modal or the bar.", path: ["show_modal"] })
+  .refine((a) => !a.show_modal || a.modal_format !== "html" || a.modal_html.trim() !== "", {
+    message: "The HTML box needs HTML.",
+    path: ["modal_html"],
+  })
   // One type per announcement; the database refuses both too (20261228000000_announcement_one_on.sql).
   .refine((a) => !(a.show_modal && a.show_bar), { message: "Pick a modal or a top bar, not both.", path: ["show_bar"] })
-  .refine((a) => !a.show_modal || a.modal_text.trim() !== "" || a.modal_attachment !== null, {
+  .refine((a) => !a.show_modal || a.modal_format !== "post" || a.modal_text.trim() !== "" || a.modal_attachment !== null, {
     message: "The modal needs text, a picture or a YouTube video.",
     path: ["modal_text"],
   })
@@ -184,8 +228,38 @@ export const myAnnouncementSchema = z.object({
   created_at: z.string(),
   // Missing (a row from before sizes, e.g. kept in a tab) = large, the size modals had then.
   modal_size: z.enum(MODAL_SIZE_KEYS).catch("large"),
+  // Missing (a row from before the HTML modal) = a post.
+  modal_format: z.enum(MODAL_FORMATS).catch("post"),
+  modal_html: z.string().catch(""),
+  modal_height: z.number().catch(DEFAULT_MODAL_HEIGHT),
+  // Missing (a row from before the HTML bar) = a text bar.
+  bar_format: z.enum(BAR_FORMATS).catch("text"),
+  bar_height: z.number().catch(DEFAULT_BAR_HEIGHT),
 });
 export type MyAnnouncement = z.infer<typeof myAnnouncementSchema>;
+
+// The sealed box's lock list (Content Security Policy): its own inline scripts and styles, pictures and media only
+// from our storage, nothing else (no outside scripts, fonts or frames, and no sending data anywhere: connect-src
+// falls back to 'none').
+const PHOTO_ORIGIN = new URL(PHOTO_URL_PREFIX).origin;
+const SEALED_BOX_POLICY = [
+  "default-src 'none'",
+  "script-src 'unsafe-inline'",
+  "style-src 'unsafe-inline'",
+  `img-src ${PHOTO_ORIGIN} data: blob:`,
+  `media-src ${PHOTO_ORIGIN} data: blob:`,
+  "font-src data:",
+  "form-action 'none'",
+].join("; ");
+
+/**
+ * The document an HTML modal runs in (spec docs/superpowers/specs/2026-11-01-announcement-html-design.md): the lock
+ * list first (a later one in the admin's HTML can only tighten it), links open a new tab, then the admin's HTML. It's
+ * shown only in AnnouncementView's sandboxed frame, which keeps it away from QuizMatter and the teacher's login.
+ */
+export function sandboxedHtml(html: string): string {
+  return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${SEALED_BOX_POLICY}"><meta name="viewport" content="width=device-width, initial-scale=1"><base target="_blank"></head><body style="margin:0">${html}</body></html>`;
+}
 
 /**
  * What to show on a page: the announcements that fit it, without parts this tab closed (key "<id>:modal" or

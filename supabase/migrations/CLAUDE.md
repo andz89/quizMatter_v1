@@ -359,3 +359,27 @@ Claude's drafts and photo tickets are NOT here: they live in Cloudflare D1 (`d1/
   `save_announcement(a, replace_current default false)` and `set_announcement_on(target, turn_on, replace_current
   default false)` call it (the old versions were dropped: next to the new ones a call would be ambiguous).
   `check_announcement_limit` (at most 20 on) is gone.
+- Announcement photos: `20261229000000_announcement_photos.sql` (test `supabase/tests/announcement_photos.sql`; spec
+  `docs/superpowers/specs/2026-11-01-announcement-photos-design.md`). `announcement_photos` (`src` key, `width`,
+  `height`, `uploaded_by`, `created_at`; checked by `announcement_picture_ok`; RLS on, no policies or grants), filled
+  with the photos announcements used then. Super admin only: `add_announcement_photo(src, width, height)` (the
+  announcement-image route; already listed = nothing; at most 500, `22023`), `admin_announcement_photos()` (newest
+  first, `used_by` = names of the announcements whose modal shows it), `delete_announcement_photo(src)` (row only;
+  `22023` while one shows it). Newest `used_photo_srcs` keeps every listed photo. Apply it **before** the app (the
+  new route calls `add_announcement_photo`; the old app works with it).
+- Announcement HTML modal: `20261230000000_announcement_html.sql` (test `supabase/tests/announcement_html.sql`; spec
+  `docs/superpowers/specs/2026-11-01-announcement-html-design.md`). `announcements.modal_format` (`post` / `html`),
+  `modal_html` (≤ 50,000; 100,000 since `20261231000100`), `modal_height` (100–1,000, default 400); `announcements_modal_has_content` now asks a post
+  for text or an attachment and an html modal for HTML. Newest `save_announcement` (missing keys = post, '', 400),
+  `admin_announcements` and `my_announcements` (dropped and made again with the three; `modal_html` only while the
+  modal is open). `announcement_uses_photo(a, src)` (not granted: attachment or an address inside the HTML) for the
+  newest `admin_announcement_photos` and `delete_announcement_photo`. Newest `used_photo_srcs` also keeps every R2
+  address found in an HTML modal. Apply it **before** the app (the old app reads the new columns' defaults fine).
+- Announcement HTML top bar: `20261231000000_announcement_bar_html.sql` (test
+  `supabase/tests/announcement_bar_html.sql`). `announcements.bar_format` (`text` / `html`), `bar_height` (30–300,
+  default 60); `announcements_bar_html_check` allows 50,000 characters for html (100,000 since `20261231000100`), 1,000 for text. Newest
+  `save_announcement` (missing keys = text, 60), `admin_announcements` and `my_announcements` (dropped and made again
+  with the two), `announcement_uses_photo` and `used_photo_srcs` (also an html bar's addresses). Apply it **before**
+  the app.
+- Announcement HTML limit: `20261231000100_announcement_html_limit.sql`. An html modal's or html bar's HTML may be
+  100,000 characters (was 50,000); a text bar stays at 1,000. Same number as `ANNOUNCEMENT_LIMITS.modalHtml`.

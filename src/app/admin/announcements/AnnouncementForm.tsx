@@ -10,6 +10,8 @@ import { ConfirmModal } from "@/components/editor/ConfirmModal";
 import {
   ANNOUNCEMENT_LIMITS as L,
   ANNOUNCEMENT_ROLES,
+  DEFAULT_BAR_HEIGHT,
+  DEFAULT_MODAL_HEIGHT,
   MODAL_SIZES,
   PAGE_GROUPS,
   REPEATS,
@@ -53,7 +55,22 @@ const NEW_ANNOUNCEMENT: AnnouncementInput = {
   presentations_max: null,
   roles: [],
   modal_size: "large",
+  modal_format: "post",
+  modal_html: "",
+  modal_height: DEFAULT_MODAL_HEIGHT,
+  bar_format: "text",
+  bar_height: DEFAULT_BAR_HEIGHT,
 };
+
+// The Format choices: a post (text + one picture, video or post) or a text bar, or the admin's HTML in a sealed box.
+const MODAL_FORMAT_CHOICES = [
+  { key: "post", label: "Post (text + picture or video)" },
+  { key: "html", label: "HTML (sealed box)" },
+] as const;
+const BAR_FORMAT_CHOICES = [
+  { key: "text", label: "Text" },
+  { key: "html", label: "HTML (sealed box)" },
+] as const;
 
 // The Type choice: an announcement is a modal or a top bar, never both.
 const TYPES = [
@@ -97,7 +114,11 @@ const toNumber = (value: string) => (value === "" ? null : Number(value));
 /** The new / edit form: what it says, when and where it shows, and who sees it. Saves through saveAnnouncement. */
 export function AnnouncementForm({ initial = NEW_ANNOUNCEMENT }: { initial?: AnnouncementInput }) {
   const router = useRouter();
-  const [form, setForm] = useState(initial);
+  // bar_html holds the text bar's editor HTML or the html bar's code, by bar_format. The form keeps them apart
+  // (form.bar_html for the text editor, barCode for the code box), so switching format loses neither.
+  const [form, setForm] = useState(initial.bar_format === "html" ? { ...initial, bar_html: "" } : initial);
+  const [barCode, setBarCode] = useState(initial.bar_format === "html" ? initial.bar_html : "");
+  const barHtml = form.bar_format === "html" ? barCode : form.bar_html;
   const [fieldText, setFieldText] = useState(initial.field_words.join(", "));
   // The last "Count teachers" answer and the filters it was for (null = couldn't count, e.g. a filter isn't valid).
   const [counted, setCounted] = useState<{ filters: string; count: number | null } | null>(null);
@@ -113,7 +134,7 @@ export function AnnouncementForm({ initial = NEW_ANNOUNCEMENT }: { initial?: Ann
 
   const set =<K extends keyof AnnouncementInput>(key: K, value: AnnouncementInput[K]) => setForm((f) => ({ ...f, [key]: value }));
   const toggleIn = <T extends string>(list: T[], value: T, on: boolean) => (on ? [...list, value] : list.filter((v) => v !== value));
-  const input: AnnouncementInput = { ...form, field_words: splitWords(fieldText) };
+  const input: AnnouncementInput = { ...form, bar_html: barHtml, field_words: splitWords(fieldText) };
 
   // "Count teachers" runs the matching rule over every account (slow with many teachers), so it's only asked on a
   // click, never while typing. Its answer shows only while the filters are still the ones it counted.
@@ -137,7 +158,9 @@ export function AnnouncementForm({ initial = NEW_ANNOUNCEMENT }: { initial?: Ann
   const save = (turnOn: boolean, replaceCurrent = false) => {
     setConflict(null);
     // Checked here for a quick message; the server checks again before saving.
-    const parsed = announcementSchema.safeParse({ ...input, is_on: turnOn });
+    // Only the chosen format's fields are saved; the other's stay in the form in case of a switch back.
+    const sent = form.modal_format === "html" ? { ...input, modal_text: "", modal_attachment: null } : { ...input, modal_html: "" };
+    const parsed = announcementSchema.safeParse({ ...sent, is_on: turnOn });
     if (!parsed.success) return toast.error(parsed.error.issues[0].message);
     setSavingOn(turnOn);
     startSaving(async () => {
@@ -151,8 +174,12 @@ export function AnnouncementForm({ initial = NEW_ANNOUNCEMENT }: { initial?: Ann
   };
 
   const showPreview = () => {
-    const modal = form.show_modal && (form.modal_text.trim() !== "" || form.modal_attachment !== null);
-    const bar = form.show_bar && form.bar_html !== "";
+    const modal =
+      form.show_modal &&
+      (form.modal_format === "html"
+        ? form.modal_html.trim() !== ""
+        : form.modal_text.trim() !== "" || form.modal_attachment !== null);
+    const bar = form.show_bar && barHtml.trim() !== "";
     if (!modal && !bar) return toast.error("Write the modal or the bar first.");
     setPreview({ key: Date.now(), modal, bar });
   };
@@ -223,6 +250,23 @@ export function AnnouncementForm({ initial = NEW_ANNOUNCEMENT }: { initial?: Ann
         <Section title="Modal">
           <div className="flex flex-col gap-3">
             <div>
+              <span className={labelClass}>Format</span>
+              <div className="flex flex-wrap gap-x-4 gap-y-2">
+                {MODAL_FORMAT_CHOICES.map((format) => (
+                  <label key={format.key} className="flex items-center gap-2 text-sm text-text-primary">
+                    <input
+                      type="radio"
+                      name="modal-format"
+                      checked={form.modal_format === format.key}
+                      onChange={() => set("modal_format", format.key)}
+                      className={checkClass}
+                    />
+                    {format.label}
+                  </label>
+                ))}
+              </div>
+            </div>
+            <div>
               <span className={labelClass}>Size</span>
               <div className="flex flex-wrap gap-x-4 gap-y-2">
                 {MODAL_SIZES.map((size) => (
@@ -239,14 +283,26 @@ export function AnnouncementForm({ initial = NEW_ANNOUNCEMENT }: { initial?: Ann
                 ))}
               </div>
             </div>
-            <ModalPostEditor
-              text={form.modal_text}
-              attachment={form.modal_attachment}
-              width={MODAL_SIZES.find((size) => size.key === form.modal_size)?.width ?? MODAL_SIZES[2].width}
-              onText={(text) => set("modal_text", text)}
-              onAttachment={(attachment) => set("modal_attachment", attachment)}
-            />
-            <CloseAfter value={form.modal_close_after} onChange={(n) => set("modal_close_after", n)} />
+            {form.modal_format === "html" ? (
+              <HtmlBoxFields
+                id="announcement-html"
+                html={form.modal_html}
+                onHtml={(html) => set("modal_html", html)}
+                height={form.modal_height}
+                minHeight={L.modalHeightMin}
+                maxHeight={L.modalHeightMax}
+                onHeight={(n) => set("modal_height", n)}
+              />
+            ) : (
+              <ModalPostEditor
+                text={form.modal_text}
+                attachment={form.modal_attachment}
+                width={MODAL_SIZES.find((size) => size.key === form.modal_size)?.width ?? MODAL_SIZES[2].width}
+                onText={(text) => set("modal_text", text)}
+                onAttachment={(attachment) => set("modal_attachment", attachment)}
+              />
+            )}
+            <CloseAfter value={form.modal_close_after} onChange={(n) => set("modal_close_after", n)} onPreview={showPreview} />
           </div>
         </Section>
       )}
@@ -254,8 +310,37 @@ export function AnnouncementForm({ initial = NEW_ANNOUNCEMENT }: { initial?: Ann
       {form.show_bar && (
         <Section title="Top bar">
           <div className="flex flex-col gap-3">
-            <AnnouncementTextEditor value={form.bar_html} onChange={(html) => set("bar_html", html)} />
-            <CloseAfter value={form.bar_close_after} onChange={(n) => set("bar_close_after", n)} />
+            <div>
+              <span className={labelClass}>Format</span>
+              <div className="flex flex-wrap gap-x-4 gap-y-2">
+                {BAR_FORMAT_CHOICES.map((format) => (
+                  <label key={format.key} className="flex items-center gap-2 text-sm text-text-primary">
+                    <input
+                      type="radio"
+                      name="bar-format"
+                      checked={form.bar_format === format.key}
+                      onChange={() => set("bar_format", format.key)}
+                      className={checkClass}
+                    />
+                    {format.label}
+                  </label>
+                ))}
+              </div>
+            </div>
+            {form.bar_format === "html" ? (
+              <HtmlBoxFields
+                id="announcement-bar-html"
+                html={barCode}
+                onHtml={setBarCode}
+                height={form.bar_height}
+                minHeight={L.barHeightMin}
+                maxHeight={L.barHeightMax}
+                onHeight={(n) => set("bar_height", n)}
+              />
+            ) : (
+              <AnnouncementTextEditor value={form.bar_html} onChange={(html) => set("bar_html", html)} />
+            )}
+            <CloseAfter value={form.bar_close_after} onChange={(n) => set("bar_close_after", n)} onPreview={showPreview} />
           </div>
         </Section>
       )}
@@ -391,14 +476,6 @@ export function AnnouncementForm({ initial = NEW_ANNOUNCEMENT }: { initial?: Ann
       <div className="flex flex-wrap justify-end gap-3">
         <button
           type="button"
-          onClick={showPreview}
-          className="inline-flex items-center gap-2 rounded-button border border-border-default bg-bg-surface px-4 py-2 text-sm font-semibold text-text-primary hover:bg-bg-page"
-        >
-          <EyeIcon size={16} />
-          Preview
-        </button>
-        <button
-          type="button"
           onClick={() => save(false)}
           disabled={isSaving}
           className="inline-flex items-center gap-2 rounded-button border border-border-default bg-bg-surface px-4 py-2 text-sm font-semibold text-text-primary hover:bg-bg-page disabled:opacity-60"
@@ -434,7 +511,9 @@ export function AnnouncementForm({ initial = NEW_ANNOUNCEMENT }: { initial?: Ann
         <div className="fixed inset-x-0 top-0 z-[70]">
           <AnnouncementBar
             key={preview.key}
-            html={form.bar_html}
+            html={barHtml}
+            format={form.bar_format}
+            height={form.bar_height}
             closeAfter={form.bar_close_after}
             onClose={() => setPreview((p) => (p && p.modal ? { ...p, bar: false } : null))}
           />
@@ -445,6 +524,9 @@ export function AnnouncementForm({ initial = NEW_ANNOUNCEMENT }: { initial?: Ann
           key={preview.key}
           text={form.modal_text}
           attachment={form.modal_attachment}
+          format={form.modal_format}
+          html={form.modal_html}
+          height={form.modal_height}
           closeAfter={form.modal_close_after}
           size={form.modal_size}
           onClose={() => setPreview((p) => (p && p.bar ? { ...p, modal: false } : null))}
@@ -463,20 +545,87 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
-function CloseAfter({ value, onChange }: { value: number; onChange: (n: number) => void }) {
+/** The close delay, with Preview next to it (the section's last row). */
+function CloseAfter({ value, onChange, onPreview }: { value: number; onChange: (n: number) => void; onPreview: () => void }) {
   return (
-    <label className="flex flex-wrap items-center gap-2 text-sm text-text-primary">
-      The close button shows after
-      <input
-        type="number"
-        min={0}
-        max={L.closeAfter}
-        value={value}
-        onChange={(e) => onChange(Number(e.target.value))}
-        className={`${inputClass} w-20`}
-      />
-      seconds
-    </label>
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <label className="flex flex-wrap items-center gap-2 text-sm text-text-primary">
+        The close button shows after
+        <input
+          type="number"
+          min={0}
+          max={L.closeAfter}
+          value={value}
+          onChange={(e) => onChange(Number(e.target.value))}
+          className={`${inputClass} w-20`}
+        />
+        seconds
+      </label>
+      <button
+        type="button"
+        onClick={onPreview}
+        className="inline-flex items-center gap-2 rounded-button border border-border-default bg-bg-surface px-4 py-2 text-sm font-semibold text-text-primary hover:bg-bg-page"
+      >
+        <EyeIcon size={16} />
+        Preview
+      </button>
+    </div>
+  );
+}
+
+/** The sealed box's code and height (an HTML modal or top bar). */
+function HtmlBoxFields({
+  id,
+  html,
+  onHtml,
+  height,
+  minHeight,
+  maxHeight,
+  onHeight,
+}: {
+  id: string;
+  html: string;
+  onHtml: (html: string) => void;
+  height: number;
+  minHeight: number;
+  maxHeight: number;
+  onHeight: (n: number) => void;
+}) {
+  return (
+    <>
+      <div>
+        <label htmlFor={id} className={labelClass}>
+          HTML
+        </label>
+        <textarea
+          id={id}
+          value={html}
+          maxLength={L.modalHtml}
+          rows={12}
+          spellCheck={false}
+          onChange={(e) => onHtml(e.target.value)}
+          placeholder={'<h2 style="text-align:center">New lessons!</h2>\n<img src="https://images.quizmatter.com/uploads/…" style="width:100%">'}
+          className={`${inputClass} resize-y`}
+        />
+        <p className="mt-1 text-[12px] text-text-secondary">
+          Styles and scripts work. It runs in a sealed box: it can&apos;t reach QuizMatter or the teacher&apos;s login,
+          and it can&apos;t load anything from other websites. For pictures, copy a link from the Photos tab into
+          &lt;img src=&quot;…&quot;&gt;. Links open in a new tab. {html.length}/{L.modalHtml}
+        </p>
+      </div>
+      <label className="flex flex-wrap items-center gap-2 text-sm text-text-primary">
+        Box height
+        <input
+          type="number"
+          min={minHeight}
+          max={maxHeight}
+          value={height}
+          onChange={(e) => onHeight(Number(e.target.value))}
+          className={`${inputClass} w-24`}
+        />
+        px ({minHeight}–{maxHeight}; taller content scrolls inside)
+      </label>
+    </>
   );
 }
 

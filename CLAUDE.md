@@ -323,14 +323,32 @@ The super admin shows a message to chosen teachers on chosen pages (Admin → An
   unless they click (it opens in a new tab), the picture can't change behind the admin's back, and no Privacy Policy
   line is needed. Every attachment `src` must be our R2 address (`announcement_attachment_ok` / `modalAttachmentSchema`);
   `used_photo_srcs` keeps them.
+- **Photos tab** (`20261229000000_announcement_photos.sql`, spec
+  `docs/superpowers/specs/2026-11-01-announcement-photos-design.md`, test `supabase/tests/announcement_photos.sql`):
+  every picture / GIF uploaded for an announcement is listed in `announcement_photos` (at most 500,
+  `ANNOUNCEMENT_PHOTOS_MAX`) and kept until the super admin deletes it (`used_photo_srcs` counts the list). Delete
+  only takes it off the list, and is refused while an announcement shows it; the weekly cleanup deletes the file
+  later if nothing else uses it (files are named by their fingerprint, so they can be shared). The form's "Picture
+  or GIF" picks from the list or uploads a new one. YouTube thumbnails aren't listed.
 - **Facebook posts and videos** (`20261226000000_announcement_facebook.sql`, test
   `supabase/tests/announcement_facebook.sql`, `src/lib/facebook.ts`): Facebook gives other sites no preview, so a
   pasted Facebook link is shown with **Facebook's own embedded player / post box** (a sandboxed frame; the app builds
   its address from the checked link). Only `{kind: "facebook", href, video}` is saved. Every teacher who sees one
   loads it from Facebook, so the Privacy Policy names Facebook (Meta); keep that true. The attachment check turns a
   missing key into "no" (`coalesce(…, false)`): a check lets SQL's "unknown" through.
-- **Safe text:** the modal is plain text (no HTML). The bar's saved HTML is re-built through its editor's extensions
+- **Safe text:** a post modal is plain text (no HTML). The bar's saved HTML is re-built through its editor's extensions
   (`toSafeAnnouncementHtml`, `src/lib/announcementText.ts`); only `http(s)://` or in-app links survive.
+- **HTML modal in a sealed box** (`modal_format` `html`, `modal_html` ≤ 100,000, `modal_height` 100–1,000 px;
+  `20261230000000_announcement_html.sql`, spec `docs/superpowers/specs/2026-11-01-announcement-html-design.md`, test
+  `supabase/tests/announcement_html.sql`): the super admin's own HTML, styles and scripts, never part of the page. It
+  runs only in a sandboxed frame without `allow-same-origin` (its own unknown site: no QuizMatter cookies, storage,
+  login or page), whose lock list (`sandboxedHtml`: `default-src 'none'`, pictures only from our R2) loads nothing
+  from other sites and sends nothing out, so the Privacy Policy holds. Keep both if it changes: a script on the page
+  itself would run as every teacher. A photo whose address is in the HTML counts as used
+  (`announcement_uses_photo`; `used_photo_srcs` keeps every R2 address in it). A top bar has the same choice
+  (`bar_format` `text` / `html`, `bar_height` 30–300 px; the HTML in `bar_html`, ≤ 1,000 for text, 100,000 for html;
+  `20261231000000_announcement_bar_html.sql`, test `supabase/tests/announcement_bar_html.sql`); its countdown and ✕
+  stay outside the box.
 - **Privacy:** what's used to choose them, and the closed records, are in the Privacy Policy. A new filter on another
   detail updates it too.
 

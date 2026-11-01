@@ -137,6 +137,8 @@ export function AnnouncementsWatch({ announcementsKey }: { announcementsKey: str
     <AnnouncementBar
       key={bar.id}
       html={bar.bar_html}
+      format={bar.bar_format}
+      height={bar.bar_height}
       closeAfter={bar.bar_close_after}
       isFloating={isFloating}
       onClose={() => close(bar, "bar")}
@@ -157,6 +159,9 @@ export function AnnouncementsWatch({ announcementsKey }: { announcementsKey: str
           key={modal.id}
           text={modal.modal_text}
           attachment={modal.modal_attachment}
+          format={modal.modal_format}
+          html={modal.modal_html}
+          height={modal.modal_height}
           closeAfter={modal.modal_close_after}
           size={modal.modal_size}
           onClose={() => close(modal, "modal")}

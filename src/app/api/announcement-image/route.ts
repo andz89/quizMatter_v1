@@ -7,8 +7,8 @@ import { createClient } from "@/lib/supabase/server";
 /**
  * Saves a picture for an announcement's modal (Admin → Announcements; super admin only), already shrunk by the
  * browser (see lib/photos.tsx), or a GIF sent as it is (so it keeps moving; 1 MB at most, MAX_GIF_BYTES). The browser sends its size in the address: /api/announcement-image?width=…&height=…
- * The file goes to the R2 bucket like every photo and nowhere else (no photo list): the weekly cleanup keeps it
- * while an announcement's modal attachment uses it (used_photo_srcs). Returns { src }.
+ * The file goes to the R2 bucket like every photo, then into the announcement photos list (add_announcement_photo,
+ * Admin → Announcements → Photos), which the weekly cleanup keeps (used_photo_srcs). Returns { src }.
  */
 export async function POST(request: Request) {
   const supabase = await createClient();
@@ -51,6 +51,15 @@ export async function POST(request: Request) {
   } catch {
     return failed();
   }
+  // Listed in Admin → Announcements → Photos, which keeps it until deleted. Over the limit (22023) the file stays
+  // unlisted, and the weekly cleanup deletes it unless something uses it.
+  const { error: listError } = await supabase.rpc("add_announcement_photo", {
+    photo_src: photo.data.src,
+    photo_width: photo.data.width,
+    photo_height: photo.data.height,
+  });
+  if (listError?.code === "22023") return Response.json({ error: listError.message }, { status: 409 });
+  if (listError) return failed();
   return Response.json({ src: photo.data.src });
 }
 

@@ -3,7 +3,7 @@
 import { refresh } from "next/cache";
 import { z } from "zod";
 import { getAccount } from "@/lib/account";
-import { announcementSchema, type AnnouncementInput } from "@/lib/announcements";
+import { announcementSchema, ourPhoto, type AnnouncementInput, type AnnouncementPhoto } from "@/lib/announcements";
 import { forgetMaintenanceStatus } from "@/lib/maintenance";
 import { createClient } from "@/lib/supabase/server";
 
@@ -113,4 +113,27 @@ export async function countAudience(input: AnnouncementInput): Promise<number | 
 
   const { data, error } = await (await createClient()).rpc("announcement_audience", { a: parsed.data });
   return error || typeof data !== "number" ? null : data;
+}
+
+/** The announcement photos, newest first (the form's "Choose a photo"), or null if they couldn't be read. */
+export async function listAnnouncementPhotos(): Promise<AnnouncementPhoto[] | null> {
+  if (!(await getAccount()).isSuperAdmin) return null;
+  const { data, error } = await (await createClient()).rpc("admin_announcement_photos");
+  return error ? null : (data as AnnouncementPhoto[]);
+}
+
+/**
+ * Takes a photo off the Photos tab (the weekly cleanup deletes the file later, if nothing else uses it). Refused
+ * while an announcement shows it (22023, naming it). Returns null, or the words to show.
+ */
+export async function deleteAnnouncementPhoto(src: string): Promise<string | null> {
+  const failed = "Couldn't delete the photo. Please try again.";
+  const parsed = ourPhoto.safeParse(src);
+  if (!parsed.success) return failed;
+  if (!(await getAccount()).isSuperAdmin) return "Only the super admin can do this.";
+
+  const { error } = await (await createClient()).rpc("delete_announcement_photo", { photo_src: parsed.data });
+  if (error) return error.code === "22023" ? error.message : failed;
+  refresh();
+  return null;
 }
