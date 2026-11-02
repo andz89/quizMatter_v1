@@ -34,9 +34,9 @@ export function Workspace() {
       return s.presentation.slides.map((slide) => numbers.get(slide.id));
     })
   );
-  // Gone if the slide was deleted (or undone away) while its answer was open.
+  // Gone if the slide was deleted (or undone away) while its answer was open, or hidden (a hidden slide is locked).
   const answerSlide = useEditorStore((s) =>
-    s.presentation.slides.find((slide) => slide.id === s.answerSlideId && canHaveAnswer(slide))
+    s.presentation.slides.find((slide) => slide.id === s.answerSlideId && canHaveAnswer(slide) && !slide.hidden)
   );
   const zoom = useEditorStore((s) => s.zoom);
   const setZoom = useEditorStore((s) => s.setZoom);

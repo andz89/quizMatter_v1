@@ -148,3 +148,8 @@ test("an embed slide only keeps a link its kind can show", () => {
   assert.equal(embed("image", "http://example.com/cat.png"), false);
   assert.equal(embed("image", "javascript:alert(1)"), false);
 });
+
+test("slideSchema keeps a slide's hidden mark", () => {
+  assert.equal(slideSchema.parse({ ...blankSlide, hidden: true }).hidden, true);
+  assert.equal(slideSchema.parse(blankSlide).hidden, undefined);
+});

@@ -1,5 +1,6 @@
 import { CANVAS_WIDTH, CANVAS_HEIGHT } from "@/lib/constants";
 import { SlideStaticView } from "@/components/presentation/SlideStaticView";
+import { HiddenSlideMark } from "@/components/presentation/FluidSlidePreview";
 import type { Slide } from "@/lib/schema";
 
 const THUMB_WIDTH = 200;
@@ -20,14 +21,17 @@ export function SlideThumbnailPreview({
   revealAnswer?: boolean;
 }) {
   return (
-    <div
-      // Reset text alignment and color, so a parent (e.g. a <button>, which centers text) can't change the slide.
-      className="pointer-events-none overflow-hidden rounded-dropdown text-left text-text-primary"
-      style={{ width: THUMB_WIDTH, aspectRatio: `${CANVAS_WIDTH} / ${CANVAS_HEIGHT}` }}
-    >
-      <div style={{ width: CANVAS_WIDTH, height: CANVAS_HEIGHT, transform: `scale(${SCALE})`, transformOrigin: "top left" }}>
-        <SlideStaticView slide={slide} questionNumber={questionNumber} revealAnswer={revealAnswer} />
+    // A hidden slide (hidden from presenting) shows faded, with an eye-off mark.
+    <HiddenSlideMark isHidden={!!slide.hidden}>
+      <div
+        // Reset text alignment and color, so a parent (e.g. a <button>, which centers text) can't change the slide.
+        className="pointer-events-none overflow-hidden rounded-dropdown text-left text-text-primary"
+        style={{ width: THUMB_WIDTH, aspectRatio: `${CANVAS_WIDTH} / ${CANVAS_HEIGHT}` }}
+      >
+        <div style={{ width: CANVAS_WIDTH, height: CANVAS_HEIGHT, transform: `scale(${SCALE})`, transformOrigin: "top left" }}>
+          <SlideStaticView slide={slide} questionNumber={questionNumber} revealAnswer={revealAnswer} />
+        </div>
       </div>
-    </div>
+    </HiddenSlideMark>
   );
 }

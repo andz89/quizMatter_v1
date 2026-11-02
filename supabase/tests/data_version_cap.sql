@@ -13,13 +13,16 @@ insert into public.admins (user_id) values ('00000000-0000-4000-8000-0000000000a
 insert into public.editors (user_id) values ('00000000-0000-4000-8000-0000000000a2');
 insert into public.presentations (id, owner_id, title, from_admin, is_published)
 values ('test-cap-lesson', '00000000-0000-4000-8000-0000000000a3', 'Cap lesson', true, true);
+-- The newest version the database knows (current_data_version(), which only postgres may call), kept for the
+-- checks below, so this test keeps working after every bump.
+select set_config('test.cap', public.current_data_version()::text, true);
 
 -- ─── As the teacher ───────────────────────────────────────────────────────────────────────────────────────
 set local role authenticated;
 select set_config('request.jwt.claims',
   json_build_object('sub', '00000000-0000-4000-8000-0000000000a1', 'role', 'authenticated')::text, true);
 
--- A save with a huge app_version is stored with the newest version the database knows (0).
+-- A save with a huge app_version is stored with the newest version the database knows (the cap).
 select public.save_presentation(
   presentation => '{
     "id": "test-cap-a", "title": "Cap A", "description": "", "grades": [], "subject": "", "term": "", "week": "",
@@ -34,7 +37,7 @@ select public.save_presentation(
 
 do $$
 begin
-  if (select p.data_version from public.presentations p where p.id = 'test-cap-a') is distinct from 0 then
+  if (select p.data_version from public.presentations p where p.id = 'test-cap-a') is distinct from current_setting('test.cap')::int then
     raise exception 'FAIL: save_presentation stored an app_version above current_data_version()';
   end if;
 end $$;
@@ -44,7 +47,7 @@ update public.presentations set data_version = 99 where id = 'test-cap-a';
 
 do $$
 begin
-  if (select p.data_version from public.presentations p where p.id = 'test-cap-a') is distinct from 0 then
+  if (select p.data_version from public.presentations p where p.id = 'test-cap-a') is distinct from current_setting('test.cap')::int then
     raise exception 'FAIL: a direct update raised data_version above current_data_version()';
   end if;
 end $$;
@@ -64,7 +67,7 @@ select public.save_review_draft(
 do $$
 begin
   if (select r.draft_version from public.presentation_reviews r where r.presentation_id = 'test-cap-lesson')
-    is distinct from 0 then
+    is distinct from current_setting('test.cap')::int then
     raise exception 'FAIL: save_review_draft stored an app_version above current_data_version()';
   end if;
 end $$;
@@ -73,13 +76,13 @@ end $$;
 reset role;
 select set_config('request.jwt.claims', '', true);
 alter table public.presentations disable trigger cap_presentation_data_version;
-update public.presentations set data_version = 1 where id = 'test-cap-a';
+update public.presentations set data_version = current_setting('test.cap')::int + 1 where id = 'test-cap-a';
 alter table public.presentations enable trigger cap_presentation_data_version;
 
 do $$
 begin
-  if (select p.data_version from public.presentations p where p.id = 'test-cap-a') is distinct from 1 then
-    raise exception 'FAIL: setup: the source''s data_version isn''t 1';
+  if (select p.data_version from public.presentations p where p.id = 'test-cap-a') is distinct from current_setting('test.cap')::int + 1 then
+    raise exception 'FAIL: setup: the source''s data_version isn''t one above the cap';
   end if;
 end $$;
 
@@ -87,7 +90,7 @@ set local role authenticated;
 select set_config('request.jwt.claims',
   json_build_object('sub', '00000000-0000-4000-8000-0000000000a1', 'role', 'authenticated')::text, true);
 
--- An older app (0) making a copy of it is refused.
+-- An older app (at the cap) making a copy of it is refused.
 do $$
 begin
   perform public.save_presentation(
@@ -100,7 +103,7 @@ begin
     }'::jsonb,
     slide_ids => array['s1'],
     base_updated_at => null::bigint,
-    app_version => 0
+    app_version => current_setting('test.cap')::int
   );
   raise exception 'FAIL: a copy of a presentation saved by newer app code was saved by an older app';
 exception when sqlstate 'QMOLD' then
@@ -118,22 +121,22 @@ select public.save_presentation(
   }'::jsonb,
   slide_ids => array['s1'],
   base_updated_at => null::bigint,
-  app_version => 1
+  app_version => current_setting('test.cap')::int + 1
 );
 
 do $$
 begin
   if not exists (
     select 1 from public.presentations p
-    where p.id = 'test-cap-copy' and p.data_version = 0 and p.copied_from = 'test-cap-a'
+    where p.id = 'test-cap-copy' and p.data_version = current_setting('test.cap')::int and p.copied_from = 'test-cap-a'
   ) then
     raise exception 'FAIL: an up-to-date copy wasn''t saved at the cap with its copied_from';
   end if;
 end $$;
 
 -- ─── Sharing carries the version to the shared copy ───────────────────────────────────────────────────────
--- The cap is off for this part (as postgres), so the copy can show the original's version (1, set above) instead of
--- the cap (0). The original has a title and a question, so it can be published.
+-- The cap is off for this part (as postgres), so the copy can show the original's version (one above the cap, set
+-- above) instead of the cap. The original has a title and a question, so it can be published.
 reset role;
 select set_config('request.jwt.claims', '', true);
 alter table public.presentations disable trigger cap_presentation_data_version;
@@ -147,7 +150,7 @@ select public.share_presentation(target_id => 'test-cap-a');
 
 do $$
 begin
-  if (select p.data_version from public.presentations p where p.shared_from = 'test-cap-a') is distinct from 1 then
+  if (select p.data_version from public.presentations p where p.shared_from = 'test-cap-a') is distinct from current_setting('test.cap')::int + 1 then
     raise exception 'FAIL: a new shared copy didn''t get its original''s data_version';
   end if;
 end $$;
@@ -155,7 +158,7 @@ end $$;
 -- Update shared presentation: the copy is written again (the update branch).
 reset role;
 select set_config('request.jwt.claims', '', true);
-update public.presentations set data_version = 2 where id = 'test-cap-a';
+update public.presentations set data_version = current_setting('test.cap')::int + 2 where id = 'test-cap-a';
 
 set local role authenticated;
 select set_config('request.jwt.claims',
@@ -165,7 +168,7 @@ select public.share_presentation(target_id => 'test-cap-a');
 
 do $$
 begin
-  if (select p.data_version from public.presentations p where p.shared_from = 'test-cap-a') is distinct from 2 then
+  if (select p.data_version from public.presentations p where p.shared_from = 'test-cap-a') is distinct from current_setting('test.cap')::int + 2 then
     raise exception 'FAIL: an updated shared copy didn''t get its original''s data_version';
   end if;
 end $$;

@@ -7,7 +7,7 @@ import { MAX_ITEM_COUNT, MAX_SLIDES, TOO_MANY_SLIDES_MESSAGE, type Slide } from 
 import { ANSWER_CONTAINER_ID, canHaveAnswer, getItemCount, hasAnswerContent, hasOptions, hasReveal, isDiscussionSlide } from "@/lib/constants";
 import { ToolPanelButton, PanelLabel } from "./PanelControls";
 import { AddSlideMenu } from "./AddSlideMenu";
-import { CheckIcon, ChevronDownIcon, ChevronUpIcon, CopyIcon, EraserIcon, EyeIcon, Grid2x2Icon, GripVerticalIcon, PanelRightIcon, PlusIcon, Rows3Icon, ShuffleIcon, Trash2Icon } from "lucide-react";
+import { CheckIcon, ChevronDownIcon, ChevronUpIcon, CopyIcon, EraserIcon, EyeIcon, EyeOffIcon, Grid2x2Icon, GripVerticalIcon, PanelRightIcon, PlusIcon, Rows3Icon, ShuffleIcon, Trash2Icon } from "lucide-react";
 
 const LAYOUTS: { value: Slide["layout"]; label: string; icon: ReactNode }[] = [
   { value: "grid", label: "Grid", icon: <Grid2x2Icon size={18} /> },
@@ -38,6 +38,7 @@ export function SlideToolbar({ slide, slideNumber, isFirst, isLast, canDelete, o
   const clearSlide = useEditorStore((s) => s.clearSlide);
   const setLayout = useEditorStore((s) => s.setLayout);
   const renameSlide = useEditorStore((s) => s.renameSlide);
+  const toggleSlideHidden = useEditorStore((s) => s.toggleSlideHidden);
   // At MAX_SLIDES, Duplicate and Add slide are greyed out, with the reason on hover.
   const isFull = useEditorStore((s) => s.presentation.slides.length >= MAX_SLIDES);
   const setItemCount = useEditorStore((s) => s.setItemCount);
@@ -50,6 +51,8 @@ export function SlideToolbar({ slide, slideNumber, isFirst, isLast, canDelete, o
   // Only the slide's name is shown; an unnamed question slide invites one instead.
   const defaultName = isDiscussionSlide(slide) ? `Slide ${slideNumber}` : "Add a name";
   const label = slide.name || defaultName;
+  // A hidden slide is locked: only Show, move, drag and delete stay.
+  const isHidden = !!slide.hidden;
 
   const isChoice = (slide.type ?? "choice") === "choice";
   // Multiple choice and true-or-false slides both get the Layout menu; only multiple choice gets Shuffle.
@@ -85,6 +88,11 @@ export function SlideToolbar({ slide, slideNumber, isFirst, isLast, canDelete, o
               className="w-48 rounded-input border border-border-default bg-bg-page px-2 py-0.5 uppercase outline-none placeholder:text-text-secondary"
             />
           </div>
+        ) : isHidden ? (
+          <span className="max-w-[240px] truncate px-1.5 py-1 text-sm font-semibold uppercase tracking-[0.05em] text-text-header">
+            {/* Hidden slides have no number, so an unnamed one shows no "Slide 2". */}
+            {slide.name || "Slide"}
+          </span>
         ) : (
           <button
             type="button"
@@ -95,7 +103,12 @@ export function SlideToolbar({ slide, slideNumber, isFirst, isLast, canDelete, o
             {label}
           </button>
         )}
-        {slide.type === "custom" && (
+        {isHidden && (
+          <span className="rounded-dropdown bg-bg-page px-2 py-0.5 text-xs font-semibold uppercase tracking-[0.05em] text-text-secondary">
+            Hidden
+          </span>
+        )}
+        {slide.type === "custom" && !isHidden && (
           // How many items the slide holds, so it takes that many question numbers (e.g. 11–15).
           <label className="flex items-center gap-1.5 px-1.5 text-xs font-semibold uppercase tracking-[0.05em] text-text-header">
             Items
@@ -133,7 +146,7 @@ export function SlideToolbar({ slide, slideNumber, isFirst, isLast, canDelete, o
       </div>
 
       <div className="flex shrink-0 items-center gap-2">
-        {canHaveAnswer(slide) && (
+        {canHaveAnswer(slide) && !isHidden && (
           // Its own pale green button, so the answer stands apart from the slide tools.
           // Same height as the tools box next to it (h-8 button + py-1.5).
           <button
@@ -154,6 +167,16 @@ export function SlideToolbar({ slide, slideNumber, isFirst, isLast, canDelete, o
         <div className="flex items-center gap-1 rounded-dropdown bg-bg-surface px-1.5 py-1.5">
           <button
             type="button"
+            onClick={() => toggleSlideHidden(slide.id)}
+            title={isHidden ? "Show slide" : "Hide slide when presenting"}
+            className={`flex h-8 w-8 items-center justify-center rounded-dropdown hover:bg-bg-page ${
+              isHidden ? "bg-accent-soft text-accent" : "text-text-primary"
+            }`}
+          >
+            {isHidden ? <EyeIcon size={18} /> : <EyeOffIcon size={18} />}
+          </button>
+          <button
+            type="button"
             onClick={onMoveUp}
             disabled={isFirst}
             title="Move up"
@@ -170,7 +193,7 @@ export function SlideToolbar({ slide, slideNumber, isFirst, isLast, canDelete, o
           >
             <ChevronDownIcon size={18} />
           </button>
-          {hasCards && (
+          {hasCards && !isHidden && (
             <>
               {isChoice && (
                 <button
@@ -208,33 +231,37 @@ export function SlideToolbar({ slide, slideNumber, isFirst, isLast, canDelete, o
               </ToolPanelButton>
             </>
           )}
-          <button
-            type="button"
-            onClick={() => clearSlide(slide.id)}
-            disabled={isEmpty}
-            title="Clear slide content"
-            className="flex h-8 w-8 items-center justify-center rounded-dropdown text-text-primary hover:bg-bg-page disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent"
-          >
-            <EraserIcon size={20} />
-          </button>
-          <button
-            type="button"
-            onClick={() => duplicateSlide(slide.id)}
-            disabled={isFull}
-            title={isFull ? TOO_MANY_SLIDES_MESSAGE : "Duplicate slide"}
-            className="flex h-8 w-8 items-center justify-center rounded-dropdown text-text-primary hover:bg-bg-page disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent"
-          >
-            <CopyIcon size={18} />
-          </button>
-          <ToolPanelButton
-            title={isFull ? TOO_MANY_SLIDES_MESSAGE : "Add slide after"}
-            disabled={isFull}
-            panelWidthClassName="w-auto"
-            closeOnAnyClick
-            icon={<PlusIcon size={18} />}
-          >
-            <AddSlideMenu onPick={(type) => addSlide(slide.id, type)} />
-          </ToolPanelButton>
+          {!isHidden && (
+            <>
+              <button
+                type="button"
+                onClick={() => clearSlide(slide.id)}
+                disabled={isEmpty}
+                title="Clear slide content"
+                className="flex h-8 w-8 items-center justify-center rounded-dropdown text-text-primary hover:bg-bg-page disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent"
+              >
+                <EraserIcon size={20} />
+              </button>
+              <button
+                type="button"
+                onClick={() => duplicateSlide(slide.id)}
+                disabled={isFull}
+                title={isFull ? TOO_MANY_SLIDES_MESSAGE : "Duplicate slide"}
+                className="flex h-8 w-8 items-center justify-center rounded-dropdown text-text-primary hover:bg-bg-page disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent"
+              >
+                <CopyIcon size={18} />
+              </button>
+              <ToolPanelButton
+                title={isFull ? TOO_MANY_SLIDES_MESSAGE : "Add slide after"}
+                disabled={isFull}
+                panelWidthClassName="w-auto"
+                closeOnAnyClick
+                icon={<PlusIcon size={18} />}
+              >
+                <AddSlideMenu onPick={(type) => addSlide(slide.id, type)} />
+              </ToolPanelButton>
+            </>
+          )}
           <button
             type="button"
             {...dragHandle.attributes}

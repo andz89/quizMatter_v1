@@ -106,6 +106,23 @@ editor / view / review, and renders `Editor.tsx`, which calls `store.loadPresent
   closes and reopens the editor at once: the leave-save checks a moment later (`stillLeaving`) and skips the save
   (what it kept right away stays until the next save).
 
+## Hidden slides
+
+A slide can be hidden from presenting (the slide's `hidden` field, `DATA_VERSION` 1). The eye button on its
+`SlideToolbar` calls the store's `toggleSlideHidden` (undoable). A hidden slide:
+
+- **Is locked:** the store's `updateSlide` leaves a hidden slide alone, so no edit reaches it (panels, shortcuts,
+  paste). `SlideWorkspaceItem` draws it with the read-only `SlideStaticView`, greyed out. Its toolbar keeps only Show
+  slide, move up/down, drag and delete, with a "Hidden" pill. "Apply to all slides" (background) skips it.
+- **Takes no number:** `getSlideNumbers` skips it, so the slides after it close the gap, the same in the editor, the
+  grids and presenting.
+- **Is skipped when presenting:** `startPresentation` / `nextPresentationSlide` / `prevPresentationSlide` use
+  `presentStartIndex` and `stepPresentation` (`constants.ts`, tests `constants.test.ts`). When every slide is hidden
+  nothing is skipped. The "Show all slides" grid still opens it.
+- **Looks hidden in every small picture:** `HiddenSlideMark` (`FluidSlidePreview.tsx`) fades it with an eye-off mark,
+  in `FluidSlidePreview` and `SlideThumbnailPreview` (grids, view page, cards).
+- Copies (Make a copy, shared copies, QuizMatter approvals) carry `hidden` along, since it's part of the slide's data.
+
 ## Helpers this folder uses (in `src/lib`)
 
 `useEditorShortcuts` (keys; Ctrl+V pastes a copied element only when no input, textarea, rich text or dialog has

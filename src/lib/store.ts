@@ -31,6 +31,8 @@ import {
   ANSWER_CONTAINER_ID,
   canHaveAnswer,
   isFreeCanvas,
+  presentStartIndex,
+  stepPresentation,
 } from "./constants";
 import { clamp, fitInBox, getOuterEdges } from "./geometry";
 import { REFUSALS, SaveRefusedError, saveErrorMessage, savePresentationToDb } from "./presentations";
@@ -90,6 +92,9 @@ export function isPanelEscape(e: KeyboardEvent) {
 
 /** Applies `updater` to the one slide matching `slideId` and bumps the presentation's updatedAt — the shape every mutation below needs. */
 function updateSlide(presentation: Presentation, slideId: string, updater: (slide: Slide) => Slide): Presentation {
+  // A hidden slide is locked until it's shown again (toggleSlideHidden), so no edit reaches it: the same
+  // presentation back means no change and no undo step.
+  if (presentation.slides.some((s) => s.id === slideId && s.hidden)) return presentation;
   return {
     ...presentation,
     slides: presentation.slides.map((s) => (s.id === slideId ? updater(s) : s)),
@@ -341,6 +346,8 @@ interface EditorState {
   // Picks which answer a short-answer or blank slide shows: the typed text or the answer canvas.
   setAnswerType: (slideId: string, answerType: NonNullable<Slide["answerType"]>) => void;
   renameSlide: (slideId: string, name: string) => void;
+  // Hides the slide from presenting (skipped, no number, locked in the editor), or shows it again.
+  toggleSlideHidden: (slideId: string) => void;
   // Custom slides: how many question items they hold (1–MAX_ITEM_COUNT), so they take that many numbers.
   setItemCount: (slideId: string, itemCount: number) => void;
   // Embed slides: the link they show (already checked with embedLinkSchema).
@@ -1040,7 +1047,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const { presentation } = get();
     const source = presentation.slides.find((s) => s.id === slideId);
     if (!source) return;
-    const slides = presentation.slides.map((s) => ({ ...s, background: source.background }));
+    // Hidden slides are locked, so they keep their own.
+    const slides = presentation.slides.map((s) => (s.hidden ? s : { ...s, background: source.background }));
     set({ presentation: { ...presentation, slides, updatedAt: Date.now() } });
   },
 
@@ -1096,6 +1104,13 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const { presentation } = get();
     // An empty name means "no name", so the slide falls back to its default label.
     set({ presentation: updateSlide(presentation, slideId, (s) => ({ ...s, name: name.trim() || undefined })) });
+  },
+
+  toggleSlideHidden: (slideId) => {
+    const { presentation } = get();
+    // Not through updateSlide, which leaves hidden slides alone. A shown slide leaves out the field (= shown).
+    const slides = presentation.slides.map((s) => (s.id === slideId ? { ...s, hidden: s.hidden ? undefined : true } : s));
+    set({ presentation: { ...presentation, slides, updatedAt: Date.now() }, selectedElementIds: [], selectedContainerId: null, selectedContainerIds: [] });
   },
 
   setItemCount: (slideId, itemCount) => {
@@ -1222,17 +1237,18 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   // Starts at the slide being edited, so the teacher doesn't have to click through from slide 1.
   startPresentation: () => {
     const { presentation, selectedSlideId } = get();
-    const startIndex = Math.max(0, presentation.slides.findIndex((s) => s.id === selectedSlideId));
+    // A hidden slide is skipped: it starts at the next shown one.
+    const startIndex = presentStartIndex(presentation.slides, Math.max(0, presentation.slides.findIndex((s) => s.id === selectedSlideId)));
     set({ isPresenting: true, presentationIndex: startIndex });
   },
   exitPresentation: () => set({ isPresenting: false }),
   nextPresentationSlide: () => {
     const { presentation, presentationIndex } = get();
-    set({ presentationIndex: Math.min(presentation.slides.length - 1, presentationIndex + 1) });
+    set({ presentationIndex: stepPresentation(presentation.slides, presentationIndex, 1) });
   },
   prevPresentationSlide: () => {
-    const { presentationIndex } = get();
-    set({ presentationIndex: Math.max(0, presentationIndex - 1) });
+    const { presentation, presentationIndex } = get();
+    set({ presentationIndex: stepPresentation(presentation.slides, presentationIndex, -1) });
   },
   goToPresentationSlide: (index) => {
     const { presentation } = get();

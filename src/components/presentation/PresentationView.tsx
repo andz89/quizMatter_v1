@@ -3,7 +3,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useEditorStore } from "@/lib/store";
 import { animate } from "motion/mini";
-import { CANVAS_WIDTH, CANVAS_HEIGHT, hasAnswerContent, getSlideNumbers, hasOptions, hasReveal, SLIDE_EFFECT_SECONDS, SLIDE_FADE_SECONDS } from "@/lib/constants";
+import { CANVAS_WIDTH, CANVAS_HEIGHT, hasAnswerContent, getSlideNumbers, hasOptions, hasReveal, stepPresentation, SLIDE_EFFECT_SECONDS, SLIDE_FADE_SECONDS } from "@/lib/constants";
 import type { Presentation } from "@/lib/schema";
 import { SlideStaticView } from "./SlideStaticView";
 import { AnswerModal } from "@/components/editor/AnswerModal";
@@ -135,7 +135,12 @@ export function PresentationView() {
   const slide = presentation.slides[presentationIndex];
   // The slides drawn: the one shown, the one we came from, the one before and the next ones (see below). While an
   // effect plays, only slides that were already drawn stay: drawing a new one then would make the effect skip.
-  const nearSlides = (index: number) => [index - 1, index, ...Array.from({ length: PRELOAD_SLIDES }, (_, k) => index + 1 + k)];
+  // The slides the arrows go to from `index` (hidden ones are skipped), so those are the ones drawn ahead.
+  const nearSlides = (index: number) => {
+    const near = [stepPresentation(presentation.slides, index, -1), index];
+    for (let k = 0, i = index; k < PRELOAD_SLIDES; k++) near.push((i = stepPresentation(presentation.slides, i, 1)));
+    return near;
+  };
   const drawnBefore = fromIndex === null ? null : nearSlides(fromIndex);
   const layerIndices = [
     ...new Set([fromIndex, ...nearSlides(presentationIndex).filter((i) => !drawnBefore || i === presentationIndex || drawnBefore.includes(i))]),

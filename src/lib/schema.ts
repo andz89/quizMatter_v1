@@ -383,7 +383,7 @@ export function embedLinkSchema(kind: EmbedKind) {
 // a save from a lower version than the one that last saved that presentation (QMOLD), so an editor tab running
 // older code can't drop fields it doesn't know. Bump it whenever the saved shape changes: see "Changing the saved
 // shape" in src/lib/CLAUDE.md.
-export const DATA_VERSION = 0;
+export const DATA_VERSION = 1;
 
 // True when a presentation was saved by newer app code than this tab runs. Copying it here would drop fields this tab
 // doesn't know, so copy paths check this first (the database refuses it too, with QMOLD).
@@ -444,6 +444,9 @@ export const slideSchema = z.preprocess(upgradeSlide, z.object({
   // Name the teacher gave the slide. Question slides show it after their number ("Q1 · Fractions");
   // blank slides show it instead of "Slide 1". Missing = no name.
   name: plainTextSchema.optional(),
+  // Hidden from presenting: skipped by the arrows, takes no number, greyed out and locked in the editor until it's
+  // shown again. Missing = shown. (Added in DATA_VERSION 1.)
+  hidden: z.boolean().optional(),
   question: plainTextSchema,
   // Styled version of `question`, as HTML from the text editor. Missing on older presentations.
   questionHtml: htmlSchema.optional(),

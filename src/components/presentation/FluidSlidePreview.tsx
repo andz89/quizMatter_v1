@@ -1,6 +1,7 @@
 "use client";
 
 import { useLayoutEffect, useRef, useState } from "react";
+import { EyeOffIcon } from "lucide-react";
 import { CANVAS_WIDTH, CANVAS_HEIGHT } from "@/lib/constants";
 import type { ReactNode } from "react";
 import type { Slide } from "@/lib/schema";
@@ -12,9 +13,27 @@ import { SlideStaticView } from "./SlideStaticView";
  */
 export function FluidSlidePreview({ slide, questionNumber }: { slide: Slide; questionNumber?: number }) {
   return (
-    <FluidCanvas>
-      <SlideStaticView slide={slide} questionNumber={questionNumber} />
-    </FluidCanvas>
+    <HiddenSlideMark isHidden={!!slide.hidden}>
+      <FluidCanvas>
+        <SlideStaticView slide={slide} questionNumber={questionNumber} />
+      </FluidCanvas>
+    </HiddenSlideMark>
+  );
+}
+
+/** Every small picture of a hidden slide (hidden from presenting) looks the same: faded, with an eye-off mark. */
+export function HiddenSlideMark({ isHidden, children }: { isHidden: boolean; children: ReactNode }) {
+  if (!isHidden) return children;
+  return (
+    <div className="relative h-full w-full">
+      <div className="h-full w-full opacity-40 grayscale">{children}</div>
+      <span
+        title="Hidden when presenting"
+        className="absolute right-1.5 top-1.5 flex items-center justify-center rounded-dropdown bg-bg-surface p-1 text-text-secondary"
+      >
+        <EyeOffIcon size={14} />
+      </span>
+    </div>
   );
 }
 

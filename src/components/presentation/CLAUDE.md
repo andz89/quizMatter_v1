@@ -8,11 +8,13 @@ Slides drawn without the editor: fullscreen presenting, cards, the view page, re
   frame and `QuestionNumberBadge`, which the editor reuses.
   `revealAnswer` shows the right answer; `liveEmbed` plays a video / slide deck (only on the slide being shown).
 - `FluidSlidePreview.tsx`: a slide shrunk to fit its box's width (cards, lists, panels). Use it for any small
-  picture of a slide; don't scale slides another way.
+  picture of a slide; don't scale slides another way. `HiddenSlideMark` there fades a hidden slide's picture and adds
+  an eye-off mark (also used by the editor's `SlideThumbnailPreview`).
 - `PresentationView.tsx`: fullscreen presenting. It reads the presentation from the editor store
   (`isPresenting`, `presentationIndex`), so whoever opens it first calls `store.loadPresentation`. Click the left
-  25% of the screen = previous slide; the top buttons hide after 3 seconds; the next 2 slides are drawn hidden so
-  they're ready; a slide change waits at most 400 ms for photos. While open it puts `data-presenting` on `<html>`, so
+  25% of the screen = previous slide; hidden slides (the slide's `hidden` field) are skipped by the arrows, Space and
+  clicks (`stepPresentation`), but the "Show all slides" grid still opens them; the top buttons hide after 3 seconds;
+  the next 2 slides the arrows go to are drawn hidden so they're ready; a slide change waits at most 400 ms for photos. While open it puts `data-presenting` on `<html>`, so
   announcements hide even when the browser refused fullscreen.
 - **Slide effects** (Fade, Slide, Zoom): played by `startSlideEffect` with the `motion` library (`motion/mini`), even
   when the computer asks to reduce motion (the teacher picked one on purpose; "None" turns them off). Speed 1–5 (default 3):

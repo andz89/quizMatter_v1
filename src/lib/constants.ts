@@ -215,6 +215,8 @@ export function getSlideNumbers(slides: Slide[]): Map<string, number> {
   let questions = 0;
   let blanks = 0;
   slides.forEach((slide) => {
+    // A hidden slide takes no number, so the ones after it close the gap (the same in the editor and presenting).
+    if (slide.hidden) return;
     if (isDiscussionSlide(slide)) {
       numbers.set(slide.id, ++blanks);
     } else {
@@ -223,6 +225,25 @@ export function getSlideNumbers(slides: Slide[]): Map<string, number> {
     }
   });
   return numbers;
+}
+
+/**
+ * Presenting: the slide one step (1 = next, -1 = previous) from `index`, skipping hidden slides. Stays at `index`
+ * when only hidden slides are left that way. When every slide is hidden, nothing is skipped.
+ */
+export function stepPresentation(slides: Pick<Slide, "hidden">[], index: number, step: 1 | -1): number {
+  const allHidden = slides.every((slide) => slide.hidden);
+  for (let i = index + step; i >= 0 && i < slides.length; i += step) {
+    if (allHidden || !slides[i].hidden) return i;
+  }
+  return index;
+}
+
+/** Presenting starts at `index`, or the nearest shown slide after it (else before it) when that one is hidden. */
+export function presentStartIndex(slides: Pick<Slide, "hidden">[], index: number): number {
+  if (!slides[index]?.hidden || slides.every((slide) => slide.hidden)) return index;
+  const next = stepPresentation(slides, index, 1);
+  return next !== index ? next : stepPresentation(slides, index, -1);
 }
 
 /** How many question numbers the slide takes: its item count on custom slides, 1 on the others. */

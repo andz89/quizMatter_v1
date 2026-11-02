@@ -117,7 +117,8 @@ const SlideItemContent = memo(function SlideItemContent({
 
   // Just deleted: the list above drops this item on its next redraw.
   if (!slide) return null;
-  const isEditable = isNear || isSelected;
+  // A hidden slide is locked (store's updateSlide refuses its edits), so it gets the read-only view, greyed out.
+  const isEditable = (isNear || isSelected) && !slide.hidden;
 
   return (
     <>
@@ -150,6 +151,10 @@ const SlideItemContent = memo(function SlideItemContent({
       >
         {isEditable ? (
           <SlideCanvas slide={slide} questionNumber={slideNumber} />
+        ) : slide.hidden ? (
+          <div className="pointer-events-none opacity-40 grayscale">
+            <SlideStaticView slide={slide} revealAnswer />
+          </div>
         ) : (
           <SlideStaticView slide={slide} questionNumber={slideNumber} revealAnswer />
         )}
