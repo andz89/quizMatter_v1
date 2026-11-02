@@ -305,7 +305,7 @@ A refusal raises an error with its own code. The app turns the code into a messa
   `teacher` = neither). `announcement_is_live(a)`: on, started, not ended. Super admin only (`42501`):
   `save_announcement(jsonb)` (keys = column names, no id = new; `updated_at` takes `clock_timestamp()`),
   `set_announcement_on`, `delete_announcement`, `admin_announcements()` (status `live` / `scheduled` / `ended` /
-  `off`, matched accounts now, closed counts), `announcement_audience(jsonb)`. At most 20 on and not ended
+  `off`, matched accounts now, closed counts; since `20261231000400` the table's own rows, below), `announcement_audience(jsonb)`. At most 20 on and not ended
   (`check_announcement_limit`, `22023`; replaced by one modal and one bar, `20261228000000`, below). Logged in: `my_announcements()` (live and matching; a closed part comes
   back off with no text: `once` = ever closed, `daily` = closed on today's Philippine date; both off = left out)
   and `dismiss_announcement(id, part)` (nothing for `every_visit`). Newest `maintenance_status` (adds
@@ -321,8 +321,8 @@ Claude's drafts and photo tickets are NOT here: they live in Cloudflare D1 (`d1/
 - Announcement counts: `20261223000000_announcement_counts.sql` (test `supabase/tests/announcement_counts.sql`).
   `announcements.matched_count`, `closed_modal_count`, `closed_bar_count`, `counted_at`, `closed_cleared_at`.
   `count_announcement(id)` (not granted) counts one now; newest `save_announcement` calls it, and
-  `recount_announcement(id)` (super admin, "Count again") too. Newest `admin_announcements` reads the kept numbers
-  (plus `counted_at`) instead of counting on every call. Newest `dismiss_announcement` writes only for a live one.
+  `recount_announcement(id)` (super admin, "Count again") too. Its `admin_announcements` read the kept numbers
+  (plus `counted_at`) instead of counting on every call (newest: `20261231000400`, below). Newest `dismiss_announcement` writes only for a live one.
   `cleanup_announcement_dismissals()` (service role, the daily timer): for one that ended over 30 days ago, keeps
   the closed counts, deletes its dismissal rows and sets `closed_cleared_at` (a later Count again keeps those
   closed numbers; saving it with a later end clears the mark, and its closes start over).
@@ -383,3 +383,22 @@ Claude's drafts and photo tickets are NOT here: they live in Cloudflare D1 (`d1/
   the app.
 - Announcement HTML limit: `20261231000100_announcement_html_limit.sql`. An html modal's or html bar's HTML may be
   100,000 characters (was 50,000); a text bar stays at 1,000. Same number as `ANNOUNCEMENT_LIMITS.modalHtml`.
+- Announcement unused part: `20261231000200_announcement_unused_part.sql` (test
+  `supabase/tests/announcement_unused_part.sql`). The `announcement_empty_unused_part` trigger empties the part an
+  announcement doesn't show (a top bar: no modal text, attachment or html; a modal: no bar html) on every write, and
+  the migration cleaned the old rows. Apply it before or after the app (each works without the other).
+- Announcement corner box: `20261231000300_announcement_corner_box.sql` (test
+  `supabase/tests/announcement_corner_box.sql`; spec `docs/superpowers/specs/2026-11-02-announcement-corner-box-design.md`).
+  `announcements.modal_display` (`center` / `corner`, default `center`) and `modal_auto_close` (0, or 5–600 seconds,
+  only for a corner box); a corner box is Small or Medium (`announcements_corner_size`,
+  `announcements_auto_close_corner`). Newest `check_one_on` (three slots: bar / modal / corner). Newest
+  `save_announcement` (a save without them = `center`, 0), `admin_announcements` and `my_announcements` (dropped and
+  made again with the two). Apply it **before** the app.
+- Announcement columns: `20261231000400_announcement_columns.sql` (test `supabase/tests/announcement_columns.sql`;
+  spec `docs/superpowers/specs/2026-11-02-announcement-columns-design.md`). Newest `admin_announcements`:
+  `returns setof public.announcements` (the table's own rows, so a new column needs no copy; no `status`, `matched`
+  or `closed_*`: the app works out the status and reads the counts by their column names). Newest
+  `save_announcement`: an update starts from the current row (`jsonb_populate_record(cur, a)`), so a key the app
+  didn't send keeps its value, and "not both" is checked again on the merged row. The test fails when a column is
+  missing from the save, or is neither sent by `my_announcements` nor on its admin-only list. Apply it **after** the
+  app (the old app reads `status`, which is gone; the new app works with the old function).

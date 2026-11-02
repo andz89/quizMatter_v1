@@ -42,7 +42,7 @@ declare
   r record;
 begin
   perform pg_temp.act_as('00000000-0000-4000-8000-0000000000d1');
-  select a.matched, a.closed_modal, a.closed_bar, a.counted_at into r from public.admin_announcements() a where a.id = target;
+  select a.matched_count, a.closed_modal_count, a.closed_bar_count, a.counted_at into r from public.admin_announcements() a where a.id = target;
   return r;
 end;
 $$;

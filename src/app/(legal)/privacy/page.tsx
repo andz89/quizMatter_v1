@@ -74,7 +74,7 @@ export default function PrivacyPage() {
           you’re an editor, also your reviews, submissions and the photos you upload.
         </p>
         <p>
-          <strong>Announcements.</strong> QuizMatter sometimes shows a message (a pop-up or a bar at the top) to some
+          <strong>Announcements.</strong> QuizMatter sometimes shows a message (a pop-up, a bar at the top or a box in the corner) to some
           teachers. Your age, gender, educational background, how many presentations you
           made, and your role (teacher, editor or admin) are used to choose which announcements you see. Nobody else
           learns which ones you get. We keep which announcements you closed, and when, so they don’t show again too
@@ -92,8 +92,9 @@ export default function PrivacyPage() {
         </p>
         <p>
           <strong>Your browser.</strong> Login cookies (small files that keep you logged in), and storage in your
-          browser for unsaved work, the sign up and login speed limits, and the announcements for your visit. We use no tracking or analytics tools (a Facebook post or video in an
-          announcement loads from Facebook, which has its own; see section 5).
+          browser for unsaved work, the sign up and login speed limits, and the announcements for your visit. We use no tracking or analytics tools (a Facebook post or video, or
+          content from another website, in an announcement loads from that site, which may have its own; see section
+          5).
         </p>
         <p>
           <strong>Why the law allows this</strong> (our <em>legal grounds</em>):
@@ -112,7 +113,7 @@ export default function PrivacyPage() {
         <ul>
           <li>We don’t sell or rent your information to anyone.</li>
           <li>We don’t show ads.</li>
-          <li>We don’t use tracking or analytics tools (except Facebook’s own, inside a Facebook post or video shown in an announcement; see section 5).</li>
+          <li>We don’t use tracking or analytics tools (except another site’s own, such as Facebook’s, inside something from that site shown in an announcement; see section 5).</li>
           <li>Students don’t make accounts.</li>
           <li>We don’t ask for or keep payment details.</li>
         </ul>
@@ -165,6 +166,13 @@ export default function PrivacyPage() {
             then loads it straight from Facebook, which can see your internet address and, if you’re logged in to
             Facebook in that browser, who you are, and may set its own cookies. Facebook’s privacy policy applies to
             that part. Nothing loads from Facebook when an announcement has no Facebook post or video.
+          </li>
+          <li>
+            <strong>Other websites in an announcement</strong>: an announcement may also show pictures, fonts, videos
+            or other content from another website. Your browser then loads them straight from that website, which can
+            see your internet address and browser, and may set its own cookies or use its own tracking; its own
+            privacy policy applies to that part. That content runs in a sealed box: it can’t see your QuizMatter
+            account, your work or your login.
           </li>
           <li>
             <strong>Claude by Anthropic</strong>: an AI used only by QuizMatter’s admins, to make QuizMatter lessons and

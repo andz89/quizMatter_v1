@@ -7,7 +7,7 @@ notes.
   `<Link>` to show both at once on click (see the root `CLAUDE.md`).
   `FormPending.tsx`: put inside a `next/form` `Form` to show the top line at once on submit (`useFormStatus`).
 - `Modal.tsx`: the one modal box (title, ✕, Escape / click outside closes, `isBusy` blocks closing, optional footer,
-  `isNarrow` for a small box, `canClose={false}` hides ✕ and ignores Escape / click outside, `hideHeader` leaves out the title row and ✕, `width` sets an exact width in px, `noPadding` lets the content reach the edges).
+  `isNarrow` for a small box, `canClose={false}` hides ✕ and ignores Escape / click outside, `hideHeader` leaves out the title row and ✕, `width` sets an exact width in px, `noPadding` lets the content reach the edges, `corner` floats something in the top-right corner, outside the scrolling).
   For "Are you sure?" use `editor/ConfirmModal.tsx` instead, never the browser's `confirm()`.
 - `NavBar.tsx` (server only): the top bar of every page, with the "Support" button (`KeepFreeButton`) and
   `AccountMenu.tsx` (an "Admin" or "Editor" label above the name, then Admin, Account settings, Help & support,
@@ -41,22 +41,33 @@ notes.
   closed parts), asks `my_announcements` only when the key, day or logged-in account changed (`isSameVisit`) and the page is in a page group, hides everything
   while presenting (fullscreen, or `PresentationView`'s `data-presenting` mark on `<html>`, for when the browser
   refuses fullscreen), and on close marks the part closed in the tab and (`once` / `daily`) calls
-  `dismiss_announcement`.
+  `dismiss_announcement`. It shows the first modal, up to 2 bars and the first corner box together (a corner box
+  closes as part `modal`, and waits while a modal shows).
 - `AnnouncementView.tsx`: how an announcement looks (root `CLAUDE.md`, "Announcements"), for teachers and the admin's
   preview. `AnnouncementModal`, like a post: the `Modal` with no title row (`hideHeader`), at the chosen width
   (`MODAL_SIZES`), no padding (`noPadding`); the plain text with padding (`LinkifiedText`), then
   `AnnouncementAttachment` edge to edge (our photo, or a YouTube card: our copy of the thumbnail in a 16:9 box with a
   play icon, then the title; opens YouTube in a new tab; or a Facebook post / video in Facebook's own sandboxed frame:
   a video 16:9 edge to edge, a post 350–500 px wide and 500 px tall, centered, scrolling sideways in a narrower modal; both with an "Open on
-  Facebook" link under the frame, for networks that block Facebook); "You can close this in N…" until its close delay ends,
-  then a Close button, Escape and a click outside close it. An HTML modal (`format` "html") shows instead the admin's
+  Facebook" link under the frame, for networks that block Facebook). No footer: a small ring, filled white, in the top-right corner
+  (Modal's `corner`, outside the scrolling part, over the content) shows the seconds left until its close delay ends,
+  then becomes the close button (`XCircleIcon`); Escape and a click outside close it too. An HTML modal (`format` "html") shows instead the admin's
   HTML in the sealed box: an `<iframe sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox">` whose
-  `srcDoc` is `sandboxedHtml(html)` (`src/lib/announcements.ts`: the lock list first, `<base target="_blank">`), edge
-  to edge at the chosen `height` (`SealedBox`, shared with the bar). Never add `allow-same-origin` (it would give
+  `srcDoc` is `sandboxedHtml(html)` (`src/lib/announcements.ts`: `<base target="_blank">` and our helper script; no
+  lock list, so it may load from other sites), edge to edge at the chosen `height` (`SealedBox`, shared with the
+  bar). Escape inside the box: the helper posts `SEALED_BOX_ESCAPE`, and `SealedBox`'s `onEscape` (only that frame's
+  message) closes the modal once its close button shows. Never add `allow-same-origin` (it would give
   the box QuizMatter's login) or `allow-top-navigation`. An html bar (`format` "html") shows `SealedBox` at its
   `height` instead of the megaphone and text, with the countdown and ✕ outside it. `AnnouncementBar`: a violet strip with a megaphone; ✕
   after the countdown; `isFloating` = a card, which the parent places at the bottom. The bar's text goes through
   `toSafeAnnouncementHtml` in the browser; links into the app move with `router.push`, others open in a new tab.
+  `AnnouncementCornerBox`: the corner box, a fixed card at the bottom-right (`z-50`, under an open modal's backdrop),
+  Small / Medium wide (the screen less 16 px a side on a phone, at most the screen's height, its content scrolling),
+  no backdrop and no Escape, so the page stays usable. The modal and the box share `CloseCircle` (the countdown ring,
+  then the ✕) and `AnnouncementContent` (the post or the sealed box). With `autoClose` seconds, a violet line at the
+  bottom runs `animate-shrink` (`globals.css`; its length set inline), pauses while the mouse is over the box (named
+  group `group/corner`, so a YouTube card's own hover isn't touched) or the tab is in the background, and its
+  end closes the box like the close button.
 - `Turnstile.tsx`: Cloudflare's "are you human" check on sign up (with its own retries).
 - `PeopleArtGate.tsx`: holds back a presentation until the big people drawings have downloaded
   (`src/lib/peopleArt.ts`).

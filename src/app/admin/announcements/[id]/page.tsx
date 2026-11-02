@@ -15,7 +15,7 @@ export default async function EditAnnouncementPage({ params }: PageProps<"/admin
   if (error) throw error;
   const row = (data as AnnouncementRow[]).find((a) => a.id === id);
   if (!row) notFound();
-  // Only the form's fields (the row also has its status and counts).
+  // Only the form's fields (the row also has the kept counts and other table columns).
   const initial = Object.fromEntries(
     Object.keys(announcementSchema.shape).map((key) => [key, row[key as keyof AnnouncementRow]]),
   ) as z.infer<typeof announcementSchema>;

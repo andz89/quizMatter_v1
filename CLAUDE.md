@@ -269,7 +269,7 @@ test: `supabase/tests/maintenance.sql`. Keep these rules:
   "hostname equals quizmatter.com → Block" (it doesn't stop direct Supabase calls; pause the Supabase project for
   that). Delete the rule afterwards.
 
-# Announcements (a modal and/or top bar for chosen teachers)
+# Announcements (a modal, top bar or corner box for chosen teachers)
 
 The super admin shows a message to chosen teachers on chosen pages (Admin → Announcements,
 `src/app/admin/announcements`). Design: `docs/superpowers/specs/2026-10-30-announcements-design.md`. Migration:
@@ -281,19 +281,41 @@ The super admin shows a message to chosen teachers on chosen pages (Admin → An
   `admin_announcements`, `announcement_audience`, `my_announcements`, `dismiss_announcement`), with the matching
   rule written once (`announcement_matches`). Nobody reads the tables directly. The limits are in both the database
   and `announcementSchema` (`src/lib/announcements.ts`), number for number.
-- **One of each on:** an announcement is a modal or a top bar, never both, and at most one modal and one bar are on
-  (switched on and not ended; a scheduled one counts). Turning on a second one is refused (`QMONE`, with the name
+- **Adding a column** (`20261231000400_announcement_columns.sql`, spec
+  `docs/superpowers/specs/2026-11-02-announcement-columns-design.md`): `admin_announcements` returns the table's own
+  rows, so the admin pages get a new column by themselves (the status label is the app's `announcementStatus`).
+  1) `alter table … add column …` with its checks; 2) re-create `save_announcement` with it in the insert list (as
+  `coalesce(r.<col>, <default>)`, so an older tab that doesn't send it can still make a new one) and the update list
+  (an update starts from the current row, so a key an older tab doesn't send keeps its value); 3) teachers need
+  it? re-create `my_announcements` with it (drop + create; it lists only what teachers may see, so an admin-only
+  column never leaks), else add it to `admin_only` in `supabase/tests/announcement_columns.sql`; 4) zod and the form.
+  `npm run test:sql` fails, naming the column, when step 2 or 3 was missed.
+- **One of each on:** an announcement is a modal, a top bar or a corner box (one type each), and at most one modal,
+  one bar and one corner box are on (switched on and not ended; a scheduled one counts). Turning on a second one is refused (`QMONE`, with the name
   of the one that is on), so the admin page asks to turn that one off (or, in the form, to save as a draft); sent
   again with `replace_current`, the database swaps them in one step (`check_one_on`,
   `20261228000000_announcement_one_on.sql`, spec `docs/superpowers/specs/2026-11-01-announcement-one-on-design.md`,
-  test `supabase/tests/announcement_one_on.sql`).
+  test `supabase/tests/announcement_one_on.sql`). The part it doesn't show is kept empty by a trigger (a top bar has
+  no modal text, attachment or html; a modal no bar html), so a photo there never counts as used
+  (`20261231000200_announcement_unused_part.sql`, test `supabase/tests/announcement_unused_part.sql`).
+- **Corner box** (`20261231000300_announcement_corner_box.sql`, spec
+  `docs/superpowers/specs/2026-11-02-announcement-corner-box-design.md`, test
+  `supabase/tests/announcement_corner_box.sql`): a third type, a box at the bottom-right that doesn't block the page
+  (no backdrop, no Escape). It is a modal row with `modal_display = 'corner'`, so its content is in the `modal_…`
+  columns (post or HTML, the same checks and photo rules) and it closes as part `modal` (the closed count counts it).
+  Small or Medium only. `modal_auto_close` (0 = never, else 5–600 seconds, only for a corner box) closes it by itself,
+  which counts like the close button, so it never runs unseen: the box waits while a modal shows (`pickForPage`) and
+  its timer stops while the mouse is over it or the tab is in the background. It has its own slot in `check_one_on` (`bar` / `modal` / `corner`), so a modal,
+  a bar and a corner box can all be on together. `announcementType` / `TYPE_WORDS` (`src/lib/announcements.ts`) name
+  the three types in the admin pages.
 - **Filters:** empty = everyone; every filled one must match. A teacher with that detail empty (e.g. no birthday)
   doesn't match a filter on it. Presentations count their own, not shared copies.
 - **The key rides on the maintenance status:** `maintenance_status()` returns `announcements_key` (null when nothing
   is live; an md5 of the live ids and `updated_at`s). `Announcements` (root layout) mounts `AnnouncementsWatch`
   only when it's filled, so on a quiet day nothing extra runs. The watch asks `my_announcements()` once per key, account and
   Philippine day (`isSameVisit`: another teacher on a shared computer starts over) (kept in sessionStorage, `qm:announcements`), never on pages outside the page groups
-  (`pageGroup`), and picks what fits each page (`pickForPage`: modals one at a time, at most 2 bars, newest first).
+  (`pageGroup`), and picks what fits each page (`pickForPage`: modals one at a time, at most 2 bars, corner boxes
+  one at a time, newest first).
 - **Show again:** `once` (an `announcement_dismissals` row, for good), `daily` (again after midnight Philippine
   time), `every_visit` (only sessionStorage: again in a new tab). The modal and the bar close separately.
 - **Modal size:** `modal_size` is `small` / `medium` / `large` (300 / 500 / 672 px wide; the height fits the text;
@@ -342,9 +364,11 @@ The super admin shows a message to chosen teachers on chosen pages (Admin → An
   `20261230000000_announcement_html.sql`, spec `docs/superpowers/specs/2026-11-01-announcement-html-design.md`, test
   `supabase/tests/announcement_html.sql`): the super admin's own HTML, styles and scripts, never part of the page. It
   runs only in a sandboxed frame without `allow-same-origin` (its own unknown site: no QuizMatter cookies, storage,
-  login or page), whose lock list (`sandboxedHtml`: `default-src 'none'`, pictures only from our R2) loads nothing
-  from other sites and sends nothing out, so the Privacy Policy holds. Keep both if it changes: a script on the page
-  itself would run as every teacher. A photo whose address is in the HTML counts as used
+  login or page). Keep that if it changes: a script on the page itself would run as every teacher. It has no lock
+  list: it may load pictures, fonts, code and pages from any site, which then see the teacher's IP address, so the
+  Privacy Policy names "other websites in an announcement" (a YouTube or Facebook player inside it usually won't
+  play: use the post's attachment). `sandboxedHtml` puts our helper script first: Escape inside the box closes the
+  modal (`SEALED_BOX_ESCAPE`, postMessage), `#part` links scroll inside it. A photo whose address is in the HTML counts as used
   (`announcement_uses_photo`; `used_photo_srcs` keeps every R2 address in it). A top bar has the same choice
   (`bar_format` `text` / `html`, `bar_height` 30–300 px; the HTML in `bar_html`, ≤ 1,000 for text, 100,000 for html;
   `20261231000000_announcement_bar_html.sql`, test `supabase/tests/announcement_bar_html.sql`); its countdown and ✕

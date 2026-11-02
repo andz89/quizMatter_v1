@@ -73,7 +73,135 @@ $$;
 ALTER FUNCTION "public"."admin_announcement_photos"() OWNER TO "postgres";
 
 
-CREATE OR REPLACE FUNCTION "public"."admin_announcements"() RETURNS TABLE("id" "uuid", "name" "text", "is_on" boolean, "starts_at" timestamp with time zone, "ends_at" timestamp with time zone, "show_modal" boolean, "modal_text" "text", "modal_attachment" "jsonb", "modal_close_after" integer, "show_bar" boolean, "bar_html" "text", "bar_close_after" integer, "repeat" "text", "pages" "text"[], "genders" "text"[], "age_min" integer, "age_max" integer, "education_levels" "text"[], "field_words" "text"[], "presentations_min" integer, "presentations_max" integer, "roles" "text"[], "created_by" "uuid", "created_at" timestamp with time zone, "updated_at" timestamp with time zone, "modal_size" "text", "modal_format" "text", "modal_html" "text", "modal_height" integer, "bar_format" "text", "bar_height" integer, "status" "text", "matched" integer, "closed_modal" integer, "closed_bar" integer, "counted_at" timestamp with time zone)
+CREATE OR REPLACE FUNCTION "public"."announcement_attachment_ok"("a" "jsonb") RETURNS boolean
+    LANGUAGE "sql" IMMUTABLE
+    SET "search_path" TO ''
+    AS $_$
+  select a is null or coalesce(
+    jsonb_typeof(a) = 'object'
+    and case a ->> 'kind'
+      when 'facebook' then
+        (select array_agg(k) from jsonb_object_keys(a) k) <@ array['kind', 'href', 'video']
+        and jsonb_typeof(a -> 'href') = 'string'
+        and char_length(a ->> 'href') <= 500
+        and a ->> 'href' ~ '^https://(((www|m|web)\.)?facebook\.com|fb\.watch)/[^\s"''<>]+$'
+        and jsonb_typeof(a -> 'video') = 'boolean'
+      when 'photo' then
+        (select array_agg(k) from jsonb_object_keys(a) k) <@ array['kind', 'src', 'width', 'height']
+        and public.announcement_picture_ok(a)
+      when 'youtube' then
+        (select array_agg(k) from jsonb_object_keys(a) k) <@ array['kind', 'video_id', 'title', 'src', 'width', 'height']
+        and public.announcement_picture_ok(a)
+        and jsonb_typeof(a -> 'video_id') = 'string' and a ->> 'video_id' ~ '^[A-Za-z0-9_-]{11}$'
+        and jsonb_typeof(a -> 'title') = 'string' and char_length(a ->> 'title') <= 200
+      else false
+    end,
+    false
+  );
+$_$;
+
+
+ALTER FUNCTION "public"."announcement_attachment_ok"("a" "jsonb") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."announcement_words_ok"("words" "text"[]) RETURNS boolean
+    LANGUAGE "sql" IMMUTABLE
+    SET "search_path" TO ''
+    AS $$
+  select coalesce(cardinality(words), 0) <= 20
+    and not exists (select 1 from unnest(words) w where w is null or btrim(w) = '' or char_length(w) > 60);
+$$;
+
+
+ALTER FUNCTION "public"."announcement_words_ok"("words" "text"[]) OWNER TO "postgres";
+
+SET default_tablespace = '';
+
+SET default_table_access_method = "heap";
+
+
+CREATE TABLE IF NOT EXISTS "public"."announcements" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "name" "text" NOT NULL,
+    "is_on" boolean DEFAULT false NOT NULL,
+    "starts_at" timestamp with time zone,
+    "ends_at" timestamp with time zone,
+    "show_modal" boolean DEFAULT false NOT NULL,
+    "modal_close_after" integer DEFAULT 0 NOT NULL,
+    "show_bar" boolean DEFAULT false NOT NULL,
+    "bar_html" "text" DEFAULT ''::"text" NOT NULL,
+    "bar_close_after" integer DEFAULT 0 NOT NULL,
+    "repeat" "text" DEFAULT 'once'::"text" NOT NULL,
+    "pages" "text"[] DEFAULT '{all}'::"text"[] NOT NULL,
+    "genders" "text"[] DEFAULT '{}'::"text"[] NOT NULL,
+    "age_min" integer,
+    "age_max" integer,
+    "education_levels" "text"[] DEFAULT '{}'::"text"[] NOT NULL,
+    "field_words" "text"[] DEFAULT '{}'::"text"[] NOT NULL,
+    "presentations_min" integer,
+    "presentations_max" integer,
+    "roles" "text"[] DEFAULT '{}'::"text"[] NOT NULL,
+    "created_by" "uuid",
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "modal_size" "text" DEFAULT 'large'::"text" NOT NULL,
+    "matched_count" integer,
+    "closed_modal_count" integer DEFAULT 0 NOT NULL,
+    "closed_bar_count" integer DEFAULT 0 NOT NULL,
+    "counted_at" timestamp with time zone,
+    "closed_cleared_at" timestamp with time zone,
+    "modal_text" "text" DEFAULT ''::"text" NOT NULL,
+    "modal_attachment" "jsonb",
+    "modal_format" "text" DEFAULT 'post'::"text" NOT NULL,
+    "modal_html" "text" DEFAULT ''::"text" NOT NULL,
+    "modal_height" integer DEFAULT 400 NOT NULL,
+    "bar_format" "text" DEFAULT 'text'::"text" NOT NULL,
+    "bar_height" integer DEFAULT 60 NOT NULL,
+    "modal_display" "text" DEFAULT 'center'::"text" NOT NULL,
+    "modal_auto_close" integer DEFAULT 0 NOT NULL,
+    CONSTRAINT "announcements_age_max_check" CHECK ((("age_max" >= 18) AND ("age_max" <= 100))),
+    CONSTRAINT "announcements_age_min_check" CHECK ((("age_min" >= 18) AND ("age_min" <= 100))),
+    CONSTRAINT "announcements_auto_close_corner" CHECK ((("modal_display" = 'corner'::"text") OR ("modal_auto_close" = 0))),
+    CONSTRAINT "announcements_bar_close_after_check" CHECK ((("bar_close_after" >= 0) AND ("bar_close_after" <= 60))),
+    CONSTRAINT "announcements_bar_format_check" CHECK (("bar_format" = ANY (ARRAY['text'::"text", 'html'::"text"]))),
+    CONSTRAINT "announcements_bar_height_check" CHECK ((("bar_height" >= 30) AND ("bar_height" <= 300))),
+    CONSTRAINT "announcements_bar_html_check" CHECK (("char_length"("bar_html") <=
+CASE
+    WHEN ("bar_format" = 'html'::"text") THEN 100000
+    ELSE 1000
+END)),
+    CONSTRAINT "announcements_check" CHECK ((("ends_at" IS NULL) OR ("starts_at" IS NULL) OR ("ends_at" > "starts_at"))),
+    CONSTRAINT "announcements_check1" CHECK ((("age_min" IS NULL) OR ("age_max" IS NULL) OR ("age_min" <= "age_max"))),
+    CONSTRAINT "announcements_check2" CHECK ((("presentations_min" IS NULL) OR ("presentations_max" IS NULL) OR ("presentations_min" <= "presentations_max"))),
+    CONSTRAINT "announcements_check3" CHECK (("show_modal" OR "show_bar")),
+    CONSTRAINT "announcements_check5" CHECK (((NOT "show_bar") OR ("btrim"("bar_html") <> ''::"text"))),
+    CONSTRAINT "announcements_corner_size" CHECK ((("modal_display" = 'center'::"text") OR ("modal_size" = ANY (ARRAY['small'::"text", 'medium'::"text"])))),
+    CONSTRAINT "announcements_education_levels_check" CHECK (("education_levels" <@ ARRAY['bachelor'::"text", 'master'::"text", 'doctorate'::"text", 'other'::"text"])),
+    CONSTRAINT "announcements_field_words_check" CHECK ("public"."announcement_words_ok"("field_words")),
+    CONSTRAINT "announcements_genders_check" CHECK (("genders" <@ ARRAY['male'::"text", 'female'::"text"])),
+    CONSTRAINT "announcements_modal_attachment_check" CHECK ("public"."announcement_attachment_ok"("modal_attachment")),
+    CONSTRAINT "announcements_modal_auto_close_check" CHECK ((("modal_auto_close" = 0) OR (("modal_auto_close" >= 5) AND ("modal_auto_close" <= 600)))),
+    CONSTRAINT "announcements_modal_close_after_check" CHECK ((("modal_close_after" >= 0) AND ("modal_close_after" <= 60))),
+    CONSTRAINT "announcements_modal_display_check" CHECK (("modal_display" = ANY (ARRAY['center'::"text", 'corner'::"text"]))),
+    CONSTRAINT "announcements_modal_format_check" CHECK (("modal_format" = ANY (ARRAY['post'::"text", 'html'::"text"]))),
+    CONSTRAINT "announcements_modal_has_content" CHECK (((NOT "show_modal") OR (("modal_format" = 'post'::"text") AND (("btrim"("modal_text") <> ''::"text") OR ("modal_attachment" IS NOT NULL))) OR (("modal_format" = 'html'::"text") AND ("btrim"("modal_html") <> ''::"text")))),
+    CONSTRAINT "announcements_modal_height_check" CHECK ((("modal_height" >= 100) AND ("modal_height" <= 1000))),
+    CONSTRAINT "announcements_modal_html_check" CHECK (("char_length"("modal_html") <= 100000)),
+    CONSTRAINT "announcements_modal_size_check" CHECK (("modal_size" = ANY (ARRAY['small'::"text", 'medium'::"text", 'large'::"text"]))),
+    CONSTRAINT "announcements_modal_text_check" CHECK (("char_length"("modal_text") <= 5000)),
+    CONSTRAINT "announcements_name_check" CHECK ((("char_length"("name") >= 1) AND ("char_length"("name") <= 100))),
+    CONSTRAINT "announcements_pages_check" CHECK ((("cardinality"("pages") > 0) AND ("pages" <@ ARRAY['all'::"text", 'my_presentations'::"text", 'quizmatter'::"text", 'other_teachers'::"text", 'saved'::"text", 'liked'::"text", 'reviews_submissions'::"text", 'search'::"text", 'presentation_view'::"text", 'editor'::"text", 'account'::"text", 'teacher_profiles'::"text"]))),
+    CONSTRAINT "announcements_presentations_max_check" CHECK ((("presentations_max" >= 0) AND ("presentations_max" <= 50))),
+    CONSTRAINT "announcements_presentations_min_check" CHECK ((("presentations_min" >= 0) AND ("presentations_min" <= 50))),
+    CONSTRAINT "announcements_repeat_check" CHECK (("repeat" = ANY (ARRAY['once'::"text", 'daily'::"text", 'every_visit'::"text"]))),
+    CONSTRAINT "announcements_roles_check" CHECK (("roles" <@ ARRAY['teacher'::"text", 'editor'::"text", 'admin'::"text"]))
+);
+
+
+ALTER TABLE "public"."announcements" OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."admin_announcements"() RETURNS SETOF "public"."announcements"
     LANGUAGE "plpgsql" STABLE SECURITY DEFINER
     SET "search_path" TO ''
     AS $$
@@ -81,24 +209,7 @@ begin
   if not public.is_super_admin() then
     raise exception 'Only the super admin can do this.' using errcode = '42501';
   end if;
-
-  return query
-  select
-    a.id, a.name, a.is_on, a.starts_at, a.ends_at,
-    a.show_modal, a.modal_text, a.modal_attachment, a.modal_close_after, a.show_bar, a.bar_html, a.bar_close_after,
-    a.repeat, a.pages, a.genders, a.age_min, a.age_max,
-    a.education_levels, a.field_words, a.presentations_min, a.presentations_max, a.roles,
-    a.created_by, a.created_at, a.updated_at, a.modal_size,
-    a.modal_format, a.modal_html, a.modal_height, a.bar_format, a.bar_height,
-    case
-      when a.ends_at is not null and a.ends_at <= now() then 'ended'
-      when not a.is_on then 'off'
-      when a.starts_at is not null and a.starts_at > now() then 'scheduled'
-      else 'live'
-    end,
-    a.matched_count, a.closed_modal_count, a.closed_bar_count, a.counted_at
-  from public.announcements a
-  order by a.created_at desc, a.id;
+  return query select a.* from public.announcements a order by a.created_at desc, a.id;
 end;
 $$;
 
@@ -469,37 +580,6 @@ $$;
 ALTER FUNCTION "public"."announcement_attachment_from_html"("html" "text") OWNER TO "postgres";
 
 
-CREATE OR REPLACE FUNCTION "public"."announcement_attachment_ok"("a" "jsonb") RETURNS boolean
-    LANGUAGE "sql" IMMUTABLE
-    SET "search_path" TO ''
-    AS $_$
-  select a is null or coalesce(
-    jsonb_typeof(a) = 'object'
-    and case a ->> 'kind'
-      when 'facebook' then
-        (select array_agg(k) from jsonb_object_keys(a) k) <@ array['kind', 'href', 'video']
-        and jsonb_typeof(a -> 'href') = 'string'
-        and char_length(a ->> 'href') <= 500
-        and a ->> 'href' ~ '^https://(((www|m|web)\.)?facebook\.com|fb\.watch)/[^\s"''<>]+$'
-        and jsonb_typeof(a -> 'video') = 'boolean'
-      when 'photo' then
-        (select array_agg(k) from jsonb_object_keys(a) k) <@ array['kind', 'src', 'width', 'height']
-        and public.announcement_picture_ok(a)
-      when 'youtube' then
-        (select array_agg(k) from jsonb_object_keys(a) k) <@ array['kind', 'video_id', 'title', 'src', 'width', 'height']
-        and public.announcement_picture_ok(a)
-        and jsonb_typeof(a -> 'video_id') = 'string' and a ->> 'video_id' ~ '^[A-Za-z0-9_-]{11}$'
-        and jsonb_typeof(a -> 'title') = 'string' and char_length(a ->> 'title') <= 200
-      else false
-    end,
-    false
-  );
-$_$;
-
-
-ALTER FUNCTION "public"."announcement_attachment_ok"("a" "jsonb") OWNER TO "postgres";
-
-
 CREATE OR REPLACE FUNCTION "public"."announcement_audience"("a" "jsonb") RETURNS integer
     LANGUAGE "plpgsql" STABLE SECURITY DEFINER
     SET "search_path" TO ''
@@ -514,97 +594,6 @@ $$;
 
 
 ALTER FUNCTION "public"."announcement_audience"("a" "jsonb") OWNER TO "postgres";
-
-
-CREATE OR REPLACE FUNCTION "public"."announcement_words_ok"("words" "text"[]) RETURNS boolean
-    LANGUAGE "sql" IMMUTABLE
-    SET "search_path" TO ''
-    AS $$
-  select coalesce(cardinality(words), 0) <= 20
-    and not exists (select 1 from unnest(words) w where w is null or btrim(w) = '' or char_length(w) > 60);
-$$;
-
-
-ALTER FUNCTION "public"."announcement_words_ok"("words" "text"[]) OWNER TO "postgres";
-
-SET default_tablespace = '';
-
-SET default_table_access_method = "heap";
-
-
-CREATE TABLE IF NOT EXISTS "public"."announcements" (
-    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
-    "name" "text" NOT NULL,
-    "is_on" boolean DEFAULT false NOT NULL,
-    "starts_at" timestamp with time zone,
-    "ends_at" timestamp with time zone,
-    "show_modal" boolean DEFAULT false NOT NULL,
-    "modal_close_after" integer DEFAULT 0 NOT NULL,
-    "show_bar" boolean DEFAULT false NOT NULL,
-    "bar_html" "text" DEFAULT ''::"text" NOT NULL,
-    "bar_close_after" integer DEFAULT 0 NOT NULL,
-    "repeat" "text" DEFAULT 'once'::"text" NOT NULL,
-    "pages" "text"[] DEFAULT '{all}'::"text"[] NOT NULL,
-    "genders" "text"[] DEFAULT '{}'::"text"[] NOT NULL,
-    "age_min" integer,
-    "age_max" integer,
-    "education_levels" "text"[] DEFAULT '{}'::"text"[] NOT NULL,
-    "field_words" "text"[] DEFAULT '{}'::"text"[] NOT NULL,
-    "presentations_min" integer,
-    "presentations_max" integer,
-    "roles" "text"[] DEFAULT '{}'::"text"[] NOT NULL,
-    "created_by" "uuid",
-    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "modal_size" "text" DEFAULT 'large'::"text" NOT NULL,
-    "matched_count" integer,
-    "closed_modal_count" integer DEFAULT 0 NOT NULL,
-    "closed_bar_count" integer DEFAULT 0 NOT NULL,
-    "counted_at" timestamp with time zone,
-    "closed_cleared_at" timestamp with time zone,
-    "modal_text" "text" DEFAULT ''::"text" NOT NULL,
-    "modal_attachment" "jsonb",
-    "modal_format" "text" DEFAULT 'post'::"text" NOT NULL,
-    "modal_html" "text" DEFAULT ''::"text" NOT NULL,
-    "modal_height" integer DEFAULT 400 NOT NULL,
-    "bar_format" "text" DEFAULT 'text'::"text" NOT NULL,
-    "bar_height" integer DEFAULT 60 NOT NULL,
-    CONSTRAINT "announcements_age_max_check" CHECK ((("age_max" >= 18) AND ("age_max" <= 100))),
-    CONSTRAINT "announcements_age_min_check" CHECK ((("age_min" >= 18) AND ("age_min" <= 100))),
-    CONSTRAINT "announcements_bar_close_after_check" CHECK ((("bar_close_after" >= 0) AND ("bar_close_after" <= 60))),
-    CONSTRAINT "announcements_bar_format_check" CHECK (("bar_format" = ANY (ARRAY['text'::"text", 'html'::"text"]))),
-    CONSTRAINT "announcements_bar_height_check" CHECK ((("bar_height" >= 30) AND ("bar_height" <= 300))),
-    CONSTRAINT "announcements_bar_html_check" CHECK (("char_length"("bar_html") <=
-CASE
-    WHEN ("bar_format" = 'html'::"text") THEN 100000
-    ELSE 1000
-END)),
-    CONSTRAINT "announcements_check" CHECK ((("ends_at" IS NULL) OR ("starts_at" IS NULL) OR ("ends_at" > "starts_at"))),
-    CONSTRAINT "announcements_check1" CHECK ((("age_min" IS NULL) OR ("age_max" IS NULL) OR ("age_min" <= "age_max"))),
-    CONSTRAINT "announcements_check2" CHECK ((("presentations_min" IS NULL) OR ("presentations_max" IS NULL) OR ("presentations_min" <= "presentations_max"))),
-    CONSTRAINT "announcements_check3" CHECK (("show_modal" OR "show_bar")),
-    CONSTRAINT "announcements_check5" CHECK (((NOT "show_bar") OR ("btrim"("bar_html") <> ''::"text"))),
-    CONSTRAINT "announcements_education_levels_check" CHECK (("education_levels" <@ ARRAY['bachelor'::"text", 'master'::"text", 'doctorate'::"text", 'other'::"text"])),
-    CONSTRAINT "announcements_field_words_check" CHECK ("public"."announcement_words_ok"("field_words")),
-    CONSTRAINT "announcements_genders_check" CHECK (("genders" <@ ARRAY['male'::"text", 'female'::"text"])),
-    CONSTRAINT "announcements_modal_attachment_check" CHECK ("public"."announcement_attachment_ok"("modal_attachment")),
-    CONSTRAINT "announcements_modal_close_after_check" CHECK ((("modal_close_after" >= 0) AND ("modal_close_after" <= 60))),
-    CONSTRAINT "announcements_modal_format_check" CHECK (("modal_format" = ANY (ARRAY['post'::"text", 'html'::"text"]))),
-    CONSTRAINT "announcements_modal_has_content" CHECK (((NOT "show_modal") OR (("modal_format" = 'post'::"text") AND (("btrim"("modal_text") <> ''::"text") OR ("modal_attachment" IS NOT NULL))) OR (("modal_format" = 'html'::"text") AND ("btrim"("modal_html") <> ''::"text")))),
-    CONSTRAINT "announcements_modal_height_check" CHECK ((("modal_height" >= 100) AND ("modal_height" <= 1000))),
-    CONSTRAINT "announcements_modal_html_check" CHECK (("char_length"("modal_html") <= 100000)),
-    CONSTRAINT "announcements_modal_size_check" CHECK (("modal_size" = ANY (ARRAY['small'::"text", 'medium'::"text", 'large'::"text"]))),
-    CONSTRAINT "announcements_modal_text_check" CHECK (("char_length"("modal_text") <= 5000)),
-    CONSTRAINT "announcements_name_check" CHECK ((("char_length"("name") >= 1) AND ("char_length"("name") <= 100))),
-    CONSTRAINT "announcements_pages_check" CHECK ((("cardinality"("pages") > 0) AND ("pages" <@ ARRAY['all'::"text", 'my_presentations'::"text", 'quizmatter'::"text", 'other_teachers'::"text", 'saved'::"text", 'liked'::"text", 'reviews_submissions'::"text", 'search'::"text", 'presentation_view'::"text", 'editor'::"text", 'account'::"text", 'teacher_profiles'::"text"]))),
-    CONSTRAINT "announcements_presentations_max_check" CHECK ((("presentations_max" >= 0) AND ("presentations_max" <= 50))),
-    CONSTRAINT "announcements_presentations_min_check" CHECK ((("presentations_min" >= 0) AND ("presentations_min" <= 50))),
-    CONSTRAINT "announcements_repeat_check" CHECK (("repeat" = ANY (ARRAY['once'::"text", 'daily'::"text", 'every_visit'::"text"]))),
-    CONSTRAINT "announcements_roles_check" CHECK (("roles" <@ ARRAY['teacher'::"text", 'editor'::"text", 'admin'::"text"]))
-);
-
-
-ALTER TABLE "public"."announcements" OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."announcement_count"("a" "public"."announcements") RETURNS integer
@@ -651,6 +640,27 @@ $$;
 
 
 ALTER FUNCTION "public"."announcement_count"("a" "public"."announcements") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."announcement_empty_unused_part"() RETURNS "trigger"
+    LANGUAGE "plpgsql"
+    SET "search_path" TO ''
+    AS $$
+begin
+  if not new.show_modal then
+    new.modal_text := '';
+    new.modal_attachment := null;
+    new.modal_html := '';
+  end if;
+  if not new.show_bar then
+    new.bar_html := '';
+  end if;
+  return new;
+end;
+$$;
+
+
+ALTER FUNCTION "public"."announcement_empty_unused_part"() OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."announcement_is_live"("a" "public"."announcements") RETURNS boolean
@@ -1052,7 +1062,7 @@ CREATE OR REPLACE FUNCTION "public"."check_one_on"("saved" "uuid", "replace_curr
     SET "search_path" TO ''
     AS $$
 declare
-  is_modal boolean;
+  saved_slot text;
   other_id uuid;
   other_name text;
 begin
@@ -1060,11 +1070,13 @@ begin
   -- step's next query sees what it saved).
   perform pg_advisory_xact_lock(hashtext('public.announcements'));
 
-  select a.show_modal into is_modal from public.announcements a where a.id = saved;
+  select case when a.show_bar then 'bar' when a.modal_display = 'corner' then 'corner' else 'modal' end
+  into saved_slot
+  from public.announcements a where a.id = saved;
   select a.id, a.name into other_id, other_name
   from public.announcements a
   where a.id <> saved and a.is_on and (a.ends_at is null or a.ends_at > now())
-    and (case when is_modal then a.show_modal else a.show_bar end)
+    and (case when a.show_bar then 'bar' when a.modal_display = 'corner' then 'corner' else 'modal' end) = saved_slot
   limit 1;
 
   if other_id is null then
@@ -2643,7 +2655,7 @@ $$;
 ALTER FUNCTION "public"."manila_today"() OWNER TO "postgres";
 
 
-CREATE OR REPLACE FUNCTION "public"."my_announcements"() RETURNS TABLE("id" "uuid", "show_modal" boolean, "modal_text" "text", "modal_attachment" "jsonb", "modal_close_after" integer, "show_bar" boolean, "bar_html" "text", "bar_close_after" integer, "repeat" "text", "pages" "text"[], "created_at" timestamp with time zone, "modal_size" "text", "modal_format" "text", "modal_html" "text", "modal_height" integer, "bar_format" "text", "bar_height" integer)
+CREATE OR REPLACE FUNCTION "public"."my_announcements"() RETURNS TABLE("id" "uuid", "show_modal" boolean, "modal_text" "text", "modal_attachment" "jsonb", "modal_close_after" integer, "show_bar" boolean, "bar_html" "text", "bar_close_after" integer, "repeat" "text", "pages" "text"[], "created_at" timestamp with time zone, "modal_size" "text", "modal_format" "text", "modal_html" "text", "modal_height" integer, "bar_format" "text", "bar_height" integer, "modal_display" "text", "modal_auto_close" integer)
     LANGUAGE "sql" STABLE SECURITY DEFINER
     SET "search_path" TO ''
     AS $$
@@ -2670,7 +2682,8 @@ CREATE OR REPLACE FUNCTION "public"."my_announcements"() RETURNS TABLE("id" "uui
     m.bar_open, case when m.bar_open then m.bar_html else '' end, m.bar_close_after,
     m.repeat, m.pages, m.created_at, m.modal_size,
     m.modal_format, case when m.modal_open then m.modal_html else '' end, m.modal_height,
-    m.bar_format, m.bar_height
+    m.bar_format, m.bar_height,
+    m.modal_display, m.modal_auto_close
   from mine m
   where m.modal_open or m.bar_open
   order by m.created_at desc, m.id;
@@ -3156,6 +3169,7 @@ CREATE OR REPLACE FUNCTION "public"."save_announcement"("a" "jsonb", "replace_cu
     AS $$
 declare
   r public.announcements := jsonb_populate_record(null::public.announcements, a);
+  cur public.announcements;
   saved_id uuid;
   turned_off text;
 begin
@@ -3172,17 +3186,28 @@ begin
       name, is_on, starts_at, ends_at, show_modal, modal_text, modal_attachment, modal_close_after, show_bar, bar_html,
       bar_close_after, repeat, pages, genders, age_min, age_max, education_levels,
       field_words, presentations_min, presentations_max, roles, modal_size, modal_format, modal_html, modal_height,
-      bar_format, bar_height, created_by, created_at, updated_at
+      bar_format, bar_height, modal_display, modal_auto_close, created_by, created_at, updated_at
     ) values (
       btrim(r.name), r.is_on, r.starts_at, r.ends_at, r.show_modal, coalesce(r.modal_text, ''), r.modal_attachment, r.modal_close_after, r.show_bar,
       r.bar_html, r.bar_close_after, r.repeat, r.pages, r.genders, r.age_min, r.age_max,
       r.education_levels, r.field_words, r.presentations_min, r.presentations_max, r.roles, coalesce(r.modal_size, 'large'),
       coalesce(r.modal_format, 'post'), coalesce(r.modal_html, ''), coalesce(r.modal_height, 400),
       coalesce(r.bar_format, 'text'), coalesce(r.bar_height, 60),
+      coalesce(r.modal_display, 'center'), coalesce(r.modal_auto_close, 0),
       auth.uid(), now(), clock_timestamp()
     )
     returning id into saved_id;
   else
+    select * into cur from public.announcements x where x.id = r.id for update;
+    if not found then
+      raise exception 'This announcement was deleted.' using errcode = 'P0002';
+    end if;
+    -- A key the app didn't send keeps the row's value (sent as null, it is null).
+    r := jsonb_populate_record(cur, a);
+    -- Again on the merged row: an update that leaves out show_bar mustn't make one that shows both.
+    if r.show_modal and r.show_bar then
+      raise exception 'Pick a modal or a top bar, not both.' using errcode = '22023';
+    end if;
     update public.announcements x set
       name = btrim(r.name), is_on = r.is_on, starts_at = r.starts_at, ends_at = r.ends_at,
       show_modal = r.show_modal, modal_text = coalesce(r.modal_text, ''), modal_attachment = r.modal_attachment, modal_close_after = r.modal_close_after,
@@ -3190,17 +3215,14 @@ begin
       pages = r.pages, genders = r.genders, age_min = r.age_min, age_max = r.age_max,
       education_levels = r.education_levels, field_words = r.field_words,
       presentations_min = r.presentations_min, presentations_max = r.presentations_max, roles = r.roles,
-      modal_size = coalesce(r.modal_size, 'large'), modal_format = coalesce(r.modal_format, 'post'),
-      modal_html = coalesce(r.modal_html, ''), modal_height = coalesce(r.modal_height, 400),
-      bar_format = coalesce(r.bar_format, 'text'), bar_height = coalesce(r.bar_height, 60),
+      modal_size = r.modal_size, modal_format = r.modal_format, modal_html = r.modal_html, modal_height = r.modal_height,
+      bar_format = r.bar_format, bar_height = r.bar_height,
+      modal_display = r.modal_display, modal_auto_close = r.modal_auto_close,
       updated_at = clock_timestamp(),
       -- Ending later again after its cleanup: its closed rows start over (they were deleted).
       closed_cleared_at = case when r.ends_at is null or r.ends_at > now() then null else x.closed_cleared_at end
-    where x.id = r.id
+    where x.id = cur.id
     returning x.id into saved_id;
-    if saved_id is null then
-      raise exception 'This announcement was deleted.' using errcode = 'P0002';
-    end if;
   end if;
 
   if r.is_on and (r.ends_at is null or r.ends_at > now()) then
@@ -5103,6 +5125,10 @@ CREATE UNIQUE INDEX "user_settings_profile_slug" ON "public"."user_settings" USI
 
 
 
+CREATE OR REPLACE TRIGGER "announcement_empty_unused_part" BEFORE INSERT OR UPDATE ON "public"."announcements" FOR EACH ROW EXECUTE FUNCTION "public"."announcement_empty_unused_part"();
+
+
+
 CREATE OR REPLACE TRIGGER "cancel_reviews_of_removed_editor" AFTER DELETE ON "public"."editors" FOR EACH ROW EXECUTE FUNCTION "public"."cancel_reviews_of_removed_editor"();
 
 
@@ -5878,6 +5904,20 @@ GRANT ALL ON FUNCTION "public"."admin_announcement_photos"() TO "service_role";
 
 
 
+REVOKE ALL ON FUNCTION "public"."announcement_attachment_ok"("a" "jsonb") FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."announcement_attachment_ok"("a" "jsonb") TO "service_role";
+
+
+
+REVOKE ALL ON FUNCTION "public"."announcement_words_ok"("words" "text"[]) FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."announcement_words_ok"("words" "text"[]) TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."announcements" TO "service_role";
+
+
+
 REVOKE ALL ON FUNCTION "public"."admin_announcements"() FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."admin_announcements"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."admin_announcements"() TO "service_role";
@@ -5972,28 +6012,19 @@ GRANT ALL ON FUNCTION "public"."announcement_attachment_from_html"("html" "text"
 
 
 
-REVOKE ALL ON FUNCTION "public"."announcement_attachment_ok"("a" "jsonb") FROM PUBLIC;
-GRANT ALL ON FUNCTION "public"."announcement_attachment_ok"("a" "jsonb") TO "service_role";
-
-
-
 REVOKE ALL ON FUNCTION "public"."announcement_audience"("a" "jsonb") FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."announcement_audience"("a" "jsonb") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."announcement_audience"("a" "jsonb") TO "service_role";
 
 
 
-REVOKE ALL ON FUNCTION "public"."announcement_words_ok"("words" "text"[]) FROM PUBLIC;
-GRANT ALL ON FUNCTION "public"."announcement_words_ok"("words" "text"[]) TO "service_role";
-
-
-
-GRANT ALL ON TABLE "public"."announcements" TO "service_role";
-
-
-
 REVOKE ALL ON FUNCTION "public"."announcement_count"("a" "public"."announcements") FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."announcement_count"("a" "public"."announcements") TO "service_role";
+
+
+
+REVOKE ALL ON FUNCTION "public"."announcement_empty_unused_part"() FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."announcement_empty_unused_part"() TO "service_role";
 
 
 

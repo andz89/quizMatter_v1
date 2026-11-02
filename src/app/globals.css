@@ -92,6 +92,17 @@
       width: 90%;
     }
   }
+
+  /* The corner box's "closes itself" line: full to empty. Its length (animation-duration) is set inline. */
+  --animate-shrink: shrink 1s linear forwards;
+  @keyframes shrink {
+    from {
+      width: 100%;
+    }
+    to {
+      width: 0;
+    }
+  }
 }
 
 /* Font comes from Tailwind's base styles (html uses --font-sans), so body doesn't set it again. */

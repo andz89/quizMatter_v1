@@ -2,9 +2,10 @@
 
 import { useEffect, useRef, useState, type MouseEvent } from "react";
 import { useRouter } from "next/navigation";
-import { ExternalLinkIcon, MegaphoneIcon, PlayIcon, XIcon } from "lucide-react";
+import { ExternalLinkIcon, MegaphoneIcon, PlayIcon, XCircleIcon, XIcon } from "lucide-react";
 import {
   MODAL_SIZES,
+  SEALED_BOX_ESCAPE,
   isInternalLink,
   sandboxedHtml,
   type BarFormat,
@@ -170,15 +171,39 @@ export function AnnouncementAttachment({ attachment, width }: { attachment: Moda
   );
 }
 
-// The sealed box may run its own scripts and open links in a new tab, and nothing else: without allow-same-origin it
-// is its own unknown site, so it can't reach QuizMatter's page, cookies, storage or the teacher's login; without
-// allow-top-navigation, allow-forms and allow-modals it can't move this page, send forms or show alerts.
+// The sealed box may run its own scripts, load from other sites and open links in a new tab: without
+// allow-same-origin it is its own unknown site, so it can't reach QuizMatter's page, cookies, storage or the teacher's
+// login; without allow-top-navigation, allow-forms and allow-modals it can't move this page, send forms or show alerts.
 const SEALED_BOX_SANDBOX = "allow-scripts allow-popups allow-popups-to-escape-sandbox";
 
-/** The admin's HTML in the sealed box (sandboxedHtml), `height` px tall; taller content scrolls inside. */
-function SealedBox({ html, height, className }: { html: string; height: number | undefined; className: string }) {
+/**
+ * The admin's HTML in the sealed box (sandboxedHtml), `height` px tall; taller content scrolls inside. `onEscape`:
+ * Escape pressed inside the box (its helper tells this page; only this box's own message counts).
+ */
+function SealedBox({
+  html,
+  height,
+  className,
+  onEscape,
+}: {
+  html: string;
+  height: number | undefined;
+  className: string;
+  onEscape?: () => void;
+}) {
+  const ref = useRef<HTMLIFrameElement>(null);
+  useEffect(() => {
+    if (!onEscape) return;
+    const handleMessage = (e: MessageEvent) => {
+      if (e.source === ref.current?.contentWindow && e.data === SEALED_BOX_ESCAPE) onEscape();
+    };
+    window.addEventListener("message", handleMessage);
+    return () => window.removeEventListener("message", handleMessage);
+  }, [onEscape]);
+
   return (
     <iframe
+      ref={ref}
       srcDoc={sandboxedHtml(html)}
       sandbox={SEALED_BOX_SANDBOX}
       title="Announcement"
@@ -190,10 +215,75 @@ function SealedBox({ html, height, className }: { html: string; height: number |
 }
 
 /**
- * The modal part. A post: the app's Modal without its title row, at the chosen width (MODAL_SIZES; the height fits),
- * with the text (padding, links clickable) and then the attachment (edge to edge). An HTML modal (`format` "html"):
- * the admin's HTML in the sealed box (sandboxedHtml), edge to edge at the chosen `height`. "You can close this in N…"
- * until its close button may show.
+ * The circle in the top-right corner of a modal or corner box: the seconds `left` until it may be closed, then the
+ * close button (✕ in a circle). Both are filled white inside their ring, so they show over a dark picture or HTML too.
+ */
+function CloseCircle({ left, onClose }: { left: number; onClose: () => void }) {
+  return left <= 0 ? (
+    <button
+      type="button"
+      onClick={onClose}
+      aria-label="Close"
+      title="Close"
+      className="flex text-text-primary transition-colors hover:text-accent"
+    >
+      <XCircleIcon size={28} fill="var(--bg-surface)" />
+    </button>
+  ) : (
+    <span
+      title="You can close this soon"
+      aria-label={`You can close this in ${left}`}
+      className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-text-primary bg-bg-surface text-[11px] font-semibold text-text-primary"
+    >
+      {left}
+    </span>
+  );
+}
+
+/**
+ * What a modal or corner box shows, `width` px wide: a post (the text with padding, links clickable, then the
+ * attachment edge to edge) or (`format` "html") the admin's HTML in the sealed box at `height`. `onEscape`: Escape
+ * pressed inside the sealed box (only the modal listens).
+ */
+function AnnouncementContent({
+  text,
+  attachment,
+  format,
+  html,
+  height,
+  width,
+  onEscape,
+}: {
+  text: string;
+  attachment: ModalAttachment | null;
+  format: ModalFormat;
+  html: string;
+  height: number | undefined;
+  width: number;
+  onEscape?: () => void;
+}) {
+  if (format === "html") return <SealedBox html={html} height={height} className="w-full" onEscape={onEscape} />;
+  return (
+    <>
+      {text.trim() !== "" && (
+        // Right padding keeps the text clear of the corner circle.
+        <p className="whitespace-pre-line break-words py-4 pl-5 pr-14 text-sm text-text-primary">
+          <LinkifiedText text={text.trim()} />
+        </p>
+      )}
+      {attachment && <AnnouncementAttachment attachment={attachment} width={width} />}
+    </>
+  );
+}
+
+/** The chosen size's width in px (MODAL_SIZES; Large when unknown). */
+function sizeWidth(size: ModalSize): number {
+  return MODAL_SIZES.find((s) => s.key === size)?.width ?? MODAL_SIZES[MODAL_SIZES.length - 1].width;
+}
+
+/**
+ * The modal part: the app's Modal without its title row, at the chosen width (MODAL_SIZES; the height fits), showing
+ * AnnouncementContent. No footer: the CloseCircle sits in the top-right corner (Modal's `corner`).
  */
 export function AnnouncementModal({
   text,
@@ -216,7 +306,7 @@ export function AnnouncementModal({
 }) {
   const left = useCloseCountdown(closeAfter);
   const canClose = left <= 0;
-  const width = MODAL_SIZES.find((s) => s.key === size)?.width ?? MODAL_SIZES[MODAL_SIZES.length - 1].width;
+  const width = sizeWidth(size);
   return (
     <Modal
       title="Announcement"
@@ -225,33 +315,84 @@ export function AnnouncementModal({
       hideHeader
       width={width}
       noPadding
-      footer={
-        canClose ? (
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-button bg-accent btn-press px-4 py-2 text-sm font-semibold text-white hover:bg-accent-hover"
-          >
-            Close
-          </button>
-        ) : (
-          <span className="py-2 text-sm text-text-secondary">You can close this in {left}…</span>
-        )
-      }
+      corner={<CloseCircle left={left} onClose={onClose} />}
     >
-      {format === "html" ? (
-        <SealedBox html={html} height={height} className="w-full" />
-      ) : (
-        <>
-          {text.trim() !== "" && (
-            <p className="whitespace-pre-line break-words px-5 py-4 text-sm text-text-primary">
-              <LinkifiedText text={text.trim()} />
-            </p>
-          )}
-          {attachment && <AnnouncementAttachment attachment={attachment} width={width} />}
-        </>
-      )}
+      {/* Escape inside the sealed box closes it like Escape outside (Modal), once the close button shows. */}
+      <AnnouncementContent
+        text={text}
+        attachment={attachment}
+        format={format}
+        html={html}
+        height={height}
+        width={width}
+        onEscape={canClose ? onClose : undefined}
+      />
     </Modal>
+  );
+}
+
+/**
+ * The corner box (spec docs/superpowers/specs/2026-11-02-announcement-corner-box-design.md): a card at the
+ * bottom-right, the chosen width (Small / Medium; the screen's width less 16 px a side on a phone), that doesn't
+ * block the page: no backdrop, no Escape. The same content and CloseCircle as the modal. With `autoClose` seconds, a
+ * violet line at the bottom shrinks to nothing, then it closes itself like the close button; the line stops while
+ * the mouse is over the box or the tab is in the background. It waits while a modal shows (pickForPage), and would
+ * sit under a modal's backdrop anyway (z-50 < the modal's z-[60]).
+ */
+export function AnnouncementCornerBox({
+  text,
+  attachment,
+  format = "post",
+  html = "",
+  height,
+  closeAfter,
+  autoClose,
+  size,
+  onClose,
+}: {
+  text: string;
+  attachment: ModalAttachment | null;
+  format?: ModalFormat;
+  html?: string;
+  height?: number;
+  closeAfter: number;
+  autoClose: number;
+  size: ModalSize;
+  onClose: () => void;
+}) {
+  const left = useCloseCountdown(closeAfter);
+  const width = sizeWidth(size);
+  // The line also stops while the tab is in the background, so it never runs out unseen (that counts as seen).
+  const [isTabHidden, setIsTabHidden] = useState(false);
+  useEffect(() => {
+    const handleChange = () => setIsTabHidden(document.visibilityState === "hidden");
+    handleChange();
+    document.addEventListener("visibilitychange", handleChange);
+    return () => document.removeEventListener("visibilitychange", handleChange);
+  }, []);
+  return (
+    <div
+      role="region"
+      aria-label="Announcement"
+      style={{ width: `min(${width}px, calc(100vw - 32px))` }}
+      className="group/corner fixed bottom-4 right-4 z-50 flex max-h-[calc(100dvh-32px)] flex-col overflow-hidden rounded-card border border-border-default bg-bg-surface"
+    >
+      <div className="absolute right-3 top-3 z-10">
+        <CloseCircle left={left} onClose={onClose} />
+      </div>
+      <div className="min-h-0 overflow-y-auto">
+        <AnnouncementContent text={text} attachment={attachment} format={format} html={html} height={height} width={width} />
+      </div>
+      {autoClose > 0 && (
+        <div className="h-[3px] shrink-0 bg-accent-soft">
+          <div
+            onAnimationEnd={onClose}
+            style={{ animationDuration: `${autoClose}s`, animationPlayState: isTabHidden ? "paused" : undefined }}
+            className="h-full animate-shrink bg-accent group-hover/corner:[animation-play-state:paused]"
+          />
+        </div>
+      )}
+    </div>
   );
 }
 

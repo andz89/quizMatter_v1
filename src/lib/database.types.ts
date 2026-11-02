@@ -84,14 +84,14 @@ isOneToOne: false
                   ]
                 },"announcements": {
                   Row: {
-                    "age_max": number | null,"age_min": number | null,"bar_close_after": number,"bar_format": string,"bar_height": number,"bar_html": string,"closed_bar_count": number,"closed_cleared_at": string | null,"closed_modal_count": number,"counted_at": string | null,"created_at": string,"created_by": string | null,"education_levels": (string)[],"ends_at": string | null,"field_words": (string)[],"genders": (string)[],"id": string,"is_on": boolean,"matched_count": number | null,"modal_attachment": Json | null,"modal_close_after": number,"modal_format": string,"modal_height": number,"modal_html": string,"modal_size": string,"modal_text": string,"name": string,"pages": (string)[],"presentations_max": number | null,"presentations_min": number | null,"repeat": string,"roles": (string)[],"show_bar": boolean,"show_modal": boolean,"starts_at": string | null,"updated_at": string,"announcement_count": number | null,"announcement_is_live": boolean | null
+                    "age_max": number | null,"age_min": number | null,"bar_close_after": number,"bar_format": string,"bar_height": number,"bar_html": string,"closed_bar_count": number,"closed_cleared_at": string | null,"closed_modal_count": number,"counted_at": string | null,"created_at": string,"created_by": string | null,"education_levels": (string)[],"ends_at": string | null,"field_words": (string)[],"genders": (string)[],"id": string,"is_on": boolean,"matched_count": number | null,"modal_attachment": Json | null,"modal_auto_close": number,"modal_close_after": number,"modal_display": string,"modal_format": string,"modal_height": number,"modal_html": string,"modal_size": string,"modal_text": string,"name": string,"pages": (string)[],"presentations_max": number | null,"presentations_min": number | null,"repeat": string,"roles": (string)[],"show_bar": boolean,"show_modal": boolean,"starts_at": string | null,"updated_at": string,"announcement_count": number | null,"announcement_is_live": boolean | null
                   }
                   ComputedFields: "announcement_count" | "announcement_is_live"
                   Insert: {
-                    "age_max"?: number | null,"age_min"?: number | null,"bar_close_after"?: number,"bar_format"?: string,"bar_height"?: number,"bar_html"?: string,"closed_bar_count"?: number,"closed_cleared_at"?: string | null,"closed_modal_count"?: number,"counted_at"?: string | null,"created_at"?: string,"created_by"?: string | null,"education_levels"?: (string)[],"ends_at"?: string | null,"field_words"?: (string)[],"genders"?: (string)[],"id"?: string,"is_on"?: boolean,"matched_count"?: number | null,"modal_attachment"?: Json | null,"modal_close_after"?: number,"modal_format"?: string,"modal_height"?: number,"modal_html"?: string,"modal_size"?: string,"modal_text"?: string,"name": string,"pages"?: (string)[],"presentations_max"?: number | null,"presentations_min"?: number | null,"repeat"?: string,"roles"?: (string)[],"show_bar"?: boolean,"show_modal"?: boolean,"starts_at"?: string | null,"updated_at"?: string
+                    "age_max"?: number | null,"age_min"?: number | null,"bar_close_after"?: number,"bar_format"?: string,"bar_height"?: number,"bar_html"?: string,"closed_bar_count"?: number,"closed_cleared_at"?: string | null,"closed_modal_count"?: number,"counted_at"?: string | null,"created_at"?: string,"created_by"?: string | null,"education_levels"?: (string)[],"ends_at"?: string | null,"field_words"?: (string)[],"genders"?: (string)[],"id"?: string,"is_on"?: boolean,"matched_count"?: number | null,"modal_attachment"?: Json | null,"modal_auto_close"?: number,"modal_close_after"?: number,"modal_display"?: string,"modal_format"?: string,"modal_height"?: number,"modal_html"?: string,"modal_size"?: string,"modal_text"?: string,"name": string,"pages"?: (string)[],"presentations_max"?: number | null,"presentations_min"?: number | null,"repeat"?: string,"roles"?: (string)[],"show_bar"?: boolean,"show_modal"?: boolean,"starts_at"?: string | null,"updated_at"?: string
                   }
                   Update: {
-                    "age_max"?: number | null,"age_min"?: number | null,"bar_close_after"?: number,"bar_format"?: string,"bar_height"?: number,"bar_html"?: string,"closed_bar_count"?: number,"closed_cleared_at"?: string | null,"closed_modal_count"?: number,"counted_at"?: string | null,"created_at"?: string,"created_by"?: string | null,"education_levels"?: (string)[],"ends_at"?: string | null,"field_words"?: (string)[],"genders"?: (string)[],"id"?: string,"is_on"?: boolean,"matched_count"?: number | null,"modal_attachment"?: Json | null,"modal_close_after"?: number,"modal_format"?: string,"modal_height"?: number,"modal_html"?: string,"modal_size"?: string,"modal_text"?: string,"name"?: string,"pages"?: (string)[],"presentations_max"?: number | null,"presentations_min"?: number | null,"repeat"?: string,"roles"?: (string)[],"show_bar"?: boolean,"show_modal"?: boolean,"starts_at"?: string | null,"updated_at"?: string
+                    "age_max"?: number | null,"age_min"?: number | null,"bar_close_after"?: number,"bar_format"?: string,"bar_height"?: number,"bar_html"?: string,"closed_bar_count"?: number,"closed_cleared_at"?: string | null,"closed_modal_count"?: number,"counted_at"?: string | null,"created_at"?: string,"created_by"?: string | null,"education_levels"?: (string)[],"ends_at"?: string | null,"field_words"?: (string)[],"genders"?: (string)[],"id"?: string,"is_on"?: boolean,"matched_count"?: number | null,"modal_attachment"?: Json | null,"modal_auto_close"?: number,"modal_close_after"?: number,"modal_display"?: string,"modal_format"?: string,"modal_height"?: number,"modal_html"?: string,"modal_size"?: string,"modal_text"?: string,"name"?: string,"pages"?: (string)[],"presentations_max"?: number | null,"presentations_min"?: number | null,"repeat"?: string,"roles"?: (string)[],"show_bar"?: boolean,"show_modal"?: boolean,"starts_at"?: string | null,"updated_at"?: string
                   }
                   Relationships: [
                     
@@ -606,9 +606,51 @@ isOneToOne: false
                            },
 "admin_announcements":
 { Args: Record<PropertyKey, never>; Returns: {
-              "age_max": number,"age_min": number,"bar_close_after": number,"bar_format": string,"bar_height": number,"bar_html": string,"closed_bar": number,"closed_modal": number,"counted_at": string,"created_at": string,"created_by": string,"education_levels": (string)[],"ends_at": string,"field_words": (string)[],"genders": (string)[],"id": string,"is_on": boolean,"matched": number,"modal_attachment": Json,"modal_close_after": number,"modal_format": string,"modal_height": number,"modal_html": string,"modal_size": string,"modal_text": string,"name": string,"pages": (string)[],"presentations_max": number,"presentations_min": number,"repeat": string,"roles": (string)[],"show_bar": boolean,"show_modal": boolean,"starts_at": string,"status": string,"updated_at": string
+              "age_max": number | null,
+"age_min": number | null,
+"bar_close_after": number,
+"bar_format": string,
+"bar_height": number,
+"bar_html": string,
+"closed_bar_count": number,
+"closed_cleared_at": string | null,
+"closed_modal_count": number,
+"counted_at": string | null,
+"created_at": string,
+"created_by": string | null,
+"education_levels": (string)[],
+"ends_at": string | null,
+"field_words": (string)[],
+"genders": (string)[],
+"id": string,
+"is_on": boolean,
+"matched_count": number | null,
+"modal_attachment": Json | null,
+"modal_auto_close": number,
+"modal_close_after": number,
+"modal_display": string,
+"modal_format": string,
+"modal_height": number,
+"modal_html": string,
+"modal_size": string,
+"modal_text": string,
+"name": string,
+"pages": (string)[],
+"presentations_max": number | null,
+"presentations_min": number | null,
+"repeat": string,
+"roles": (string)[],
+"show_bar": boolean,
+"show_modal": boolean,
+"starts_at": string | null,
+"updated_at": string
             }[]
-                           },
+                          SetofOptions: {
+        from: "*"
+        to: "announcements"
+        isOneToOne: false
+        isSetofReturn: true
+      } },
 "admin_cancel_review":
 { Args: { "target_id": string }; Returns: undefined
                            },
@@ -808,7 +850,7 @@ isOneToOne: false
                            },
 "my_announcements":
 { Args: Record<PropertyKey, never>; Returns: {
-              "bar_close_after": number,"bar_format": string,"bar_height": number,"bar_html": string,"created_at": string,"id": string,"modal_attachment": Json,"modal_close_after": number,"modal_format": string,"modal_height": number,"modal_html": string,"modal_size": string,"modal_text": string,"pages": (string)[],"repeat": string,"show_bar": boolean,"show_modal": boolean
+              "bar_close_after": number,"bar_format": string,"bar_height": number,"bar_html": string,"created_at": string,"id": string,"modal_attachment": Json,"modal_auto_close": number,"modal_close_after": number,"modal_display": string,"modal_format": string,"modal_height": number,"modal_html": string,"modal_size": string,"modal_text": string,"pages": (string)[],"repeat": string,"show_bar": boolean,"show_modal": boolean
             }[]
                            },
 "my_open_review":

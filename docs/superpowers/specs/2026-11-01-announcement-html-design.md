@@ -17,12 +17,22 @@ allow-popups-to-escape-sandbox" srcdoc=…>`:
 - No `allow-same-origin`: the box is its own unknown site. It can't read QuizMatter's cookies, storage, login or page.
 - No `allow-top-navigation`, `allow-forms`, `allow-modals`: it can't move the QuizMatter page, send forms or show
   alerts. A link with `target="_blank"` opens a new tab (popups, outside the sandbox).
-- A Content Security Policy at the top of the box (`<meta http-equiv>`, before the admin's HTML; a later one can only
-  tighten it): `default-src 'none'`, inline scripts and styles allowed, pictures and media only from
-  `https://images.quizmatter.com` (and `data:`/`blob:`). Nothing is loaded from or sent to any other site, so the
-  Privacy Policy doesn't change.
-- Accepted limit: a script can still move its own box to another page (that page is just as walled off). Only the
-  super admin writes these.
+- No lock list: it may load from other sites (see "Outside sites" below).
+
+## Outside sites (2026-11-02)
+
+The box first had a lock list (`default-src 'none'`, pictures only from our R2), but a script could still move its own
+box to another site, so "loads nothing from other sites" was never fully true. Since only the super admin writes the
+HTML, the lock list was removed: the box may load pictures, fonts, code and pages from any site. The sandbox stays
+(no `allow-same-origin`), so it still can't reach QuizMatter or the teacher's login. Because of that, players from
+other sites (a YouTube or Facebook `<iframe>`) inside the box usually refuse to play; use the post modal's YouTube or
+Facebook attachment for those. The Privacy Policy names "other websites in an announcement" (LEGAL_VERSION
+2026-11-02), and the form says that an outside site sees the teacher's IP address.
+
+`sandboxedHtml` adds our helper script before the admin's HTML: Escape inside the box sends `SEALED_BOX_ESCAPE`
+(postMessage), which closes the modal once its close button shows (only that box's own message counts); a `#part`
+link scrolls inside the box instead of opening an empty tab (`<base target="_blank">`). A script that never stops can
+still freeze the teacher's page: the form says to use Preview first.
 
 ## Data (`20261230000000_announcement_html.sql`)
 
@@ -58,3 +68,10 @@ allow-popups-to-escape-sandbox" srcdoc=…>`:
 - `announcement_uses_photo` and `used_photo_srcs` also look in an html bar. Test:
   `supabase/tests/announcement_bar_html.sql`.
 - Preview moved into each section, next to the close delay (`CloseAfter`).
+
+## The unused part is kept empty (2026-11-02, `20261231000200_announcement_unused_part.sql`)
+
+An announcement is a modal or a top bar, but the form used to save the other part too, and a photo in it counted as
+used. A trigger (`announcement_empty_unused_part`) now empties it on every write: a top bar has no modal text,
+attachment or html, a modal has no bar html (a row showing both keeps both); the migration cleaned the old rows. The
+form sends them empty too. Test: `supabase/tests/announcement_unused_part.sql`.

@@ -83,6 +83,9 @@ export const ANNOUNCEMENT_LIMITS = {
   // The HTML top bar (20261231000000_announcement_bar_html.sql): its HTML has modalHtml's limit, a text bar barHtml's.
   barHeightMin: 30,
   barHeightMax: 300,
+  // The corner box closes itself after this many seconds, or never (0) (20261231000300_announcement_corner_box.sql).
+  autoCloseMin: 5,
+  autoCloseMax: 600,
 };
 const L = ANNOUNCEMENT_LIMITS;
 
@@ -94,6 +97,32 @@ export const DEFAULT_MODAL_HEIGHT = 400;
 export const BAR_FORMATS = ["text", "html"] as const;
 export type BarFormat = (typeof BAR_FORMATS)[number];
 export const DEFAULT_BAR_HEIGHT = 60;
+
+// Where a modal row shows (spec docs/superpowers/specs/2026-11-02-announcement-corner-box-design.md): in the middle
+// (the modal) or as a box at the bottom-right that doesn't block the page (the corner box), Small or Medium only.
+export const MODAL_DISPLAYS = ["center", "corner"] as const;
+export type ModalDisplay = (typeof MODAL_DISPLAYS)[number];
+export const CORNER_SIZES: ModalSize[] = ["small", "medium"];
+
+/** The three types an announcement can be, as the admin pages name them; each has its own "one on" slot. */
+export type AnnouncementType = "modal" | "bar" | "corner";
+export function announcementType(a: { show_bar: boolean; modal_display: ModalDisplay }): AnnouncementType {
+  if (a.show_bar) return "bar";
+  return a.modal_display === "corner" ? "corner" : "modal";
+}
+export const TYPE_WORDS: Record<AnnouncementType, string> = { modal: "modal", bar: "top bar", corner: "corner box" };
+
+/** The admin list's status label ("off" shows as Draft). Same rule as the database's announcement_is_live. */
+export type AnnouncementStatus = "live" | "scheduled" | "ended" | "off";
+export function announcementStatus(
+  a: { is_on: boolean; starts_at: string | null; ends_at: string | null },
+  now: Date,
+): AnnouncementStatus {
+  if (a.ends_at !== null && new Date(a.ends_at) <= now) return "ended";
+  if (!a.is_on) return "off";
+  if (a.starts_at !== null && new Date(a.starts_at) > now) return "scheduled";
+  return "live";
+}
 
 // Same values as EDUCATION_LEVELS in userSettings.ts. That file can't load in a test (it imports svgLibrary,
 // which a test can't load), so they're repeated here; the type check below fails if the two ever differ.
@@ -107,6 +136,10 @@ const words = z
 const age = z.number().int().min(L.ageMin).max(L.ageMax).nullable();
 const count = z.number().int().min(0).max(L.presentationsMax).nullable();
 const time = z.iso.datetime({ offset: true }).nullable();
+// An empty height box sends 0: say which box is wrong, not zod's "Too small".
+const MODAL_HEIGHT_WRONG = `The box height must be ${L.modalHeightMin}–${L.modalHeightMax.toLocaleString("en-US")} px.`;
+const BAR_HEIGHT_WRONG = `The bar height must be ${L.barHeightMin}–${L.barHeightMax} px.`;
+const AUTO_CLOSE_WRONG = `It closes itself after ${L.autoCloseMin}–${L.autoCloseMax} seconds, or never.`;
 
 // Every key the database's save_announcement reads (a missing key counts as empty there and is refused).
 // The modal's one attachment, under its text (spec docs/superpowers/specs/2026-10-31-announcement-post-design.md):
@@ -178,9 +211,22 @@ export const announcementSchema = z
     modal_size: z.enum(MODAL_SIZE_KEYS),
     modal_format: z.enum(MODAL_FORMATS),
     modal_html: z.string().max(L.modalHtml),
-    modal_height: z.number().int().min(L.modalHeightMin).max(L.modalHeightMax),
+    modal_height: z.number().int(MODAL_HEIGHT_WRONG).min(L.modalHeightMin, MODAL_HEIGHT_WRONG).max(L.modalHeightMax, MODAL_HEIGHT_WRONG),
     bar_format: z.enum(BAR_FORMATS),
-    bar_height: z.number().int().min(L.barHeightMin).max(L.barHeightMax),
+    bar_height: z.number().int(BAR_HEIGHT_WRONG).min(L.barHeightMin, BAR_HEIGHT_WRONG).max(L.barHeightMax, BAR_HEIGHT_WRONG),
+    modal_display: z.enum(MODAL_DISPLAYS),
+    modal_auto_close: z
+      .number()
+      .int(AUTO_CLOSE_WRONG)
+      .refine((n) => n === 0 || (n >= L.autoCloseMin && n <= L.autoCloseMax), AUTO_CLOSE_WRONG),
+  })
+  .refine((a) => a.modal_display === "center" || CORNER_SIZES.includes(a.modal_size), {
+    message: "A corner box is Small or Medium.",
+    path: ["modal_size"],
+  })
+  .refine((a) => a.modal_display === "corner" || a.modal_auto_close === 0, {
+    message: "Only a corner box closes itself.",
+    path: ["modal_auto_close"],
   })
   .refine((a) => a.bar_format !== "text" || a.bar_html.length <= L.barHtml, {
     message: `The bar's text is too long (${L.barHtml} characters at most, with its formatting).`,
@@ -235,47 +281,59 @@ export const myAnnouncementSchema = z.object({
   // Missing (a row from before the HTML bar) = a text bar.
   bar_format: z.enum(BAR_FORMATS).catch("text"),
   bar_height: z.number().catch(DEFAULT_BAR_HEIGHT),
+  // Missing (a row from before the corner box) = a centered modal that never closes itself.
+  modal_display: z.enum(MODAL_DISPLAYS).catch("center"),
+  modal_auto_close: z.number().catch(0),
 });
 export type MyAnnouncement = z.infer<typeof myAnnouncementSchema>;
 
-// The sealed box's lock list (Content Security Policy): its own inline scripts and styles, pictures and media only
-// from our storage, nothing else (no outside scripts, fonts or frames, and no sending data anywhere: connect-src
-// falls back to 'none').
-const PHOTO_ORIGIN = new URL(PHOTO_URL_PREFIX).origin;
-const SEALED_BOX_POLICY = [
-  "default-src 'none'",
-  "script-src 'unsafe-inline'",
-  "style-src 'unsafe-inline'",
-  `img-src ${PHOTO_ORIGIN} data: blob:`,
-  `media-src ${PHOTO_ORIGIN} data: blob:`,
-  "font-src data:",
-  "form-action 'none'",
-].join("; ");
+/** What the sealed box sends the page (postMessage) when Escape is pressed inside it; the modal then closes. */
+export const SEALED_BOX_ESCAPE = "qm-box:escape";
+
+// Our helper, before the admin's HTML: Escape tells the page (key presses inside the box never reach it), and a
+// "#part" link scrolls inside the box instead of opening an empty tab (<base target="_blank">).
+const SEALED_BOX_HELPER = `<script>
+addEventListener("keydown", function (e) { if (e.key === "Escape") parent.postMessage("${SEALED_BOX_ESCAPE}", "*"); });
+addEventListener("click", function (e) {
+  var link = e.target.closest && e.target.closest('a[href^="#"]');
+  if (!link) return;
+  e.preventDefault();
+  var id = decodeURIComponent(link.getAttribute("href").slice(1));
+  var target = id ? document.getElementById(id) || document.getElementsByName(id)[0] : document.body;
+  if (target) target.scrollIntoView({ behavior: "smooth" });
+}, true);
+</script>`;
 
 /**
- * The document an HTML modal runs in (spec docs/superpowers/specs/2026-11-01-announcement-html-design.md): the lock
- * list first (a later one in the admin's HTML can only tighten it), links open a new tab, then the admin's HTML. It's
- * shown only in AnnouncementView's sandboxed frame, which keeps it away from QuizMatter and the teacher's login.
+ * The document an HTML modal or top bar runs in (spec docs/superpowers/specs/2026-11-01-announcement-html-design.md):
+ * our helper, links open a new tab, then the admin's HTML, which may load pictures, fonts and code from other sites
+ * (the Privacy Policy says so). It's shown only in AnnouncementView's sandboxed frame, which keeps it away from
+ * QuizMatter and the teacher's login.
  */
 export function sandboxedHtml(html: string): string {
-  return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${SEALED_BOX_POLICY}"><meta name="viewport" content="width=device-width, initial-scale=1"><base target="_blank"></head><body style="margin:0">${html}</body></html>`;
+  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><base target="_blank">${SEALED_BOX_HELPER}</head><body style="margin:0">${html}</body></html>`;
 }
 
 /**
  * What to show on a page: the announcements that fit it, without parts this tab closed (key "<id>:modal" or
- * "<id>:bar"), newest first. At most 2 bars.
+ * "<id>:bar"; a corner box closes as its modal), newest first. At most 2 bars. Corner boxes wait while a modal
+ * shows: under its backdrop the box can't be seen or hovered, so its "closes itself" timer would run out unseen (and
+ * count as seen).
  */
 export function pickForPage(
   list: MyAnnouncement[],
   group: PageGroup,
   closed: ReadonlySet<string>,
-): { modals: MyAnnouncement[]; bars: MyAnnouncement[] } {
+): { modals: MyAnnouncement[]; bars: MyAnnouncement[]; boxes: MyAnnouncement[] } {
   const fits = list
     .filter((a) => a.pages.includes("all") || a.pages.includes(group))
     .sort((a, b) => b.created_at.localeCompare(a.created_at));
+  const open = fits.filter((a) => a.show_modal && !closed.has(`${a.id}:modal`));
+  const modals = open.filter((a) => a.modal_display === "center");
   return {
-    modals: fits.filter((a) => a.show_modal && !closed.has(`${a.id}:modal`)),
+    modals,
     bars: fits.filter((a) => a.show_bar && !closed.has(`${a.id}:bar`)).slice(0, 2),
+    boxes: modals.length > 0 ? [] : open.filter((a) => a.modal_display === "corner"),
   };
 }
 

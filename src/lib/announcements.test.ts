@@ -2,7 +2,11 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   MODAL_SIZES,
+  SEALED_BOX_ESCAPE,
+  TYPE_WORDS,
   announcementSchema,
+  announcementStatus,
+  announcementType,
   isInternalLink,
   isSameVisit,
   manilaDay,
@@ -57,6 +61,8 @@ const valid = {
   modal_height: 400,
   bar_format: "text",
   bar_height: 60,
+  modal_display: "center",
+  modal_auto_close: 0,
 };
 
 const PHOTO = "https://images.quizmatter.com/uploads/";
@@ -90,14 +96,22 @@ test("announcementSchema takes an html modal with its html and height", () => {
   }
 });
 
-test("sandboxedHtml puts the lock list first, then the html", () => {
+test("sandboxedHtml has no lock list: outside pictures, fonts and code may load", () => {
+  assert.doesNotMatch(sandboxedHtml("<p>Hi</p>"), /Content-Security-Policy/);
+});
+
+test("sandboxedHtml puts the helper script (Escape, # links) before the html", () => {
   const doc = sandboxedHtml("<p>Hi</p>");
-  const lock = doc.indexOf('http-equiv="Content-Security-Policy"');
-  assert.ok(lock > 0 && lock < doc.indexOf("<p>Hi</p>"));
-  assert.match(doc, /default-src 'none'/);
-  assert.match(doc, /img-src https:\/\/images\.quizmatter\.com /);
-  assert.doesNotMatch(doc, /connect-src/);
+  const helper = doc.indexOf(SEALED_BOX_ESCAPE);
+  assert.ok(helper > 0 && helper < doc.indexOf("<p>Hi</p>"));
+  assert.match(doc, /a\[href\^="#"\]/);
   assert.match(doc, /<base target="_blank">/);
+});
+
+test("announcementSchema says which box height is wrong", () => {
+  const message = (change: object) => announcementSchema.safeParse({ ...valid, ...change }).error?.issues[0].message;
+  assert.equal(message({ modal_height: 0 }), "The box height must be 100–1,000 px.");
+  assert.equal(message({ bar_height: 0 }), "The bar height must be 30–300 px.");
 });
 
 test("a my_announcements row without the html fields (saved before them) is a post", () => {
@@ -189,6 +203,8 @@ function row(id: string, createdAt: string, change: Partial<MyAnnouncement> = {}
     modal_height: 400,
     bar_format: "text",
     bar_height: 60,
+    modal_display: "center",
+    modal_auto_close: 0,
     ...change,
   };
 }
@@ -256,4 +272,76 @@ test("a my_announcements row without a size (saved before sizes) is large", () =
   const { modal_size, ...old } = row("a", "2026-01-01T00:00:00Z");
   void modal_size;
   assert.equal(myAnnouncementSchema.parse(old).modal_size, "large");
+});
+
+test("announcementSchema takes a corner box, Small or Medium, closing itself after 5–600 seconds", () => {
+  const box = { ...valid, modal_display: "corner", modal_size: "small", modal_auto_close: 30 };
+  const parsed = announcementSchema.parse(box);
+  assert.equal(parsed.modal_display, "corner");
+  assert.equal(parsed.modal_auto_close, 30);
+  for (const change of [{ modal_size: "medium" }, { modal_auto_close: 0 }, { modal_auto_close: 5 }, { modal_auto_close: 600 }]) {
+    assert.equal(announcementSchema.safeParse({ ...box, ...change }).success, true, JSON.stringify(change));
+  }
+});
+
+test("announcementSchema refuses a bad corner box", () => {
+  const box = { ...valid, modal_display: "corner", modal_size: "small", modal_auto_close: 30 };
+  const message = (change: object) => announcementSchema.safeParse({ ...box, ...change }).error?.issues[0].message;
+  assert.equal(message({ modal_size: "large" }), "A corner box is Small or Medium.");
+  assert.equal(message({ modal_auto_close: 4 }), "It closes itself after 5–600 seconds, or never.");
+  assert.equal(message({ modal_auto_close: 601 }), "It closes itself after 5–600 seconds, or never.");
+  assert.equal(announcementSchema.safeParse({ ...box, modal_display: "side" }).success, false);
+  assert.equal(
+    announcementSchema.safeParse({ ...valid, modal_auto_close: 10 }).error?.issues[0].message,
+    "Only a corner box closes itself.",
+  );
+});
+
+test("a my_announcements row without the corner fields is a centered modal", () => {
+  const { modal_display, modal_auto_close, ...older } = row("a", "2026-01-01T00:00:00Z");
+  void modal_display;
+  void modal_auto_close;
+  const parsed = myAnnouncementSchema.parse(older);
+  assert.equal(parsed.modal_display, "center");
+  assert.equal(parsed.modal_auto_close, 0);
+});
+
+test("pickForPage puts corner boxes in boxes, not modals", () => {
+  const list = [
+    row("center", "2026-01-01T00:00:00Z", { show_bar: false }),
+    row("corner", "2026-02-01T00:00:00Z", { show_bar: false, modal_display: "corner", modal_size: "small" }),
+  ];
+  assert.deepEqual(pickForPage(list, "saved", new Set()).modals.map((r) => r.id), ["center"]);
+  const boxOnly = [list[1]];
+  assert.deepEqual(pickForPage(boxOnly, "saved", new Set()).modals, []);
+  assert.deepEqual(pickForPage(boxOnly, "saved", new Set()).boxes.map((r) => r.id), ["corner"]);
+  assert.deepEqual(pickForPage(boxOnly, "saved", new Set(["corner:modal"])).boxes, []);
+});
+
+test("announcementType: a top bar, a corner box or a modal, with its word", () => {
+  assert.equal(announcementType({ show_bar: true, modal_display: "center" }), "bar");
+  assert.equal(announcementType({ show_bar: false, modal_display: "corner" }), "corner");
+  assert.equal(announcementType({ show_bar: false, modal_display: "center" }), "modal");
+  assert.equal(TYPE_WORDS.corner, "corner box");
+});
+
+test("pickForPage holds a corner box back while a modal shows (its timer must not run unseen)", () => {
+  const list = [
+    row("center", "2026-01-01T00:00:00Z", { show_bar: false }),
+    row("corner", "2026-02-01T00:00:00Z", { show_bar: false, modal_display: "corner", modal_size: "small" }),
+  ];
+  assert.deepEqual(pickForPage(list, "saved", new Set()).boxes, []);
+  assert.deepEqual(pickForPage(list, "saved", new Set(["center:modal"])).boxes.map((r) => r.id), ["corner"]);
+});
+
+test("announcementStatus: live, scheduled, ended, off (ended wins)", () => {
+  const now = new Date("2026-11-02T00:00:00Z");
+  const status = (is_on: boolean, starts_at: string | null, ends_at: string | null) =>
+    announcementStatus({ is_on, starts_at, ends_at }, now);
+  assert.equal(status(true, null, null), "live");
+  assert.equal(status(true, "2026-11-03T00:00:00Z", null), "scheduled");
+  assert.equal(status(true, null, "2026-11-01T23:00:00Z"), "ended");
+  assert.equal(status(false, null, "2026-11-01T23:00:00Z"), "ended");
+  assert.equal(status(false, null, null), "off");
+  assert.equal(status(true, null, "2026-11-02T00:00:00Z"), "ended");
 });

@@ -14,7 +14,7 @@ import {
   type MyAnnouncement,
 } from "@/lib/announcements";
 import { createClient } from "@/lib/supabase/client";
-import { AnnouncementBar, AnnouncementModal } from "./AnnouncementView";
+import { AnnouncementBar, AnnouncementCornerBox, AnnouncementModal } from "./AnnouncementView";
 import { isEditorPage } from "./Footer";
 
 // What this tab knows (sessionStorage, so a new tab asks again): the key it was asked under, the Philippine date,
@@ -116,7 +116,7 @@ export function AnnouncementsWatch({ announcementsKey }: { announcementsKey: str
   }, []);
 
   if (!group || !stored || !userId || !isSameVisit(stored, { day, userId }) || isPresenting) return null;
-  const { modals, bars } = pickForPage(stored.items, group, new Set(stored.closed));
+  const { modals, bars, boxes } = pickForPage(stored.items, group, new Set(stored.closed));
   const isFloating = isEditorPage(pathname);
 
   // Gone at once in this tab. "Once" and "once a day" also tell the database (a failure is ignored: it stays
@@ -133,27 +133,42 @@ export function AnnouncementsWatch({ announcementsKey }: { announcementsKey: str
   };
 
   const modal = modals[0];
-  const barList = bars.map((bar) => (
-    <AnnouncementBar
-      key={bar.id}
-      html={bar.bar_html}
-      format={bar.bar_format}
-      height={bar.bar_height}
-      closeAfter={bar.bar_close_after}
-      isFloating={isFloating}
-      onClose={() => close(bar, "bar")}
-    />
-  ));
+  const box = boxes[0];
 
   return (
     <>
-      {bars.length > 0 &&
-        (isFloating ? (
-          // The editor fills the screen, so its bars float at the bottom instead of pushing it down.
-          <div className="fixed bottom-4 left-1/2 z-50 flex -translate-x-1/2 flex-col gap-2">{barList}</div>
-        ) : (
-          barList
-        ))}
+      {bars.length > 0 && (
+        // The editor fills the screen, so its bars float at the bottom instead of pushing it down. The same div on
+        // every page, so moving to or from the editor keeps the bars (their countdown and HTML box don't restart).
+        <div className={isFloating ? "fixed bottom-4 left-1/2 z-50 flex -translate-x-1/2 flex-col gap-2" : undefined}>
+          {bars.map((bar) => (
+            <AnnouncementBar
+              key={bar.id}
+              html={bar.bar_html}
+              format={bar.bar_format}
+              height={bar.bar_height}
+              closeAfter={bar.bar_close_after}
+              isFloating={isFloating}
+              onClose={() => close(bar, "bar")}
+            />
+          ))}
+        </div>
+      )}
+      {/* The corner box doesn't block the page; closing itself counts like the close button (part "modal"). */}
+      {box && (
+        <AnnouncementCornerBox
+          key={box.id}
+          text={box.modal_text}
+          attachment={box.modal_attachment}
+          format={box.modal_format}
+          html={box.modal_html}
+          height={box.modal_height}
+          closeAfter={box.modal_close_after}
+          autoClose={box.modal_auto_close}
+          size={box.modal_size}
+          onClose={() => close(box, "modal")}
+        />
+      )}
       {modal && (
         <AnnouncementModal
           key={modal.id}

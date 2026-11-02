@@ -349,7 +349,7 @@ begin
 end;
 $$;
 
--- ─── 10. admin_announcements: status, matched, closed ─────────────────────────────────────────────────────────
+-- ─── 10. admin_announcements: the rows with their kept counts (the status label is the app's announcementStatus) ──
 do $$
 declare
   a1 constant uuid := '00000000-0000-4000-8000-0000000000f1';
@@ -371,13 +371,9 @@ begin
   -- Saving doesn't count (20261224000000_announcement_fast_counts.sql); the app asks for it next, like this.
   perform public.recount_announcement(main_id);
   for r in select * from public.admin_announcements() loop
-    if r.id = main_id and (r.status <> 'live'
-      or r.matched <> (select accounts from before_test) + 5 or r.closed_modal <> 1 or r.closed_bar <> 0) then
-      raise exception 'FAIL: admin_announcements row for Main is wrong: % matched %, closed %', r.status, r.matched, r.closed_modal;
-    end if;
-    if (r.id = scheduled and r.status <> 'scheduled') or (r.id = ended and r.status <> 'ended')
-      or (r.id = off and r.status <> 'off') then
-      raise exception 'FAIL: admin_announcements status % for %', r.status, r.name;
+    if r.id = main_id and (not r.is_on
+      or r.matched_count <> (select accounts from before_test) + 5 or r.closed_modal_count <> 1 or r.closed_bar_count <> 0) then
+      raise exception 'FAIL: admin_announcements row for Main is wrong: matched %, closed %', r.matched_count, r.closed_modal_count;
     end if;
   end loop;
   if (select count(*) from public.admin_announcements() x where x.id in (main_id, scheduled, ended, off)) <> 4 then

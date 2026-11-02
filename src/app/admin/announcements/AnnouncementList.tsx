@@ -7,22 +7,30 @@ import { PencilIcon, PlusIcon, RefreshCwIcon, Trash2Icon } from "lucide-react";
 import { LinkPending } from "@/components/LinkPending";
 import { Spinner } from "@/components/Spinner";
 import { ConfirmModal } from "@/components/editor/ConfirmModal";
-import type { AnnouncementInput } from "@/lib/announcements";
+import {
+  TYPE_WORDS,
+  announcementStatus,
+  announcementType,
+  type AnnouncementInput,
+  type AnnouncementStatus,
+} from "@/lib/announcements";
 import { deleteAnnouncement, recountAnnouncement, setAnnouncementOn } from "./actions";
 
-/** One row of admin_announcements(). */
+/**
+ * One row of admin_announcements() (the table's own row; the status label is worked out here: announcementStatus).
+ * The counts are kept on the row: counted when it's saved and on "Count again", not on every page load (null = never
+ * counted; also missing from the older admin_announcements during a deploy).
+ */
 export type AnnouncementRow = AnnouncementInput & {
   id: string;
   created_at: string;
-  status: "live" | "scheduled" | "ended" | "off";
-  // Kept on the row: counted when it's saved and on "Count again", not on every page load (null = never counted).
-  matched: number | null;
-  closed_modal: number;
-  closed_bar: number;
+  matched_count: number | null;
+  closed_modal_count: number | null;
+  closed_bar_count: number | null;
   counted_at: string | null;
 };
 
-const STATUS: Record<AnnouncementRow["status"], { label: string; className: string }> = {
+const STATUS: Record<AnnouncementStatus, { label: string; className: string }> = {
   live: { label: "Live", className: "bg-success-soft text-success-strong" },
   scheduled: { label: "Scheduled", className: "bg-highlight-soft text-text-primary" },
   ended: { label: "Ended", className: "bg-bg-page text-text-secondary" },
@@ -82,9 +90,16 @@ function Row({ row }: { row: AnnouncementRow }) {
   const [isConfirming, setIsConfirming] = useState(false);
   // The name of the one of the same type that is on, when Turn on was refused for it (the box asks).
   const [conflict, setConflict] = useState<string | null>(null);
-  const status = STATUS[row.status];
-  const parts = [row.show_modal && "Modal", row.show_bar && "Bar"].filter(Boolean).join(" + ");
-  const typeWord = row.show_bar ? "top bar" : "modal";
+  const statusKey = announcementStatus(row, new Date());
+  const status = STATUS[statusKey];
+  const parts = [
+    row.show_modal && (row.modal_display === "corner" ? "Corner box" : "Modal"),
+    row.show_bar && "Bar",
+  ]
+    .filter(Boolean)
+    .join(" + ")
+    .concat(row.modal_auto_close > 0 ? ` · closes after ${row.modal_auto_close} s` : "");
+  const typeWord = TYPE_WORDS[announcementType(row)];
 
   // replaceCurrent: turn off the one of the same type that is on (after the box asked).
   const toggle = (replaceCurrent = false) => {
@@ -124,9 +139,9 @@ function Row({ row }: { row: AnnouncementRow }) {
           </div>
           <p className="mt-0.5 text-[13px] text-text-secondary">
             {parts} ·{" "}
-            {row.counted_at === null || row.matched === null
+            {row.counted_at == null || row.matched_count == null
               ? "Not counted yet"
-              : `Matches ${row.matched.toLocaleString("en-US")} · Closed: modal ${row.closed_modal.toLocaleString("en-US")} · bar ${row.closed_bar.toLocaleString("en-US")} · counted ${formatCountedAt(row.counted_at)}`}
+              : `Matches ${row.matched_count.toLocaleString("en-US")} · Closed: ${row.modal_display === "corner" ? "corner box" : "modal"} ${(row.closed_modal_count ?? 0).toLocaleString("en-US")} · bar ${(row.closed_bar_count ?? 0).toLocaleString("en-US")} · counted ${formatCountedAt(row.counted_at)}`}
           </p>
         </div>
 
@@ -141,7 +156,7 @@ function Row({ row }: { row: AnnouncementRow }) {
             <RefreshCwIcon size={14} />
             Count again
           </button>
-          {row.status !== "ended" && (
+          {statusKey !== "ended" && (
             <button type="button" onClick={() => toggle()} disabled={isBusy} className={SMALL_BUTTON_CLASS}>
               {row.is_on ? "Turn off" : "Turn on"}
             </button>

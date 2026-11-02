@@ -13,7 +13,8 @@ import { XIcon } from "lucide-react";
  * nothing (e.g. an announcement before its close button may show). `hideHeader` leaves out the title row and ✕
  * (the title still names the box for screen readers); the footer then needs its own way to close. `width` gives the
  * box an exact width in px (e.g. an announcement), still shrinking to fit a smaller screen. `noPadding` lets the
- * content reach the box's edges (its corners are clipped round).
+ * content reach the box's edges (its corners are clipped round). `corner` floats in the box's top-right corner, over
+ * the content and outside its scrolling (e.g. an announcement's close button).
  */
 export function Modal({
   title,
@@ -24,6 +25,7 @@ export function Modal({
   hideHeader = false,
   width,
   noPadding = false,
+  corner,
   footer,
   children,
 }: {
@@ -35,6 +37,7 @@ export function Modal({
   hideHeader?: boolean;
   width?: number;
   noPadding?: boolean;
+  corner?: ReactNode;
   footer?: ReactNode;
   children: ReactNode;
 }) {
@@ -58,11 +61,12 @@ export function Modal({
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className={`flex max-h-full w-full flex-col rounded-card bg-bg-surface ${isNarrow ? "max-w-md" : "max-w-2xl"} ${
+        className={`relative flex max-h-full w-full flex-col rounded-card bg-bg-surface ${isNarrow ? "max-w-md" : "max-w-2xl"} ${
           noPadding ? "overflow-hidden" : ""
         }`}
         style={width ? { maxWidth: width } : undefined}
       >
+        {corner && <div className="absolute right-3 top-3 z-10">{corner}</div>}
         {!hideHeader && (
           <div className="flex items-center gap-3 border-b border-border-default px-5 py-3.5">
             <h2 className="text-[15px] font-extrabold text-text-primary">{title}</h2>
