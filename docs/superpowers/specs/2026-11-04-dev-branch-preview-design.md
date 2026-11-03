@@ -23,7 +23,7 @@ Work moves from `dev` to `main` only through a GitHub pull request.
 ## The flow
 
 ```
-work ──push──► dev ──► Cloudflare uploads a preview version ──► https://dev-quizmatter-v1.<account>.workers.dev
+work ──push──► dev ──► Cloudflare builds a Worker Preview "dev" ──► https://dev-quizmatter-v1.<account>.workers.dev
                 │
                 └─ pull request dev → main (GitHub checks run) ── Merge ──► main ──► Cloudflare deploys quizmatter.com
 ```
@@ -44,11 +44,17 @@ Left alone: the old branches (`feat/diagrams`, `teacher-profiles`, …) and the 
 
 ## Settings outside the repo (done by the user, with exact steps)
 
-1. **Cloudflare → Workers & Pages → quizmatter-v1 → Settings → Build:** production branch stays `main` with its
-   current deploy command. Turn on **builds for non-production branches**, with the non-production deploy command
-   `npx opennextjs-cloudflare upload --preview-alias dev` (OpenNext passes the extra argument on to
-   `wrangler versions upload`). A version upload never becomes the live version and never runs the cron timers
-   (photo and account cleanups), so they don't run twice.
+1. **Cloudflare → Workers & Pages → quizmatter-v1 → Settings → Builds:** the Production tab stays as it is (`main`,
+   `npx opennextjs-cloudflare build`, `npx opennextjs-cloudflare deploy`). The Previews Base tab (Cloudflare's Worker
+   Previews, beta): "Builds for Preview branches" on, build command `npx opennextjs-cloudflare build`, preview
+   command `npx wrangler preview` (a Preview named after the branch; plain wrangler is enough, since OpenNext's
+   deploy only adds a cache fill and skew protection, which this app doesn't use), and the build variables
+   `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` with the Production values (they are baked into the
+   build). Previews keep their own secrets: if `SUPABASE_SECRET_KEY` is needed there, the user adds it
+   (`wrangler preview secret`). A Preview never becomes the live version and never runs the cron timers (photo and
+   account cleanups), so they don't run twice.
+   (Changed on 2026-11-04: the plan first named `opennextjs-cloudflare upload --preview-alias dev`, for the older
+   version-upload previews; the dashboard has Worker Previews instead.)
 2. **Supabase (live) → Authentication → URL Configuration → Redirect URLs:** add
    `https://dev-quizmatter-v1.<account>.workers.dev/**`, so email links and sign-in redirects work on the preview.
 3. **Cloudflare → Turnstile → the site's widget → Hostnames:** add `dev-quizmatter-v1.<account>.workers.dev`, so the
@@ -79,6 +85,5 @@ Left alone: the old branches (`feat/diagrams`, `teacher-profiles`, …) and the 
 ## Risks
 
 - The preview writes real data (the user's choice). Access (step 4) keeps strangers out.
-- If `--preview-alias` isn't passed through, the build still works but only gives a per-version link
-  (`<version>-quizmatter-v1.<account>.workers.dev`); then the deploy command becomes
-  `npx wrangler versions upload --preview-alias dev` after the OpenNext build.
+- Worker Previews are in beta: if `npx wrangler preview` stops working, the fallback is the older version upload
+  (`npx opennextjs-cloudflare upload --preview-alias dev`).

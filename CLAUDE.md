@@ -73,10 +73,12 @@ After implementing, do a checking step before saying the work is done:
 
 Design: `docs/superpowers/specs/2026-11-04-dev-branch-preview-design.md`.
 
-- **Work on `dev`.** Commit and push there. Cloudflare builds every push to `dev` as a preview version (never the
-  live one, and it runs no cleanup timers): **https://dev-quizmatter-v1.andzrivero89.workers.dev**. Its
-  non-production deploy command (Cloudflare → the Worker → Settings → Build) is
-  `npx opennextjs-cloudflare upload --preview-alias dev`; `wrangler.jsonc` keeps `"preview_urls": true`.
+- **Work on `dev`.** Commit and push there. Cloudflare's Worker Previews (beta) build every push to a branch other
+  than `main` as a Preview named after the branch (never the live version, and it runs no cleanup timers):
+  **https://dev-quizmatter-v1.andzrivero89.workers.dev**. Its settings: Cloudflare → the Worker → Settings →
+  Builds → Previews Base (build `npx opennextjs-cloudflare build`, preview command `npx wrangler preview`, plus
+  the build variables `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY`, as on Production; previews keep
+  their own secrets). `wrangler.jsonc` keeps `"preview_urls": true`.
 - **The preview uses the live Supabase, R2 photos and D1 drafts** (the user's choice): what's done there is real.
 - **Release:** a pull request from `dev` to `main`
   (`https://github.com/andz89/quizMatter_v1/compare/main...dev`); GitHub's checks run on it; the user merges.
