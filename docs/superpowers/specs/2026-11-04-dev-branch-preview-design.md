@@ -48,9 +48,11 @@ Left alone: the old branches (`feat/diagrams`, `teacher-profiles`, …) and the 
    `npx opennextjs-cloudflare build`, `npx opennextjs-cloudflare deploy`). The Previews Base tab (Cloudflare's Worker
    Previews, beta): "Builds for Preview branches" on, build command `npx opennextjs-cloudflare build`, preview
    command `npx wrangler preview` (a Preview named after the branch; plain wrangler is enough, since OpenNext's
-   deploy only adds a cache fill and skew protection, which this app doesn't use), and the build variables
-   `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` with the Production values (they are baked into the
-   build). Previews keep their own secrets: if `SUPABASE_SECRET_KEY` is needed there, the user adds it
+   deploy only adds a cache fill and skew protection, which this app doesn't use). The two public build values
+   `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` (baked into the build) come from the committed
+   `.env.production`: the Previews Base tab didn't keep build variables or an edited build command (four builds
+   failed with `Invalid URL`), and both values are public anyway. Production's own build secrets win over the file.
+   Previews keep their own secrets: if `SUPABASE_SECRET_KEY` is needed there, the user adds it
    (`wrangler preview secret`). A Preview never becomes the live version and never runs the cron timers (photo and
    account cleanups), so they don't run twice.
    (Changed on 2026-11-04: the plan first named `opennextjs-cloudflare upload --preview-alias dev`, for the older

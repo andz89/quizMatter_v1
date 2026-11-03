@@ -76,9 +76,11 @@ Design: `docs/superpowers/specs/2026-11-04-dev-branch-preview-design.md`.
 - **Work on `dev`.** Commit and push there. Cloudflare's Worker Previews (beta) build every push to a branch other
   than `main` as a Preview named after the branch (never the live version, and it runs no cleanup timers):
   **https://dev-quizmatter-v1.andzrivero89.workers.dev**. Its settings: Cloudflare → the Worker → Settings →
-  Builds → Previews Base (build `npx opennextjs-cloudflare build`, preview command `npx wrangler preview`, plus
-  the build variables `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY`, as on Production; previews keep
-  their own secrets). `wrangler.jsonc` keeps `"preview_urls": true`.
+  Builds → Previews Base (build `npx opennextjs-cloudflare build`, preview command `npx wrangler preview`; previews
+  keep their own secrets). That tab didn't keep build variables, so the two public build values
+  (`NEXT_PUBLIC_SUPABASE_URL`, the anon `NEXT_PUBLIC_SUPABASE_ANON_KEY`) are committed in `.env.production`
+  (`!.env.production` in `.gitignore`); Production's build secrets win over it, `next dev` never reads it. Never put a
+  secret key there: the repo is public. `wrangler.jsonc` keeps `"preview_urls": true`.
 - **The preview uses the live Supabase, R2 photos and D1 drafts** (the user's choice): what's done there is real.
 - **Release:** a pull request from `dev` to `main`
   (`https://github.com/andz89/quizMatter_v1/compare/main...dev`); GitHub's checks run on it; the user merges.
