@@ -149,6 +149,13 @@ test("an embed slide only keeps a link its kind can show", () => {
   assert.equal(embed("image", "javascript:alert(1)"), false);
 });
 
+test("an element keeps a real calendar date and refuses one that doesn't exist", () => {
+  const calendar = { id: "e1", assetId: "calendar-page", x: 0, y: 0, width: 100, height: 100, color: "#191A2C", containerId: null };
+  const kept = svgElementSchema.parse({ ...calendar, calendarDate: { year: 2026, month: 11, day: 4 } });
+  assert.deepEqual(kept.calendarDate, { year: 2026, month: 11, day: 4 });
+  assert.equal(svgElementSchema.safeParse({ ...calendar, calendarDate: { year: 2026, month: 2, day: 30 } }).success, false);
+});
+
 test("slideSchema keeps a slide's hidden mark", () => {
   assert.equal(slideSchema.parse({ ...blankSlide, hidden: true }).hidden, true);
   assert.equal(slideSchema.parse(blankSlide).hidden, undefined);

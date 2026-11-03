@@ -50,6 +50,8 @@ import { BACKGROUND_COLORS, BACKGROUND_GRADIENTS, BACKGROUND_MESHES } from "./sl
 import { fitInBox, MIN_ELEMENT_SIZE, TRIM_PADDING, type Rect, type Size } from "./geometry";
 import ASSET_SHAPES from "./assetShapes.json";
 import { createId } from "./id";
+import { DEFAULT_CALENDAR_DATE, fromDateInput } from "./calendarDate";
+import { todayInManila } from "./age";
 import { DEFAULT_ROTATION_3D } from "./solids";
 import {
   BAR_COUNTS,
@@ -203,6 +205,11 @@ const elementRecipe = z.object({
     .object({ hours: whole(1, 12), minutes: whole(0, 59), pm: z.boolean().optional() })
     .optional()
     .describe("Only for clock and digital-clock. Only digital-clock shows AM/PM."),
+  calendarDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'A date like "2026-11-04".')
+    .optional()
+    .describe('Only for calendar-page and month-calendar: the date they show, "YYYY-MM-DD" (1900–2100). Leave out for today.'),
   numberLine: z
     .object({
       start: z.number().default(0).describe("First number. Ignored by integer-number-line (0 is always in the middle)."),
@@ -625,7 +632,7 @@ const BOXES: Record<"choice" | "true-false" | "short-answer", BoxName[]> = {
 };
 
 // Tools you read a value from. They get the tall side box (list-side) and start large.
-const READING_TOOLS = new Set(["clock", "digital-clock", "thermometer", "bar-graph", "protractor", "base-ten-blocks", "fraction-circle"]);
+const READING_TOOLS = new Set(["clock", "digital-clock", "calendar-page", "month-calendar", "thermometer", "bar-graph", "protractor", "base-ten-blocks", "fraction-circle"]);
 
 const CLAUDE_NOTES = `Write a presentation for my app (quizMatter) as JSON. Send it with send_presentation: "slides" is the slides array below, and it must match the JSON Schema at the end.
 
@@ -739,7 +746,7 @@ The question box, the strip and the options share the slide's height, so giving 
 
 === Layouts ===
 
-Choice slides: "list" (4 rows), "grid" (2×2) or "list-side" (4 rows with a tall picture box beside them). Left out, the app picks, in this order: "grid" when the options are only pictures (empty texts); "list-side" when "side" has a clock, thermometer, bar graph, protractor, base-ten blocks or fraction circle; "grid" when the options have pictures; otherwise "list".
+Choice slides: "list" (4 rows), "grid" (2×2) or "list-side" (4 rows with a tall picture box beside them). Left out, the app picks, in this order: "grid" when the options are only pictures (empty texts); "list-side" when "side" has a clock, calendar, thermometer, bar graph, protractor, base-ten blocks or fraction circle; "grid" when the options have pictures; otherwise "list".
 
 Blank and custom slides:
 - "text-top" (default): title and text across the full width, pictures below.
@@ -767,7 +774,7 @@ How they look:
 - Vary the kids: inside one presentation, you decide when to use a kid again. find_photos gives equally good matches in a new random order each time, so look through every kid it gives you and pick the one that fits the slide best, not just the first. The built-in students too: not always "student-pointing" or "student-globe". Show girls and boys about equally.
 - Drawn fruits (for counting and picture sums; see Real photos for when a photo is better) include apple, banana, grapes, mango, papaya, coconut, rambutan, dragon-fruit, kiwi, avocado, peach, pomegranate, blueberries and more.
 - Shapes include every kind of triangle (equilateral, isosceles, scalene, right, acute, obtuse) and four-sided shape (square, rectangle, trapezoid, right trapezoid, rhombus, kite, parallelogram…). 3D solids include prisms and pyramids with 3–6 sided bases, frustum, hemisphere, octahedron and icosahedron.
-- Settings like "clockTime", "fraction", "numberLine", "tenFrame", "baseTen", "thermometer", "barGraph", "protractor", "flowchart", "cycle", "mindMap", "tree" and "factorTree" only work on the pictures named in their description.
+- Settings like "clockTime", "calendarDate", "fraction", "numberLine", "tenFrame", "baseTen", "thermometer", "barGraph", "protractor", "flowchart", "cycle", "mindMap", "tree" and "factorTree" only work on the pictures named in their description.
 - Diagrams show how ideas connect: flowchart (steps in order, joined by arrows), cycle (steps that repeat in a ring, e.g. the water cycle or a life cycle), mind-map (a main idea with ideas around it), tree-diagram (a top box that splits into groups, each with its own items, e.g. a classification) and factor-tree (a number split into two factors, each split again until only primes are left, for prime factorization). Keep each box's text short: a word or a few.
 - Keep "elements" useful: they should help answer the question or explain the topic. Decoration goes in "design".
 
@@ -1773,6 +1780,16 @@ function buildSettings(el: ElementRecipe, asset: Asset): Partial<SvgElement> | s
   if (el.clockTime) {
     if (!asset.isClock) return "clockTime only works on clock and digital-clock.";
     settings.clockTime = el.clockTime;
+  }
+
+  if (el.calendarDate) {
+    if (!asset.isCalendar) return "calendarDate only works on calendar-page and month-calendar.";
+    const date = fromDateInput(el.calendarDate);
+    if (!date) return `calendarDate "${el.calendarDate}" isn't a real date between 1900 and 2100.`;
+    settings.calendarDate = date;
+  } else if (asset.isCalendar) {
+    // Like a calendar the teacher adds: today, in the Philippines (the import runs on the server).
+    settings.calendarDate = fromDateInput(todayInManila()) ?? DEFAULT_CALENDAR_DATE;
   }
 
   if (el.numberLine) {

@@ -97,6 +97,13 @@
   (`LEGAL_VERSION`), which the database saves with the time (`20261218000000_terms_consent.sql`).
 - `legal.ts`: `LEGAL_VERSION`, the Terms and Privacy Policy version (the date they last changed). The pages show it
   as "Last updated" and each new account saves it. Change it whenever either page changes.
+- `calendarDate.ts`: the date the calendars (Calendar Page, Month Calendar in Elements → Time & Date) show, an
+  element's `calendarDate` (`{ year, month, day }`, DATA_VERSION 2, `20261231000800_calendar_date.sql`).
+  `isRealCalendarDate` (zod's check: a real day, 1900–2100), `weekdayOf`, `monthGrid` (weeks from Sunday),
+  `formatCalendarDate`, `toDateInput` / `fromDateInput` (the Set date box's "YYYY-MM-DD"), `todayCalendarDate` (a new
+  calendar gets the computer's today, in the store's `addElement`; Claude's import uses `todayInManila` when it
+  gives no date). Names are always English, so the server and every browser draw the same. No imports, so tests
+  and `schema.ts` load it. Tests: `calendarDate.test.ts`.
 - `age.ts`: the birthday rules (`MIN_AGE` 18, `MAX_AGE` 100), `ageOn` (the age in whole years on a date),
   `isAllowedBirthDate`, `birthDateRange` (the date picker's limits) and `todayInManila`. The database does the same
   math (`age_on`, `manila_today`, `20261220000000_age_gender_address.sql`): change both together. No imports, so

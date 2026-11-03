@@ -28,8 +28,17 @@ import { NONE_SWATCH } from "./ColorPanel";
 import { ArrangePanel } from "./ArrangePanel";
 import { MathToolControls } from "./MathToolPanels";
 import { FontSizePicker } from "./TextFormatToolbar";
-import { PanelReadout, PanelSlider, ResetButton, ToggleChip, ToolPanelButton } from "./PanelControls";
-import { BlendIcon, CircleIcon, ClockIcon, CopyIcon, CropIcon, FlipHorizontal2Icon, FullscreenIcon, GroupIcon, LayersIcon, Rotate3dIcon, RotateCwIcon, SquareIcon, SquareRoundCornerIcon, Trash2Icon, UngroupIcon } from "lucide-react";
+import { PanelLabel, PanelReadout, PanelSlider, ResetButton, ToggleChip, ToolPanelButton } from "./PanelControls";
+import {
+  CALENDAR_YEARS,
+  DEFAULT_CALENDAR_DATE,
+  formatCalendarDate,
+  fromDateInput,
+  todayCalendarDate,
+  toDateInput,
+  type CalendarDate,
+} from "@/lib/calendarDate";
+import { BlendIcon, CalendarIcon, CircleIcon, ClockIcon, CopyIcon, CropIcon, FlipHorizontal2Icon, FullscreenIcon, GroupIcon, LayersIcon, Rotate3dIcon, RotateCwIcon, SquareIcon, SquareRoundCornerIcon, Trash2Icon, UngroupIcon } from "lucide-react";
 
 // Quick angles shown above the Rotate slider.
 const ANGLE_PRESETS = [-90, -45, 0, 45, 90, 180];
@@ -85,6 +94,12 @@ export function SelectedElementToolbar({ showColor = true }: { showColor?: boole
   const time = clock?.clockTime ?? DEFAULT_CLOCK_TIME;
   const setTime = (patch: Partial<typeof time>) =>
     clock && updateElement(selectedSlideId, clock.id, { clockTime: { ...time, ...patch } });
+
+  // Date controls are offered when exactly one calendar is selected.
+  const calendar = elements.length === 1 && getElementAsset(elements[0].assetId)?.isCalendar ? elements[0] : null;
+  const date = calendar?.calendarDate ?? DEFAULT_CALENDAR_DATE;
+  const setDate = (calendarDate: CalendarDate | null) =>
+    calendar && calendarDate && updateElement(selectedSlideId, calendar.id, { calendarDate });
 
   // Box style is offered when exactly one diagram is selected: for its picked box, or every box.
   const diagramElement = elements.length === 1 ? elements[0] : null;
@@ -340,6 +355,25 @@ export function SelectedElementToolbar({ showColor = true }: { showColor?: boole
             </div>
           )}
           <ResetButton onClick={() => setTime(DEFAULT_CLOCK_TIME)} />
+        </ToolPanelButton>
+      )}
+      {calendar && (
+        <ToolPanelButton title="Set date" icon={<CalendarIcon size={16} />} wide>
+          <PanelReadout>{formatCalendarDate(date)}</PanelReadout>
+          <label className="flex flex-col gap-1.5">
+            <PanelLabel>Date</PanelLabel>
+            {/* An empty or half-typed date isn't saved: the calendar keeps its last date. */}
+            <input
+              type="date"
+              aria-label="Date"
+              min={toDateInput({ year: CALENDAR_YEARS.min, month: 1, day: 1 })}
+              max={toDateInput({ year: CALENDAR_YEARS.max, month: 12, day: 31 })}
+              value={toDateInput(date)}
+              onChange={(e) => setDate(fromDateInput(e.target.value))}
+              className="w-full rounded-input border border-border-default bg-bg-surface px-3 py-2 text-sm text-text-primary outline-none focus:border-accent"
+            />
+          </label>
+          <ResetButton label="Today" onClick={() => setDate(todayCalendarDate())} />
         </ToolPanelButton>
       )}
       {elements.length === 1 && slide && (

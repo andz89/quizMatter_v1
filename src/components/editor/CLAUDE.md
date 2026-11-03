@@ -9,7 +9,9 @@ editor / view / review, and renders `Editor.tsx`, which calls `store.loadPresent
   `EditorBottomBar` (zoom, which slide is showing, the slide grid, fullscreen present).
 - `EditorTopBar.tsx`: Save, `ShareButton`, `ReviewControls`, and the toolbar for what is picked:
   `SelectedElementToolbar` (elements), `TextFormatToolbar` (text), `ShapeBoxToolbar`. `ArrangePanel` and
-  `MathToolPanels` are drop-downs inside those toolbars (`ToolPanelButton` in `PanelControls.tsx`).
+  `MathToolPanels` are drop-downs inside those toolbars (`ToolPanelButton` in `PanelControls.tsx`). One picked
+  clock gets "Set time" (`clockTime`); one picked calendar gets "Set date" (`calendarDate`: the date box, and
+  "Today"; an empty or half-typed date isn't saved). Both calendars share it, like both clocks share the time.
 - `ShareButton.tsx` (the Share card): a teacher's Published = a shared copy (store `sharedCopy`). It says "up to
   date" or "You have changes the shared copy doesn't have" (unsaved edits, or saved after `sharedCopy.sharedAt`),
   with "Update shared presentation". When QuizMatter hid the copy (`sharedCopy.isHidden`) it says so, and Private and

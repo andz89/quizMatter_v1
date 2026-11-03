@@ -33,6 +33,8 @@ Tests that delete data (the announcements ones empty the announcements table) do
 ## The tests
 
 - `hidden-slides.mjs`: hide a slide, save, present (→ / ← skip it), the all-slides grid, show it again.
+- `calendar-date.mjs`: add a Calendar Page and a Month Calendar (both start on today), Set date to 29 February 2024,
+  Today, save, reload.
 - `announcements-admin.mjs`: the super admin makes a corner box and an HTML modal in the form; a teacher sees them.
 - `announcements-show-after.mjs`: the super admin sets "It shows after 8 seconds" in the form (not on a top bar;
   the list line, the saved number, the edit page). The teacher's modal waits, keeps counting across a reload and an
