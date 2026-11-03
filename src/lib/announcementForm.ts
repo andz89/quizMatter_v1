@@ -43,6 +43,7 @@ export const NEW_ANNOUNCEMENT: AnnouncementInput = {
   modal_display: "center",
   modal_auto_close: 0,
   modal_show_after: 0,
+  repeat_minutes: 0,
 };
 
 /**
@@ -63,7 +64,7 @@ export function changeType(form: AnnouncementInput, type: AnnouncementType): Ann
 /**
  * What a save sends: the form, with the bar's text or code (`barHtml`: the form keeps the two apart) and the field
  * words (typed as one line). Only the chosen type's and format's fields are kept (the database empties the rest too),
- * only a corner box closes itself, and a top bar shows at once.
+ * only a corner box closes itself, a top bar shows at once, and only "Again every N minutes" keeps its minutes.
  */
 export function toSaved(form: AnnouncementInput, barHtml: string, fieldText: string): AnnouncementInput {
   const modalPart =
@@ -77,6 +78,7 @@ export function toSaved(form: AnnouncementInput, barHtml: string, fieldText: str
     field_words: splitWords(fieldText),
     modal_auto_close: announcementType(form) === "corner" ? form.modal_auto_close : 0,
     modal_show_after: form.show_bar ? 0 : form.modal_show_after,
+    repeat_minutes: form.repeat === "interval" ? form.repeat_minutes : 0,
   };
 }
 

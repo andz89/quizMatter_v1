@@ -40,11 +40,12 @@ export function pageGroup(pathname: string): PageGroup | null {
   return null;
 }
 
-export const REPEATS = ["once", "daily", "every_visit"] as const;
+export const REPEATS = ["once", "daily", "every_visit", "interval"] as const;
 export const REPEAT_LABELS: Record<(typeof REPEATS)[number], string> = {
   once: "Once, until they close it",
   daily: "Once a day",
   every_visit: "Every visit",
+  interval: "Again every N minutes",
 };
 
 export const ANNOUNCEMENT_ROLES = ["teacher", "editor", "admin"] as const;
@@ -89,6 +90,8 @@ export const ANNOUNCEMENT_LIMITS = {
   // A modal or corner box shows after this many seconds in the tab (0 = at once)
   // (20261231000600_announcement_show_after.sql).
   showAfterMax: 600,
+  // "Again every N minutes": N is 1–1,440 (20261231000700_announcement_interval.sql).
+  repeatMinutesMax: 1440,
 };
 const L = ANNOUNCEMENT_LIMITS;
 
@@ -144,6 +147,7 @@ const MODAL_HEIGHT_WRONG = `The box height must be ${L.modalHeightMin}–${L.mod
 const BAR_HEIGHT_WRONG = `The bar height must be ${L.barHeightMin}–${L.barHeightMax} px.`;
 const AUTO_CLOSE_WRONG = `It closes itself after ${L.autoCloseMin}–${L.autoCloseMax} seconds, or never.`;
 const SHOW_AFTER_WRONG = `It shows after 0–${L.showAfterMax} seconds.`;
+const MINUTES_WRONG = `Pick 1–${L.repeatMinutesMax.toLocaleString("en-US")} minutes.`;
 
 // Every key the database's save_announcement reads (a missing key counts as empty there and is refused).
 // The modal's one attachment, under its text (spec docs/superpowers/specs/2026-10-31-announcement-post-design.md):
@@ -224,6 +228,16 @@ export const announcementSchema = z
       .int(AUTO_CLOSE_WRONG)
       .refine((n) => n === 0 || (n >= L.autoCloseMin && n <= L.autoCloseMax), AUTO_CLOSE_WRONG),
     modal_show_after: z.number().int(SHOW_AFTER_WRONG).min(0, SHOW_AFTER_WRONG).max(L.showAfterMax, SHOW_AFTER_WRONG),
+    repeat_minutes: z.number().int(MINUTES_WRONG),
+  })
+  // Same rule as the table's announcements_repeat_minutes check.
+  .refine((a) => a.repeat !== "interval" || (a.repeat_minutes >= 1 && a.repeat_minutes <= L.repeatMinutesMax), {
+    message: MINUTES_WRONG,
+    path: ["repeat_minutes"],
+  })
+  .refine((a) => a.repeat === "interval" || a.repeat_minutes === 0, {
+    message: "Minutes go only with 'Again every N minutes'.",
+    path: ["repeat_minutes"],
   })
   .refine((a) => a.modal_display === "center" || CORNER_SIZES.includes(a.modal_size), {
     message: "A corner box is Small or Medium.",
@@ -295,6 +309,8 @@ export const myAnnouncementSchema = z.object({
   modal_auto_close: z.number().catch(0),
   // Missing (a row from before the wait) = shows at once.
   modal_show_after: z.number().catch(0),
+  // Missing (a row from before "every N minutes") = 0.
+  repeat_minutes: z.number().catch(0),
 });
 export type MyAnnouncement = z.infer<typeof myAnnouncementSchema>;
 

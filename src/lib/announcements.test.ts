@@ -65,6 +65,7 @@ const valid = {
   modal_display: "center",
   modal_auto_close: 0,
   modal_show_after: 0,
+  repeat_minutes: 0,
 };
 
 const PHOTO = "https://images.quizmatter.com/uploads/";
@@ -208,6 +209,7 @@ function row(id: string, createdAt: string, change: Partial<MyAnnouncement> = {}
     modal_display: "center",
     modal_auto_close: 0,
     modal_show_after: 0,
+    repeat_minutes: 0,
     ...change,
   };
 }
@@ -384,4 +386,23 @@ test("isWaiting: true while an open modal or corner box hasn't reached its wait,
   assert.equal(isWaiting([modal], new Set(["modal:modal"]), 0), false);
   assert.equal(isWaiting([row("a", "2026-01-01T00:00:00Z")], new Set(), 0), false);
   assert.equal(isWaiting([{ ...modal, show_modal: false }], new Set(), 0), false);
+});
+
+test("announcementSchema takes 'every N minutes' with 1–1,440 whole minutes", () => {
+  for (const minutes of [11, 1, 1440]) {
+    assert.equal(announcementSchema.safeParse({ ...valid, repeat: "interval", repeat_minutes: minutes }).success, true, String(minutes));
+  }
+});
+
+test("announcementSchema refuses bad minutes", () => {
+  const message = (change: object) => announcementSchema.safeParse({ ...valid, ...change }).error?.issues[0].message;
+  for (const bad of [0, 1441, 1.5]) assert.equal(message({ repeat: "interval", repeat_minutes: bad }), "Pick 1–1,440 minutes.");
+  assert.equal(message({ repeat: "once", repeat_minutes: 15 }), "Minutes go only with 'Again every N minutes'.");
+});
+
+test("a my_announcements row without repeat_minutes is 0", () => {
+  const { repeat_minutes, ...older } = row("a", "2026-01-01T00:00:00Z");
+  void repeat_minutes;
+  assert.equal(myAnnouncementSchema.parse(older).repeat_minutes, 0);
+  assert.equal(myAnnouncementSchema.parse({ ...older, repeat: "interval", repeat_minutes: 11 }).repeat, "interval");
 });

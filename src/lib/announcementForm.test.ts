@@ -49,6 +49,12 @@ test("toSaved: a modal and a corner box keep their wait, a top bar shows at once
   assert.equal(toSaved(changeType(filled, "bar"), "<p>Bar</p>", "").modal_show_after, 0);
 });
 
+test("toSaved keeps the minutes only for 'every N minutes'", () => {
+  assert.equal(NEW_ANNOUNCEMENT.repeat_minutes, 0);
+  assert.equal(toSaved({ ...filled, repeat: "interval", repeat_minutes: 11 }, "", "").repeat_minutes, 11);
+  assert.equal(toSaved({ ...filled, repeat: "once", repeat_minutes: 11 }, "", "").repeat_minutes, 0);
+});
+
 test("toSaved splits the field words and passes the schema", () => {
   const sent = toSaved(filled, "", " English, , Filipino ");
   assert.deepEqual(sent.field_words, ["English", "Filipino"]);

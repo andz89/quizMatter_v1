@@ -21,6 +21,11 @@ const REPEAT_HELP: Record<(typeof REPEATS)[number], { when: string; goodFor: str
       "It shows each time the teacher opens QuizMatter in a new browser tab or window, or after they close and open the browser again. After they close it, it stays closed while they move between pages or reload in that same tab. It's remembered only in that tab, not on their account.",
     goodFor: "something important they should see every time they come back, e.g. \"QuizMatter will be down on Saturday night.\"",
   },
+  interval: {
+    when:
+      "It shows again N minutes after the teacher closes it, in the same browser tab, while they move between pages or reload. A new tab or window shows it again at once. It's remembered only in that tab, not on their account.",
+    goodFor: "a reminder that must not be missed during an event, e.g. \"Sign-ups close at 5 pm today.\"",
+  },
 };
 
 /** The form's "show it again" section: once / once a day / every visit, each with what it means and a "Good for". */
