@@ -73,6 +73,9 @@ export function AnnouncementsWatch({ announcementsKey }: { announcementsKey: str
   const [userId, setUserId] = useState<string | null>(null);
   const [stored, setStored] = useState<Stored | null>(null);
   const [isPresenting, setIsPresenting] = useState(false);
+  // Bumped when the tab comes back to the front: timers don't run while a laptop sleeps, so the "every N minutes"
+  // timer below checks the real time again then.
+  const [wakeCount, setWakeCount] = useState(0);
   // Worked out on every page change (in-app moves don't re-render the layout), so midnight is noticed without a
   // reload.
   const day = manilaDay(new Date());
@@ -125,6 +128,18 @@ export function AnnouncementsWatch({ announcementsKey }: { announcementsKey: str
     };
   }, [canShow, announcementsKey, day, userId]);
 
+  useEffect(() => {
+    const wake = () => {
+      if (!document.hidden) setWakeCount((n) => n + 1);
+    };
+    document.addEventListener("visibilitychange", wake);
+    window.addEventListener("focus", wake);
+    return () => {
+      document.removeEventListener("visibilitychange", wake);
+      window.removeEventListener("focus", wake);
+    };
+  }, []);
+
   // Presenting: fullscreen, or PresentationView's data-presenting mark on <html> (Present still opens when the
   // browser refuses fullscreen, e.g. on an iPhone, and the modal must not cover the class's slides).
   useEffect(() => {
@@ -160,7 +175,8 @@ export function AnnouncementsWatch({ announcementsKey }: { announcementsKey: str
 
   // "Again every N minutes": wait for the next closed part due back, then take every part that's back off the closed
   // list (also at once after a reload or a background tab, when the time has already passed). No timer when none is
-  // due. The clock's ticks don't restart it (they keep these three as they are).
+  // due. The clock's ticks don't restart it (they keep these three as they are); coming back to the tab does
+  // (`wakeCount`), since a sleeping laptop's timer runs late.
   const items = stored?.items;
   const closedKeys = stored?.closed;
   const closedAt = stored?.closedAt;
@@ -182,7 +198,7 @@ export function AnnouncementsWatch({ announcementsKey }: { announcementsKey: str
       });
     }, Math.max(0, Math.min(...times) - Date.now()));
     return () => clearTimeout(timer);
-  }, [items, closedKeys, closedAt]);
+  }, [items, closedKeys, closedAt, wakeCount]);
 
   if (!isShowing) return null;
   const { modals, bars, boxes } = pickForPage(stored.items, group, new Set(stored.closed), stored.waited);

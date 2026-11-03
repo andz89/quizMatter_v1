@@ -48,7 +48,9 @@ notes.
   `pickForPage` leaves out what hasn't reached its `modal_show_after`. "Again every N minutes": closing a part also
   keeps its time (`closedAt`, with the list; `withClosed`), and one timer waits for the next part due back
   (`reopenAt`), then takes every part that's back off the closed list (`stillClosed`; at once after a reload or a
-  background tab when the time has passed). Only `once` / `daily` call `dismiss_announcement`.
+  background tab when the time has passed). Timers don't run while a laptop sleeps, so coming back to the tab
+  (`visibilitychange` / `focus`, `wakeCount`) re-checks the real time. Only `once` / `daily` call
+  `dismiss_announcement`.
 - `AnnouncementView.tsx`: how an announcement looks (root `CLAUDE.md`, "Announcements"), for teachers and the admin's
   preview. `AnnouncementModal`, like a post: the `Modal` with no title row (`hideHeader`), at the chosen width
   (`MODAL_SIZES`), no padding (`noPadding`); the plain text with padding (`LinkifiedText`), then

@@ -78,9 +78,10 @@ export function RepeatSection({
                     aria-label="Minutes"
                     min={1}
                     max={L.repeatMinutesMax}
-                    value={minutes}
-                    // An emptied box (while typing a new number) keeps the last number.
-                    onChange={(e) => e.target.value !== "" && onMinutes(Number(e.target.value))}
+                    // An emptied box (while retyping) shows empty and holds 0, which the save refuses ("Pick 1–1,440
+                    // minutes.") until a number is typed.
+                    value={minutes === 0 ? "" : minutes}
+                    onChange={(e) => onMinutes(e.target.value === "" ? 0 : Number(e.target.value))}
                     className={`${inputClass} w-24`}
                   />
                   minutes (1–{L.repeatMinutesMax.toLocaleString("en-US")})

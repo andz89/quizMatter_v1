@@ -28,6 +28,13 @@ try {
     "form: emptying the box while typing keeps the choice and its box",
     (await a.locator('input[name="repeat"]').nth(3).isChecked()) && (await minutesBox.isVisible()),
   );
+  // Backspacing to retype: the box can be emptied (it must not snap back and turn "30" into "130").
+  await minutesBox.fill("15");
+  await minutesBox.press("End");
+  await minutesBox.press("Backspace");
+  await minutesBox.press("Backspace");
+  await minutesBox.pressSequentially("30");
+  check("form: backspacing and typing 30 gives 30", (await minutesBox.inputValue()) === "30", await minutesBox.inputValue());
   await minutesBox.fill(String(MINUTES));
   await a.getByRole("button", { name: "Save and turn on" }).click();
   await a.waitForURL(`${APP}/admin/announcements`, { timeout: 60_000 });
@@ -67,6 +74,15 @@ try {
   await p.clock.fastForward("02:01");
   await modal.waitFor({ timeout: 5_000 });
   check("after a reload: back once the minutes pass", true);
+
+  // 3b. A laptop sleep: the clock jumps but no timer fires; coming back to the tab brings it back at once.
+  await close();
+  const now = await p.evaluate(() => Date.now());
+  await p.clock.setSystemTime(now + (MINUTES * 60 + 5) * 1000);
+  await p.waitForTimeout(1_000);
+  await p.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+  await modal.waitFor({ timeout: 5_000 }).catch(() => undefined);
+  check("after a sleep: back as soon as the tab is in front again", await modal.isVisible());
 
   // 4. Due while presenting: hidden until presenting ends.
   await close();
