@@ -328,7 +328,11 @@ The super admin shows a message to chosen teachers on chosen pages (Admin → An
   (`pageGroup`), and picks what fits each page (`pickForPage`: modals one at a time, at most 2 bars, corner boxes
   one at a time, newest first).
 - **Show again:** `once` (an `announcement_dismissals` row, for good), `daily` (again after midnight Philippine
-  time), `every_visit` (only sessionStorage: again in a new tab). The modal and the bar close separately.
+  time), `every_visit` (only sessionStorage: again in a new tab), `interval` ("Again every N minutes": back
+  `repeat_minutes`, 1–1,440, after it was closed, real time, in the same tab; only sessionStorage, like
+  `every_visit`, so `dismiss_announcement` saves nothing; `20261231000700_announcement_interval.sql`, spec
+  `docs/superpowers/specs/2026-11-03-announcement-interval-design.md`, test `supabase/tests/announcement_interval.sql`).
+  The modal and the bar close separately.
 - **Modal size:** `modal_size` is `small` / `medium` / `large` (300 / 500 / 672 px wide; the height fits the text;
   `MODAL_SIZES`). Older rows and older app tabs count as `large` (`20261222000000_announcement_modal_size.sql`,
   test `supabase/tests/announcement_modal_size.sql`). The admin's text box takes the same width.

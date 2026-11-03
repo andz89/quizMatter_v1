@@ -407,3 +407,9 @@ Claude's drafts and photo tickets are NOT here: they live in Cloudflare D1 (`d1/
   modal or corner box waits for the tab's clock. Newest `save_announcement` (a new one without the key = 0; an update
   keeps it), `announcement_empty_unused_part` (a top bar gets 0) and `my_announcements` (dropped and made again with
   it). Apply it **before** the app (the old app works with it).
+- Announcement every N minutes: `20261231000700_announcement_interval.sql` (test
+  `supabase/tests/announcement_interval.sql`; spec `docs/superpowers/specs/2026-11-03-announcement-interval-design.md`).
+  `repeat` also takes `interval`, and `announcements.repeat_minutes` (1–1,440 with `interval`, 0 otherwise; check
+  `announcements_repeat_minutes`). Newest `save_announcement` (a new one without the key = 0; an update keeps it),
+  `my_announcements` (dropped and made again with it) and `dismiss_announcement` (saves nothing for `every_visit` or
+  `interval`: both live only in the tab, so their closed counts stay 0). Apply it **before** the app.

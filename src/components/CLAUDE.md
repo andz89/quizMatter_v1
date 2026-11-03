@@ -45,7 +45,10 @@ notes.
   closes as part `modal`, and waits while a modal shows). "Shows after": the tab's clock (`waited`, kept with the
   list, so a reload or another page keeps it; a new visit starts at 0) ticks once a second only while a modal or
   corner box still waits (`isWaiting`), on a page in a group, with the tab in front and nobody presenting;
-  `pickForPage` leaves out what hasn't reached its `modal_show_after`.
+  `pickForPage` leaves out what hasn't reached its `modal_show_after`. "Again every N minutes": closing a part also
+  keeps its time (`closedAt`, with the list; `withClosed`), and one timer waits for the next part due back
+  (`reopenAt`), then takes every part that's back off the closed list (`stillClosed`; at once after a reload or a
+  background tab when the time has passed). Only `once` / `daily` call `dismiss_announcement`.
 - `AnnouncementView.tsx`: how an announcement looks (root `CLAUDE.md`, "Announcements"), for teachers and the admin's
   preview. `AnnouncementModal`, like a post: the `Modal` with no title row (`hideHeader`), at the chosen width
   (`MODAL_SIZES`), no padding (`noPadding`); the plain text with padding (`LinkifiedText`), then

@@ -38,5 +38,9 @@ Tests that delete data (the announcements ones empty the announcements table) do
   the list line, the saved number, the edit page). The teacher's modal waits, keeps counting across a reload and an
   in-app move, starts over in a new tab, doesn't count in a background tab or while presenting; a corner box with no
   wait shows at once, then waits while the modal is up.
+- `announcements-interval.mjs`: the super admin picks "Again every 2 minutes" in the form (the box starts at 15).
+  The teacher's modal, once closed, stays gone across an in-app move and a reload and comes back after 2 minutes
+  (Playwright's `clock` jumps the time), waits while presenting, shows at once in a new tab, and no closed record is
+  saved.
 - `announcements-pages.mjs`: announcements put straight in the table, checked on the home, saved, liked, search,
   account and editor pages, at desktop and phone width.
