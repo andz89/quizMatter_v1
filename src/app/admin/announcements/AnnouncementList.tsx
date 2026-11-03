@@ -99,7 +99,8 @@ function Row({ row }: { row: AnnouncementRow }) {
     .filter(Boolean)
     .join(" + ")
     .concat(row.modal_show_after > 0 ? ` · shows after ${row.modal_show_after} s` : "")
-    .concat(row.modal_auto_close > 0 ? ` · closes after ${row.modal_auto_close} s` : "");
+    .concat(row.modal_auto_close > 0 ? ` · closes after ${row.modal_auto_close} s` : "")
+    .concat(row.repeat === "interval" ? ` · again every ${row.repeat_minutes} min` : "");
   const typeWord = TYPE_WORDS[announcementType(row)];
 
   // replaceCurrent: turn off the one of the same type that is on (after the box asked).

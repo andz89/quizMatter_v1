@@ -1,7 +1,10 @@
 "use client";
 
-import { REPEATS, REPEAT_LABELS, type AnnouncementInput } from "@/lib/announcements";
-import { Section, checkClass } from "./formParts";
+import { ANNOUNCEMENT_LIMITS as L, REPEATS, REPEAT_LABELS, type AnnouncementInput } from "@/lib/announcements";
+import { Section, checkClass, inputClass } from "./formParts";
+
+// "Again every N minutes" starts here when picked.
+const DEFAULT_REPEAT_MINUTES = 15;
 
 // What each "show again" choice means, under its name in the form (how it works: AnnouncementsWatch and
 // my_announcements).
@@ -28,13 +31,20 @@ const REPEAT_HELP: Record<(typeof REPEATS)[number], { when: string; goodFor: str
   },
 };
 
-/** The form's "show it again" section: once / once a day / every visit, each with what it means and a "Good for". */
+/**
+ * The form's "show it again" section: once / once a day / every visit / again every N minutes, each with what it
+ * means and a "Good for"; the last one has its minutes box while it's picked.
+ */
 export function RepeatSection({
   value,
   onChange,
+  minutes,
+  onMinutes,
 }: {
   value: AnnouncementInput["repeat"];
   onChange: (repeat: AnnouncementInput["repeat"]) => void;
+  minutes: number;
+  onMinutes: (n: number) => void;
 }) {
   return (
     <Section title="After a teacher closes it, show it again">
@@ -48,7 +58,10 @@ export function RepeatSection({
               type="radio"
               name="repeat"
               checked={value === repeat}
-              onChange={() => onChange(repeat)}
+              onChange={() => {
+                onChange(repeat);
+                if (repeat === "interval" && minutes === 0) onMinutes(DEFAULT_REPEAT_MINUTES);
+              }}
               className={`${checkClass} mt-0.5 shrink-0`}
             />
             <span>
@@ -57,6 +70,22 @@ export function RepeatSection({
               <span className="mt-0.5 block text-text-secondary">
                 <span className="font-semibold">Good for:</span> {REPEAT_HELP[repeat].goodFor}
               </span>
+              {repeat === "interval" && value === "interval" && (
+                <span className="mt-2 flex flex-wrap items-center gap-2">
+                  Every
+                  <input
+                    type="number"
+                    aria-label="Minutes"
+                    min={1}
+                    max={L.repeatMinutesMax}
+                    value={minutes}
+                    // An emptied box (while typing a new number) keeps the last number.
+                    onChange={(e) => e.target.value !== "" && onMinutes(Number(e.target.value))}
+                    className={`${inputClass} w-24`}
+                  />
+                  minutes (1–{L.repeatMinutesMax.toLocaleString("en-US")})
+                </span>
+              )}
             </span>
           </label>
         ))}

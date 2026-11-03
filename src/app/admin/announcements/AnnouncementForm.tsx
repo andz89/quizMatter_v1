@@ -152,7 +152,12 @@ export function AnnouncementForm({ initial = NEW_ANNOUNCEMENT }: { initial?: Ann
         <BarSection form={form} set={set} barCode={barCode} onBarCode={setBarCode} onPreview={showPreview} />
       )}
 
-      <RepeatSection value={form.repeat} onChange={(repeat) => set("repeat", repeat)} />
+      <RepeatSection
+        value={form.repeat}
+        onChange={(repeat) => set("repeat", repeat)}
+        minutes={form.repeat_minutes}
+        onMinutes={(n) => set("repeat_minutes", n)}
+      />
 
       <Section title="Pages">
         <label className="flex w-fit items-center gap-2 text-sm font-semibold text-text-primary">
