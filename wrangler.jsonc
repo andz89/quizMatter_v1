@@ -38,5 +38,19 @@
   "triggers": { "crons": ["0 3 * * SUN", "0 4 * * *"] },
   // For the photo cleanup. Not secret: the browser already knows it.
   "vars": { "SUPABASE_URL": "https://zmmkqncfbjkmwfyngaha.supabase.co" },
+  // What the dev branch's Worker Previews (`npx wrangler preview`) use. They don't inherit the settings above, so
+  // they are repeated here: the live D1 drafts, the live R2 photos and the live Supabase (the user's choice, see
+  // "Branches and deploys" in CLAUDE.md). Keep them the same as above. No cron triggers: previews never run cleanups.
+  "previews": {
+    "vars": { "SUPABASE_URL": "https://zmmkqncfbjkmwfyngaha.supabase.co" },
+    "d1_databases": [
+      {
+        "binding": "DRAFTS_DB",
+        "database_name": "quizmatter-drafts",
+        "database_id": "7873e00d-72bd-4d7d-acaf-cc3f74f8e467"
+      }
+    ],
+    "r2_buckets": [{ "binding": "PHOTOS_BUCKET", "bucket_name": "quizmatter-images" }]
+  },
   "observability": { "enabled": true }
 }
