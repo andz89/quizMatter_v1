@@ -69,6 +69,22 @@ After implementing, do a checking step before saying the work is done:
 2. Read your changes again (`git diff`) next to the approved plan. Make sure every part of the plan is done, nothing extra was added, and the rules in this file were followed (zod before saving, the one Spinner, the design system, npm 10 for packages, the folder `CLAUDE.md` notes still true, etc.).
 3. Tell the user what you checked and what passed or failed.
 
+# Branches and deploys (dev → preview, main → quizmatter.com)
+
+Design: `docs/superpowers/specs/2026-11-04-dev-branch-preview-design.md`.
+
+- **Work on `dev`.** Commit and push there. Cloudflare builds every push to `dev` as a preview version (never the
+  live one, and it runs no cleanup timers): **https://dev-quizmatter-v1.andzrivero89.workers.dev**. Its
+  non-production deploy command (Cloudflare → the Worker → Settings → Build) is
+  `npx opennextjs-cloudflare upload --preview-alias dev`; `wrangler.jsonc` keeps `"preview_urls": true`.
+- **The preview uses the live Supabase, R2 photos and D1 drafts** (the user's choice): what's done there is real.
+- **Release:** a pull request from `dev` to `main`
+  (`https://github.com/andz89/quizMatter_v1/compare/main...dev`); GitHub's checks run on it; the user merges.
+  Cloudflare deploys `main` to quizmatter.com. Never push to `main` directly.
+- **Migrations:** test on Docker as always, then the user pastes the migration into the live SQL editor **before**
+  the code that needs it is pushed to `dev` (the preview already uses the live database). A `DATA_VERSION` bump's
+  migration too.
+
 # Installing Packages (npm version)
 
 The app deploys on Cloudflare Workers Builds, which runs `npm ci` with **npm 10.9.2**. The user's machine has npm 11, which writes a `package-lock.json` that npm 10's `npm ci` rejects ("package.json and package-lock.json are not in sync") and the deploy fails.
@@ -119,7 +135,7 @@ no `FAIL` or `ERROR`.
 install it again or start a new browser-test folder in the scratchpad. Read `e2e/CLAUDE.md`, reuse `e2e/lib.mjs`, and
 save new tests in `e2e/`. They run on the local Docker Supabase only (`npm run e2e:dev`, port 3100).
 
-GitHub checks every push to `main` (`.github/workflows/`): `ci.yml` runs `tsc`, lint and `npm test`;
+GitHub checks every push to `main` and `dev`, and every pull request (`.github/workflows/`): `ci.yml` runs `tsc`, lint and `npm test`;
 `database.yml` (only when `supabase/` or the snapshot changes) starts Supabase in GitHub's own Docker, runs
 `npm run test:sql`, and fails if `supabase/schema.sql` or `src/lib/database.types.ts` weren't remade. They only warn
 (a red X and an email): Cloudflare deploys on its own.

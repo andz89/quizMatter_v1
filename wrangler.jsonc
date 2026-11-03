@@ -12,6 +12,10 @@
   },
   // Cloudflare creates the DNS record and HTTPS certificate for this domain on deploy.
   "routes": [{ "pattern": "quizmatter.com", "custom_domain": true }],
+  // Preview links (<version or alias>-quizmatter-v1.andzrivero89.workers.dev): the dev branch's builds upload a
+  // version with the alias "dev", never the live one (see "Branches and deploys" in CLAUDE.md). Off by default, and
+  // a deploy sets it from here, so it must stay true.
+  "preview_urls": true,
   // Short-lived drafts that Claude sends through the MCP server (/api/mcp), picked up in the editor.
   // "remote": local dev (next dev) uses this live database too, so it sees the drafts Claude sent.
   "d1_databases": [
