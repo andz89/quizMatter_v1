@@ -23,6 +23,7 @@ first.
   `npm run db:snapshot` with `src/lib/database.types.ts`; read a function there, never edit it.
 - `scripts/`: `test-sql.mjs` (`npm run test:sql`), `db-snapshot.mjs` (`npm run db:snapshot`), `test-resolve.mjs`
   (lets `npm test` import app files). `.github/workflows/`: GitHub's checks on push (see "Tests").
+- `e2e/` **(notes)**: the browser tests (Playwright, already installed): `npm run e2e:dev`, then `node e2e/<test>.mjs`.
 - `src/pages/api/` **(notes)**: Claude's connector (MCP server). Its drafts live in Cloudflare D1 (`d1/migrations`).
 - `src/proxy.ts`: the login check before each page (logged-out visitors may open only login, sign up, the email
   confirm link, Privacy and Terms), and the maintenance stop (see "Maintenance" below; `src/app/maintenance/` is
@@ -113,6 +114,10 @@ database, never the live one: `npm run test:sql` resets it (replays every migrat
 first lines say when it must run as `-U supabase_admin -d postgres` instead (`account_delete.sql`,
 `blocked_email_domains.sql`; the script reads "as supabase_admin" there). It passes when it ends with `ROLLBACK` and
 no `FAIL` or `ERROR`.
+
+**Browser tests (Playwright) live in `e2e/`.** Playwright is already a dev package with its browser installed: never
+install it again or start a new browser-test folder in the scratchpad. Read `e2e/CLAUDE.md`, reuse `e2e/lib.mjs`, and
+save new tests in `e2e/`. They run on the local Docker Supabase only (`npm run e2e:dev`, port 3100).
 
 GitHub checks every push to `main` (`.github/workflows/`): `ci.yml` runs `tsc`, lint and `npm test`;
 `database.yml` (only when `supabase/` or the snapshot changes) starts Supabase in GitHub's own Docker, runs

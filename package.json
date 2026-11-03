@@ -10,6 +10,7 @@
     "test": "node --no-warnings --import ./scripts/test-resolve.mjs --test \"src/**/*.test.ts\"",
     "test:sql": "node scripts/test-sql.mjs",
     "db:snapshot": "node scripts/db-snapshot.mjs",
+    "e2e:dev": "node e2e/dev.mjs",
     "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
     "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy"
   },
@@ -55,6 +56,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.3.5",
+    "playwright": "^1.64.1",
     "tailwindcss": "^4",
     "typescript": "^5",
     "wrangler": "^4.139.0"

@@ -47,3 +47,7 @@ next-env.d.ts
 
 # Superpowers brainstorm mockups
 .superpowers/
+
+# browser tests (e2e/): their own Next build folder and screenshots
+/.next-e2e/
+/e2e/shots/
