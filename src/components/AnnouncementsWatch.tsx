@@ -11,6 +11,8 @@ import {
   myAnnouncementSchema,
   pageGroup,
   pickForPage,
+  reopenAt,
+  stillClosed,
   type AnnouncementPart,
   type MyAnnouncement,
 } from "@/lib/announcements";
@@ -19,14 +21,16 @@ import { AnnouncementBar, AnnouncementCornerBox, AnnouncementModal } from "./Ann
 import { isEditorPage } from "./Footer";
 
 // What this tab knows (sessionStorage, so a new tab asks again): the key it was asked under, the Philippine date,
-// whose list it is, the caller's announcements, the parts closed in this tab ("<id>:modal" / "<id>:bar") and the
-// tab's clock (`waited`: seconds on QuizMatter, for "shows after"; missing in a tab from before it = 0).
+// whose list it is, the caller's announcements, the parts closed in this tab ("<id>:modal" / "<id>:bar") and when
+// (`closedAt`, ms, for "Again every N minutes"; missing in a tab from before it = {}), and the tab's clock (`waited`:
+// seconds on QuizMatter, for "shows after"; missing in a tab from before it = 0).
 const storedSchema = z.object({
   key: z.string(),
   day: z.string(),
   userId: z.string(),
   items: z.array(myAnnouncementSchema),
   closed: z.array(z.string()),
+  closedAt: z.record(z.string(), z.number()).catch({}),
   waited: z.number().catch(0),
 });
 type Stored = z.infer<typeof storedSchema>;
@@ -38,6 +42,11 @@ function readStored(): Stored | null {
   } catch {
     return null;
   }
+}
+
+/** The tab's state with `key` closed now (its time is what "Again every N minutes" counts from). */
+function withClosed(stored: Stored, key: string): Stored {
+  return { ...stored, closed: [...stored.closed, key], closedAt: { ...stored.closedAt, [key]: Date.now() } };
 }
 
 function writeStored(stored: Stored) {
@@ -54,7 +63,8 @@ function writeStored(stored: Stored) {
  * on pages that can't show one, and picks what fits each page from the saved list. A list shows only to the account
  * it was asked for. Nothing shows while presenting; a waiting modal shows once the presentation ends. A modal or
  * corner box with "shows after" waits for the tab's clock, which counts the seconds on any page in a group while one
- * still waits, the tab is in front and nobody is presenting.
+ * still waits, the tab is in front and nobody is presenting. An "Again every N minutes" part comes back N minutes
+ * (real time) after it was closed in this tab: one timer waits for the next one due.
  */
 export function AnnouncementsWatch({ announcementsKey }: { announcementsKey: string }) {
   const pathname = usePathname() ?? "";
@@ -88,7 +98,8 @@ export function AnnouncementsWatch({ announcementsKey }: { announcementsKey: str
     const load = async (): Promise<Stored | null> => {
       const supabase = createClient();
       const saved = readStored();
-      // Closed parts and the clock stay for this visit: the same account, until a new day ("once a day" shows again).
+      // Closed parts, their times and the clock stay for this visit: the same account, until a new day ("once a day"
+      // shows again).
       const sameVisit = isSameVisit(saved, { day, userId });
       if (saved && sameVisit && saved.key === announcementsKey) return saved;
       const { data, error } = await supabase.rpc("my_announcements");
@@ -100,6 +111,7 @@ export function AnnouncementsWatch({ announcementsKey }: { announcementsKey: str
         userId,
         items: items.data,
         closed: saved && sameVisit ? saved.closed : [],
+        closedAt: saved && sameVisit ? saved.closedAt : {},
         waited: saved && sameVisit ? saved.waited : 0,
       };
       writeStored(next);
@@ -146,17 +158,43 @@ export function AnnouncementsWatch({ announcementsKey }: { announcementsKey: str
     return () => clearInterval(timer);
   }, [isClockRunning]);
 
+  // "Again every N minutes": wait for the next closed part due back, then take every part that's back off the closed
+  // list (also at once after a reload or a background tab, when the time has already passed). No timer when none is
+  // due. The clock's ticks don't restart it (they keep these three as they are).
+  const items = stored?.items;
+  const closedKeys = stored?.closed;
+  const closedAt = stored?.closedAt;
+  useEffect(() => {
+    if (!items || !closedKeys || !closedAt) return;
+    const times = closedKeys.map((key) => reopenAt(items, key, closedAt)).filter((time) => time !== null);
+    if (times.length === 0) return;
+    const timer = setTimeout(() => {
+      setStored((current) => {
+        if (!current) return current;
+        const still = stillClosed(current.items, current.closed, current.closedAt, Date.now());
+        const next = {
+          ...current,
+          closed: current.closed.filter((key) => still.has(key)),
+          closedAt: Object.fromEntries(Object.entries(current.closedAt).filter(([key]) => still.has(key))),
+        };
+        writeStored(next);
+        return next;
+      });
+    }, Math.max(0, Math.min(...times) - Date.now()));
+    return () => clearTimeout(timer);
+  }, [items, closedKeys, closedAt]);
+
   if (!isShowing) return null;
   const { modals, bars, boxes } = pickForPage(stored.items, group, new Set(stored.closed), stored.waited);
   const isFloating = isEditorPage(pathname);
 
-  // Gone at once in this tab. "Once" and "once a day" also tell the database (a failure is ignored: it stays
-  // hidden for this visit and may come back later; nothing is lost).
+  // Gone at once in this tab, with the time ("Again every N minutes" counts from it). "Once" and "once a day" also
+  // tell the database (a failure is ignored: it stays hidden for this visit and may come back later; nothing is lost).
   const close = (announcement: MyAnnouncement, part: AnnouncementPart) => {
-    const next = { ...stored, closed: [...stored.closed, `${announcement.id}:${part}`] };
+    const next = withClosed(stored, `${announcement.id}:${part}`);
     writeStored(next);
     setStored(next);
-    if (announcement.repeat !== "every_visit") {
+    if (announcement.repeat === "once" || announcement.repeat === "daily") {
       void createClient()
         .rpc("dismiss_announcement", { target: announcement.id, part })
         .then(() => undefined);

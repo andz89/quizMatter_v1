@@ -14,7 +14,9 @@ import {
   pageGroup,
   isWaiting,
   pickForPage,
+  reopenAt,
   sandboxedHtml,
+  stillClosed,
   type MyAnnouncement,
 } from "./announcements";
 
@@ -405,4 +407,26 @@ test("a my_announcements row without repeat_minutes is 0", () => {
   void repeat_minutes;
   assert.equal(myAnnouncementSchema.parse(older).repeat_minutes, 0);
   assert.equal(myAnnouncementSchema.parse({ ...older, repeat: "interval", repeat_minutes: 11 }).repeat, "interval");
+});
+
+const T = Date.parse("2026-11-03T02:00:00Z");
+
+test("reopenAt: closed time + N minutes, only for 'every N minutes'", () => {
+  const every11 = row("a", "2026-01-01T00:00:00Z", { repeat: "interval", repeat_minutes: 11 });
+  assert.equal(reopenAt([every11], "a:modal", { "a:modal": T }), T + 660_000);
+  assert.equal(reopenAt([row("b", "2026-01-01T00:00:00Z")], "b:modal", { "b:modal": T }), null);
+  assert.equal(reopenAt([every11], "a:modal", {}), null);
+});
+
+test("stillClosed: an 'every N minutes' part comes back once N minutes have passed, however long ago", () => {
+  const list = [
+    row("a", "2026-01-01T00:00:00Z", { repeat: "interval", repeat_minutes: 11 }),
+    row("b", "2026-01-01T00:00:00Z", { repeat: "once" }),
+  ];
+  const closed = ["a:modal", "b:modal", "a:bar"];
+  const closedAt = { "a:modal": T, "b:modal": T };
+  assert.deepEqual([...stillClosed(list, closed, closedAt, T + 659_999)].sort(), ["a:bar", "a:modal", "b:modal"]);
+  assert.deepEqual([...stillClosed(list, closed, closedAt, T + 660_000)].sort(), ["a:bar", "b:modal"]);
+  // Hours later (a tab in the background): back at once, and a "once" one stays closed.
+  assert.deepEqual([...stillClosed(list, closed, closedAt, T + 10 * 3_600_000)].sort(), ["a:bar", "b:modal"]);
 });

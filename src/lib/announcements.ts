@@ -372,6 +372,32 @@ export function isWaiting(list: MyAnnouncement[], closed: ReadonlySet<string>, w
 }
 
 /**
+ * When a part closed in this tab (key "<id>:modal" / "<id>:bar", closed at `closedAt[key]`, ms) comes back: N minutes
+ * after it was closed for "Again every N minutes"; never (null) for the other repeats or without a closed time.
+ */
+export function reopenAt(list: MyAnnouncement[], key: string, closedAt: Record<string, number>): number | null {
+  const announcement = list.find((a) => key.startsWith(`${a.id}:`));
+  const closedTime = closedAt[key];
+  if (announcement?.repeat !== "interval" || closedTime === undefined) return null;
+  return closedTime + announcement.repeat_minutes * 60_000;
+}
+
+/** The parts closed in this tab that haven't come back yet at `now` (what pickForPage and isWaiting skip). */
+export function stillClosed(
+  list: MyAnnouncement[],
+  closed: string[],
+  closedAt: Record<string, number>,
+  now: number,
+): Set<string> {
+  return new Set(
+    closed.filter((key) => {
+      const back = reopenAt(list, key, closedAt);
+      return back === null || back > now;
+    }),
+  );
+}
+
+/**
  * A path inside QuizMatter ("/saved"), not another site ("//x.com", "https://…"). Browsers read "\" as "/" and skip
  * tabs and line breaks, so "/\x.com" and "/<tab>/x.com" are other sites too: a path has no "\" or spaces.
  */
