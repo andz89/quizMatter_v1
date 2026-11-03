@@ -160,6 +160,7 @@ CREATE TABLE IF NOT EXISTS "public"."announcements" (
     "modal_display" "text" DEFAULT 'center'::"text" NOT NULL,
     "modal_auto_close" integer DEFAULT 0 NOT NULL,
     "modal_show_after" integer DEFAULT 0 NOT NULL,
+    "repeat_minutes" integer DEFAULT 0 NOT NULL,
     CONSTRAINT "announcements_age_max_check" CHECK ((("age_max" >= 18) AND ("age_max" <= 100))),
     CONSTRAINT "announcements_age_min_check" CHECK ((("age_min" >= 18) AND ("age_min" <= 100))),
     CONSTRAINT "announcements_auto_close_corner" CHECK ((("modal_display" = 'corner'::"text") OR ("modal_auto_close" = 0))),
@@ -195,7 +196,8 @@ END)),
     CONSTRAINT "announcements_pages_check" CHECK ((("cardinality"("pages") > 0) AND ("pages" <@ ARRAY['all'::"text", 'my_presentations'::"text", 'quizmatter'::"text", 'other_teachers'::"text", 'saved'::"text", 'liked'::"text", 'reviews_submissions'::"text", 'search'::"text", 'presentation_view'::"text", 'editor'::"text", 'account'::"text", 'teacher_profiles'::"text"]))),
     CONSTRAINT "announcements_presentations_max_check" CHECK ((("presentations_max" >= 0) AND ("presentations_max" <= 50))),
     CONSTRAINT "announcements_presentations_min_check" CHECK ((("presentations_min" >= 0) AND ("presentations_min" <= 50))),
-    CONSTRAINT "announcements_repeat_check" CHECK (("repeat" = ANY (ARRAY['once'::"text", 'daily'::"text", 'every_visit'::"text"]))),
+    CONSTRAINT "announcements_repeat_check" CHECK (("repeat" = ANY (ARRAY['once'::"text", 'daily'::"text", 'every_visit'::"text", 'interval'::"text"]))),
+    CONSTRAINT "announcements_repeat_minutes" CHECK (((("repeat" = 'interval'::"text") AND (("repeat_minutes" >= 1) AND ("repeat_minutes" <= 1440))) OR (("repeat" <> 'interval'::"text") AND ("repeat_minutes" = 0)))),
     CONSTRAINT "announcements_roles_check" CHECK (("roles" <@ ARRAY['teacher'::"text", 'editor'::"text", 'admin'::"text"]))
 );
 
@@ -1786,7 +1788,7 @@ begin
   end if;
   if not exists (
     select 1 from public.announcements a
-    where a.id = target and a.repeat <> 'every_visit' and public.announcement_is_live(a)
+    where a.id = target and a.repeat not in ('every_visit', 'interval') and public.announcement_is_live(a)
   ) then
     return;
   end if;
@@ -2658,7 +2660,7 @@ $$;
 ALTER FUNCTION "public"."manila_today"() OWNER TO "postgres";
 
 
-CREATE OR REPLACE FUNCTION "public"."my_announcements"() RETURNS TABLE("id" "uuid", "show_modal" boolean, "modal_text" "text", "modal_attachment" "jsonb", "modal_close_after" integer, "show_bar" boolean, "bar_html" "text", "bar_close_after" integer, "repeat" "text", "pages" "text"[], "created_at" timestamp with time zone, "modal_size" "text", "modal_format" "text", "modal_html" "text", "modal_height" integer, "bar_format" "text", "bar_height" integer, "modal_display" "text", "modal_auto_close" integer, "modal_show_after" integer)
+CREATE OR REPLACE FUNCTION "public"."my_announcements"() RETURNS TABLE("id" "uuid", "show_modal" boolean, "modal_text" "text", "modal_attachment" "jsonb", "modal_close_after" integer, "show_bar" boolean, "bar_html" "text", "bar_close_after" integer, "repeat" "text", "pages" "text"[], "created_at" timestamp with time zone, "modal_size" "text", "modal_format" "text", "modal_html" "text", "modal_height" integer, "bar_format" "text", "bar_height" integer, "modal_display" "text", "modal_auto_close" integer, "modal_show_after" integer, "repeat_minutes" integer)
     LANGUAGE "sql" STABLE SECURITY DEFINER
     SET "search_path" TO ''
     AS $$
@@ -2686,7 +2688,7 @@ CREATE OR REPLACE FUNCTION "public"."my_announcements"() RETURNS TABLE("id" "uui
     m.repeat, m.pages, m.created_at, m.modal_size,
     m.modal_format, case when m.modal_open then m.modal_html else '' end, m.modal_height,
     m.bar_format, m.bar_height,
-    m.modal_display, m.modal_auto_close, m.modal_show_after
+    m.modal_display, m.modal_auto_close, m.modal_show_after, m.repeat_minutes
   from mine m
   where m.modal_open or m.bar_open
   order by m.created_at desc, m.id;
@@ -3189,14 +3191,14 @@ begin
       name, is_on, starts_at, ends_at, show_modal, modal_text, modal_attachment, modal_close_after, show_bar, bar_html,
       bar_close_after, repeat, pages, genders, age_min, age_max, education_levels,
       field_words, presentations_min, presentations_max, roles, modal_size, modal_format, modal_html, modal_height,
-      bar_format, bar_height, modal_display, modal_auto_close, modal_show_after, created_by, created_at, updated_at
+      bar_format, bar_height, modal_display, modal_auto_close, modal_show_after, repeat_minutes, created_by, created_at, updated_at
     ) values (
       btrim(r.name), r.is_on, r.starts_at, r.ends_at, r.show_modal, coalesce(r.modal_text, ''), r.modal_attachment, r.modal_close_after, r.show_bar,
       r.bar_html, r.bar_close_after, r.repeat, r.pages, r.genders, r.age_min, r.age_max,
       r.education_levels, r.field_words, r.presentations_min, r.presentations_max, r.roles, coalesce(r.modal_size, 'large'),
       coalesce(r.modal_format, 'post'), coalesce(r.modal_html, ''), coalesce(r.modal_height, 400),
       coalesce(r.bar_format, 'text'), coalesce(r.bar_height, 60),
-      coalesce(r.modal_display, 'center'), coalesce(r.modal_auto_close, 0), coalesce(r.modal_show_after, 0),
+      coalesce(r.modal_display, 'center'), coalesce(r.modal_auto_close, 0), coalesce(r.modal_show_after, 0), coalesce(r.repeat_minutes, 0),
       auth.uid(), now(), clock_timestamp()
     )
     returning id into saved_id;
@@ -3220,7 +3222,7 @@ begin
       presentations_min = r.presentations_min, presentations_max = r.presentations_max, roles = r.roles,
       modal_size = r.modal_size, modal_format = r.modal_format, modal_html = r.modal_html, modal_height = r.modal_height,
       bar_format = r.bar_format, bar_height = r.bar_height,
-      modal_display = r.modal_display, modal_auto_close = r.modal_auto_close, modal_show_after = r.modal_show_after,
+      modal_display = r.modal_display, modal_auto_close = r.modal_auto_close, modal_show_after = r.modal_show_after, repeat_minutes = r.repeat_minutes,
       updated_at = clock_timestamp(),
       -- Ending later again after its cleanup: its closed rows start over (they were deleted).
       closed_cleared_at = case when r.ends_at is null or r.ends_at > now() then null else x.closed_cleared_at end
