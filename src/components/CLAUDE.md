@@ -42,7 +42,10 @@ notes.
   while presenting (fullscreen, or `PresentationView`'s `data-presenting` mark on `<html>`, for when the browser
   refuses fullscreen), and on close marks the part closed in the tab and (`once` / `daily`) calls
   `dismiss_announcement`. It shows the first modal, up to 2 bars and the first corner box together (a corner box
-  closes as part `modal`, and waits while a modal shows).
+  closes as part `modal`, and waits while a modal shows). "Shows after": the tab's clock (`waited`, kept with the
+  list, so a reload or another page keeps it; a new visit starts at 0) ticks once a second only while a modal or
+  corner box still waits (`isWaiting`), on a page in a group, with the tab in front and nobody presenting;
+  `pickForPage` leaves out what hasn't reached its `modal_show_after`.
 - `AnnouncementView.tsx`: how an announcement looks (root `CLAUDE.md`, "Announcements"), for teachers and the admin's
   preview. `AnnouncementModal`, like a post: the `Modal` with no title row (`hideHeader`), at the chosen width
   (`MODAL_SIZES`), no padding (`noPadding`); the plain text with padding (`LinkifiedText`), then

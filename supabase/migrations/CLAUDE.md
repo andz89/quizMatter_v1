@@ -402,3 +402,8 @@ Claude's drafts and photo tickets are NOT here: they live in Cloudflare D1 (`d1/
   didn't send keeps its value, and "not both" is checked again on the merged row. The test fails when a column is
   missing from the save, or is neither sent by `my_announcements` nor on its admin-only list. Apply it **after** the
   app (the old app reads `status`, which is gone; the new app works with the old function).
+- Announcement shows after: `20261231000600_announcement_show_after.sql` (test
+  `supabase/tests/announcement_show_after.sql`). `announcements.modal_show_after` (0–600 seconds, default 0): a
+  modal or corner box waits for the tab's clock. Newest `save_announcement` (a new one without the key = 0; an update
+  keeps it), `announcement_empty_unused_part` (a top bar gets 0) and `my_announcements` (dropped and made again with
+  it). Apply it **before** the app (the old app works with it).

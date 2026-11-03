@@ -58,14 +58,16 @@
 - `announcementForm.ts`: the admin's announcement form logic, kept out of the `.tsx` so it's tested
   (`announcementForm.test.ts`): `NEW_ANNOUNCEMENT` (what a new one starts with), `changeType` (the Type switch: a
   Large modal becomes a Medium corner box; what was typed stays), `toSaved` (what a save sends: only the chosen
-  type's and format's fields, "closes itself" only for a corner box, the field words split), and the Philippine-time
+  type's and format's fields, "closes itself" only for a corner box, "shows after" 0 for a top bar, the field words
+  split), and the Philippine-time
   `toTimeInput` / `fromTimeInput` and `splitWords`.
 - `announcements.ts`: announcements (a modal, top bar or corner box for chosen teachers; spec
   `docs/superpowers/specs/2026-10-30-announcements-design.md`, `20261221000000_announcements.sql`). `PAGE_GROUPS` and
   `pageGroup(pathname)` (which group a page is in; null = never shows one), the limits (`ANNOUNCEMENT_LIMITS`, same as
   the database's checks), `announcementSchema` (zod, run before every save; keys = the column names),
   `myAnnouncementSchema` (a `my_announcements` row), `pickForPage` (what shows on a page: fits `pages`, skips closed
-  parts, newest first, 2 bars at most, corner boxes only while no modal shows), `announcementType` / `TYPE_WORDS`
+  parts and modals / corner boxes whose `modal_show_after` the tab's clock hasn't reached, newest first, 2 bars at
+  most, corner boxes only while no modal shows), `isWaiting` (one still waits: the watch's clock runs), `announcementType` / `TYPE_WORDS`
   (modal / bar / corner box), `announcementStatus` (the admin list's Live / Scheduled / Ended / Draft), `MODAL_DISPLAYS` / `CORNER_SIZES`, `manilaDay`, `isSameVisit` and `MODAL_SIZES` (the modal's widths; a row without one counts as large), `modalAttachmentSchema` (the modal's one
   picture, YouTube card or Facebook post / video; `src` only our R2 address, a Facebook `href` only as `facebookLink`
   gives it) (a tab's saved list is reused only for the same account and Philippine day). It repeats `EDUCATION_LEVELS` because `userSettings.ts`

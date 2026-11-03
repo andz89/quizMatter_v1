@@ -7,7 +7,7 @@ import {
   announcementType,
   type AnnouncementInput,
 } from "@/lib/announcements";
-import { AutoClose, CloseAfter, HtmlBoxFields, Section, checkClass, labelClass, type SetField } from "./formParts";
+import { AutoClose, CloseAfter, HtmlBoxFields, Section, ShowAfter, checkClass, labelClass, type SetField } from "./formParts";
 import { ModalPostEditor } from "./ModalPostEditor";
 
 // The Format choices: a post (text + one picture, video or post), or the admin's HTML in a sealed box.
@@ -18,7 +18,7 @@ const MODAL_FORMAT_CHOICES = [
 
 /**
  * The form's Modal section, titled "Corner box" for a corner box (the same fields, Small / Medium only, plus "Closes
- * itself"): Format, Size, the post editor or the sealed box's code, and the close delay with Preview.
+ * itself"): Format, Size, the post editor or the sealed box's code, when it shows, and the close delay with Preview.
  */
 export function ModalSection({ form, set, onPreview }: { form: AnnouncementInput; set: SetField; onPreview: () => void }) {
   const type = announcementType(form);
@@ -78,6 +78,7 @@ export function ModalSection({ form, set, onPreview }: { form: AnnouncementInput
             onAttachment={(attachment) => set("modal_attachment", attachment)}
           />
         )}
+        <ShowAfter value={form.modal_show_after} onChange={(n) => set("modal_show_after", n)} />
         {type === "corner" && <AutoClose value={form.modal_auto_close} onChange={(n) => set("modal_auto_close", n)} />}
         <CloseAfter value={form.modal_close_after} onChange={(n) => set("modal_close_after", n)} onPreview={onPreview} />
       </div>

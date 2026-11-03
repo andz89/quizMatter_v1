@@ -13,6 +13,7 @@ const filled = {
   modal_html: "<p>Html</p>",
   bar_html: "<p>Bar text</p>",
   modal_auto_close: 20,
+  modal_show_after: 15,
 };
 
 test("toSaved: a top bar sends no modal content", () => {
@@ -39,6 +40,13 @@ test("toSaved: an html modal sends no post, a post sends no html, neither sends 
 test("toSaved: only a corner box keeps closing itself", () => {
   assert.equal(toSaved(filled, "", "").modal_auto_close, 0);
   assert.equal(toSaved(changeType(filled, "corner"), "", "").modal_auto_close, 20);
+});
+
+test("toSaved: a modal and a corner box keep their wait, a top bar shows at once", () => {
+  assert.equal(NEW_ANNOUNCEMENT.modal_show_after, 0);
+  assert.equal(toSaved(filled, "", "").modal_show_after, 15);
+  assert.equal(toSaved(changeType(filled, "corner"), "", "").modal_show_after, 15);
+  assert.equal(toSaved(changeType(filled, "bar"), "<p>Bar</p>", "").modal_show_after, 0);
 });
 
 test("toSaved splits the field words and passes the schema", () => {

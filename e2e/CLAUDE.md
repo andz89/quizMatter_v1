@@ -34,5 +34,9 @@ Tests that delete data (the announcements ones empty the announcements table) do
 
 - `hidden-slides.mjs`: hide a slide, save, present (→ / ← skip it), the all-slides grid, show it again.
 - `announcements-admin.mjs`: the super admin makes a corner box and an HTML modal in the form; a teacher sees them.
+- `announcements-show-after.mjs`: the super admin sets "It shows after 8 seconds" in the form (not on a top bar;
+  the list line, the saved number, the edit page). The teacher's modal waits, keeps counting across a reload and an
+  in-app move, starts over in a new tab, doesn't count in a background tab or while presenting; a corner box with no
+  wait shows at once, then waits while the modal is up.
 - `announcements-pages.mjs`: announcements put straight in the table, checked on the home, saved, liked, search,
   account and editor pages, at desktop and phone width.

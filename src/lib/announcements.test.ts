@@ -12,6 +12,7 @@ import {
   manilaDay,
   myAnnouncementSchema,
   pageGroup,
+  isWaiting,
   pickForPage,
   sandboxedHtml,
   type MyAnnouncement,
@@ -63,6 +64,7 @@ const valid = {
   bar_height: 60,
   modal_display: "center",
   modal_auto_close: 0,
+  modal_show_after: 0,
 };
 
 const PHOTO = "https://images.quizmatter.com/uploads/";
@@ -205,24 +207,25 @@ function row(id: string, createdAt: string, change: Partial<MyAnnouncement> = {}
     bar_height: 60,
     modal_display: "center",
     modal_auto_close: 0,
+    modal_show_after: 0,
     ...change,
   };
 }
 
 test("pickForPage fits pages", () => {
-  assert.equal(pickForPage([row("a", "2026-01-01T00:00:00Z")], "saved", new Set()).modals.length, 1);
-  assert.equal(pickForPage([row("a", "2026-01-01T00:00:00Z", { pages: ["editor"] })], "saved", new Set()).modals.length, 0);
+  assert.equal(pickForPage([row("a", "2026-01-01T00:00:00Z")], "saved", new Set(), 0).modals.length, 1);
+  assert.equal(pickForPage([row("a", "2026-01-01T00:00:00Z", { pages: ["editor"] })], "saved", new Set(), 0).modals.length, 0);
 });
 
 test("pickForPage skips closed parts", () => {
-  const out = pickForPage([row("a", "2026-01-01T00:00:00Z")], "saved", new Set(["a:modal"]));
+  const out = pickForPage([row("a", "2026-01-01T00:00:00Z")], "saved", new Set(["a:modal"]), 0);
   assert.equal(out.modals.length, 0);
   assert.equal(out.bars.length, 1);
 });
 
 test("pickForPage: 2 newest bars, modals newest first", () => {
   const list = [row("a", "2026-01-01T00:00:00Z"), row("c", "2026-03-01T00:00:00Z"), row("b", "2026-02-01T00:00:00Z")];
-  const out = pickForPage(list, "saved", new Set());
+  const out = pickForPage(list, "saved", new Set(), 0);
   assert.deepEqual(out.bars.map((r) => r.id), ["c", "b"]);
   assert.deepEqual(out.modals.map((r) => r.id), ["c", "b", "a"]);
 });
@@ -311,11 +314,11 @@ test("pickForPage puts corner boxes in boxes, not modals", () => {
     row("center", "2026-01-01T00:00:00Z", { show_bar: false }),
     row("corner", "2026-02-01T00:00:00Z", { show_bar: false, modal_display: "corner", modal_size: "small" }),
   ];
-  assert.deepEqual(pickForPage(list, "saved", new Set()).modals.map((r) => r.id), ["center"]);
+  assert.deepEqual(pickForPage(list, "saved", new Set(), 0).modals.map((r) => r.id), ["center"]);
   const boxOnly = [list[1]];
-  assert.deepEqual(pickForPage(boxOnly, "saved", new Set()).modals, []);
-  assert.deepEqual(pickForPage(boxOnly, "saved", new Set()).boxes.map((r) => r.id), ["corner"]);
-  assert.deepEqual(pickForPage(boxOnly, "saved", new Set(["corner:modal"])).boxes, []);
+  assert.deepEqual(pickForPage(boxOnly, "saved", new Set(), 0).modals, []);
+  assert.deepEqual(pickForPage(boxOnly, "saved", new Set(), 0).boxes.map((r) => r.id), ["corner"]);
+  assert.deepEqual(pickForPage(boxOnly, "saved", new Set(["corner:modal"]), 0).boxes, []);
 });
 
 test("announcementType: a top bar, a corner box or a modal, with its word", () => {
@@ -330,8 +333,8 @@ test("pickForPage holds a corner box back while a modal shows (its timer must no
     row("center", "2026-01-01T00:00:00Z", { show_bar: false }),
     row("corner", "2026-02-01T00:00:00Z", { show_bar: false, modal_display: "corner", modal_size: "small" }),
   ];
-  assert.deepEqual(pickForPage(list, "saved", new Set()).boxes, []);
-  assert.deepEqual(pickForPage(list, "saved", new Set(["center:modal"])).boxes.map((r) => r.id), ["corner"]);
+  assert.deepEqual(pickForPage(list, "saved", new Set(), 0).boxes, []);
+  assert.deepEqual(pickForPage(list, "saved", new Set(["center:modal"]), 0).boxes.map((r) => r.id), ["corner"]);
 });
 
 test("announcementStatus: live, scheduled, ended, off (ended wins)", () => {
@@ -344,4 +347,41 @@ test("announcementStatus: live, scheduled, ended, off (ended wins)", () => {
   assert.equal(status(false, null, "2026-11-01T23:00:00Z"), "ended");
   assert.equal(status(false, null, null), "off");
   assert.equal(status(true, null, "2026-11-02T00:00:00Z"), "ended");
+});
+
+test("announcementSchema: a modal or corner box shows after 0–600 seconds, a top bar at once", () => {
+  const box = { ...valid, modal_display: "corner", modal_size: "small" };
+  for (const ok of [{ ...valid, modal_show_after: 600 }, { ...box, modal_show_after: 20 }, { ...valid, modal_show_after: 0 }]) {
+    assert.equal(announcementSchema.safeParse(ok).success, true, JSON.stringify(ok.modal_show_after));
+  }
+  const message = (change: object) => announcementSchema.safeParse({ ...valid, ...change }).error?.issues[0].message;
+  for (const bad of [-1, 601, 1.5]) assert.equal(message({ modal_show_after: bad }), "It shows after 0–600 seconds.");
+  const bar = { show_modal: false, modal_text: "", show_bar: true, bar_html: "<p>Hi</p>" };
+  assert.equal(message({ ...bar, modal_show_after: 10 }), "A top bar shows at once.");
+});
+
+test("a my_announcements row without modal_show_after (saved before it) shows at once", () => {
+  const { modal_show_after, ...older } = row("a", "2026-01-01T00:00:00Z");
+  void modal_show_after;
+  assert.equal(myAnnouncementSchema.parse(older).modal_show_after, 0);
+});
+
+test("pickForPage holds a modal or corner box back until the tab's clock reaches its wait", () => {
+  const modal = row("modal", "2026-01-01T00:00:00Z", { show_bar: false, modal_show_after: 20 });
+  const box = row("box", "2026-02-01T00:00:00Z", { show_bar: false, modal_display: "corner", modal_size: "small", modal_show_after: 10 });
+  assert.deepEqual(pickForPage([modal], "saved", new Set(), 19).modals, []);
+  assert.deepEqual(pickForPage([modal], "saved", new Set(), 20).modals.map((r) => r.id), ["modal"]);
+  // A modal still waiting doesn't hold the corner box back; once it shows, the box waits for it.
+  assert.deepEqual(pickForPage([modal, box], "saved", new Set(), 9).boxes, []);
+  assert.deepEqual(pickForPage([modal, box], "saved", new Set(), 10).boxes.map((r) => r.id), ["box"]);
+  assert.deepEqual(pickForPage([modal, box], "saved", new Set(), 20).boxes, []);
+});
+
+test("isWaiting: true while an open modal or corner box hasn't reached its wait, on any page", () => {
+  const modal = row("modal", "2026-01-01T00:00:00Z", { show_bar: false, pages: ["editor"], modal_show_after: 20 });
+  assert.equal(isWaiting([modal], new Set(), 19), true);
+  assert.equal(isWaiting([modal], new Set(), 20), false);
+  assert.equal(isWaiting([modal], new Set(["modal:modal"]), 0), false);
+  assert.equal(isWaiting([row("a", "2026-01-01T00:00:00Z")], new Set(), 0), false);
+  assert.equal(isWaiting([{ ...modal, show_modal: false }], new Set(), 0), false);
 });

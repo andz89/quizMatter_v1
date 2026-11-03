@@ -159,6 +159,7 @@ CREATE TABLE IF NOT EXISTS "public"."announcements" (
     "bar_height" integer DEFAULT 60 NOT NULL,
     "modal_display" "text" DEFAULT 'center'::"text" NOT NULL,
     "modal_auto_close" integer DEFAULT 0 NOT NULL,
+    "modal_show_after" integer DEFAULT 0 NOT NULL,
     CONSTRAINT "announcements_age_max_check" CHECK ((("age_max" >= 18) AND ("age_max" <= 100))),
     CONSTRAINT "announcements_age_min_check" CHECK ((("age_min" >= 18) AND ("age_min" <= 100))),
     CONSTRAINT "announcements_auto_close_corner" CHECK ((("modal_display" = 'corner'::"text") OR ("modal_auto_close" = 0))),
@@ -187,6 +188,7 @@ END)),
     CONSTRAINT "announcements_modal_has_content" CHECK (((NOT "show_modal") OR (("modal_format" = 'post'::"text") AND (("btrim"("modal_text") <> ''::"text") OR ("modal_attachment" IS NOT NULL))) OR (("modal_format" = 'html'::"text") AND ("btrim"("modal_html") <> ''::"text")))),
     CONSTRAINT "announcements_modal_height_check" CHECK ((("modal_height" >= 100) AND ("modal_height" <= 1000))),
     CONSTRAINT "announcements_modal_html_check" CHECK (("char_length"("modal_html") <= 100000)),
+    CONSTRAINT "announcements_modal_show_after_check" CHECK ((("modal_show_after" >= 0) AND ("modal_show_after" <= 600))),
     CONSTRAINT "announcements_modal_size_check" CHECK (("modal_size" = ANY (ARRAY['small'::"text", 'medium'::"text", 'large'::"text"]))),
     CONSTRAINT "announcements_modal_text_check" CHECK (("char_length"("modal_text") <= 5000)),
     CONSTRAINT "announcements_name_check" CHECK ((("char_length"("name") >= 1) AND ("char_length"("name") <= 100))),
@@ -651,6 +653,7 @@ begin
     new.modal_text := '';
     new.modal_attachment := null;
     new.modal_html := '';
+    new.modal_show_after := 0;
   end if;
   if not new.show_bar then
     new.bar_html := '';
@@ -2655,7 +2658,7 @@ $$;
 ALTER FUNCTION "public"."manila_today"() OWNER TO "postgres";
 
 
-CREATE OR REPLACE FUNCTION "public"."my_announcements"() RETURNS TABLE("id" "uuid", "show_modal" boolean, "modal_text" "text", "modal_attachment" "jsonb", "modal_close_after" integer, "show_bar" boolean, "bar_html" "text", "bar_close_after" integer, "repeat" "text", "pages" "text"[], "created_at" timestamp with time zone, "modal_size" "text", "modal_format" "text", "modal_html" "text", "modal_height" integer, "bar_format" "text", "bar_height" integer, "modal_display" "text", "modal_auto_close" integer)
+CREATE OR REPLACE FUNCTION "public"."my_announcements"() RETURNS TABLE("id" "uuid", "show_modal" boolean, "modal_text" "text", "modal_attachment" "jsonb", "modal_close_after" integer, "show_bar" boolean, "bar_html" "text", "bar_close_after" integer, "repeat" "text", "pages" "text"[], "created_at" timestamp with time zone, "modal_size" "text", "modal_format" "text", "modal_html" "text", "modal_height" integer, "bar_format" "text", "bar_height" integer, "modal_display" "text", "modal_auto_close" integer, "modal_show_after" integer)
     LANGUAGE "sql" STABLE SECURITY DEFINER
     SET "search_path" TO ''
     AS $$
@@ -2683,7 +2686,7 @@ CREATE OR REPLACE FUNCTION "public"."my_announcements"() RETURNS TABLE("id" "uui
     m.repeat, m.pages, m.created_at, m.modal_size,
     m.modal_format, case when m.modal_open then m.modal_html else '' end, m.modal_height,
     m.bar_format, m.bar_height,
-    m.modal_display, m.modal_auto_close
+    m.modal_display, m.modal_auto_close, m.modal_show_after
   from mine m
   where m.modal_open or m.bar_open
   order by m.created_at desc, m.id;
@@ -3186,14 +3189,14 @@ begin
       name, is_on, starts_at, ends_at, show_modal, modal_text, modal_attachment, modal_close_after, show_bar, bar_html,
       bar_close_after, repeat, pages, genders, age_min, age_max, education_levels,
       field_words, presentations_min, presentations_max, roles, modal_size, modal_format, modal_html, modal_height,
-      bar_format, bar_height, modal_display, modal_auto_close, created_by, created_at, updated_at
+      bar_format, bar_height, modal_display, modal_auto_close, modal_show_after, created_by, created_at, updated_at
     ) values (
       btrim(r.name), r.is_on, r.starts_at, r.ends_at, r.show_modal, coalesce(r.modal_text, ''), r.modal_attachment, r.modal_close_after, r.show_bar,
       r.bar_html, r.bar_close_after, r.repeat, r.pages, r.genders, r.age_min, r.age_max,
       r.education_levels, r.field_words, r.presentations_min, r.presentations_max, r.roles, coalesce(r.modal_size, 'large'),
       coalesce(r.modal_format, 'post'), coalesce(r.modal_html, ''), coalesce(r.modal_height, 400),
       coalesce(r.bar_format, 'text'), coalesce(r.bar_height, 60),
-      coalesce(r.modal_display, 'center'), coalesce(r.modal_auto_close, 0),
+      coalesce(r.modal_display, 'center'), coalesce(r.modal_auto_close, 0), coalesce(r.modal_show_after, 0),
       auth.uid(), now(), clock_timestamp()
     )
     returning id into saved_id;
@@ -3217,7 +3220,7 @@ begin
       presentations_min = r.presentations_min, presentations_max = r.presentations_max, roles = r.roles,
       modal_size = r.modal_size, modal_format = r.modal_format, modal_html = r.modal_html, modal_height = r.modal_height,
       bar_format = r.bar_format, bar_height = r.bar_height,
-      modal_display = r.modal_display, modal_auto_close = r.modal_auto_close,
+      modal_display = r.modal_display, modal_auto_close = r.modal_auto_close, modal_show_after = r.modal_show_after,
       updated_at = clock_timestamp(),
       -- Ending later again after its cleanup: its closed rows start over (they were deleted).
       closed_cleared_at = case when r.ends_at is null or r.ends_at > now() then null else x.closed_cleared_at end

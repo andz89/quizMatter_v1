@@ -313,6 +313,12 @@ The super admin shows a message to chosen teachers on chosen pages (Admin → An
   its timer stops while the mouse is over it or the tab is in the background. It has its own slot in `check_one_on` (`bar` / `modal` / `corner`), so a modal,
   a bar and a corner box can all be on together. `announcementType` / `TYPE_WORDS` (`src/lib/announcements.ts`) name
   the three types in the admin pages.
+- **Shows after** (`modal_show_after`, 0–600 seconds, 0 = at once; `20261231000600_announcement_show_after.sql`,
+  test `supabase/tests/announcement_show_after.sql`): a modal or corner box waits until the teacher has spent that
+  long in the tab. The tab keeps one clock (`waited` in `qm:announcements`) that counts across pages and reloads,
+  only while one still waits (`isWaiting`), the tab is in front and nobody is presenting; a new tab, day or account
+  starts at 0. A waiting modal doesn't hold a corner box back (`pickForPage`). A top bar always shows at once (the
+  unused-part trigger sets it to 0).
 - **Filters:** empty = everyone; every filled one must match. A teacher with that detail empty (e.g. no birthday)
   doesn't match a filter on it. Presentations count their own, not shared copies.
 - **The key rides on the maintenance status:** `maintenance_status()` returns `announcements_key` (null when nothing

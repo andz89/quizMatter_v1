@@ -86,6 +86,9 @@ export const ANNOUNCEMENT_LIMITS = {
   // The corner box closes itself after this many seconds, or never (0) (20261231000300_announcement_corner_box.sql).
   autoCloseMin: 5,
   autoCloseMax: 600,
+  // A modal or corner box shows after this many seconds in the tab (0 = at once)
+  // (20261231000600_announcement_show_after.sql).
+  showAfterMax: 600,
 };
 const L = ANNOUNCEMENT_LIMITS;
 
@@ -140,6 +143,7 @@ const time = z.iso.datetime({ offset: true }).nullable();
 const MODAL_HEIGHT_WRONG = `The box height must be ${L.modalHeightMin}–${L.modalHeightMax.toLocaleString("en-US")} px.`;
 const BAR_HEIGHT_WRONG = `The bar height must be ${L.barHeightMin}–${L.barHeightMax} px.`;
 const AUTO_CLOSE_WRONG = `It closes itself after ${L.autoCloseMin}–${L.autoCloseMax} seconds, or never.`;
+const SHOW_AFTER_WRONG = `It shows after 0–${L.showAfterMax} seconds.`;
 
 // Every key the database's save_announcement reads (a missing key counts as empty there and is refused).
 // The modal's one attachment, under its text (spec docs/superpowers/specs/2026-10-31-announcement-post-design.md):
@@ -219,6 +223,7 @@ export const announcementSchema = z
       .number()
       .int(AUTO_CLOSE_WRONG)
       .refine((n) => n === 0 || (n >= L.autoCloseMin && n <= L.autoCloseMax), AUTO_CLOSE_WRONG),
+    modal_show_after: z.number().int(SHOW_AFTER_WRONG).min(0, SHOW_AFTER_WRONG).max(L.showAfterMax, SHOW_AFTER_WRONG),
   })
   .refine((a) => a.modal_display === "center" || CORNER_SIZES.includes(a.modal_size), {
     message: "A corner box is Small or Medium.",
@@ -227,6 +232,10 @@ export const announcementSchema = z
   .refine((a) => a.modal_display === "corner" || a.modal_auto_close === 0, {
     message: "Only a corner box closes itself.",
     path: ["modal_auto_close"],
+  })
+  .refine((a) => !a.show_bar || a.modal_show_after === 0, {
+    message: "A top bar shows at once.",
+    path: ["modal_show_after"],
   })
   .refine((a) => a.bar_format !== "text" || a.bar_html.length <= L.barHtml, {
     message: `The bar's text is too long (${L.barHtml} characters at most, with its formatting).`,
@@ -284,6 +293,8 @@ export const myAnnouncementSchema = z.object({
   // Missing (a row from before the corner box) = a centered modal that never closes itself.
   modal_display: z.enum(MODAL_DISPLAYS).catch("center"),
   modal_auto_close: z.number().catch(0),
+  // Missing (a row from before the wait) = shows at once.
+  modal_show_after: z.number().catch(0),
 });
 export type MyAnnouncement = z.infer<typeof myAnnouncementSchema>;
 
@@ -316,25 +327,32 @@ export function sandboxedHtml(html: string): string {
 
 /**
  * What to show on a page: the announcements that fit it, without parts this tab closed (key "<id>:modal" or
- * "<id>:bar"; a corner box closes as its modal), newest first. At most 2 bars. Corner boxes wait while a modal
- * shows: under its backdrop the box can't be seen or hovered, so its "closes itself" timer would run out unseen (and
- * count as seen).
+ * "<id>:bar"; a corner box closes as its modal), newest first. At most 2 bars. A modal or corner box waits until
+ * `waited` (the tab's seconds on QuizMatter, AnnouncementsWatch) reaches its `modal_show_after`. Corner boxes wait
+ * while a modal shows: under its backdrop the box can't be seen or hovered, so its "closes itself" timer would run out
+ * unseen (and count as seen).
  */
 export function pickForPage(
   list: MyAnnouncement[],
   group: PageGroup,
   closed: ReadonlySet<string>,
+  waited: number,
 ): { modals: MyAnnouncement[]; bars: MyAnnouncement[]; boxes: MyAnnouncement[] } {
   const fits = list
     .filter((a) => a.pages.includes("all") || a.pages.includes(group))
     .sort((a, b) => b.created_at.localeCompare(a.created_at));
-  const open = fits.filter((a) => a.show_modal && !closed.has(`${a.id}:modal`));
+  const open = fits.filter((a) => a.show_modal && !closed.has(`${a.id}:modal`) && a.modal_show_after <= waited);
   const modals = open.filter((a) => a.modal_display === "center");
   return {
     modals,
     bars: fits.filter((a) => a.show_bar && !closed.has(`${a.id}:bar`)).slice(0, 2),
     boxes: modals.length > 0 ? [] : open.filter((a) => a.modal_display === "corner"),
   };
+}
+
+/** Whether a modal or corner box not closed in this tab still waits for the clock (on any page): the clock runs only then. */
+export function isWaiting(list: MyAnnouncement[], closed: ReadonlySet<string>, waited: number): boolean {
+  return list.some((a) => a.show_modal && !closed.has(`${a.id}:modal`) && a.modal_show_after > waited);
 }
 
 /**

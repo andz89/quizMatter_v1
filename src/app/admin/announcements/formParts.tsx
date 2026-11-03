@@ -97,6 +97,24 @@ export function AutoClose({ value, onChange }: { value: number; onChange: (n: nu
   );
 }
 
+/** "Shows after": the seconds a teacher spends on QuizMatter in the tab first (0 = at once). */
+export function ShowAfter({ value, onChange }: { value: number; onChange: (n: number) => void }) {
+  return (
+    <label className="flex flex-wrap items-center gap-2 text-sm text-text-primary">
+      It shows after
+      <input
+        type="number"
+        min={0}
+        max={L.showAfterMax}
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className={`${inputClass} w-24`}
+      />
+      seconds on QuizMatter (0 = at once; the time on every page adds up)
+    </label>
+  );
+}
+
 /** The sealed box's code and height (an HTML modal or top bar). */
 export function HtmlBoxFields({
   id,

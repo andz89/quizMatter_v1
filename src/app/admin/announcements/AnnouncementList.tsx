@@ -98,6 +98,7 @@ function Row({ row }: { row: AnnouncementRow }) {
   ]
     .filter(Boolean)
     .join(" + ")
+    .concat(row.modal_show_after > 0 ? ` · shows after ${row.modal_show_after} s` : "")
     .concat(row.modal_auto_close > 0 ? ` · closes after ${row.modal_auto_close} s` : "");
   const typeWord = TYPE_WORDS[announcementType(row)];
 

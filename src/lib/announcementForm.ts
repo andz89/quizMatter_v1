@@ -42,6 +42,7 @@ export const NEW_ANNOUNCEMENT: AnnouncementInput = {
   bar_height: DEFAULT_BAR_HEIGHT,
   modal_display: "center",
   modal_auto_close: 0,
+  modal_show_after: 0,
 };
 
 /**
@@ -62,7 +63,7 @@ export function changeType(form: AnnouncementInput, type: AnnouncementType): Ann
 /**
  * What a save sends: the form, with the bar's text or code (`barHtml`: the form keeps the two apart) and the field
  * words (typed as one line). Only the chosen type's and format's fields are kept (the database empties the rest too),
- * and only a corner box closes itself.
+ * only a corner box closes itself, and a top bar shows at once.
  */
 export function toSaved(form: AnnouncementInput, barHtml: string, fieldText: string): AnnouncementInput {
   const modalPart =
@@ -75,6 +76,7 @@ export function toSaved(form: AnnouncementInput, barHtml: string, fieldText: str
     bar_html: form.show_bar ? barHtml : "",
     field_words: splitWords(fieldText),
     modal_auto_close: announcementType(form) === "corner" ? form.modal_auto_close : 0,
+    modal_show_after: form.show_bar ? 0 : form.modal_show_after,
   };
 }
 

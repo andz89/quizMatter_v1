@@ -6,6 +6,7 @@ import { z } from "zod";
 import {
   ANNOUNCEMENTS_STORE,
   isSameVisit,
+  isWaiting,
   manilaDay,
   myAnnouncementSchema,
   pageGroup,
@@ -18,13 +19,15 @@ import { AnnouncementBar, AnnouncementCornerBox, AnnouncementModal } from "./Ann
 import { isEditorPage } from "./Footer";
 
 // What this tab knows (sessionStorage, so a new tab asks again): the key it was asked under, the Philippine date,
-// whose list it is, the caller's announcements and the parts closed in this tab ("<id>:modal" / "<id>:bar").
+// whose list it is, the caller's announcements, the parts closed in this tab ("<id>:modal" / "<id>:bar") and the
+// tab's clock (`waited`: seconds on QuizMatter, for "shows after"; missing in a tab from before it = 0).
 const storedSchema = z.object({
   key: z.string(),
   day: z.string(),
   userId: z.string(),
   items: z.array(myAnnouncementSchema),
   closed: z.array(z.string()),
+  waited: z.number().catch(0),
 });
 type Stored = z.infer<typeof storedSchema>;
 
@@ -49,7 +52,9 @@ function writeStored(stored: Stored) {
  * Shows the logged-in teacher's announcements (root CLAUDE.md, "Announcements"). Only mounted when something is live
  * (`Announcements`, from the maintenance status's key). Asks my_announcements once per key and Philippine day, never
  * on pages that can't show one, and picks what fits each page from the saved list. A list shows only to the account
- * it was asked for. Nothing shows while presenting; a waiting modal shows once the presentation ends.
+ * it was asked for. Nothing shows while presenting; a waiting modal shows once the presentation ends. A modal or
+ * corner box with "shows after" waits for the tab's clock, which counts the seconds on any page in a group while one
+ * still waits, the tab is in front and nobody is presenting.
  */
 export function AnnouncementsWatch({ announcementsKey }: { announcementsKey: string }) {
   const pathname = usePathname() ?? "";
@@ -83,13 +88,20 @@ export function AnnouncementsWatch({ announcementsKey }: { announcementsKey: str
     const load = async (): Promise<Stored | null> => {
       const supabase = createClient();
       const saved = readStored();
-      // Closed parts stay closed for this visit: the same account, until a new day ("once a day" shows again).
+      // Closed parts and the clock stay for this visit: the same account, until a new day ("once a day" shows again).
       const sameVisit = isSameVisit(saved, { day, userId });
       if (saved && sameVisit && saved.key === announcementsKey) return saved;
       const { data, error } = await supabase.rpc("my_announcements");
       const items = z.array(myAnnouncementSchema).safeParse(data);
       if (error || !items.success) return null;
-      const next = { key: announcementsKey, day, userId, items: items.data, closed: saved && sameVisit ? saved.closed : [] };
+      const next = {
+        key: announcementsKey,
+        day,
+        userId,
+        items: items.data,
+        closed: saved && sameVisit ? saved.closed : [],
+        waited: saved && sameVisit ? saved.waited : 0,
+      };
       writeStored(next);
       return next;
     };
@@ -115,8 +127,27 @@ export function AnnouncementsWatch({ announcementsKey }: { announcementsKey: str
     };
   }, []);
 
-  if (!group || !stored || !userId || !isSameVisit(stored, { day, userId }) || isPresenting) return null;
-  const { modals, bars, boxes } = pickForPage(stored.items, group, new Set(stored.closed));
+  const isShowing = group !== null && stored !== null && userId !== null && isSameVisit(stored, { day, userId }) && !isPresenting;
+  const isClockRunning = isShowing && isWaiting(stored.items, new Set(stored.closed), stored.waited);
+
+  // The tab's clock for "shows after": one tick a second, only while something waits; a tab in the background
+  // doesn't count (nobody would see it show).
+  useEffect(() => {
+    if (!isClockRunning) return;
+    const timer = setInterval(() => {
+      if (document.hidden) return;
+      setStored((current) => {
+        if (!current) return current;
+        const next = { ...current, waited: current.waited + 1 };
+        writeStored(next);
+        return next;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [isClockRunning]);
+
+  if (!isShowing) return null;
+  const { modals, bars, boxes } = pickForPage(stored.items, group, new Set(stored.closed), stored.waited);
   const isFloating = isEditorPage(pathname);
 
   // Gone at once in this tab. "Once" and "once a day" also tell the database (a failure is ignored: it stays
