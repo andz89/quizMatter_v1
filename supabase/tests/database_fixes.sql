@@ -17,7 +17,8 @@ insert into public.admins (user_id, is_super) values
   ('00000000-0000-4000-8000-0000000000d2', false);
 insert into public.editors (user_id) values ('00000000-0000-4000-8000-0000000000d4');
 
--- d3's presentation (shared below), d5's three (hidden and deleted below), the super admin's shared QuizMatter lesson.
+-- d3's presentation (shared below), d5's three (shared, their copies hidden, then deleted below), the super admin's
+-- shared QuizMatter lesson.
 insert into public.presentations (id, owner_id, title) values
   ('test-dbf-orig', '00000000-0000-4000-8000-0000000000d3', 'Original'),
   ('test-dbf-h1', '00000000-0000-4000-8000-0000000000d5', 'Hide one'),
@@ -28,7 +29,7 @@ insert into public.presentations (id, owner_id, title, from_admin, is_published)
 insert into public.slides (presentation_id, id, position, data)
 select p.id, 's1', 0, '{"id": "s1", "type": "blank", "elements": [], "question": "What is 1 + 1?"}'::jsonb
 from public.presentations p
-where p.id in ('test-dbf-orig', 'test-dbf-lesson');
+where p.id in ('test-dbf-orig', 'test-dbf-lesson', 'test-dbf-h1', 'test-dbf-h2', 'test-dbf-h3');
 
 -- Three shared photos the plain admin uploaded, in a category of their own.
 insert into public.photo_categories (name) values ('Test dbf photos');
@@ -106,23 +107,28 @@ end $$;
 -- Each app request is its own transaction, so its "already logged" flag starts empty. This test is one
 -- transaction: before each step, the flag is cleared the way a new request would start.
 
--- As the plain admin: hide three presentations in one update.
-select set_config('quizmatter.admin_logged', '', true);
+-- As the teacher: publish the three (a plain admin hides only teachers' shared copies).
 set local role authenticated;
+select set_config('request.jwt.claims',
+  json_build_object('sub', '00000000-0000-4000-8000-0000000000d5', 'role', 'authenticated')::text, true);
+select public.share_presentation(target_id => id) from unnest(array['test-dbf-h1', 'test-dbf-h2', 'test-dbf-h3']) as id;
+
+-- As the plain admin: hide the three shared copies in one update.
+select set_config('quizmatter.admin_logged', '', true);
 select set_config('request.jwt.claims',
   json_build_object('sub', '00000000-0000-4000-8000-0000000000d2', 'role', 'authenticated')::text, true);
 
 do $$
 declare n int;
 begin
-  update public.presentations set hidden_at = now() where id in ('test-dbf-h1', 'test-dbf-h2', 'test-dbf-h3');
+  update public.presentations set hidden_at = now() where shared_from in ('test-dbf-h1', 'test-dbf-h2', 'test-dbf-h3');
   get diagnostics n = row_count;
   if n <> 3 then
     raise exception 'FAIL: setup: the plain admin hid % presentations, not 3', n;
   end if;
 end $$;
 
--- The same three, deleted in one delete (they're hidden, so a plain admin may).
+-- Their originals, deleted in one delete (their shared copies are hidden, so a plain admin may; the copies go too).
 select set_config('quizmatter.admin_logged', '', true);
 
 do $$
@@ -156,7 +162,7 @@ do $$
 declare n int;
 begin
   select count(*) into n from public.admin_actions a
-  where a.action = 'presentation_hidden' and a.target_id in ('test-dbf-h1', 'test-dbf-h2', 'test-dbf-h3')
+  where a.action = 'presentation_hidden' and a.target_title in ('Hide one', 'Hide two', 'Hide three')
     and a.admin_id = '00000000-0000-4000-8000-0000000000d2';
   if n <> 3 then
     raise exception 'FAIL: hiding 3 presentations in one update logged % rows, not 3', n;

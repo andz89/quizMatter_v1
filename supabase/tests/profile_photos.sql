@@ -6,7 +6,8 @@ begin;
 
 -- ─── Setup (as postgres) ──────────────────────────────────────────────────────────────────────────────────────
 -- e1 an editor (display name "Pp Editor", link name "pp-editor"), e2 a plain teacher, e3 an admin, e4 a banned
--- editor (made an editor first: check_editor_target refuses making a banned teacher one).
+-- editor (made an editor first: check_editor_target refuses making a banned teacher one; the ban then takes the
+-- role away, see moderation_fixes, and set_profile_photo refuses the ban first).
 insert into auth.users (id, email, raw_user_meta_data) values
   ('00000000-0000-4000-8000-0000000000e1', 'pp-editor@example.com', '{"first_name": "Pp", "last_name": "Editor"}'),
   ('00000000-0000-4000-8000-0000000000e2', 'pp-teacher@example.com', '{"first_name": "Pp", "last_name": "Teacher"}'),
@@ -214,6 +215,9 @@ end;
 $$;
 
 -- ─── Deleting an editor's account removes their photo ─────────────────────────────────────────────────────────
+-- Banning took e4's editor role away (moderation_fixes), so they're unbanned and made an editor again first.
+delete from public.banned_users where user_id = '00000000-0000-4000-8000-0000000000e4';
+insert into public.editors (user_id) values ('00000000-0000-4000-8000-0000000000e4');
 insert into public.profile_photos (user_id, src, day, changes)
 values ('00000000-0000-4000-8000-0000000000e4', 'https://images.quizmatter.com/uploads/' || repeat('f', 64) || '.webp', current_date, 1);
 delete from auth.users where id = '00000000-0000-4000-8000-0000000000e4';

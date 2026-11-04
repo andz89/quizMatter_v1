@@ -277,11 +277,14 @@ CREATE OR REPLACE FUNCTION "public"."admin_may_delete"("target_id" "text") RETUR
     SET "search_path" TO ''
     AS $$
   select public.is_admin() and exists (
-    select 1 from public.presentations p
-    where (p.id = target_id or p.shared_from = target_id)
+    select 1
+    from public.presentations original
+    join public.presentations copy on copy.shared_from = original.id
+    where original.id = target_id
+      and not original.from_admin
       and (
-        p.hidden_at is not null
-        or exists (select 1 from public.presentation_reports r where r.presentation_id = p.id)
+        copy.hidden_at is not null
+        or exists (select 1 from public.presentation_reports r where r.presentation_id = copy.id)
       )
   );
 $$;
@@ -1919,6 +1922,12 @@ begin
     and (to_jsonb(new) - 'hidden_at' - 'tags_text' - 'search_text') <> (to_jsonb(old) - 'hidden_at' - 'tags_text' - 'search_text') then
     raise exception 'Admins can only hide or show someone else''s presentation.' using errcode = '42501';
   end if;
+  -- Only a teacher's shared copy (what teachers see and report). QuizMatter lessons and private presentations are
+  -- the super admin's to hide.
+  if old.owner_id is distinct from auth.uid() and new.hidden_at is distinct from old.hidden_at
+    and (old.shared_from is null or old.from_admin) then
+    raise exception 'Admins can only hide or show a teacher''s published copy.' using errcode = '42501';
+  end if;
   return new;
 end;
 $$;
@@ -3092,6 +3101,20 @@ $$;
 
 
 ALTER FUNCTION "public"."refuse_locked_photo_delete"() OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."remove_banned_editor"() RETURNS "trigger"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+begin
+  delete from public.editors e where e.user_id = new.user_id;
+  return new;
+end;
+$$;
+
+
+ALTER FUNCTION "public"."remove_banned_editor"() OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."remove_copy_of_quizmatter_presentation"() RETURNS "trigger"
@@ -5310,6 +5333,10 @@ CREATE OR REPLACE TRIGGER "refuse_locked_photo_delete" BEFORE DELETE ON "public"
 
 
 
+CREATE OR REPLACE TRIGGER "remove_banned_editor" AFTER INSERT ON "public"."banned_users" FOR EACH ROW EXECUTE FUNCTION "public"."remove_banned_editor"();
+
+
+
 CREATE OR REPLACE TRIGGER "remove_copy_of_quizmatter_presentation" AFTER UPDATE OF "from_admin" ON "public"."presentations" FOR EACH ROW WHEN (("new"."from_admin" AND (NOT "old"."from_admin"))) EXECUTE FUNCTION "public"."remove_copy_of_quizmatter_presentation"();
 
 
@@ -6586,6 +6613,11 @@ GRANT ALL ON FUNCTION "public"."refuse_banned_write"() TO "service_role";
 
 REVOKE ALL ON FUNCTION "public"."refuse_locked_photo_delete"() FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."refuse_locked_photo_delete"() TO "service_role";
+
+
+
+REVOKE ALL ON FUNCTION "public"."remove_banned_editor"() FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."remove_banned_editor"() TO "service_role";
 
 
 

@@ -19,8 +19,11 @@ Admin-only work (things shared with every teacher, managing teachers) lives here
   Admin → Photos shows a plain admin only their own photos (`uploaded_by`) and hides Categories. `setEditor`: only
   the super admin gives the role (never to an admin or a banned teacher); any admin takes it away (Admin → Editors
   uses it). `setShared` changes only a plain admin's own QuizMatter presentations (the super admin: any).
-  `deleteReportedPresentation` deletes only a reported or hidden one. The database holds the same limits
-  (`20261210000100_plain_admin_limits.sql`, root `CLAUDE.md` "Super Admin"), so these checks are only the first line.
+  `deleteReportedPresentation` deletes only a reported or hidden one. On Reports a plain admin gets Hide and Delete
+  only on their own or a teacher's shared copy (`canModerate` in `reports/page.tsx`); a QuizMatter lesson or a
+  private presentation says "Only the super admin can hide or delete this one." (Dismiss stays). The database holds
+  the same limits (`20261210000100_plain_admin_limits.sql`, `20261231000900_moderation_fixes.sql`, root `CLAUDE.md`
+  "Super Admin"), so these checks are only the first line. Test: `e2e/reports-plain-admin.mjs`.
 
 ## The pages
 

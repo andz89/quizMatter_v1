@@ -136,6 +136,10 @@ Draft / Shared switch on the presentation itself, and aren't counted.
   (`src/components/SupportEmail.tsx`). `src/proxy.ts` sends logged-out people here. Its
   matcher skips only the real static files (`_next/static`, `_next/image`, `favicon.ico`, `icon.svg` and the five
   `.svg` files in `public/`), never a page address that just ends in `.png`; a new file in `public/` must be added there.
+  Claude's routes are skipped by their exact name (`api/mcp`, `api/claude-photo`, `.well-known/`), so a route that
+  only starts the same (`/api/mcp-admin`) still gets the check. Every redirect and maintenance answer keeps the
+  refreshed login cookies (`keepSession`), or the browser would keep a used-up refresh token and be logged out.
+  Test: `e2e/proxy.mjs`.
   During maintenance it logs anyone but the super admin out again at once (`mayLogInNow`).
 - `maintenance/`: the page everyone but the super admin sees during maintenance (open without a login): the note,
   "Try again" and the support email; "QuizMatter is back" if it's already off. See the root `CLAUDE.md`,

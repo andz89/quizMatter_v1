@@ -132,7 +132,11 @@ A refusal raises an error with its own code. The app turns the code into a messa
   someone else's only when it or its shared copy is hidden or reported (`admin_may_delete`); and a restrictive rule
   lets only admins delete `from_admin` rows (a former admin can't). Editors: only the super admin adds a row, any
   admin removes one, and `check_editor_target` refuses an admin or a banned teacher. Test:
-  `supabase/tests/plain_admin_limits.sql`.
+  `supabase/tests/plain_admin_limits.sql`. Newest `guard_admin_presentation_update` and `admin_may_delete`:
+  `20261231000900_moderation_fixes.sql` (a plain admin hides or shows only a teacher's shared copy, never a
+  QuizMatter lesson or a private presentation, and deletes someone else's only when it's a teacher's and its shared
+  copy is hidden or reported, so a report they add themselves opens nothing else; banning an editor removes the
+  role, `remove_banned_editor`, which cancels their open round). Test: `supabase/tests/moderation_fixes.sql`.
 - Sharing (a teacher's Publish makes a shared copy, `shared_from` = the original): `20261123000000_shared_copy.sql`
   (`share_presentation`, `unshare_presentation`, and the `shared_copy_change` / `shared_copy_slides` guards that
   refuse any other change to a copy). `20261124000000_shared_copy_moderation.sql`: a hidden copy can't be made private

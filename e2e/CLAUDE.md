@@ -21,6 +21,8 @@ A plain Node script with the `playwright` library (not `@playwright/test`). From
 - `env` (the local keys; it stops if they aren't for 127.0.0.1), `APP`, `SHOTS`.
 - `makeTeacher({ first, last, superAdmin })`: a new confirmed account with a unique email;
   `deleteTeacher(teacher)` in `finally` deletes it and its presentations.
+- `sessionCookies(teacher, change)`: a fresh login session as cookie pieces (`change` can edit it, e.g. make it
+  look expired), for a plain `fetch` to the app.
 - `loggedIn(browser, teacher, viewport)`: a browser context already logged in (the session goes into the
   `sb-127-auth-token` cookie, so the login page's Turnstile box is skipped). It blocks every `*.supabase.co`
   request, and `finish()` fails the run if one was tried.
@@ -37,6 +39,10 @@ Tests that delete data (the announcements ones empty the announcements table) do
   and an image slide saved before still opens with its picture.
 - `calendar-date.mjs`: add a Calendar Page and a Month Calendar (both start on today), Set date to 29 February 2024,
   Today, save, reload.
+- `proxy.mjs`: an expired session opening /login is refreshed and the redirect keeps the new cookies; `/api/mcp`
+  skips the proxy, `/api/mcp-admin` and `/api/claude-photos` don't.
+- `reports-plain-admin.mjs`: Admin → Reports as a plain admin: a teacher's reported copy has Hide and Delete, a
+  reported QuizMatter lesson has neither and says why.
 - `photo-delete.mjs`: Photo cleanup's Delete refuses a file under 7 days old (a WebP and an announcement's GIF,
   which counts as our file), and the page shows no Delete button on it.
 - `photo-uploads.mjs`: a plain teacher's profile photo is refused before anything is counted; an editor's is stored
