@@ -37,6 +37,10 @@ Tests that delete data (the announcements ones empty the announcements table) do
   and an image slide saved before still opens with its picture.
 - `calendar-date.mjs`: add a Calendar Page and a Month Calendar (both start on today), Set date to 29 February 2024,
   Today, save, reload.
+- `photo-delete.mjs`: Photo cleanup's Delete refuses a file under 7 days old (a WebP and an announcement's GIF,
+  which counts as our file), and the page shows no Delete button on it.
+- `photo-uploads.mjs`: a plain teacher's profile photo is refused before anything is counted; an editor's is stored
+  and the profile switches to it, counted once; a too-big upload sent in pieces (no Content-Length) gets 413.
 - `announcements-admin.mjs`: the super admin makes a corner box and an HTML modal in the form; a teacher sees them.
 - `announcements-show-after.mjs`: the super admin sets "It shows after 8 seconds" in the form (not on a top bar;
   the list line, the saved number, the edit page). The teacher's modal waits, keeps counting across a reload and an

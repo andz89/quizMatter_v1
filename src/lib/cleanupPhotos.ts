@@ -17,6 +17,11 @@ type CleanupEnv = {
 
 // Files newer than this are kept even if unused: a teacher may have put one on a slide they haven't saved yet.
 export const KEEP_NEW_FILES_MS = 7 * 24 * 60 * 60 * 1000;
+
+/** True when a file is old enough to delete (uploaded more than KEEP_NEW_FILES_MS ago). */
+export function isPastKeepTime(uploaded: Date, now = Date.now()): boolean {
+  return uploaded.getTime() < now - KEEP_NEW_FILES_MS;
+}
 // A file's address is this + its key ("uploads/…"), like PHOTO_URL_PREFIX in constants.ts.
 const PHOTOS_DOMAIN = "https://images.quizmatter.com/";
 
@@ -29,8 +34,7 @@ export async function cleanupPhotos(env: CleanupEnv) {
   if (error) throw error;
 
   const { unused, checked } = await findUnusedPhotos(env.PHOTOS_BUCKET, data);
-  const cutoff = Date.now() - KEEP_NEW_FILES_MS;
-  const keys = unused.filter((file) => file.uploaded.getTime() < cutoff).map((file) => file.key);
+  const keys = unused.filter((file) => isPastKeepTime(file.uploaded)).map((file) => file.key);
 
   // R2 deletes up to 1000 files per call.
   for (let i = 0; i < keys.length; i += 1000) {

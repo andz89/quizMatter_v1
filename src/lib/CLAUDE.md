@@ -149,9 +149,10 @@ data. Spec: `docs/superpowers/specs/2026-10-23-stable-presentation-data-design.m
   photo in something waiting for QuizMatter can't be removed; the editor's Photos panel shows only public shared
   photos, even to admins), `photoFiles.ts` (R2 files, server), `photoTypes.ts` (what a file really is, from its first bytes:
   `readPhotoType` = WebP or JPEG for every upload, `readAnnouncementImageType` also takes a GIF, `MAX_GIF_BYTES`
-  = 1 MB; tests
-  `photoTypes.test.ts`), `photoTickets.ts`
-  (Claude's photo uploads), `cleanupPhotos.ts` (weekly cleanup). `PHOTO_TYPES` (the files a teacher can pick) is in
+  = 1 MB; also `readUploadBody`, an upload's body that stops reading at the size limit, and `isOurPhotoFile`, our
+  file addresses; tests `photoTypes.test.ts`), `photoTickets.ts` (Claude's photo uploads), `cleanupPhotos.ts`
+  (weekly cleanup; `isPastKeepTime` = older than 7 days, also used by Photo cleanup's Delete; tests
+  `cleanupPhotos.test.ts`). `PHOTO_TYPES` (the files a teacher can pick) is in
   `constants.ts`, so pages outside the editor can use it without loading `photos.tsx` (which loads the editor's store).
   Editors' profile photos: `photoCrop.ts` (zoom and move math for the adjust box, with `photoCrop.test.ts`) and
   `profilePhotos.ts` (make the 400 × 400 square, upload it, remove it; kept apart from `photos.tsx` for the same

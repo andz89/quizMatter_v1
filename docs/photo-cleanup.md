@@ -68,7 +68,8 @@ steps as the job (`findUnusedPhotos()` in `src/lib/cleanupPhotos.ts`), so it sho
 a JPEG file (shared photos must be WebP) goes to your own My photos.
 
 **Delete** deletes a file from R2 right away, without waiting for the job (`src/app/api/delete-photo`).
-It checks `admin_used_photo_srcs()` again first: if a slide, a My photos list or the shared list has
+It shows only on files uploaded more than 7 days ago, and the route refuses newer ones too (the job's own rule:
+a new file may be on a slide that isn't saved yet). It checks `admin_used_photo_srcs()` again first: if a slide, a My photos list or the shared list has
 started using the file since the page loaded, it isn't deleted and the admin is told why. A deleted file
 may still show for a while from Cloudflare's cache or a browser that already loaded it.
 

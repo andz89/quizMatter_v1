@@ -2,6 +2,7 @@ import { imageSize } from "image-size";
 import { z } from "zod";
 import { MAX_STORED_PHOTO_BYTES, PHOTO_MAX_SIDE, PHOTO_URL_PREFIX } from "@/lib/constants";
 import { photoFileName, readPhotoType, savePhotoFile } from "@/lib/photoFiles";
+import { readUploadBody } from "@/lib/photoTypes";
 import { deletePhotoTicket, getPhotoTicket } from "@/lib/photoTickets";
 import { getMaintenanceStatus, MAINTENANCE_WORDS } from "@/lib/maintenance";
 import { findOrCreateCategory } from "@/lib/photoCategories";
@@ -24,10 +25,9 @@ export async function POST(request: Request) {
     return answer(404, "This upload link is wrong, already used or expired (links work for an hour). Call prepare_photo_upload again.");
   }
 
-  // The header is checked first so a huge upload is refused before it's read.
-  if (Number(request.headers.get("content-length")) > MAX_STORED_PHOTO_BYTES) return tooBig();
-  const body = await request.arrayBuffer();
-  if (body.byteLength > MAX_STORED_PHOTO_BYTES) return tooBig();
+  // Reading stops as soon as it's too big, so a huge upload is never held in memory.
+  const body = await readUploadBody(request, MAX_STORED_PHOTO_BYTES);
+  if (!body) return tooBig();
 
   // The file's first bytes tell what it really is, and its real size comes from the file, not from Claude.
   if (readPhotoType(body)?.extension !== "webp") {

@@ -19,6 +19,9 @@ export type CleanupFile = {
   // Old enough for the next run to delete it; otherwise it's deleted on `deleteOn`, a later run.
   isNextRun: boolean;
   deleteOn: string;
+  // Uploaded over 7 days ago. A newer file can't be deleted now (/api/delete-photo refuses it): a teacher may have it
+  // on a slide they haven't saved yet.
+  canDelete: boolean;
 };
 
 /**
@@ -126,7 +129,8 @@ const FILE_COLUMNS = "grid-cols-[48px_minmax(0,1fr)] sm:grid-cols-[48px_100px_80
 /**
  * One unused file, as a table row (List) or a tile (Grid). Keep saves it: a WebP one becomes a shared photo
  * in the chosen category; a JPEG one (shared photos must be WebP) goes to your own "My photos". Delete deletes
- * the file now, unless a slide or photo list has started using it since the page loaded.
+ * the file now, unless a slide or photo list has started using it since the page loaded. It shows only on files
+ * uploaded over 7 days ago.
  */
 function FileItem({ file, view, categories, onDone }: { file: CleanupFile; view: View; categories: PhotoCategory[]; onDone: () => void }) {
   const isWebp = file.src.endsWith(".webp");
@@ -197,28 +201,30 @@ function FileItem({ file, view, categories, onDone }: { file: CleanupFile; view:
         {isKeeping && <Spinner size={14} />}
         {isWebp ? "Keep" : "Keep in My photos"}
       </button>
-      <>
-        <button
-          type="button"
-          onClick={() => setIsConfirming(true)}
-          disabled={isKeeping || isDeleting}
-          title="Delete the file now (only if nothing uses it)"
-          className="flex shrink-0 items-center justify-center gap-2 rounded-button border border-danger px-3 py-1.5 text-sm font-semibold text-danger-strong transition-colors hover:bg-danger-soft disabled:opacity-40"
-        >
-          {isDeleting ? <Spinner size={14} /> : <Trash2Icon size={14} />}
-          Delete
-        </button>
-        {isConfirming && (
-          <ConfirmModal
-            title="Delete this photo?"
-            message="It's deleted forever. This can't be undone."
-            confirmLabel="Delete"
-            danger
-            onConfirm={handleDelete}
-            onCancel={() => setIsConfirming(false)}
-          />
-        )}
-      </>
+      {file.canDelete && (
+        <>
+          <button
+            type="button"
+            onClick={() => setIsConfirming(true)}
+            disabled={isKeeping || isDeleting}
+            title="Delete the file now (only if nothing uses it)"
+            className="flex shrink-0 items-center justify-center gap-2 rounded-button border border-danger px-3 py-1.5 text-sm font-semibold text-danger-strong transition-colors hover:bg-danger-soft disabled:opacity-40"
+          >
+            {isDeleting ? <Spinner size={14} /> : <Trash2Icon size={14} />}
+            Delete
+          </button>
+          {isConfirming && (
+            <ConfirmModal
+              title="Delete this photo?"
+              message="It's deleted forever. This can't be undone."
+              confirmLabel="Delete"
+              danger
+              onConfirm={handleDelete}
+              onCancel={() => setIsConfirming(false)}
+            />
+          )}
+        </>
+      )}
     </div>
   );
 

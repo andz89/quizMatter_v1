@@ -2,7 +2,7 @@
 
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { getAccount } from "@/lib/account";
-import { KEEP_NEW_FILES_MS, findUnusedPhotos, nextCleanupRun } from "@/lib/cleanupPhotos";
+import { KEEP_NEW_FILES_MS, findUnusedPhotos, isPastKeepTime, nextCleanupRun } from "@/lib/cleanupPhotos";
 import { formatBytes, formatUtcDay } from "@/lib/format";
 import { createClient } from "@/lib/supabase/server";
 import type { CleanupFile } from "./CleanupList";
@@ -34,6 +34,7 @@ export async function findCleanupFiles(): Promise<{ files: CleanupFile[]; stored
         size: formatBytes(file.size),
         bytes: file.size,
         isNextRun: uploaded < cutoff,
+        canDelete: isPastKeepTime(file.uploaded),
         deleteOn: formatUtcDay(uploaded < cutoff ? nextRun : nextCleanupRun(new Date(uploaded + KEEP_NEW_FILES_MS))),
       };
     });
