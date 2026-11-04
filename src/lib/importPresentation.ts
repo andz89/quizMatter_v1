@@ -542,7 +542,7 @@ const slideRecipe = z.discriminatedUnion("type", [
   }),
   embedRecipe("video", "A YouTube, Vimeo or Canva video link."),
   embedRecipe("embed-slides", 'A Google Slides link (shared with "Anyone with the link") or a Canva Share → Embed link.'),
-  embedRecipe("image", "A picture link that starts with https:// (a Google Drive link works too)."),
+  // No "image" embed slide: new ones were removed on 2026-11-04 (the app still opens old ones).
   z.object({
     type: z.literal("custom"),
     ...common,
@@ -640,7 +640,7 @@ quizMatter is an open canvas tool for making presentations, like Canva or PowerP
 - Blank slides ("blank" type): a free canvas for any kind of presentation — teaching a topic, a class discussion, a story, a report, instructions, a review. A presentation can be all blank slides, with no questions at all.
 - Title slides ("title" type): a big centered title with a short line under it, to open a presentation or start a new part.
 - Question slides ("choice", "true-false", "short-answer" and "custom"): for checking what learners know — an evaluation, a paper quiz, an assessment, or a short quiz after the discussion.
-- Embed slides ("video", "embed-slides", "image"): a video, a slide deck or a picture from another site, filling the whole slide. Only with a link the user gives you.
+- Embed slides ("video", "embed-slides"): a video or a slide deck from another site, filling the whole slide. Only with a link the user gives you.
 Mix them as the user's request needs: e.g. a title slide, blank slides to teach, then question slides to check.
 
 Be a teacher, and be creative. Act like a kind, skilled teacher teaching this lesson to your own pupils:
@@ -719,8 +719,8 @@ The slide is 1280 × 720 px.
    - The same content as a blank slide: "layout", "title", "text", "textBoxes", "elements" (with "position" and "callouts").
    - Plain white like the other question slides (see Design below).
    - "answer" / "answerCanvas": the correct answers (see Answers below).
-7. "video", "embed-slides" and "image" — embed slides: something from another site fills the whole slide. They have only "link" (and "name").
-   - "video": a YouTube, Vimeo or Canva video link. "embed-slides": a Google Slides link (shared with "Anyone with the link") or a Canva Share → Embed link. "image": a picture link that starts with https:// (Google Drive links work too).
+7. "video" and "embed-slides" — embed slides: something from another site fills the whole slide. They have only "link" (and "name").
+   - "video": a YouTube, Vimeo or Canva video link. "embed-slides": a Google Slides link (shared with "Anyone with the link") or a Canva Share → Embed link. There is no picture embed slide: put a picture on a blank slide as a photo (see Photos).
    - Only use a link the user gave you, or one you are sure is real. Never make one up. If you have no link, leave the slide out, or use a blank slide instead.
    - A bad link comes back as an error that says what kind of link works. The layout report shows the link the slide will show.
    - E.g. { "type": "video", "name": "Watch: The Water Cycle", "link": "<the link the user gave>" }.
@@ -786,7 +786,7 @@ Real photos:
 - From a zip the user attached (photos plus lesson text): unzip it, read the text and plan the slides from it, upload the zip's photos with prepare_photo_upload (ask the user for the photos' source if the zip doesn't say), then put each photo on the slide it fits best. Leave a photo out only if it fits nowhere, and tell the user which ones you left out.
 - A photo's "source" says who owns it or where it came from. When it has one, credit it on the slide in a small text box near the photo (e.g. "Photo: Juan Cruz, Pexels"), unless the user says not to. Also list it on the last slide, "References" (see above).
 - If find_photos has nothing that fits, use a drawing from the picture list when one shows it well. If neither fits, leave room for a photo (e.g. a blank slide with "layout": "text-left" and no pictures on the right), and tell the user in your reply which slides need a photo and what it should show. The teacher can add one in the editor with the Photos button (upload from their computer).
-- For one photo that fills the whole slide from a link the user gave you, use an "image" embed slide instead.
+- For a picture from a link the user gave you, upload it with prepare_photo_upload, then put it on a blank slide as a photo (a large one, or "position" covering the slide, to fill it).
 
 Placing them yourself:
 - The app places, centers and sizes pictures itself. To choose the spot yourself, give "position": { x, y, width, height } in px (x, y = top-left corner). Only with count 1.

@@ -24,7 +24,9 @@ editor / view / review, and renders `Editor.tsx`, which calls `store.loadPresent
   custom or blank slide) over itself.
 - `SlideCanvas.tsx`: one 1280×720 slide (`CANVAS_WIDTH` / `CANVAS_HEIGHT` in `constants.ts`). It holds the boxes
   (`QuestionContainer`, `OptionCard` A–D, `SideContainer` = the shape box) and the elements (`SvgElementItem`, one
-  per element). Embed slides (video, slide deck, picture) use `EmbedSlide` instead.
+  per element). Embed slides (video, slide deck, picture) use `EmbedSlide` instead. New picture embed slides
+  (`image`) can't be made any more, by the Add slide menu (`AddSlideMenu`) or by Claude (2026-11-04); old ones still
+  open, present and edit, so the `image` type stays in the saved data.
 - `SvgElementItem.tsx`: one element: drag, resize (`handles.ts`: `CORNERS` / `EDGE_HANDLES`), rotate, crop.
   `ElementSvg` draws it, `TextBoxContent` is a text box, `DiagramBoxEditor` / `DiagramBoxButtons` are diagrams.
 - Side panels (all use the `side-panel` class, sideways rows use `ScrollRow`): `ElementsPanel`, `PhotosPanel`,

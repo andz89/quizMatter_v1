@@ -33,6 +33,8 @@ Tests that delete data (the announcements ones empty the announcements table) do
 ## The tests
 
 - `hidden-slides.mjs`: hide a slide, save, present (→ / ← skip it), the all-slides grid, show it again.
+- `add-slide-menu.mjs`: the slide's + and the workspace's Add slide have no "Embed image" (the other 8 types stay),
+  and an image slide saved before still opens with its picture.
 - `calendar-date.mjs`: add a Calendar Page and a Month Calendar (both start on today), Set date to 29 February 2024,
   Today, save, reload.
 - `announcements-admin.mjs`: the super admin makes a corner box and an HTML modal in the form; a teacher sees them.
