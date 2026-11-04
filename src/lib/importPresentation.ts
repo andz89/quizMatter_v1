@@ -50,6 +50,7 @@ import { BACKGROUND_COLORS, BACKGROUND_GRADIENTS, BACKGROUND_MESHES } from "./sl
 import { fitInBox, MIN_ELEMENT_SIZE, TRIM_PADDING, type Rect, type Size } from "./geometry";
 import ASSET_SHAPES from "./assetShapes.json";
 import { createId } from "./id";
+import { groupByName } from "./importGroups";
 import { DEFAULT_CALENDAR_DATE, fromDateInput } from "./calendarDate";
 import { todayInManila } from "./age";
 import { DEFAULT_ROTATION_3D } from "./solids";
@@ -88,6 +89,10 @@ import {
   TOO_MANY_SLIDES_MESSAGE,
   photoSchema,
   referenceSchema,
+  SLIDE_EFFECT_SPEED_DEFAULT,
+  SLIDE_EFFECT_SPEED_MAX,
+  SLIDE_EFFECT_SPEED_MIN,
+  SLIDE_TRANSITIONS,
   SUBJECTS,
   subjectSchema,
   termSchema,
@@ -164,6 +169,16 @@ const calloutRecipe = z.object({
   label: z.string().max(30).describe('Short label at the arrow\'s tail, e.g. "Numerator".'),
   color: hexColor.optional().describe("Arrow color. Leave out for dark navy."),
 });
+
+// A group name (see importGroups.ts): items on one slide with the same name become one group in the editor.
+const groupName = z
+  .string()
+  .trim()
+  .min(1)
+  .max(40)
+  .describe(
+    'Give the same name to the pieces that belong together (e.g. a ribbon and its words: "banner"), so the teacher moves them as one. Only within one slide, and all in the same box.',
+  );
 
 // One box of a diagram: its text ("\n" = a new line). Like a text box, long text shrinks to fit the box. Claude
 // always uses the automatic layout; teachers can move and resize boxes in the editor.
@@ -339,6 +354,7 @@ const elementRecipe = z.object({
     .describe(
       "Place the picture yourself instead of letting the app place it, in px: on a blank, title or custom slide on the 1280×720 slide, on a question slide inside its box. Only with count 1.",
     ),
+  group: groupName.optional(),
   // The id makes the JSON Schema write these rules once (as "element") instead of once per slide type.
 }).meta({ id: "element" });
 
@@ -415,6 +431,7 @@ const canvasContent = {
         position: rect.describe("Where the box goes, in px on the 1280×720 slide."),
         fontSize: fontSize.optional().describe(fontSizeNote),
         style: textStyle.optional(),
+        group: groupName.optional(),
       }),
     )
     .max(12)
@@ -612,6 +629,15 @@ export const claudeDetailsSchema = z.object({
     .describe(
       'What the presentation is based on, one per item: a full https:// link, or a book / module name (e.g. "DepEd SLM Mathematics 5, Quarter 1 – Module 8"). Only links you are sure are real.',
     ),
+  transition: z
+    .enum(SLIDE_TRANSITIONS)
+    .optional()
+    .describe('How each slide comes in when presenting full screen: "none", "fade", "slide" or "zoom". Leave out for "slide".'),
+  transitionSpeed: whole(SLIDE_EFFECT_SPEED_MIN, SLIDE_EFFECT_SPEED_MAX)
+    .optional()
+    .describe(
+      `How fast that effect plays: ${SLIDE_EFFECT_SPEED_MIN} = slowest, ${SLIDE_EFFECT_SPEED_MAX} = fastest. Leave out for ${SLIDE_EFFECT_SPEED_DEFAULT}.`,
+    ),
 });
 
 export type ClaudeDetails = z.infer<typeof claudeDetailsSchema>;
@@ -672,7 +698,7 @@ End every presentation with a "References" slide: a blank slide titled "Referenc
 - any other source you used for facts or content.
 Never make up a reference. If there is nothing to list, leave the slide out.
 
-Also fill in "details" when you send it: the presentation's title, a short description, grades, subject, curriculum, learning competency and a few tags (and author, reference links, term, week or day only when the user, or a document or link they gave you, names them).
+Also fill in "details" when you send it: the presentation's title, a short description, grades, subject, curriculum, learning competency and a few tags (and author, reference links, term, week or day only when the user, or a document or link they gave you, names them). You can also pick the slide effect for presenting ("transition" and "transitionSpeed"), e.g. a gentle "fade" for young pupils, or the effect the user asks for; leave them out for the usual one.
 
 Leave a setting out and the app decides it. On question slides that's usually best. On blank and title slides, the app's layouts ("text-top", "text-left", "title-only") are only a quick start: for a designed slide, place the pictures and text yourself ("position", "textBoxes"), using the slide ideas in Design below. The layout report you get back (see "Checking before the final version") shows where everything landed.
 
@@ -797,11 +823,12 @@ Placing them yourself:
 - "square" and "rectangle" take exactly the width and height you give, so they can be a box of any shape: e.g. a soft colored panel behind a group of pictures, or a bar. Add "cornerRadius" for rounded corners.
 - Pictures you place yourself are drawn in list order (a later one sits on top of an earlier one), and behind the pictures the app places. So list a background panel before what goes on it.
 - "textBoxes" (blank, title and custom slides) are placed the same way, and sit on top of pictures — good for labels on a picture.
+- Groups: pieces that belong together — a ribbon or badge and its words, a box and its words, a kid and their speech tag with its words — get the same "group" name (any short name, e.g. "banner", "box-1"). The teacher then clicks and moves them as one, instead of moving the shape and leaving its words behind. A group's pieces must be on the same slide and in the same box; a name is only for its own slide.
 
 Other diagrams — use the ready-made "flowchart", "cycle", "mind-map", "tree-diagram" and "factor-tree" pictures when they fit. For any other diagram (a food web, a map of places, a labeled process with branches), build it from pieces the teacher can move and edit:
 - Every box, arrow and label must be its own picture or text box. Never draw a diagram as one picture: the teacher couldn't move a box, change an arrow or type in it.
 - Boxes: "rectangle" (or "square") with "position", "cornerRadius" (e.g. 15), a soft "color" and a darker "border".
-- Words in the boxes: a "textBoxes" entry with the same position as its box, listed so it sits on top. Keep each to a word or two.
+- Words in the boxes: a "textBoxes" entry with the same position as its box, listed so it sits on top, and the same "group" name as its box. Keep each to a word or two.
 - Arrows: "line-arrow" (or "line-dashed-arrow", "line-double-arrow"). An arrow is drawn pointing right, so to go from point A to point B: width = the distance from A to B, height = 24, its center halfway between A and B, and "rotation" = the angle from A to B in degrees clockwise (0 = right, 90 = down, 180 = left, 270 = up). Leave a small gap between an arrow's ends and the boxes.
 
 Ribbons, banners and badges ("ribbon-…" pictures) — a fun way to show a title, a label or a reward:
@@ -810,7 +837,7 @@ Ribbons, banners and badges ("ribbon-…" pictures) — a fun way to show a titl
 - Hanging tabs: "ribbon-hanging-tab", "ribbon-bookmark", "ribbon-round-tab", "ribbon-pointed-tab". They are tall and narrow (about 1 wide for 2 high), hanging down from a bar, so they only hold one big number or letter. Give them a tall box (e.g. 60 × 120): in a wide box they stay narrow, in its middle. Never use them behind a word or a few words — use a tag or a banner.
 - Badges for a reward or a key word ("Great job!", "New word", "Step 1"): "ribbon-seal", "ribbon-scallop", "ribbon-hexagon", "ribbon-drop". "ribbon-seal" has a white ring inside: its words go inside the ring, so give its text box about half the seal's width (a 200px seal → a 110px text box, centered). For a long word, make the seal bigger or use a banner.
 - They are empty shapes: put the words in a "textBoxes" entry placed over the ribbon's middle (a little smaller than the ribbon, centered), listed so it sits on top. Keep it to a few words, in a color that's easy to read on the ribbon (white on dark ribbons, dark on light ones).
-- Give them "position" so you know exactly where the words go. Use them in "elements", not "design", so the teacher can move them with their words.
+- Give them "position" so you know exactly where the words go. Use them in "elements", not "design", and give the ribbon and its words the same "group" name, so the teacher moves them together.
 - Blobs ("blob-…") are soft, round shapes: good as a light panel behind a picture or a few words, or as a decoration.
 
 Arrows that point at part of a picture ("callouts", blank, title and custom slides only):
@@ -1031,6 +1058,8 @@ function buildSlide(
   }
   // Things Claude may want to fix, for the report.
   const notes: string[] = [];
+  // Element id → the "group" name Claude gave it (made into groups below).
+  const groupNames = new Map<string, string>();
   // Text boxes Claude placed itself. They sit on top of the pictures, so a label can go on one.
   const placedText =
     isCanvas
@@ -1047,6 +1076,7 @@ function buildSlide(
           // Centered unless Claude says otherwise: they're mostly labels on a shape, ribbon or diagram box.
           const element = textBox(rect, markupToHtml(box.text, { align: "center", ...box.style }), box.fontSize);
           texts.push({ label: `text box ${i + 1}`, box: element, words: stripMarkup(box.text), bold: box.style?.bold, color: box.style?.color });
+          if (box.group) groupNames.set(element.id, box.group);
           return element;
         })
       : [];
@@ -1103,7 +1133,9 @@ function buildSlide(
       if (Math.abs(picture.width - inBox.width) > 2 || Math.abs(picture.height - inBox.height) > 2) {
         notes.push(`${where} was fitted to its drawing's shape: ${formatRect(picture)} instead of ${formatRect(inBox)}. Place its words and labels by that.`);
       }
-      pictures.push({ id: createId(), assetId: el.asset, color, containerId, ...settings, ...picture });
+      const id = createId();
+      if (el.group) groupNames.set(id, el.group);
+      pictures.push({ id, assetId: el.asset, color, containerId, ...settings, ...picture });
       calloutParts.push(...calloutElements(picture, el.callouts ?? []));
       return;
     }
@@ -1115,9 +1147,11 @@ function buildSlide(
     const callouts = el.callouts ?? [];
     for (let copy = 0; copy < el.count; copy++) {
       const pictureSize = fitAroundCallouts(startSize(asset, settings, size, areaOf(containerId)), callouts, areaOf(containerId));
+      const id = createId();
+      if (el.group) groupNames.set(id, el.group);
       list.push({
         base: {
-          id: createId(),
+          id,
           assetId: el.asset,
           color,
           containerId,
@@ -1190,6 +1224,13 @@ function buildSlide(
   // Later ones are drawn on top: the title and text sit above every picture, so a panel or bar behind them
   // doesn't cover them.
   slide = { ...slide, elements: [...decorations, ...pictures, ...textBoxes, ...placedText, ...calloutParts] };
+  // Items with the same "group" name become one group, like the editor's Group button.
+  const grouped = groupByName(slide.elements, groupNames, createId);
+  slide.elements = grouped.elements;
+  for (const name of grouped.mixed) {
+    reportError(`group "${name}": its pieces are in different boxes. A group's pieces must all be in the same box ("in").`);
+  }
+  for (const name of grouped.lonely) notes.push(`group "${name}" has only one piece, so it isn't a group. Give the same name to the pieces that go with it.`);
   const report = describeSlide(slide, texts, pictures, notes);
   // Short-answer pictures were placed in the room under the question ("side"); they sit on the slide itself.
   slide.elements = moveShortAnswerPicturesToSlide(slide);

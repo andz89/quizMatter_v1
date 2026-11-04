@@ -156,7 +156,8 @@ data. Spec: `docs/superpowers/specs/2026-10-23-stable-presentation-data-design.m
   Editors' profile photos: `photoCrop.ts` (zoom and move math for the adjust box, with `photoCrop.test.ts`) and
   `profilePhotos.ts` (make the 400 × 400 square, upload it, remove it; kept apart from `photos.tsx` for the same
   reason).
-- Claude (MCP): `drafts.ts` (drafts in Cloudflare D1), `importPresentation.ts`, `photoTickets.ts`.
+- Claude (MCP): `drafts.ts` (drafts in Cloudflare D1), `importPresentation.ts`, `importGroups.ts` (Claude's
+  `"group"` names → editor groups; tested, since `importPresentation.ts` loads drawings), `photoTickets.ts`.
 - Timers: `cleanupPhotos.ts`, `cleanupAccounts.ts` (run by `worker.ts`). `cleanupAccounts.ts`, daily: deletes
   accounts unconfirmed after 3 days, `sign_up_attempts` older than a day, and `click_history` and `admin_actions`
   rows older than `KEEP_SAFETY_RECORDS_DAYS` (365, from each row's `created_at`; the Privacy Policy promises it),
