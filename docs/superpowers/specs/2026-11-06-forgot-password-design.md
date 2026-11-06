@@ -44,9 +44,9 @@ find out which emails have accounts). The teacher waits for an email that never 
   `verifyOtp`: `recovery` → `/set-password`, `email` → `/` (as today). A failure → `/login?error=reset` for `recovery`,
   `/login?error=confirm` for anything else (as today).
 - **`/set-password`** (`src/app/set-password/page.tsx`, client): zod checks the two boxes (`passwordSchema` + match),
-  then `supabase.auth.updateUser({ password })`, then `supabase.auth.signOut({ scope: "others" })`. `others` ends every
-  other login's refresh token, so another device is logged out at its next refresh (within the hour, when its
-  current access token runs out). The helper goes in `src/lib/userSettings.ts` next to `changePassword` (e.g.
+  then `supabase.auth.updateUser({ password })`. Supabase itself ends every other login's refresh token when a
+  password changes (checked on local Docker; so no extra `signOut({ scope: "others" })` is needed), so another device
+  is logged out at its next refresh (within the hour, when its current access token runs out). The helper goes in `src/lib/userSettings.ts` next to `changePassword` (e.g.
   `setNewPassword`), reusing `passwordSchema`. Errors: a weak password, the same password as before
   (`same_password`: "That's your current password. Pick a new one."), no internet.
 - **Proxy** (`src/proxy.ts`): `/forgot-password` joins `/login` and `/signup` (open while logged out; a logged-in
@@ -96,5 +96,5 @@ Nothing new is collected or kept.
 ## Not in this change
 
 - No database migration.
-- No change to the Account page's password change (it doesn't log out other devices).
+- No change to the Account page's password change (Supabase logs out other devices there too).
 - No "password changed" notification email.

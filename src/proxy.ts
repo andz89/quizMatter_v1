@@ -41,7 +41,8 @@ export async function proxy(request: NextRequest) {
   const isLoggedIn = Boolean(data?.claims);
   const path = request.nextUrl.pathname;
   const isLoginPage = path === "/login" || path === "/signup" || path === "/forgot-password";
-  // The link in the "Confirm signup" email: it logs the teacher in, so it must open while logged out. Privacy and
+  // The link in the "Confirm signup" and "Reset Password" emails (/auth/confirm): it logs the teacher in, so it must
+  // open while logged out. Privacy and
   // Terms (the footer's links) can be read before making an account.
   const isOpenToAll = isLoginPage || path === "/auth/confirm" || path === "/privacy" || path === "/terms";
 

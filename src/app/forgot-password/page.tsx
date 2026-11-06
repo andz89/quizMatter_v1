@@ -48,7 +48,9 @@ export default function ForgotPasswordPage() {
     setIsSending(true);
     setError(null);
     const { error } = await createClient().auth.resetPasswordForEmail(checked.data, { captchaToken });
-    if (error) {
+    // Asked again within a minute ("…you can only request this after 42 seconds"): Supabase refuses only for a real
+    // account, so showing an error would tell who has one. A link was sent less than a minute ago: say so.
+    if (error && !/after \d+ seconds?/i.test(error.message)) {
       setError(resetErrorMessage(error));
       setCaptchaToken(null);
       setCaptchaRound((round) => round + 1);
@@ -134,8 +136,6 @@ function BackToLogin() {
 function resetErrorMessage(error: unknown) {
   if (!isAuthError(error)) return "Something went wrong. Please try again.";
   if (error.code === "captcha_failed" || /captcha/i.test(error.message)) return "The security check expired. Please try again.";
-  // This email asked less than a minute ago ("…you can only request this after 42 seconds").
-  if (/after \d+ seconds?/i.test(error.message)) return "We just sent a link. Please wait a minute before asking again.";
   // Supabase's emails per hour ran out (Authentication → Rate Limits).
   if (error.code === "over_email_send_rate_limit") return "We can't send more emails right now. Please try again in an hour.";
   if (error.code === "over_request_rate_limit") return "Too many tries. Please wait a few minutes and try again.";

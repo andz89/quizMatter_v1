@@ -149,15 +149,16 @@ Draft / Shared switch on the presentation itself, and aren't counted.
   Turnstile, then `resetPasswordForEmail` (email checked with `resetEmailSchema`, `src/lib/passwords.ts`). It always
   shows "Check your email. We sent a link to …", also for an email with no account (Supabase sends nothing then), so
   it never tells who has an account. Logged-out only, like login (`src/proxy.ts`). No speed bump of ours: Turnstile
-  and Supabase's limits (one email per address per 60 seconds live, 1 second locally; the hourly email limit), each
-  with its own words. The email is Supabase's "Reset Password" template (live: the dashboard; local:
+  and Supabase's limits: the hourly email limit has its own words; one email per address per 60 seconds (live; 1
+  second locally) shows "Check your email" again, since Supabase refuses only a real account there and an error
+  would tell who has one. The email is Supabase's "Reset Password" template (live: the dashboard; local:
   `supabase/templates/recovery.html`), whose link opens `auth/confirm` with `type=recovery`. Resend sends it (the
   Privacy Policy says so). Test: `e2e/forgot-password.mjs`.
 - `set-password/`: Forgot password's last step, opened logged in by the reset link. New password + Confirm
-  (`newPasswordSchema`), then `setNewPassword` (`src/lib/userSettings.ts`): `updateUser`, then
-  `signOut({ scope: "others" })`, so every other device is logged out (at its next refresh, within the hour). Then a
-  "Password changed." toast and home. The same password as now gets its own words (`same_password`). Needs a login
-  like every page. The Account page's password change doesn't log out other devices.
+  (`newPasswordSchema`), then `setNewPassword` (`src/lib/userSettings.ts`, `updateUser`). Supabase itself logs out
+  every other device whenever a password changes (here and on the Account page): their refresh tokens stop working,
+  so they're out at their next refresh, within the hour. Then a "Password changed." toast and home. The same password
+  as now gets its own words (`same_password`). Needs a login like every page.
 - `maintenance/`: the page everyone but the super admin sees during maintenance (open without a login): the note,
   "Try again" and the support email; "QuizMatter is back" if it's already off. See the root `CLAUDE.md`,
   "Maintenance".

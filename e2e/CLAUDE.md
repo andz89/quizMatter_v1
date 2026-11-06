@@ -41,7 +41,8 @@ Tests that delete data (the announcements ones empty the announcements table) do
 
 - `forgot-password.mjs`: the login link, the Forgot password page (logged out only), the reset email arriving in
   Mailpit (typed with spaces and capitals), the same "Check your email" for an email with no account, and the words
-  for Supabase's two email limits (played back, since local waits only 1 second). Then the email's link: logged in
+  for Supabase's two email limits (played back, since local waits only 1 second: within a minute → the same "Check
+  your email"; the hourly one → its own words). The page's own link (PKCE) opens Set a new password. Then the email's link: logged in
   as someone else it just opens home; else Set a new password (mismatch and same password refused, a new one saved),
   the other device's refresh token stops working, new password in / old out, the used link → `/login?error=reset`,
   and `/set-password` logged out → login. Last, sign up's "Check your email" words and links (Supabase's sign up

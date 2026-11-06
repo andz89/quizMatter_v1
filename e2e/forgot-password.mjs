@@ -78,7 +78,14 @@ try {
   // Typed with spaces and capitals: the page trims it and makes it small letters.
   const sent = await sendFromPage(page, `  ${teacher.email.toUpperCase()} `);
   check("the page shows Check your email with the address", sent && (await page.getByText(teacher.email).isVisible()));
-  check("a reset email arrives with a link", (await latestResetTokenHash(teacher.email, askedAt)) !== "");
+  const pageHash = await latestResetTokenHash(teacher.email, askedAt);
+  check("a reset email arrives with a link", pageHash !== "");
+  // The link the page itself asked for (the browser asks in PKCE mode) opens Set a new password too.
+  const pageLink = await browser.newContext();
+  const pageLinkTab = await pageLink.newPage();
+  await pageLinkTab.goto(`${APP}/auth/confirm?token_hash=${pageHash}&type=recovery`);
+  check("the page's own reset link opens Set a new password", new URL(pageLinkTab.url()).pathname === "/set-password", pageLinkTab.url());
+  await pageLink.close();
 
   const nobody = `nobody-${Date.now()}@test.local`;
   const nobodySent = await sendFromPage(page, nobody);
@@ -89,8 +96,10 @@ try {
   const limited = (msg) => (route) =>
     route.fulfill({ status: 429, contentType: "application/json", body: JSON.stringify({ code: 429, error_code: "over_email_send_rate_limit", msg }) });
   await visitor.route("**/auth/v1/recover*", limited("For security purposes, you can only request this after 42 seconds."));
-  await sendFromPage(page, teacher.email);
-  check("asking again within a minute says to wait", await page.getByText("We just sent a link. Please wait a minute before asking again.").isVisible());
+  // Within a minute Supabase refuses a real account but not an unknown email: the page must show the same screen,
+  // or it would tell who has an account.
+  const againSent = await sendFromPage(page, teacher.email);
+  check("asking again within a minute shows the same Check your email screen", againSent && (await page.getByText(teacher.email).isVisible()));
   await visitor.unroute("**/auth/v1/recover*");
   await visitor.route("**/auth/v1/recover*", limited("Email rate limit exceeded"));
   await sendFromPage(page, teacher.email);

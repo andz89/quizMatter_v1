@@ -235,15 +235,12 @@ export async function changePassword(password: string) {
 }
 
 /**
- * Forgot password's last step (/set-password, logged in by the email's link): saves the new password, then logs the
- * account out on every other device (their refresh tokens stop working, so they're out within the hour). Throws
- * Supabase's error if it fails.
+ * Forgot password's last step (/set-password, logged in by the email's link): saves the new password. Supabase itself
+ * logs the account out on every other device when a password changes (their refresh tokens stop working, so they're
+ * out within the hour). Throws Supabase's error if it fails.
  */
 export async function setNewPassword(fields: { password: string; confirmPassword: string }) {
   const { password } = newPasswordSchema.parse(fields);
-  const supabase = createClient();
-  const { error } = await supabase.auth.updateUser({ password });
+  const { error } = await createClient().auth.updateUser({ password });
   if (error) throw error;
-  const { error: signOutError } = await supabase.auth.signOut({ scope: "others" });
-  if (signOutError) throw signOutError;
 }
