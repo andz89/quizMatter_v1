@@ -160,7 +160,9 @@ Draft / Shared switch on the presentation itself, and aren't counted.
   would tell who has one. The email is Supabase's "Reset Password" template (live: the dashboard; local:
   `supabase/templates/recovery.html`), whose link opens `auth/confirm` with `type=recovery`. Resend sends it (the
   Privacy Policy says so). Test: `e2e/forgot-password.mjs`.
-- `set-password/`: Forgot password's last step, opened logged in by the reset link. New password + Confirm
+- `set-password/`: Forgot password's last step, opened logged in by the reset link. `page.tsx` (server) reads the
+  login's email and `SetPasswordForm.tsx` shows "For <email>" under the heading, so someone who opened another
+  person's forwarded link sees it isn't theirs. New password + Confirm
   (`newPasswordSchema`), then `setNewPassword` (`src/lib/userSettings.ts`, `updateUser`). Supabase itself logs out
   every other device whenever a password changes (here and on the Account page): their refresh tokens stop working,
   so they're out at their next refresh, within the hour. Then a "Password changed." toast and home. The same password

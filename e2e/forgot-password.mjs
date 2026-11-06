@@ -143,6 +143,7 @@ try {
   await continueLink(setPage, resetLink);
   check("after a scanner, Continue still opens Set a new password", new URL(setPage.url()).pathname === "/set-password", setPage.url());
   check("it says Set a new password", await setPage.getByRole("heading", { name: "Set a new password" }).isVisible().catch(() => false));
+  check("Set a new password says whose account", await setPage.getByText(`For ${resetter.email}`).isVisible().catch(() => false));
 
   const save = async (password, confirmPassword) => {
     await setPage.getByLabel("New password").fill(password);
