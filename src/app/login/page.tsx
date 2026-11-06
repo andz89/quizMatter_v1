@@ -21,11 +21,13 @@ export default function LoginPage({ searchParams }: PageProps<"/login">) {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  // ?error=confirm: /auth/confirm got an old, used or broken email link.
+  // /auth/confirm got an old, used or broken email link: ?error=confirm (sign up) or ?error=reset (Forgot password).
   const linkError = use(searchParams).error;
   const [error, setError] = useState<string | null>(
     linkError === "confirm" ? "This link has expired or was already used. Try logging in, or sign up again." : null,
   );
+  // Shown with a link to Forgot password, until the first login try.
+  const [isResetLinkError, setIsResetLinkError] = useState(linkError === "reset");
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   // The "are you human?" pass, and a number that shows a fresh check when it goes up (a pass works only once).
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
@@ -54,6 +56,7 @@ export default function LoginPage({ searchParams }: PageProps<"/login">) {
     if (until) return setError(lockMessage(until));
     setIsLoggingIn(true);
     setError(null);
+    setIsResetLinkError(false);
     const supabase = createClient();
     const { error } = await supabase.auth.signInWithPassword({ email, password, options: { captchaToken } });
     if (!error && !(await mayLogInNow(supabase))) {
@@ -122,6 +125,15 @@ export default function LoginPage({ searchParams }: PageProps<"/login">) {
           </div>
 
           {error && <p className="mt-3 text-sm text-danger-strong">{error}</p>}
+          {isResetLinkError && (
+            <p className="mt-3 text-sm text-danger-strong">
+              This reset link has expired or was already used.{" "}
+              <Link href="/forgot-password" className="font-semibold text-accent hover:underline">
+                Ask for a new one.
+                <LinkPending />
+              </Link>
+            </p>
+          )}
 
           <button
             type="submit"

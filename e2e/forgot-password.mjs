@@ -41,8 +41,20 @@ async function sendFromPage(page, email) {
     .then(() => true, () => false);
 }
 
+/** A password login from the local API: the session, or a thrown error when it's refused. */
+async function passwordLogin(email, password) {
+  const res = await fetch(`${env.API_URL}/auth/v1/token?grant_type=password`, {
+    method: "POST",
+    headers: { apikey: env.ANON_KEY, "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  });
+  if (!res.ok) throw new Error(`login ${email}: ${res.status}`);
+  return res.json();
+}
+
 const browser = await chromium.launch();
 const teacher = await makeTeacher({ first: "Forgot" });
+const resetter = await makeTeacher({ first: "Resetter" });
 try {
   // ─── Part 1: the Forgot password page and the email ──────────────────────────────────────────────────────────
   const visitor = await browser.newContext();
@@ -84,8 +96,69 @@ try {
   await sendFromPage(page, teacher.email);
   check("the hourly email limit says try again in an hour", await page.getByText("We can't send more emails right now. Please try again in an hour.").isVisible());
   await visitor.close();
+
+  // ─── Part 2: the email's link and Set a new password ─────────────────────────────────────────────────────────
+  // Logged in somewhere else before the reset (its refresh token must stop working after it).
+  const otherDevice = await passwordLogin(resetter.email, resetter.password);
+  const resetAt = Date.now() - 1000;
+  await askForReset(resetter.email);
+  const hash = await latestResetTokenHash(resetter.email, resetAt);
+  const resetLink = `${APP}/auth/confirm?token_hash=${hash}&type=recovery`;
+
+  // Someone else logged in on this browser: the link does nothing (and isn't used up).
+  const someoneElse = await loggedIn(browser, teacher);
+  const elsePage = await someoneElse.newPage();
+  await elsePage.goto(resetLink);
+  check("logged in as someone else, the link just opens home", new URL(elsePage.url()).pathname === "/", elsePage.url());
+  await someoneElse.close();
+
+  const fresh = await browser.newContext();
+  const setPage = await fresh.newPage();
+  await setPage.goto(resetLink);
+  check("the link opens Set a new password", new URL(setPage.url()).pathname === "/set-password", setPage.url());
+  check("it says Set a new password", await setPage.getByRole("heading", { name: "Set a new password" }).isVisible().catch(() => false));
+
+  const save = async (password, confirmPassword) => {
+    await setPage.getByLabel("New password").fill(password);
+    await setPage.getByLabel("Confirm password").fill(confirmPassword);
+    await setPage.getByRole("button", { name: "Save password" }).click();
+  };
+  await save("New-pass-456", "New-pass-457");
+  check("two different passwords are refused", await setPage.getByText("The two passwords don't match.").isVisible().catch(() => false));
+  await save(resetter.password, resetter.password);
+  check(
+    "the current password is refused",
+    await setPage.getByText("That's your current password. Pick a new one.").waitFor({ timeout: 10000 }).then(() => true, () => false),
+  );
+  await save("New-pass-456", "New-pass-456");
+  const changed = await setPage.getByText("Password changed.").waitFor({ timeout: 10000 }).then(() => true, () => false);
+  await setPage.waitForURL(`${APP}/`, { timeout: 10000 }).catch(() => {});
+  check("a new password is saved and home opens", changed && new URL(setPage.url()).pathname === "/", setPage.url());
+  await fresh.close();
+
+  const refreshed = await fetch(`${env.API_URL}/auth/v1/token?grant_type=refresh_token`, {
+    method: "POST",
+    headers: { apikey: env.ANON_KEY, "Content-Type": "application/json" },
+    body: JSON.stringify({ refresh_token: otherDevice.refresh_token }),
+  });
+  check("the other device is logged out (its refresh token no longer works)", !refreshed.ok, `${refreshed.status}`);
+  check("the new password logs in", Boolean(await passwordLogin(resetter.email, "New-pass-456").catch(() => null)));
+  check("the old password doesn't", !(await passwordLogin(resetter.email, resetter.password).catch(() => null)));
+
+  const reused = await browser.newContext();
+  const reusedPage = await reused.newPage();
+  await reusedPage.goto(resetLink);
+  check("the same link again goes to login", new URL(reusedPage.url()).search.includes("error=reset"), reusedPage.url());
+  check(
+    "it says the link expired",
+    await reusedPage.getByText("This reset link has expired or was already used.").isVisible().catch(() => false),
+  );
+  await reusedPage.goto(`${APP}/set-password`);
+  check("Set a new password needs a login", new URL(reusedPage.url()).pathname === "/login", reusedPage.url());
+  await reused.close();
 } finally {
   await deleteTeacher(teacher);
+  await deleteTeacher(resetter);
   await browser.close();
 }
 finish();

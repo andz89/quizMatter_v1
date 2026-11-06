@@ -129,9 +129,10 @@ Draft / Shared switch on the presentation itself, and aren't counted.
   picker limited to 18–100 years old, `src/lib/age.ts`), and Gender (Male / Female); a hint says the birthday and gender are private.
   They ride along as metadata like the other details; the database refuses a bad one (`QMAGE` for the birthday) and
   sign up saves a bad one empty (`20261220000000_age_gender_address.sql`). The email link opens
-  `auth/confirm/route.ts`: it checks `type` with zod (only `email`, the sign up email; add a type there if a new
-  email uses it) and, if someone is already logged in, does nothing and opens home, so a link can't swap them into
-  another account.
+  `auth/confirm/route.ts`: it checks `type` with zod (`email`, the sign up email, opens home; `recovery`, the reset
+  email, opens `/set-password`; add a type there if a new email uses it). A bad link goes to `/login?error=confirm`
+  (`error=reset` for a reset link, with a link to Forgot password). If someone is already logged in it does nothing
+  and opens home, so a link can't swap them into another account (and the link isn't used up).
 - `login/`: login with plain-English errors, a browser speed bump, a "Forgot password?" link and a "Need help?" line
   with the support email (`src/components/SupportEmail.tsx`). `src/proxy.ts` sends logged-out people here. Its
   matcher skips only the real static files (`_next/static`, `_next/image`, `favicon.ico`, `icon.svg` and the five
@@ -149,6 +150,11 @@ Draft / Shared switch on the presentation itself, and aren't counted.
   with its own words. The email is Supabase's "Reset Password" template (live: the dashboard; local:
   `supabase/templates/recovery.html`), whose link opens `auth/confirm` with `type=recovery`. Resend sends it (the
   Privacy Policy says so). Test: `e2e/forgot-password.mjs`.
+- `set-password/`: Forgot password's last step, opened logged in by the reset link. New password + Confirm
+  (`newPasswordSchema`), then `setNewPassword` (`src/lib/userSettings.ts`): `updateUser`, then
+  `signOut({ scope: "others" })`, so every other device is logged out (at its next refresh, within the hour). Then a
+  "Password changed." toast and home. The same password as now gets its own words (`same_password`). Needs a login
+  like every page. The Account page's password change doesn't log out other devices.
 - `maintenance/`: the page everyone but the super admin sees during maintenance (open without a login): the note,
   "Try again" and the support email; "QuizMatter is back" if it's already off. See the root `CLAUDE.md`,
   "Maintenance".

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { isAllowedBirthDate, todayInManila } from "./age";
 import { LEGAL_VERSION } from "./legal";
-import { PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH, passwordSchema } from "./passwords";
+import { newPasswordSchema, PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH, passwordSchema } from "./passwords";
 import { createClient } from "./supabase/client";
 import { ELEMENT_PANEL_CATEGORIES, type ElementCategory } from "./svgLibrary";
 
@@ -232,4 +232,18 @@ export async function saveProfile(fields: ProfileFields, visibility: ProfileVisi
 export async function changePassword(password: string) {
   const { error } = await createClient().auth.updateUser({ password: passwordSchema.parse(password) });
   if (error) throw error;
+}
+
+/**
+ * Forgot password's last step (/set-password, logged in by the email's link): saves the new password, then logs the
+ * account out on every other device (their refresh tokens stop working, so they're out within the hour). Throws
+ * Supabase's error if it fails.
+ */
+export async function setNewPassword(fields: { password: string; confirmPassword: string }) {
+  const { password } = newPasswordSchema.parse(fields);
+  const supabase = createClient();
+  const { error } = await supabase.auth.updateUser({ password });
+  if (error) throw error;
+  const { error: signOutError } = await supabase.auth.signOut({ scope: "others" });
+  if (signOutError) throw signOutError;
 }
