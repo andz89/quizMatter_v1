@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { isAllowedBirthDate, todayInManila } from "./age";
 import { LEGAL_VERSION } from "./legal";
+import { PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH, passwordSchema } from "./passwords";
 import { createClient } from "./supabase/client";
 import { ELEMENT_PANEL_CATEGORIES, type ElementCategory } from "./svgLibrary";
 
@@ -23,13 +24,8 @@ export const DISPLAY_NAME_TAKEN_MESSAGE = "That display name is taken. Please pi
 // set_display_name in 20261113000000_display_name_rules.sql.
 export const DISPLAY_NAME_CHANGE_DAYS = 30;
 
-// Supabase's own limits: at least 6 letters (we ask for 8), and at most 72 bytes.
-export const PASSWORD_MIN_LENGTH = 8;
-export const PASSWORD_MAX_LENGTH = 72;
-export const passwordSchema = z
-  .string()
-  .min(PASSWORD_MIN_LENGTH, `Use at least ${PASSWORD_MIN_LENGTH} characters for your password.`)
-  .max(PASSWORD_MAX_LENGTH, `Use at most ${PASSWORD_MAX_LENGTH} characters for your password.`);
+// The password rules live in passwords.ts (so `npm test` can load them); kept exported here for the forms.
+export { PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH, passwordSchema };
 
 // The details a teacher gives when they sign up (and can change on the Account page).
 export const NAME_MAX_LENGTH = 35;

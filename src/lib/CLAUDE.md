@@ -95,6 +95,9 @@
   refuses with (`20261210000400_blocked_email_domains.sql`): change both together. Its `agreeTerms` field (the
   agree box, `z.literal(true)`, `AGREE_TERMS_MESSAGE`) must be ticked; `signUp` then sends `terms_version`
   (`LEGAL_VERSION`), which the database saves with the time (`20261218000000_terms_consent.sql`).
+- `passwords.ts`: the password rules (`passwordSchema`, 8–72 characters), and Forgot password's `resetEmailSchema`
+  (trimmed, small letters) and `newPasswordSchema` (typed twice, must match). Only zod, so tests load it
+  (`passwords.test.ts`); `userSettings.ts` re-exports the password rules for the forms.
 - `legal.ts`: `LEGAL_VERSION`, the Terms and Privacy Policy version (the date they last changed). The pages show it
   as "Last updated" and each new account saves it. Change it whenever either page changes.
 - `calendarDate.ts`: the date the calendars (Calendar Page, Month Calendar in Elements → Time & Date) show, an
