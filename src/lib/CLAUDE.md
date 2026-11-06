@@ -98,6 +98,9 @@
 - `passwords.ts`: the password rules (`passwordSchema`, 8–72 characters), and Forgot password's `resetEmailSchema`
   (trimmed, small letters) and `newPasswordSchema` (typed twice, must match). Only zod, so tests load it
   (`passwords.test.ts`); `userSettings.ts` re-exports the password rules for the forms.
+- `emailLinks.ts`: our two email links (`/auth/confirm`, types `email` and `recovery`): `emailLinkSchema` (the link's
+  `token_hash` and `type`) and `emailLinkDestination` (where Continue goes, worked or not). Only zod, so tests load it
+  (`emailLinks.test.ts`).
 - `legal.ts`: `LEGAL_VERSION`, the Terms and Privacy Policy version (the date they last changed). The pages show it
   as "Last updated" and each new account saves it. Change it whenever either page changes.
 - `calendarDate.ts`: the date the calendars (Calendar Page, Month Calendar in Elements → Time & Date) show, an
