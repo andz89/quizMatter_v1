@@ -28,12 +28,20 @@ A plain Node script with the `playwright` library (not `@playwright/test`). From
   request, and `finish()` fails the run if one was tried.
 - `api(path, init)`: the local API with the service role key (e.g. insert presentations and slides).
   `psql(sql)`: SQL as postgres in the Docker database.
+- `fakeTurnstile(context)`: Cloudflare's real "are you human?" box never passes headless; this answers its script
+  with a stand-in that passes at once (local Supabase has no captcha), so a test can press sign up's or Forgot
+  password's button.
 - `check(name, ok, detail)` per check, then `finish()` at the end.
+- Emails: local Supabase keeps every email in Mailpit (`http://127.0.0.1:54324`, `/api/v1/search`,
+  `/api/v1/message/<ID>`); see `forgot-password.mjs`.
 
 Tests that delete data (the announcements ones empty the announcements table) do so only in the local database.
 
 ## The tests
 
+- `forgot-password.mjs`: the login link, the Forgot password page (logged out only), the reset email arriving in
+  Mailpit (typed with spaces and capitals), the same "Check your email" for an email with no account, and the words
+  for Supabase's two email limits (played back, since local waits only 1 second).
 - `hidden-slides.mjs`: hide a slide, save, present (→ / ← skip it), the all-slides grid, show it again.
 - `add-slide-menu.mjs`: the slide's + and the workspace's Add slide have no "Embed image" (the other 8 types stay),
   and an image slide saved before still opens with its picture.

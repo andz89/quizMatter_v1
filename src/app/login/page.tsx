@@ -110,6 +110,12 @@ export default function LoginPage({ searchParams }: PageProps<"/login">) {
             onChange={(e) => setPassword(e.target.value)}
             className={inputClass}
           />
+          <div className="mt-1.5 text-right">
+            <Link href="/forgot-password" className="text-sm font-semibold text-accent hover:underline">
+              Forgot password?
+              <LinkPending />
+            </Link>
+          </div>
 
           <div className="mt-4">
             <Turnstile key={captchaRound} onToken={setCaptchaToken} onStatus={setCaptchaStatus} />

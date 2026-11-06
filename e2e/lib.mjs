@@ -123,6 +123,20 @@ export async function loggedIn(browser, teacher, viewport = { width: 1366, heigh
   return context;
 }
 
+/**
+ * Cloudflare's real "are you human?" box doesn't pass in a headless browser. This answers its script address with a
+ * stand-in that passes at once with a made-up token: local Supabase has no captcha, so the token isn't checked.
+ * Call it on a context before opening a page with the box (sign up, Forgot password).
+ */
+export async function fakeTurnstile(context) {
+  await context.route("https://challenges.cloudflare.com/turnstile/**", (route) =>
+    route.fulfill({
+      contentType: "text/javascript",
+      body: `window.turnstile = { render: (el, o) => { setTimeout(() => o.callback("e2e-token"), 50); return "e2e"; }, remove() {} };`,
+    }),
+  );
+}
+
 /** Bounding box in words, for a check's detail. */
 export const round = (b) =>
   b ? `x ${Math.round(b.x)}, y ${Math.round(b.y)}, ${Math.round(b.width)}×${Math.round(b.height)}` : "none";

@@ -6,7 +6,8 @@ first.
 
 - `src/app/` **(notes)**: the teacher pages. `(home)/` home tabs (My presentations, From QuizMatter, Other
   teachers, Saved, Liked, Reviews & submissions, search) and folders; `presentation/[id]/` the view page and `edit/` the
-  editor page; `presentation/new/` opens Claude's drafts; `account/`, `login/`, `signup/`, `teachers/[slug]/`
+  editor page; `presentation/new/` opens Claude's drafts; `account/`, `login/`, `signup/`, `forgot-password/`,
+  `teachers/[slug]/`
   (profiles); `oauth/` Claude's login; `(legal)/` the Privacy Policy and Terms of Use (version in `src/lib/legal.ts`). Teachers' server actions:
   `actions.ts`, `folderActions.ts`, or an `actions.ts` next to the page.
 - `src/app/admin/` **(notes)**: the admin pages (Overview, the menu
@@ -25,8 +26,8 @@ first.
   (lets `npm test` import app files). `.github/workflows/`: GitHub's checks on push (see "Tests").
 - `e2e/` **(notes)**: the browser tests (Playwright, already installed): `npm run e2e:dev`, then `node e2e/<test>.mjs`.
 - `src/pages/api/` **(notes)**: Claude's connector (MCP server). Its drafts live in Cloudflare D1 (`d1/migrations`).
-- `src/proxy.ts`: the login check before each page (logged-out visitors may open only login, sign up, the email
-  confirm link, Privacy and Terms), and the maintenance stop (see "Maintenance" below; `src/app/maintenance/` is
+- `src/proxy.ts`: the login check before each page (logged-out visitors may open only login, sign up, Forgot
+  password, the email link (`/auth/confirm`), Privacy and Terms), and the maintenance stop (see "Maintenance" below; `src/app/maintenance/` is
   its page). `worker.ts` + `wrangler.jsonc`: Cloudflare timers (cleanups).
 - `docs/superpowers/specs/`: the designs of past features. Read the matching one before changing a big feature.
 

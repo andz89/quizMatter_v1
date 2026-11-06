@@ -132,8 +132,8 @@ Draft / Shared switch on the presentation itself, and aren't counted.
   `auth/confirm/route.ts`: it checks `type` with zod (only `email`, the sign up email; add a type there if a new
   email uses it) and, if someone is already logged in, does nothing and opens home, so a link can't swap them into
   another account.
-- `login/`: login with plain-English errors, a browser speed bump and a "Need help?" line with the support email
-  (`src/components/SupportEmail.tsx`). `src/proxy.ts` sends logged-out people here. Its
+- `login/`: login with plain-English errors, a browser speed bump, a "Forgot password?" link and a "Need help?" line
+  with the support email (`src/components/SupportEmail.tsx`). `src/proxy.ts` sends logged-out people here. Its
   matcher skips only the real static files (`_next/static`, `_next/image`, `favicon.ico`, `icon.svg` and the five
   `.svg` files in `public/`), never a page address that just ends in `.png`; a new file in `public/` must be added there.
   Claude's routes are skipped by their exact name (`api/mcp`, `api/claude-photo`, `.well-known/`), so a route that
@@ -141,6 +141,14 @@ Draft / Shared switch on the presentation itself, and aren't counted.
   refreshed login cookies (`keepSession`), or the browser would keep a used-up refresh token and be logged out.
   Test: `e2e/proxy.mjs`.
   During maintenance it logs anyone but the super admin out again at once (`mayLogInNow`).
+- `forgot-password/` (spec `docs/superpowers/specs/2026-11-06-forgot-password-design.md`): "Type your email",
+  Turnstile, then `resetPasswordForEmail` (email checked with `resetEmailSchema`, `src/lib/passwords.ts`). It always
+  shows "Check your email. We sent a link to …", also for an email with no account (Supabase sends nothing then), so
+  it never tells who has an account. Logged-out only, like login (`src/proxy.ts`). No speed bump of ours: Turnstile
+  and Supabase's limits (one email per address per 60 seconds live, 1 second locally; the hourly email limit), each
+  with its own words. The email is Supabase's "Reset Password" template (live: the dashboard; local:
+  `supabase/templates/recovery.html`), whose link opens `auth/confirm` with `type=recovery`. Resend sends it (the
+  Privacy Policy says so). Test: `e2e/forgot-password.mjs`.
 - `maintenance/`: the page everyone but the super admin sees during maintenance (open without a login): the note,
   "Try again" and the support email; "QuizMatter is back" if it's already off. See the root `CLAUDE.md`,
   "Maintenance".

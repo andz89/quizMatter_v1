@@ -156,7 +156,7 @@ export default function PrivacyPage() {
             human” check. Its servers are around the world.
           </li>
           <li>
-            <strong>Resend</strong>: sends the sign up emails (from no-reply@quizmatter.com).
+            <strong>Resend</strong>: sends the sign up and password reset emails (from no-reply@quizmatter.com).
           </li>
           <li>
             <strong>Google Workspace</strong>: the support email inbox.

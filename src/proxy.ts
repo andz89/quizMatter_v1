@@ -4,7 +4,8 @@ import { getMaintenanceStatus, MAINTENANCE_HEADER, MAINTENANCE_WORDS } from "@/l
 
 /**
  * Runs before every page request: refreshes the login session (it expires after a while) and sends
- * logged-out users to /login (except the sign up, Privacy and Terms pages), and logged-in users away from login and sign up. Banned users (Admin → Teachers) aren't checked
+ * logged-out users to /login (except the sign up, Forgot password, Privacy and Terms pages), and logged-in users away
+ * from login, sign up and Forgot password. Banned users (Admin → Teachers) aren't checked
  * here, to save a database call on every request: the database refuses their saves and photos at once, and
  * Supabase's own ban ends their login within the hour.
  * Maintenance (Admin → Maintenance): everyone but the super admin is stopped here (see maintenanceAnswer). The
@@ -39,7 +40,7 @@ export async function proxy(request: NextRequest) {
   const { data } = await supabase.auth.getClaims();
   const isLoggedIn = Boolean(data?.claims);
   const path = request.nextUrl.pathname;
-  const isLoginPage = path === "/login" || path === "/signup";
+  const isLoginPage = path === "/login" || path === "/signup" || path === "/forgot-password";
   // The link in the "Confirm signup" email: it logs the teacher in, so it must open while logged out. Privacy and
   // Terms (the footer's links) can be read before making an account.
   const isOpenToAll = isLoginPage || path === "/auth/confirm" || path === "/privacy" || path === "/terms";
