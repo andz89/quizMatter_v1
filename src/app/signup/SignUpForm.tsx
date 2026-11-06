@@ -103,14 +103,26 @@ export function SignUpForm({ blockedDomains }: { blockedDomains: string[] }) {
         <div className="flex w-full max-w-md flex-col items-center gap-3 rounded-card border border-border-default bg-bg-surface px-5 py-8 text-center">
           <MailCheckIcon size={36} className="text-accent" />
           <h1 className="text-lg font-extrabold text-text-primary">Check your email</h1>
+          {/* Supabase answers the same for an email that already has an account (and sends nothing), so nobody can
+              find out who has one: the words don't promise an email. */}
           <p className="text-sm text-text-primary">
-            We sent a link to <span className="font-semibold">{sentTo}</span>. Click it to finish making your account.
+            If <span className="font-semibold">{sentTo}</span> isn&apos;t used yet, we sent a link to it. Click it to finish
+            making your account.
           </p>
           <p className="text-xs text-text-secondary">No email after a few minutes? Check your spam folder.</p>
-          <Link href="/login" className="mt-2 text-sm font-semibold text-accent hover:underline">
-            Back to log in
-            <LinkPending />
-          </Link>
+          <p className="mt-2 text-sm text-text-secondary">
+            Already have an account with this email?{" "}
+            <Link href="/login" className="font-semibold text-accent hover:underline">
+              Log in
+              <LinkPending />
+            </Link>
+            , or{" "}
+            <Link href="/forgot-password" className="font-semibold text-accent hover:underline">
+              reset your password
+              <LinkPending />
+            </Link>
+            .
+          </p>
         </div>
       ) : (
         <form

@@ -128,7 +128,10 @@ Draft / Shared switch on the presentation itself, and aren't counted.
   educational background (here and on the Account page) says it shows on the profile. Also required: Birthday (a date
   picker limited to 18–100 years old, `src/lib/age.ts`), and Gender (Male / Female); a hint says the birthday and gender are private.
   They ride along as metadata like the other details; the database refuses a bad one (`QMAGE` for the birthday) and
-  sign up saves a bad one empty (`20261220000000_age_gender_address.sql`). The email link opens
+  sign up saves a bad one empty (`20261220000000_age_gender_address.sql`). After sending, "Check your email" says
+  "If <email> isn't used yet, we sent a link to it", with links to Log in and Forgot password: Supabase answers the
+  same for an email that already has an account (and sends nothing), on purpose, so nobody can find out who has one.
+  Keep it that way: never say "this email is already used". The email link opens
   `auth/confirm/route.ts`: it checks `type` with zod (`email`, the sign up email, opens home; `recovery`, the reset
   email, opens `/set-password`; add a type there if a new email uses it). A bad link goes to `/login?error=confirm`
   (`error=reset` for a reset link, with a link to Forgot password). If someone is already logged in it does nothing

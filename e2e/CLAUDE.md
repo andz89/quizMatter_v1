@@ -44,7 +44,8 @@ Tests that delete data (the announcements ones empty the announcements table) do
   for Supabase's two email limits (played back, since local waits only 1 second). Then the email's link: logged in
   as someone else it just opens home; else Set a new password (mismatch and same password refused, a new one saved),
   the other device's refresh token stops working, new password in / old out, the used link → `/login?error=reset`,
-  and `/set-password` logged out → login.
+  and `/set-password` logged out → login. Last, sign up's "Check your email" words and links (Supabase's sign up
+  answer played back, so no account is made; screenshot `signup-check-email.png`).
 - `hidden-slides.mjs`: hide a slide, save, present (→ / ← skip it), the all-slides grid, show it again.
 - `add-slide-menu.mjs`: the slide's + and the workspace's Add slide have no "Embed image" (the other 8 types stay),
   and an image slide saved before still opens with its picture.

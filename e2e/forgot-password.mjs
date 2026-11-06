@@ -1,7 +1,7 @@
 // Forgot password: the Forgot password page asks for an email and Supabase sends the reset email (read here from
 // Mailpit, local Supabase's mail catcher). The "are you human?" box is a stand-in (fakeTurnstile).
 import { chromium } from "playwright";
-import { APP, check, deleteTeacher, env, fakeTurnstile, finish, loggedIn, makeTeacher } from "./lib.mjs";
+import { APP, check, deleteTeacher, env, fakeTurnstile, finish, loggedIn, makeTeacher, SHOTS } from "./lib.mjs";
 
 const MAILPIT = "http://127.0.0.1:54324";
 
@@ -156,6 +156,40 @@ try {
   await reusedPage.goto(`${APP}/set-password`);
   check("Set a new password needs a login", new URL(reusedPage.url()).pathname === "/login", reusedPage.url());
   await reused.close();
+
+  // ─── Part 3: sign up's "Check your email" doesn't promise an email ────────────────────────────────────────────
+  // Supabase's sign up answer is played back (no account is made); for a used email it answers the same way.
+  const signer = await browser.newContext();
+  await fakeTurnstile(signer);
+  await signer.route("**/auth/v1/signup*", (route) =>
+    route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ id: "00000000-0000-0000-0000-000000000000" }) }),
+  );
+  const signUp = await signer.newPage();
+  await signUp.goto(`${APP}/signup`);
+  await signUp.locator("#firstName").fill("Sign");
+  await signUp.locator("#lastName").fill("Upper");
+  await signUp.locator("#contactNumber").fill("09171234567");
+  await signUp.locator("#birthDate").fill("1990-05-05");
+  await signUp.locator("#gender").selectOption("female");
+  await signUp.locator("#educationLevel").selectOption("bachelor");
+  await signUp.locator("#educationField").fill("Math");
+  await signUp.locator("#email").fill(teacher.email);
+  await signUp.locator("#password").fill("Sign-up-pass-123");
+  await signUp.locator("#confirmPassword").fill("Sign-up-pass-123");
+  await signUp.locator("#agreeTerms").check();
+  await signUp.getByRole("button", { name: "Create account" }).click();
+  const shown = await signUp.getByText("Check your email").waitFor({ timeout: 10000 }).then(() => true, () => false);
+  check(
+    "sign up says the link was sent only if the email isn't used yet",
+    shown && (await signUp.getByText(`If ${teacher.email} isn't used yet, we sent a link to it.`).isVisible()),
+  );
+  check(
+    "it links to Log in and to Forgot password",
+    (await signUp.getByRole("link", { name: "Log in", exact: true }).getAttribute("href").catch(() => null)) === "/login" &&
+      (await signUp.getByRole("link", { name: "reset your password" }).getAttribute("href").catch(() => null)) === "/forgot-password",
+  );
+  await signUp.screenshot({ path: `${SHOTS}signup-check-email.png` });
+  await signer.close();
 } finally {
   await deleteTeacher(teacher);
   await deleteTeacher(resetter);
