@@ -132,10 +132,16 @@ Draft / Shared switch on the presentation itself, and aren't counted.
   "If <email> isn't used yet, we sent a link to it", with links to Log in and Forgot password: Supabase answers the
   same for an email that already has an account (and sends nothing), on purpose, so nobody can find out who has one.
   Keep it that way: never say "this email is already used". The email link opens
-  `auth/confirm/route.ts`: it checks `type` with zod (`email`, the sign up email, opens home; `recovery`, the reset
-  email, opens `/set-password`; add a type there if a new email uses it). A bad link goes to `/login?error=confirm`
-  (`error=reset` for a reset link, with a link to Forgot password). If someone is already logged in it does nothing
-  and opens home, so a link can't swap them into another account (and the link isn't used up).
+  `auth/confirm/page.tsx` (spec `docs/superpowers/specs/2026-11-06-email-link-continue-design.md`): "One more step"
+  and a **Continue** button. Opening the page uses nothing up, since mail scanners (Outlook's Safe Links, school
+  mail filters) open every link first; only Continue (`openEmailLink`, `actions.ts`) checks the token
+  (`verifyOtp`), which logs the teacher in. The link is checked with zod on the page and again in the action
+  (`emailLinkSchema`, `src/lib/emailLinks.ts`: `email`, the sign up email, opens home; `recovery`, the reset email,
+  opens `/set-password`; add a type there if a new email uses it). A link missing its parts goes straight to
+  `/login?error=confirm`; a used or old one, after Continue, to `/login?error=confirm` (`error=reset` for a reset
+  link, with a link to Forgot password). Logged in, the page says "You're logged in as … To use this link, log out
+  first." with Log out (`ConfirmButtons.tsx`, like the account menu) and "Go to home"; the action refuses too, so a
+  link never swaps the browser into another account.
 - `login/`: login with plain-English errors, a browser speed bump, a "Forgot password?" link and a "Need help?" line
   with the support email (`src/components/SupportEmail.tsx`). `src/proxy.ts` sends logged-out people here. Its
   matcher skips only the real static files (`_next/static`, `_next/image`, `favicon.ico`, `icon.svg` and the five

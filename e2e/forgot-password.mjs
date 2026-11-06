@@ -1,7 +1,7 @@
 // Forgot password: the Forgot password page asks for an email and Supabase sends the reset email (read here from
 // Mailpit, local Supabase's mail catcher). The "are you human?" box is a stand-in (fakeTurnstile).
 import { chromium } from "playwright";
-import { APP, check, deleteTeacher, env, fakeTurnstile, finish, loggedIn, makeTeacher, SHOTS } from "./lib.mjs";
+import { api, APP, check, deleteTeacher, env, fakeTurnstile, finish, loggedIn, makeTeacher, SHOTS } from "./lib.mjs";
 
 const MAILPIT = "http://127.0.0.1:54324";
 
@@ -39,6 +39,15 @@ async function sendFromPage(page, email) {
     .getByText("Check your email")
     .waitFor({ timeout: 10000 })
     .then(() => true, () => false);
+}
+
+/** Opens an email link and clicks Continue (the link is used only then); waits until it has left the link page. */
+async function continueLink(page, url) {
+  if (!page.url().startsWith(url)) await page.goto(url);
+  const button = page.getByRole("button", { name: "Continue" });
+  if (!(await button.isVisible().catch(() => false))) return;
+  await button.click();
+  await page.waitForURL((u) => u.pathname !== "/auth/confirm", { timeout: 10000 }).catch(() => {});
 }
 
 /** A password login from the local API: the session, or a thrown error when it's refused. */
@@ -83,7 +92,7 @@ try {
   // The link the page itself asked for (the browser asks in PKCE mode) opens Set a new password too.
   const pageLink = await browser.newContext();
   const pageLinkTab = await pageLink.newPage();
-  await pageLinkTab.goto(`${APP}/auth/confirm?token_hash=${pageHash}&type=recovery`);
+  await continueLink(pageLinkTab, `${APP}/auth/confirm?token_hash=${pageHash}&type=recovery`);
   check("the page's own reset link opens Set a new password", new URL(pageLinkTab.url()).pathname === "/set-password", pageLinkTab.url());
   await pageLink.close();
 
@@ -114,17 +123,25 @@ try {
   const hash = await latestResetTokenHash(resetter.email, resetAt);
   const resetLink = `${APP}/auth/confirm?token_hash=${hash}&type=recovery`;
 
-  // Someone else logged in on this browser: the link does nothing (and isn't used up).
+  // Someone else logged in on this browser: the page says so, with no Continue (the link isn't used up).
   const someoneElse = await loggedIn(browser, teacher);
   const elsePage = await someoneElse.newPage();
   await elsePage.goto(resetLink);
-  check("logged in as someone else, the link just opens home", new URL(elsePage.url()).pathname === "/", elsePage.url());
+  check(
+    "logged in as someone else, the page says log out first",
+    await elsePage.getByText(`You're logged in as ${teacher.email}. To use this link, log out first.`).isVisible().catch(() => false),
+  );
+  check("and has no Continue button", (await elsePage.getByRole("button", { name: "Continue" }).count()) === 0);
   await someoneElse.close();
 
+  // A mail scanner opens the link first (a plain GET): that mustn't use it up.
+  await fetch(resetLink);
   const fresh = await browser.newContext();
   const setPage = await fresh.newPage();
   await setPage.goto(resetLink);
-  check("the link opens Set a new password", new URL(setPage.url()).pathname === "/set-password", setPage.url());
+  check("the link page shows the reset words", await setPage.getByText("Click Continue to set a new password.").isVisible().catch(() => false));
+  await continueLink(setPage, resetLink);
+  check("after a scanner, Continue still opens Set a new password", new URL(setPage.url()).pathname === "/set-password", setPage.url());
   check("it says Set a new password", await setPage.getByRole("heading", { name: "Set a new password" }).isVisible().catch(() => false));
 
   const save = async (password, confirmPassword) => {
@@ -156,7 +173,7 @@ try {
 
   const reused = await browser.newContext();
   const reusedPage = await reused.newPage();
-  await reusedPage.goto(resetLink);
+  await continueLink(reusedPage, resetLink);
   check("the same link again goes to login", new URL(reusedPage.url()).search.includes("error=reset"), reusedPage.url());
   check(
     "it says the link expired",
@@ -164,7 +181,38 @@ try {
   );
   await reusedPage.goto(`${APP}/set-password`);
   check("Set a new password needs a login", new URL(reusedPage.url()).pathname === "/login", reusedPage.url());
+  await reusedPage.goto(`${APP}/auth/confirm?type=recovery`);
+  check("a link with no token goes to login", new URL(reusedPage.url()).search.includes("error=confirm"), reusedPage.url());
+  await reusedPage.goto(`${APP}/auth/confirm?token_hash=abc&type=magiclink`);
+  check("a link with a type we don't send goes to login", new URL(reusedPage.url()).search.includes("error=confirm"), reusedPage.url());
   await reused.close();
+
+  // Logged in as someone else, then Log out on the link page: the same link then works.
+  const logOutAt = Date.now() - 1000;
+  await askForReset(resetter.email);
+  const logOutLink = `${APP}/auth/confirm?token_hash=${await latestResetTokenHash(resetter.email, logOutAt)}&type=recovery`;
+  const switcher = await loggedIn(browser, teacher);
+  const switchPage = await switcher.newPage();
+  await switchPage.goto(logOutLink);
+  await switchPage.getByRole("button", { name: "Log out" }).click();
+  const continueShown = await switchPage.getByRole("button", { name: "Continue" }).waitFor({ timeout: 10000 }).then(() => true, () => false);
+  check("Log out on the link page shows Continue", continueShown);
+  await continueLink(switchPage, logOutLink);
+  check("then the link opens Set a new password", new URL(switchPage.url()).pathname === "/set-password", switchPage.url());
+  await switcher.close();
+
+  // A sign up link (type=email; Supabase checks a magic link's token the same way, and local sign up needs no
+  // confirmation) shows its own words and continues home.
+  const generated = await api("/auth/v1/admin/generate_link", { method: "POST", body: JSON.stringify({ type: "magiclink", email: teacher.email }) });
+  const signUpHash = generated.hashed_token ?? generated.properties?.hashed_token;
+  const signUpLink = `${APP}/auth/confirm?token_hash=${signUpHash}&type=email`;
+  const joiner = await browser.newContext();
+  const joinPage = await joiner.newPage();
+  await joinPage.goto(signUpLink);
+  check("a sign up link shows its words", await joinPage.getByText("Click Continue to finish making your account.").isVisible().catch(() => false));
+  await continueLink(joinPage, signUpLink);
+  check("a sign up link continues home", new URL(joinPage.url()).pathname === "/", joinPage.url());
+  await joiner.close();
 
   // ─── Part 3: sign up's "Check your email" doesn't promise an email ────────────────────────────────────────────
   // Supabase's sign up answer is played back (no account is made); for a used email it answers the same way.

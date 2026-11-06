@@ -250,7 +250,7 @@ otp_expiry = 3600
 # content_path = "./supabase/templates/invite.html"
 
 # The "Reset Password" email (Forgot password). Live: the same link in the Supabase dashboard (Authentication →
-# Emails → Reset Password). The link opens src/app/auth/confirm/route.ts.
+# Emails → Reset Password). The link opens src/app/auth/confirm/page.tsx (a Continue button).
 [auth.email.template.recovery]
 subject = "Reset your QuizMatter password"
 content_path = "./supabase/templates/recovery.html"
