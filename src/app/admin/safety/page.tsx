@@ -769,9 +769,9 @@ export default async function AdminSafetyPage() {
             what: [
               "Each email needs a passed person check, and Supabase sends one email per address per minute, so using up the hour takes real effort.",
               "Sign up still says it can't send more emails, since no account is made then. While the limit is used up, that answer differs from the one a used email gets.",
-              "What helps: raise the emails per hour in the dashboard (Resend allows it), and a Cloudflare rate limit rule on the app.",
+              "What helps: raise the emails per hour in the dashboard (within what the Resend plan sends), and a Cloudflare rate limit rule on the app.",
             ],
-            example: "A seminar of 60 teachers signs up in one hour. With a limit of 30, the rest are told to try again in an hour.",
+            example: "A big seminar signs up in one hour. Once the limit is reached, the rest are told to try again in an hour.",
             scenario: "Someone keeps asking for reset links for one teacher after another to use up the hour. New teachers can't get their sign up email until the hour ends.",
           }}
         />
