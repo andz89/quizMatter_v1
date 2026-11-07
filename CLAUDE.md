@@ -133,7 +133,7 @@ database, never the live one: `npm run test:sql` resets it (replays every migrat
 (`npm run test:sql -- <file>.sql` runs only that one). By hand: `npx -y supabase@latest db reset`, then
 `docker exec -i supabase_db_quizBuilder psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/<file>.sql`. A file's
 first lines say when it must run as `-U supabase_admin -d postgres` instead (`account_delete.sql`,
-`blocked_email_domains.sql`; the script reads "as supabase_admin" there). It passes when it ends with `ROLLBACK` and
+`blocked_email_domains.sql`, `password_reset_limit.sql`; the script reads "as supabase_admin" there). It passes when it ends with `ROLLBACK` and
 no `FAIL` or `ERROR`.
 
 **Browser tests (Playwright) live in `e2e/`.** Playwright is already a dev package with its browser installed: never

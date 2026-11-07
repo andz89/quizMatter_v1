@@ -20,9 +20,13 @@ emails still count toward that teacher's 3.
 ## The rules
 
 - **Per teacher:** at most 3 reset emails a day, the day being Philippine time (like the other daily limits). Only
-  emails really sent count, read from Supabase itself: nobody can use up another teacher's 3 with made-up requests.
+  emails really sent count, read from Supabase itself, so made-up requests don't. Real ones do: someone who knows a
+  teacher's email and passes Turnstile 3 times uses up that teacher's day (the review's finding; the owner's rule of 3
+  per teacher stands, and the screen doesn't change).
 - **Per internet address:** at most 10 reset requests an hour, like sign up's limit. Not 3: schools and mobile
   networks put many teachers behind one address. Every request on the page counts, also for an email with no account.
+  On IPv6 the whole /64 counts as one address. It's counted before Turnstile, so a script on a shared connection can
+  use up its 10 for an hour: accepted.
 - **Over either limit:** the same "Check your email" screen, and no email is asked for. The page never says which limit,
   or that there is one, so it still doesn't tell who has an account.
 - **The screen's last line** becomes "No email after a few minutes? Check your spam folder, or try again later."
@@ -33,9 +37,9 @@ emails still count toward that teacher's 3.
 
 - Migration `20261231001000_password_reset_limit.sql`:
   - `password_reset_sends` (`user_id` → `auth.users`, on delete cascade; `sent_at`): one row per reset email.
-  - Trigger `count_password_reset_send`, after `recovery_sent_at` changes on `auth.users`, adds the row and deletes that
-    teacher's rows older than 2 days. It can never fail the update (`exception when others`): a failure there would
-    leave the teacher with a dead link.
+  - Trigger `count_password_reset_send`, after `recovery_sent_at` changes on `auth.users`, adds the row. It can never
+    fail the update (`exception when others`, with a warning in the log): a failure there would leave the teacher
+    with a dead link.
   - `password_reset_requests` (`ip`, `created_at`): one row per request on the page, same shape as `sign_up_attempts`.
   - `may_send_password_reset(p_email text, p_ip text) returns boolean`: `security definer`, only `service_role` may
     call it. It counts the address first (so every request counts, adds a row), then the teacher. An address Postgres
@@ -47,18 +51,19 @@ emails still count toward that teacher's 3.
   failed call counts as allowed.
 - `src/lib/passwords.ts`: `RESETS_PER_DAY = 3`, `RESET_REQUESTS_PER_ADDRESS = 10` for Admin → Safety; "Same limit as" the
   migration.
-- `src/lib/cleanupAccounts.ts`: the daily cleanup also deletes `password_reset_requests` older than a day.
-  `password_reset_sends` cleans itself in the trigger, so a teacher's rows are gone with the account too.
+- `src/lib/cleanupAccounts.ts`: the daily cleanup also deletes both tables' rows older than a day, last, so a database
+  without the migration still gets the other cleanups. A teacher's rows also go with the account.
 
 ## Privacy
 
-The internet address of a reset request is kept for a day: the Privacy Policy's safety records and its table say so.
+The internet address of a reset request, and when a reset was asked for, are kept up to 2 days (one cleanup a day
+deletes rows over a day old): the Privacy Policy's safety records and its table say so.
 `LEGAL_VERSION` is the day of the change.
 
 ## Deploy order
 
 The user pastes the migration into the live SQL editor **before** pushing. Without it the rpc fails and the check
-allows every reset (logged), so nothing breaks. `SUPABASE_SECRET_KEY` must be set for the Worker (it already is for
+allows every reset (logged), and the daily cleanup fails at its last step (logged). `SUPABASE_SECRET_KEY` must be set for the Worker (it already is for
 Claude's connector and the cleanups); on the preview, previews keep their own secrets, and without it the limit is off.
 
 ## Testing

@@ -169,7 +169,7 @@ data. Spec: `docs/superpowers/specs/2026-10-23-stable-presentation-data-design.m
 - Claude (MCP): `drafts.ts` (drafts in Cloudflare D1), `importPresentation.ts`, `importGroups.ts` (Claude's
   `"group"` names → editor groups; tested, since `importPresentation.ts` loads drawings), `photoTickets.ts`.
 - Timers: `cleanupPhotos.ts`, `cleanupAccounts.ts` (run by `worker.ts`). `cleanupAccounts.ts`, daily: deletes
-  accounts unconfirmed after 3 days, `sign_up_attempts` and `password_reset_requests` older than a day, and `click_history` and `admin_actions`
+  accounts unconfirmed after 3 days, `sign_up_attempts`, `password_reset_requests` and `password_reset_sends` older than a day, and `click_history` and `admin_actions`
   rows older than `KEEP_SAFETY_RECORDS_DAYS` (365, from each row's `created_at`; the Privacy Policy promises it),
   and who closed an announcement that ended over 30 days ago (`cleanup_announcement_dismissals`, 50,000 rows a call,
   up to 20 calls a day; the Privacy Policy promises it too).

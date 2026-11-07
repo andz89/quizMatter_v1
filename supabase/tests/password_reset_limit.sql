@@ -21,6 +21,15 @@ begin
   if not has_function_privilege('service_role', 'public.may_send_password_reset(text, text)', 'execute') then
     raise exception 'FAIL: service_role may not call may_send_password_reset';
   end if;
+  -- The daily cleanup deletes with the secret key.
+  if not has_table_privilege('service_role', 'public.password_reset_sends', 'delete')
+     or not has_table_privilege('service_role', 'public.password_reset_requests', 'delete') then
+    raise exception 'FAIL: the cleanup can''t delete old rows';
+  end if;
+  if has_table_privilege('anon', 'public.password_reset_sends', 'select')
+     or has_table_privilege('authenticated', 'public.password_reset_requests', 'select') then
+    raise exception 'FAIL: teachers can read the limit''s tables';
+  end if;
 end $$;
 
 -- ─── 2. Real emails are counted by the trigger ────────────────────────────────────────────────────────────────
@@ -111,6 +120,26 @@ begin
   end if;
 end $$;
 
+-- ─── 4b. IPv6: one network has many addresses, so the whole /64 counts as one ─────────────────────────────────
+do $$
+begin
+  for i in 1..10 loop
+    if not public.may_send_password_reset('nobody.reset@test.local', '2001:db8:1:2::' || to_hex(i)) then
+      raise exception 'FAIL: IPv6 request % from one network was refused', i;
+    end if;
+  end loop;
+  if public.may_send_password_reset('nobody.reset@test.local', '2001:db8:1:2:aaaa:bbbb:cccc:dddd') then
+    raise exception 'FAIL: an 11th request from one IPv6 network was allowed';
+  end if;
+  if not public.may_send_password_reset('nobody.reset@test.local', '2001:db8:1:3::1') then
+    raise exception 'FAIL: another IPv6 network was refused';
+  end if;
+  -- An IPv4 address stays whole.
+  if (select count(*) from public.password_reset_requests r where family(r.ip) = 4 and masklen(r.ip) <> 32) <> 0 then
+    raise exception 'FAIL: an IPv4 address was shortened';
+  end if;
+end $$;
+
 -- ─── 5. The address is counted even when the teacher is over the limit ────────────────────────────────────────
 do $$
 declare
@@ -138,16 +167,11 @@ begin
   end if;
 end $$;
 
--- ─── 7. Old rows clean themselves, and go with the account ────────────────────────────────────────────────────
+-- ─── 7. A teacher's rows go with the account ──────────────────────────────────────────────────────────────────
 do $$
 declare
   ria constant uuid := '00000000-0000-0000-0000-00000000a001';
 begin
-  update public.password_reset_sends s set sent_at = now() - interval '3 days' where s.user_id = ria;
-  update auth.users set recovery_sent_at = now() + interval '4 seconds' where id = ria;
-  if (select count(*) from public.password_reset_sends s where s.user_id = ria) <> 1 then
-    raise exception 'FAIL: rows older than 2 days weren''t deleted';
-  end if;
   delete from auth.users where id = ria;
   if exists (select 1 from public.password_reset_sends s where s.user_id = ria) then
     raise exception 'FAIL: a deleted account''s rows stayed';

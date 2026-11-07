@@ -18,8 +18,9 @@ export async function mayAskForReset(email: string): Promise<boolean> {
     console.error("Password reset limit: SUPABASE_SECRET_KEY isn't set, so it's off");
     return true;
   }
-  const ip = (await headers()).get("cf-connecting-ip") ?? "";
-  const { data, error } = await admin.rpc("may_send_password_reset", { p_email: checked.data, p_ip: ip });
+  const ip = (await headers()).get("cf-connecting-ip");
+  if (!ip && process.env.NODE_ENV === "production") console.error("Password reset limit: no visitor address, so that part is off");
+  const { data, error } = await admin.rpc("may_send_password_reset", { p_email: checked.data, p_ip: ip ?? "" });
   if (error) {
     console.error("Password reset limit: couldn't check", error);
     return true;

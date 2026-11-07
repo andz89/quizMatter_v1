@@ -8,8 +8,8 @@
 -- check each time, and what it sends still counts toward that teacher's 3.
 -- Keep 3 and 10 the same as RESETS_PER_DAY and RESET_REQUESTS_PER_ADDRESS in src/lib/passwords.ts.
 
--- One row per reset email really sent, read from Supabase's own recovery_sent_at, so made-up requests can't use up
--- another teacher's 3.
+-- One row per reset email really sent, read from Supabase's own recovery_sent_at, so made-up requests don't count.
+-- The daily account cleanup (src/lib/cleanupAccounts.ts) deletes rows older than a day: the limit only looks at today.
 create table public.password_reset_sends (
   user_id uuid not null references auth.users (id) on delete cascade,
   sent_at timestamptz not null default now()
@@ -18,8 +18,7 @@ create index password_reset_sends_user_id_sent_at on public.password_reset_sends
 alter table public.password_reset_sends enable row level security;
 revoke all on public.password_reset_sends from anon, authenticated, public;
 
--- One row per request on the Forgot password page, like sign_up_attempts. The daily account cleanup
--- (src/lib/cleanupAccounts.ts) deletes rows older than a day.
+-- One row per request on the Forgot password page, like sign_up_attempts. The same cleanup deletes these.
 create table public.password_reset_requests (
   ip inet not null,
   created_at timestamptz not null default now()
@@ -28,8 +27,8 @@ create index password_reset_requests_ip_created_at on public.password_reset_requ
 alter table public.password_reset_requests enable row level security;
 revoke all on public.password_reset_requests from anon, authenticated, public;
 
--- Adds the row and deletes that teacher's old ones (so nothing else has to clean them). It must never fail the update:
--- Supabase has already sent the email by now, so a failure here would leave the teacher with a dead link.
+-- It must never fail the update: Supabase has already sent the email by now, so a failure here would leave the teacher
+-- with a dead link. A failure only shows in the database log, and that email isn't counted.
 create function public.count_password_reset_send()
 returns trigger
 language plpgsql
@@ -37,11 +36,10 @@ security definer
 set search_path = ''
 as $$
 begin
-  delete from public.password_reset_sends s
-    where s.user_id = new.id and s.sent_at < now() - interval '2 days';
   insert into public.password_reset_sends (user_id) values (new.id);
   return new;
 exception when others then
+  raise warning 'count_password_reset_send: %', sqlerrm;
   return new;
 end;
 $$;
@@ -55,7 +53,8 @@ create trigger count_password_reset_send
 
 -- May this email get a reset link now? Only the server may ask (the secret key), since it's given the internet address:
 -- a browser could make one up. The address is counted first, so every request counts, also one for an email with no
--- account. No address, or one Postgres can't read: that check is skipped, rather than block everyone.
+-- account. No address, or one Postgres can't read: that check is skipped, rather than block everyone. On IPv6 one home
+-- or school network has countless addresses, so its first half (the /64) counts as the address.
 create function public.may_send_password_reset(p_email text, p_ip text)
 returns boolean
 language plpgsql
@@ -71,6 +70,9 @@ begin
   exception when others then
     client_ip := null;
   end;
+  if family(client_ip) = 6 then
+    client_ip := network(set_masklen(client_ip, 64))::inet;
+  end if;
 
   if client_ip is not null then
     if (
@@ -82,7 +84,9 @@ begin
     insert into public.password_reset_requests (ip) values (client_ip);
   end if;
 
-  select u.id into teacher from auth.users u where u.email = lower(trim(p_email)) limit 1;
+  -- is_sso_user = false: what lets Postgres use Supabase's email index (each email once) instead of reading every
+  -- account. Supabase saves emails in small letters.
+  select u.id into teacher from auth.users u where u.email = lower(trim(p_email)) and u.is_sso_user = false;
   if teacher is null then
     return true;
   end if;

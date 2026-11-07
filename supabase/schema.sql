@@ -1591,11 +1591,10 @@ CREATE OR REPLACE FUNCTION "public"."count_password_reset_send"() RETURNS "trigg
     SET "search_path" TO ''
     AS $$
 begin
-  delete from public.password_reset_sends s
-    where s.user_id = new.id and s.sent_at < now() - interval '2 days';
   insert into public.password_reset_sends (user_id) values (new.id);
   return new;
 exception when others then
+  raise warning 'count_password_reset_send: %', sqlerrm;
   return new;
 end;
 $$;
@@ -2700,6 +2699,9 @@ begin
   exception when others then
     client_ip := null;
   end;
+  if family(client_ip) = 6 then
+    client_ip := network(set_masklen(client_ip, 64))::inet;
+  end if;
 
   if client_ip is not null then
     if (
@@ -2711,7 +2713,9 @@ begin
     insert into public.password_reset_requests (ip) values (client_ip);
   end if;
 
-  select u.id into teacher from auth.users u where u.email = lower(trim(p_email)) limit 1;
+  -- is_sso_user = false: what lets Postgres use Supabase's email index (each email once) instead of reading every
+  -- account. Supabase saves emails in small letters.
+  select u.id into teacher from auth.users u where u.email = lower(trim(p_email)) and u.is_sso_user = false;
   if teacher is null then
     return true;
   end if;

@@ -161,9 +161,12 @@ Draft / Shared switch on the presentation itself, and aren't counted.
   `docs/superpowers/specs/2026-11-07-password-reset-limit-design.md`): 3 reset emails a day per teacher, Philippine time,
   and 10 requests an hour per internet address. The page asks `mayAskForReset` (`actions.ts`: Cloudflare's address, the
   secret key, `may_send_password_reset`) first; over a limit it shows the same screen and sends nothing; if the check
-  can't run it allows. Only emails really sent count (a trigger on Supabase's `recovery_sent_at`). It isn't a hard wall:
-  Supabase's reset address is public and it sends before it saves, so a trigger can't stop the email; a script that
-  skips the page still needs a Turnstile pass each time. Supabase's own limits: one email per address per 60 seconds
+  can't run it allows. Only emails really sent count (a trigger on Supabase's `recovery_sent_at`): made-up requests
+  don't, but a stranger who passes Turnstile 3 times can use up a teacher's day (3 per teacher is the owner's rule). On
+  IPv6 the whole /64 counts as one address. The address is counted before Turnstile, so a script on a shared connection
+  can use up its 10 for an hour. It isn't a hard wall: Supabase's reset address is public and it sends before it
+  saves, so a trigger can't stop the email; a script that skips the page still needs a Turnstile pass each time.
+  Supabase's own limits: one email per address per 60 seconds
   (live; 1 second locally) and the hourly email limit (the whole app). Both refuse only a real account, so an error
   would tell who has one: both show "Check your email" too, and that screen's last line says to try again later. The email is Supabase's "Reset Password" template (live: the dashboard; local:
   `supabase/templates/recovery.html`), whose link opens `auth/confirm` with `type=recovery`. Resend sends it (the

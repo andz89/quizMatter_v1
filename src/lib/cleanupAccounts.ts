@@ -7,7 +7,7 @@ import type { Database } from "./database.types";
 // its user_settings row goes with it. A teacher whose link expired can simply sign up again. Accounts an admin
 // invited from the Supabase dashboard are kept, even when not accepted yet.
 // It also empties old rows of sign_up_attempts (the sign up limit per internet address, 20261108000000_sign_up_limit.sql)
-// and password_reset_requests (Forgot password's, 20261231001000_password_reset_limit.sql),
+// and of password_reset_requests and password_reset_sends (Forgot password's limit, 20261231001000_password_reset_limit.sql),
 // and deletes the safety records older than a year: click_history (Admin → Safety → History) and admin_actions (the
 // Admin log). Both keep teachers' emails, and the Privacy Policy promises a year.
 // And it deletes who closed an announcement once it ended more than 30 days ago (cleanup_announcement_dismissals,
@@ -22,8 +22,9 @@ type CleanupEnv = {
 // How long a new account may wait for its email to be confirmed (Admin → Safety shows it).
 export const KEEP_UNCONFIRMED_DAYS = 3;
 const KEEP_UNCONFIRMED_MS = KEEP_UNCONFIRMED_DAYS * 24 * 60 * 60 * 1000;
-// The limits per internet address (sign up, Forgot password) only look at the last hour, so a day is plenty.
-const KEEP_ADDRESSES_MS = 24 * 60 * 60 * 1000;
+// These limits only look at the last hour, or at today in Forgot password's case, so a day is plenty. With one run a
+// day a row can stay up to 2 days: the Privacy Policy says so.
+const KEEP_LIMIT_ROWS_MS = 24 * 60 * 60 * 1000;
 // How long the click history and the Admin log keep a row, from when it was written (Admin → Safety shows it).
 export const KEEP_SAFETY_RECORDS_DAYS = 365;
 const KEEP_SAFETY_RECORDS_MS = KEEP_SAFETY_RECORDS_DAYS * 24 * 60 * 60 * 1000;
@@ -59,11 +60,9 @@ export async function cleanupUnconfirmedAccounts(env: CleanupEnv) {
   }
   console.log(`Account cleanup: deleted ${ids.length - failed.length} unconfirmed accounts.`, ids);
 
-  const addressCutoff = new Date(Date.now() - KEEP_ADDRESSES_MS).toISOString();
-  const { error } = await supabase.from("sign_up_attempts").delete().lt("created_at", addressCutoff);
+  const limitCutoff = new Date(Date.now() - KEEP_LIMIT_ROWS_MS).toISOString();
+  const { error } = await supabase.from("sign_up_attempts").delete().lt("created_at", limitCutoff);
   if (error) throw error;
-  const { error: resetError } = await supabase.from("password_reset_requests").delete().lt("created_at", addressCutoff);
-  if (resetError) throw resetError;
 
   const safetyCutoff = new Date(Date.now() - KEEP_SAFETY_RECORDS_MS).toISOString();
   const { error: historyError } = await supabase.from("click_history").delete().lt("created_at", safetyCutoff);
@@ -82,4 +81,10 @@ export async function cleanupUnconfirmedAccounts(env: CleanupEnv) {
     if ((data as number) < ANNOUNCEMENT_CLEANUP_BATCH) break;
   }
   console.log(`Announcement cleanup: deleted ${deleted} rows of who closed ended announcements.`);
+
+  // Last, so a database without their migration yet still gets every cleanup above.
+  const { error: requestsError } = await supabase.from("password_reset_requests").delete().lt("created_at", limitCutoff);
+  if (requestsError) throw requestsError;
+  const { error: sendsError } = await supabase.from("password_reset_sends").delete().lt("sent_at", limitCutoff);
+  if (sendsError) throw sendsError;
 }

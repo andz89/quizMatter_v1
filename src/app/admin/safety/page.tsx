@@ -545,7 +545,8 @@ export default async function AdminSafetyPage() {
           sees="“Check your email. We sent a link to …”, also for an email with no account (no email is sent then). Set a new password shows “For <email>”."
           more={{
             what: [
-              `Only emails really sent count toward the ${RESETS_PER_DAY}, so nobody can use up another teacher's with made-up requests. The internet address limit is higher because a school or a mobile network puts many teachers behind one address.`,
+              `Only emails really sent count toward the ${RESETS_PER_DAY}, so made-up requests don't. Real ones do: someone who knows a teacher's email and passes the person check ${RESETS_PER_DAY} times uses up that teacher's day, and the teacher gets no email until midnight, Philippine time, though the screen looks the same.`,
+              "The internet address limit is higher because a school or a mobile network puts many teachers behind one address. On IPv6 a whole home or school network counts as one address. It's checked before the person check, so a script on a shared connection can use up its requests for an hour.",
               "Supabase's email limits (one email per address per minute, and the emails per hour in Authentication → Rate Limits) refuse only a real account. The page shows the same screen for those too, and its last line says to try again later.",
               "These limits sit on the Forgot password page: Supabase's reset address is public, and it sends the email before it saves anything, so the database can't stop it. A script that skips the page still needs a fresh person check each time and one minute per address, and what it sends counts toward that teacher's limit.",
               "Only someone who can open the inbox can use the link.",
