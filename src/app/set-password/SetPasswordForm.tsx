@@ -1,12 +1,15 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { isAuthError, isAuthRetryableFetchError } from "@supabase/supabase-js";
 import { toast } from "sonner";
+import { LinkPending } from "@/components/LinkPending";
 import { Logo } from "@/components/Logo";
 import { Spinner } from "@/components/Spinner";
 import { TopLoadingBar } from "@/components/TopLoadingBar";
+import { clearLock, LOGIN_LIMIT } from "@/lib/browserLimits";
 import { newPasswordSchema, PASSWORD_MAX_LENGTH, SAME_PASSWORD_MESSAGE } from "@/lib/passwords";
 import { setNewPassword } from "@/lib/userSettings";
 
@@ -25,6 +28,8 @@ export function SetPasswordForm({ email }: { email: string | null }) {
     setError(null);
     try {
       await setNewPassword(checked.data);
+      // Too many wrong tries may have locked login on this browser: that's why they came here.
+      clearLock(LOGIN_LIMIT);
       toast.success("Password changed.");
       router.push("/");
       router.refresh();
@@ -82,6 +87,14 @@ export function SetPasswordForm({ email }: { email: string | null }) {
           {isSaving && <Spinner size={14} />}
           {isSaving ? "Saving…" : "Save password"}
         </button>
+
+        {/* The link logged them in, so someone who remembered their password can just go on. */}
+        <div className="mt-4 text-center">
+          <Link href="/" className="text-sm font-semibold text-accent hover:underline">
+            Go to home
+            <LinkPending />
+          </Link>
+        </div>
       </form>
       {isSaving && <TopLoadingBar />}
     </main>

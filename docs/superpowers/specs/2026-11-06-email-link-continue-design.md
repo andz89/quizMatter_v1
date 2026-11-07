@@ -62,7 +62,9 @@ Follow-up to `2026-11-06-forgot-password-design.md`, from its final review.
 - Supabase → Authentication → email sign-in settings: "Require current password when updating" **off** (it would
   refuse Set a new password). "Secure password change" can stay on (a reset link is a fresh login).
 - After deploying to the dev preview (live Supabase): ask for a reset twice quickly → both "Check your email"; finish
-  one reset from a real inbox (ideally a DepEd / Outlook one) → Set a new password works.
+  one reset from a real inbox (ideally a DepEd / Outlook one) → Set a new password works. The email's link uses
+  `{{ .SiteURL }}`, quizmatter.com, which runs `main`: on the preview, change the link's address to the preview's by
+  hand before opening it, or do this check right after merging.
 
 ## Notes
 

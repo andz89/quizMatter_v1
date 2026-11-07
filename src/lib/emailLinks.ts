@@ -11,8 +11,10 @@ export const emailLinkSchema = z.object({
 });
 export type EmailLink = z.infer<typeof emailLinkSchema>;
 
-// A link missing its parts, or with a type we don't send.
-export const BAD_LINK_DESTINATION = "/login?error=confirm";
+/** Where a link missing its parts goes (or one with a type we don't send): login, with the reset words for a reset link. */
+export function badLinkDestination(type: unknown): string {
+  return type === "recovery" ? "/login?error=reset" : "/login?error=confirm";
+}
 
 /** The link page's own address; `isRetry` makes it say the link still works (Supabase couldn't be reached). */
 export function emailLinkPath(link: EmailLink, isRetry = false): string {
@@ -24,8 +26,15 @@ export function claimEmail(claims: { email?: unknown } | null | undefined): stri
   return typeof claims?.email === "string" && claims.email !== "" ? claims.email : null;
 }
 
-/** Where Continue goes: the next page when the link worked, else login with the right message. */
-export function emailLinkDestination(type: EmailLinkType, ok: boolean): string {
-  if (type === "recovery") return ok ? "/set-password" : "/login?error=reset";
-  return ok ? "/" : "/login?error=confirm";
+/**
+ * Where Continue goes after Supabase's answer: the next page; for a banned account, login with the blocked words;
+ * back to the page when Supabase didn't really check the link (no answer, too many requests, a server error), since
+ * the link still works; else login with the "expired" words.
+ */
+export function emailLinkResult(link: EmailLink, error: { code?: string; status?: number } | null): string {
+  if (!error) return link.type === "recovery" ? "/set-password" : "/";
+  if (error.code === "user_banned") return "/login?error=blocked";
+  const status = error.status ?? 0;
+  if (status === 0 || status === 429 || status >= 500) return emailLinkPath(link, true);
+  return badLinkDestination(link.type);
 }

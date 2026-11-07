@@ -15,7 +15,8 @@ import { createClient } from "@/lib/supabase/client";
 /**
  * Forgot password: the teacher types their email and Supabase sends the "Reset Password" email, whose link opens
  * /auth/confirm (type=recovery) and then /set-password. The page shows "Check your email" for every email, also one
- * with no account (Supabase answers the same and sends nothing), so it never tells who has an account.
+ * with no account (Supabase answers the same and sends nothing) and when Supabase's email limits refuse a real
+ * account (see sendLink), so it never tells who has an account.
  */
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
@@ -48,9 +49,10 @@ export default function ForgotPasswordPage() {
     setIsSending(true);
     setError(null);
     const { error } = await createClient().auth.resetPasswordForEmail(checked.data, { captchaToken });
-    // Asked again within a minute ("…you can only request this after 42 seconds"): Supabase refuses only for a real
-    // account, so showing an error would tell who has one. A link was sent less than a minute ago: say so.
-    if (error && !/after \d+ seconds?/i.test(error.message)) {
+    // Supabase's email limits (this address within a minute, "…only request this after 42 seconds", or the hourly
+    // limit for all) refuse only a real account: an unknown email is never refused. So an error here would tell who
+    // has an account: these two show the same screen, and its last line says to try again in an hour.
+    if (error && error.code !== "over_email_send_rate_limit" && !/after \d+ seconds?/i.test(error.message)) {
       setError(resetErrorMessage(error));
       setCaptchaToken(null);
       setCaptchaRound((round) => round + 1);
@@ -71,7 +73,7 @@ export default function ForgotPasswordPage() {
           <p className="text-sm text-text-primary">
             We sent a link to <span className="font-semibold">{sentTo}</span>.
           </p>
-          <p className="text-xs text-text-secondary">No email after a few minutes? Check your spam folder.</p>
+          <p className="text-xs text-text-secondary">No email after a few minutes? Check your spam folder, or try again in an hour.</p>
           <BackToLogin />
         </div>
       ) : (
@@ -136,8 +138,6 @@ function BackToLogin() {
 function resetErrorMessage(error: unknown) {
   if (!isAuthError(error)) return "Something went wrong. Please try again.";
   if (error.code === "captcha_failed" || /captcha/i.test(error.message)) return "The security check expired. Please try again.";
-  // Supabase's emails per hour ran out (Authentication → Rate Limits).
-  if (error.code === "over_email_send_rate_limit") return "We can't send more emails right now. Please try again in an hour.";
   if (error.code === "over_request_rate_limit") return "Too many tries. Please wait a few minutes and try again.";
   if (isAuthRetryableFetchError(error)) return "Couldn't reach the server. Check your internet and try again.";
   return "Something went wrong. Please try again.";

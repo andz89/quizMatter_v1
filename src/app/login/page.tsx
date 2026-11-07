@@ -16,15 +16,23 @@ import { MAINTENANCE_WORDS } from "@/lib/maintenance";
 import { createClient } from "@/lib/supabase/client";
 import { SUPPORT_EMAIL } from "@/lib/support";
 
+// Banned in Admin → Teachers.
+const BLOCKED_MESSAGE = `This account is blocked. If you think this is a mistake, email ${SUPPORT_EMAIL}.`;
+
 // Teachers sign up on /signup; admins can still add them by hand in the Supabase dashboard (Authentication → Users).
 export default function LoginPage({ searchParams }: PageProps<"/login">) {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  // /auth/confirm got an old, used or broken email link: ?error=confirm (sign up) or ?error=reset (Forgot password).
+  // /auth/confirm got an old, used or broken email link: ?error=confirm (sign up) or ?error=reset (Forgot password);
+  // or a banned teacher's link: ?error=blocked.
   const linkError = use(searchParams).error;
   const [error, setError] = useState<string | null>(
-    linkError === "confirm" ? "This link has expired or was already used. Try logging in, or sign up again." : null,
+    linkError === "confirm"
+      ? "This link has expired or was already used. Try logging in, or sign up again."
+      : linkError === "blocked"
+        ? BLOCKED_MESSAGE
+        : null,
   );
   // Shown with a link to Forgot password, until the first login try.
   const [isResetLinkError, setIsResetLinkError] = useState(linkError === "reset");
@@ -176,7 +184,7 @@ function lockMessage(until: number) {
 
 // Plain-English words for what went wrong.
 function loginErrorMessage(error: AuthError) {
-  if (error.code === "user_banned") return `This account is blocked. If you think this is a mistake, email ${SUPPORT_EMAIL}.`; // Admin → Teachers
+  if (error.code === "user_banned") return BLOCKED_MESSAGE;
   if (error.code === "invalid_credentials") return "Wrong email or password.";
   // Supabase's limit per internet address (Authentication → Rate Limits).
   if (error.code === "over_request_rate_limit") return "Too many tries. Please wait a few minutes and try again.";

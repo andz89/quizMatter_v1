@@ -99,9 +99,9 @@
   (trimmed, small letters) and `newPasswordSchema` (typed twice, must match). Only zod, so tests load it
   (`passwords.test.ts`); `userSettings.ts` re-exports the password rules for the forms.
 - `emailLinks.ts`: our two email links (`/auth/confirm`, types `email` and `recovery`): `emailLinkSchema` (the link's
-  `token_hash` and `type`), `emailLinkDestination` (where Continue goes, worked or not), `emailLinkPath` (the link
-  page's address, `retry=1` when Supabase couldn't be reached) and `claimEmail` (a login's email, or null; also used
-  by `/set-password`). Only zod, so tests load it
+  `token_hash` and `type`), `emailLinkResult` (where Continue goes after Supabase's answer), `badLinkDestination` (a
+  link missing its parts), `emailLinkPath` (the link page's address, `retry=1` when the link still works) and
+  `claimEmail` (a login's email, or null; also used by `/set-password`). Only zod, so tests load it
   (`emailLinks.test.ts`).
 - `legal.ts`: `LEGAL_VERSION`, the Terms and Privacy Policy version (the date they last changed). The pages show it
   as "Last updated" and each new account saves it. Change it whenever either page changes.

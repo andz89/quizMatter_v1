@@ -2,7 +2,7 @@
 // Mailpit, local Supabase's mail catcher). The "are you human?" box is a stand-in (fakeTurnstile).
 import { execSync } from "node:child_process";
 import { chromium } from "playwright";
-import { api, APP, check, deleteTeacher, env, fakeTurnstile, finish, loggedIn, makeTeacher, SHOTS } from "./lib.mjs";
+import { api, APP, check, deleteTeacher, env, fakeTurnstile, finish, loggedIn, makeTeacher, sessionCookies, SHOTS } from "./lib.mjs";
 
 const MAILPIT = "http://127.0.0.1:54324";
 
@@ -51,16 +51,19 @@ async function continueLink(page, url) {
   await page.waitForURL((u) => u.pathname !== "/auth/confirm", { timeout: 10000 }).catch(() => {});
 }
 
-/** A password login from the local API: the session, or a thrown error when it's refused. */
-async function passwordLogin(email, password) {
-  const res = await fetch(`${env.API_URL}/auth/v1/token?grant_type=password`, {
+/** Local Supabase's answer to a login: its status, and its body (the session, or the error_code). */
+async function token(grant, body) {
+  const res = await fetch(`${env.API_URL}/auth/v1/token?grant_type=${grant}`, {
     method: "POST",
     headers: { apikey: env.ANON_KEY, "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify(body),
   });
-  if (!res.ok) throw new Error(`login ${email}: ${res.status}`);
-  return res.json();
+  return { status: res.status, body: await res.json() };
 }
+const passwordLogin = (email, password) => token("password", { email, password });
+
+/** The footer's "Keep QuizMatter free" link, which the login pages leave out. */
+const hasDonationLink = (page) => page.getByText("Help keep it running").isVisible();
 
 const LOG_OUT_FAILED = "Couldn't log out. Please try again.";
 const LINK_STILL_WORKS = "Something went wrong on our side. Your link still works, so click Continue to try again.";
@@ -70,6 +73,14 @@ const LINK_STILL_WORKS = "Something went wrong on our side. Your link still work
  * Stopping only the login service isn't steady: the gateway may keep trying its old address for a long time.
  */
 const docker = (command) => execSync(`docker ${command} supabase_kong_quizBuilder`, { stdio: "ignore" });
+let isGatewayDown = false;
+// Stopped by hand (Ctrl+C) during the outage check: the gateway must come back.
+for (const signal of ["SIGINT", "SIGTERM"]) {
+  process.on(signal, () => {
+    if (isGatewayDown) docker("start");
+    process.exit(1);
+  });
+}
 
 /** Waits until Supabase's login service answers again (up to 30 seconds). */
 async function authBack() {
@@ -84,6 +95,8 @@ async function authBack() {
 const browser = await chromium.launch();
 const teacher = await makeTeacher({ first: "Forgot" });
 const resetter = await makeTeacher({ first: "Resetter" });
+const banned = await makeTeacher({ first: "Banned" });
+let joinerId = null;
 try {
   // ─── Part 1: the Forgot password page and the email ──────────────────────────────────────────────────────────
   const visitor = await browser.newContext();
@@ -96,6 +109,7 @@ try {
   await page.goto(`${APP}/forgot-password`);
   check("the Forgot password page opens logged out", new URL(page.url()).pathname === "/forgot-password", page.url());
   check("it says Type your email", await page.getByText("Type your email").isVisible().catch(() => false));
+  check("the Forgot password page has no donation link", !(await hasDonationLink(page)));
 
   const member = await loggedIn(browser, teacher);
   const memberPage = await member.newPage();
@@ -131,13 +145,25 @@ try {
   check("asking again within a minute shows the same Check your email screen", againSent && (await page.getByText(teacher.email).isVisible()));
   await visitor.unroute("**/auth/v1/recover*");
   await visitor.route("**/auth/v1/recover*", limited("Email rate limit exceeded"));
-  await sendFromPage(page, teacher.email);
-  check("the hourly email limit says try again in an hour", await page.getByText("We can't send more emails right now. Please try again in an hour.").isVisible());
+  // The hourly limit refuses a real account only, too.
+  const hourlySent = await sendFromPage(page, teacher.email);
+  check("the hourly email limit shows the same Check your email screen", hourlySent && (await page.getByText(teacher.email).isVisible()));
+  check(
+    "it says to try again in an hour",
+    await page.getByText("No email after a few minutes? Check your spam folder, or try again in an hour.").isVisible().catch(() => false),
+  );
+  await visitor.unroute("**/auth/v1/recover*");
+  // Every other refusal still shows its words.
+  await visitor.route("**/auth/v1/recover*", (route) =>
+    route.fulfill({ status: 400, contentType: "application/json", body: JSON.stringify({ code: 400, error_code: "captcha_failed", msg: "captcha protection" }) }),
+  );
+  const expiredSent = await sendFromPage(page, teacher.email);
+  check("an expired security check still says so", !expiredSent && (await page.getByText("The security check expired. Please try again.").isVisible()));
   await visitor.close();
 
   // ─── Part 2: the email's link and Set a new password ─────────────────────────────────────────────────────────
   // Logged in somewhere else before the reset (its refresh token must stop working after it).
-  const otherDevice = await passwordLogin(resetter.email, resetter.password);
+  const otherDevice = (await passwordLogin(resetter.email, resetter.password)).body;
   const resetAt = Date.now() - 1000;
   await askForReset(resetter.email);
   const hash = await latestResetTokenHash(resetter.email, resetAt);
@@ -160,10 +186,13 @@ try {
   const setPage = await fresh.newPage();
   await setPage.goto(resetLink);
   check("the link page shows the reset words", await setPage.getByText("Click Continue to set a new password.").isVisible().catch(() => false));
+  check("the link page has no donation link", !(await hasDonationLink(setPage)));
   await continueLink(setPage, resetLink);
   check("after a scanner, Continue still opens Set a new password", new URL(setPage.url()).pathname === "/set-password", setPage.url());
   check("it says Set a new password", await setPage.getByRole("heading", { name: "Set a new password" }).isVisible().catch(() => false));
   check("Set a new password says whose account", await setPage.getByText(`For ${resetter.email}`).isVisible().catch(() => false));
+  check("Set a new password has no donation link", !(await hasDonationLink(setPage)));
+  check("it has a way out", (await setPage.getByRole("link", { name: "Go to home" }).getAttribute("href", { timeout: 5000 }).catch(() => null)) === "/");
 
   const save = async (password, confirmPassword) => {
     await setPage.getByLabel("New password").fill(password);
@@ -177,20 +206,28 @@ try {
     "the current password is refused",
     await setPage.getByText("That's your current password. Pick a new one.").waitFor({ timeout: 10000 }).then(() => true, () => false),
   );
+  // Locked out of login by wrong tries on this browser: a new password ends the lock.
+  const loginLock = () => setPage.evaluate(() => JSON.parse(localStorage.getItem("qm-login-limit") ?? "{}").lockedUntil ?? 0);
+  await setPage.evaluate(() =>
+    localStorage.setItem("qm-login-limit", JSON.stringify({ times: [], lockedUntil: Date.now() + 3600000, lastLockAt: Date.now() })),
+  );
   await save("New-pass-456", "New-pass-456");
   const changed = await setPage.getByText("Password changed.").waitFor({ timeout: 10000 }).then(() => true, () => false);
   await setPage.waitForURL(`${APP}/`, { timeout: 10000 }).catch(() => {});
   check("a new password is saved and home opens", changed && new URL(setPage.url()).pathname === "/", setPage.url());
+  check("a new password ends the login lock on this browser", (await loginLock()) === 0);
   await fresh.close();
 
-  const refreshed = await fetch(`${env.API_URL}/auth/v1/token?grant_type=refresh_token`, {
-    method: "POST",
-    headers: { apikey: env.ANON_KEY, "Content-Type": "application/json" },
-    body: JSON.stringify({ refresh_token: otherDevice.refresh_token }),
-  });
-  check("the other device is logged out (its refresh token no longer works)", !refreshed.ok, `${refreshed.status}`);
-  check("the new password logs in", Boolean(await passwordLogin(resetter.email, "New-pass-456").catch(() => null)));
-  check("the old password doesn't", !(await passwordLogin(resetter.email, resetter.password).catch(() => null)));
+  const refreshed = await token("refresh_token", { refresh_token: otherDevice.refresh_token });
+  check(
+    "the other device is logged out (its refresh token no longer works)",
+    refreshed.status === 400 && /refresh_token/.test(refreshed.body.error_code ?? ""),
+    `${refreshed.status} ${refreshed.body.error_code}`,
+  );
+  const withNew = await passwordLogin(resetter.email, "New-pass-456");
+  check("the new password logs in", withNew.status === 200 && Boolean(withNew.body.access_token), `${withNew.status}`);
+  const withOld = await passwordLogin(resetter.email, resetter.password);
+  check("the old password doesn't", withOld.status === 400 && withOld.body.error_code === "invalid_credentials", `${withOld.status} ${withOld.body.error_code}`);
 
   const reused = await browser.newContext();
   const reusedPage = await reused.newPage();
@@ -203,7 +240,9 @@ try {
   await reusedPage.goto(`${APP}/set-password`);
   check("Set a new password needs a login", new URL(reusedPage.url()).pathname === "/login", reusedPage.url());
   await reusedPage.goto(`${APP}/auth/confirm?type=recovery`);
-  check("a link with no token goes to login", new URL(reusedPage.url()).search.includes("error=confirm"), reusedPage.url());
+  check("a reset link with no token gets the reset words", new URL(reusedPage.url()).search.includes("error=reset"), reusedPage.url());
+  await reusedPage.goto(`${APP}/auth/confirm?type=email`);
+  check("a sign up link with no token gets the sign up words", new URL(reusedPage.url()).search.includes("error=confirm"), reusedPage.url());
   await reusedPage.goto(`${APP}/auth/confirm?token_hash=abc&type=magiclink`);
   check("a link with a type we don't send goes to login", new URL(reusedPage.url()).search.includes("error=confirm"), reusedPage.url());
   await reused.close();
@@ -230,10 +269,46 @@ try {
   check("then the link opens Set a new password", new URL(switchPage.url()).pathname === "/set-password", switchPage.url());
   await switcher.close();
 
-  // A sign up link (type=email; Supabase checks a magic link's token the same way, and local sign up needs no
-  // confirmation) shows its own words and continues home.
-  const generated = await api("/auth/v1/admin/generate_link", { method: "POST", body: JSON.stringify({ type: "magiclink", email: teacher.email }) });
+  // Someone logged in on this browser in another tab after the link page opened: Continue refuses (never a swap),
+  // and the link isn't used up.
+  const staleAt = Date.now() - 1000;
+  await askForReset(resetter.email);
+  const staleLink = `${APP}/auth/confirm?token_hash=${await latestResetTokenHash(resetter.email, staleAt)}&type=recovery`;
+  const stale = await browser.newContext();
+  const stalePage = await stale.newPage();
+  await stalePage.goto(staleLink);
+  const pieces = await sessionCookies(teacher);
+  await stale.addCookies(pieces.map(([name, value]) => ({ name, value, domain: "localhost", path: "/" })));
+  await stalePage.getByRole("button", { name: "Continue" }).click();
+  const refused = await stalePage.getByText(`You're logged in as ${teacher.email}.`).waitFor({ timeout: 10000 }).then(() => true, () => false);
+  check("Continue while logged in refuses and says log out first", refused, stalePage.url());
+  await stale.clearCookies();
+  await stalePage.reload();
+  await continueLink(stalePage, staleLink);
+  check("and the link still works after logging out", new URL(stalePage.url()).pathname === "/set-password", stalePage.url());
+  await stale.close();
+
+  // A banned teacher's reset link: the ban stays, and the words say so (not "expired", which sends them round again).
+  await api(`/auth/v1/admin/users/${banned.id}`, { method: "PUT", body: JSON.stringify({ ban_duration: "24h" }) });
+  const bannedAt = Date.now() - 1000;
+  await askForReset(banned.email);
+  const bannedLink = `${APP}/auth/confirm?token_hash=${await latestResetTokenHash(banned.email, bannedAt)}&type=recovery`;
+  const blocked = await browser.newContext();
+  const blockedPage = await blocked.newPage();
+  await continueLink(blockedPage, bannedLink);
+  check("a banned teacher's link goes to login", new URL(blockedPage.url()).search.includes("error=blocked"), blockedPage.url());
+  check("it says the account is blocked", await blockedPage.getByText("This account is blocked.").isVisible().catch(() => false));
+  await blocked.close();
+
+  // A real sign up link: a new account that isn't confirmed yet shows its own words, and Continue confirms it.
+  const generated = await api("/auth/v1/admin/generate_link", {
+    method: "POST",
+    body: JSON.stringify({ type: "signup", email: `e2e-joiner-${Date.now()}@test.local`, password: "Local-test-pass-123" }),
+  });
+  joinerId = generated.id ?? generated.user?.id;
   const signUpHash = generated.hashed_token ?? generated.properties?.hashed_token;
+  const confirmedAt = async () => (await api(`/auth/v1/admin/users/${joinerId}`)).email_confirmed_at;
+  check("a generated sign up account isn't confirmed yet", !(await confirmedAt()));
   const signUpLink = `${APP}/auth/confirm?token_hash=${signUpHash}&type=email`;
   const joiner = await browser.newContext();
   const joinPage = await joiner.newPage();
@@ -241,6 +316,7 @@ try {
   check("a sign up link shows its words", await joinPage.getByText("Click Continue to finish making your account.").isVisible().catch(() => false));
   await continueLink(joinPage, signUpLink);
   check("a sign up link continues home", new URL(joinPage.url()).pathname === "/", joinPage.url());
+  check("and it confirms the account", Boolean(await confirmedAt()));
   await joiner.close();
 
   // The account menu's Log out, failing the same way.
@@ -265,6 +341,7 @@ try {
   const outagePage = await outage.newPage();
   await outagePage.goto(outageLink);
   try {
+    isGatewayDown = true;
     docker("stop -t 1");
     await outagePage.getByRole("button", { name: "Continue" }).click();
     await outagePage.getByText(LINK_STILL_WORKS).waitFor({ timeout: 15000 }).catch(() => {});
@@ -272,6 +349,7 @@ try {
     check("it stays on the link page", new URL(outagePage.url()).pathname === "/auth/confirm", outagePage.url());
   } finally {
     docker("start");
+    isGatewayDown = false;
     await authBack();
   }
   await outagePage.getByRole("button", { name: "Continue" }).click();
@@ -315,6 +393,8 @@ try {
 } finally {
   await deleteTeacher(teacher);
   await deleteTeacher(resetter);
+  await deleteTeacher(banned);
+  if (joinerId) await deleteTeacher({ id: joinerId });
   await browser.close();
 }
 finish();

@@ -122,7 +122,7 @@ export default function PrivacyPage() {
       <LegalSection title="4. Who can see your information">
         <p>
           <strong>Other teachers</strong> (only when logged in; QuizMatter’s pages are closed to everyone else, except
-          sign up, log in and these two pages). On your profile page: your display name, your first and last name, your
+          sign up, log in, forgot password, the links in our emails and these two pages). On your profile page: your display name, your first and last name, your
           educational background and your bio (you can hide these three, unless you’re an editor), an editor’s profile photo, the presentations you published, and the QuizMatter lessons you made as
           an editor. Your display name or the Author name shows on the work you share. They never see your email,
           contact number, birthday or gender.

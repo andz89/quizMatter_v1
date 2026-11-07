@@ -137,11 +137,12 @@ Draft / Shared switch on the presentation itself, and aren't counted.
   mail filters) open every link first; only Continue (`openEmailLink`, `actions.ts`) checks the token
   (`verifyOtp`), which logs the teacher in. The link is checked with zod on the page and again in the action
   (`emailLinkSchema`, `src/lib/emailLinks.ts`: `email`, the sign up email, opens home; `recovery`, the reset email,
-  opens `/set-password`; add a type there if a new email uses it). A link missing its parts goes straight to
-  `/login?error=confirm`; a used or old one, after Continue, to `/login?error=confirm` (`error=reset` for a reset
-  link, with a link to Forgot password). If Supabase can't be reached the link isn't used, so the action goes back
-  to the page with `retry=1`: "Something went wrong on our side. Your link still works, so click Continue to try
-  again." Logged in, the page says "You're logged in as … To use this link, log out first." with Log out
+  opens `/set-password`; add a type there if a new email uses it). A link missing its parts goes straight to login;
+  a used or old one, after Continue, too: `error=confirm`, or `error=reset` for a reset link, with a link to Forgot
+  password. A banned teacher goes to `error=blocked` (the ban stays, and "expired" would only send them round again).
+  When Supabase didn't really check the link (no answer, 429, a 5xx) it still works, so the action goes back to the
+  page with `retry=1`: "Something went wrong on our side. Your link still works, so click Continue to try again."
+  All of that is `emailLinkResult`. Logged in, the page says "You're logged in as … To use this link, log out first." with Log out
   (`ConfirmButtons.tsx`, like the account menu) and "Go to home"; the action refuses too, so a link never swaps the
   browser into another account.
 - `login/`: login with plain-English errors, a browser speed bump, a "Forgot password?" link and a "Need help?" line
@@ -157,18 +158,20 @@ Draft / Shared switch on the presentation itself, and aren't counted.
   Turnstile, then `resetPasswordForEmail` (email checked with `resetEmailSchema`, `src/lib/passwords.ts`). It always
   shows "Check your email. We sent a link to …", also for an email with no account (Supabase sends nothing then), so
   it never tells who has an account. Logged-out only, like login (`src/proxy.ts`). No speed bump of ours: Turnstile
-  and Supabase's limits: the hourly email limit has its own words; one email per address per 60 seconds (live; 1
-  second locally) shows "Check your email" again, since Supabase refuses only a real account there and an error
-  would tell who has one. The email is Supabase's "Reset Password" template (live: the dashboard; local:
+  and Supabase's limits: one email per address per 60 seconds (live; 1 second locally) and the hourly email limit.
+  Both refuse only a real account, so an error would tell who has one: both show "Check your email" too, and that
+  screen's last line says to try again in an hour. The email is Supabase's "Reset Password" template (live: the dashboard; local:
   `supabase/templates/recovery.html`), whose link opens `auth/confirm` with `type=recovery`. Resend sends it (the
   Privacy Policy says so). Test: `e2e/forgot-password.mjs`.
 - `set-password/`: Forgot password's last step, opened logged in by the reset link. `page.tsx` (server) reads the
   login's email and `SetPasswordForm.tsx` shows "For <email>" under the heading, so someone who opened another
-  person's forwarded link sees it isn't theirs. New password + Confirm
+  person's forwarded link sees it isn't theirs, and a "Go to home" link (the link logged them in, so someone who
+  remembered their password can just go on). New password + Confirm
   (`newPasswordSchema`), then `setNewPassword` (`src/lib/userSettings.ts`, `updateUser`). Supabase itself logs out
   every other device whenever a password changes (here and on the Account page): their refresh tokens stop working,
   so they're out at their next refresh, within the hour. Then a "Password changed." toast and home. The same password
-  as now gets its own words (`same_password`). Needs a login like every page.
+  as now gets its own words (`same_password`). Saving also ends the login lock for wrong tries on that browser
+  (`clearLock`, `src/lib/browserLimits.ts`). Needs a login like every page.
 - `maintenance/`: the page everyone but the super admin sees during maintenance (open without a login): the note,
   "Try again" and the support email; "QuizMatter is back" if it's already off. See the root `CLAUDE.md`,
   "Maintenance".

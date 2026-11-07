@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { LinkPending } from "@/components/LinkPending";
 import { Logo } from "@/components/Logo";
-import { BAD_LINK_DESTINATION, claimEmail, emailLinkSchema } from "@/lib/emailLinks";
+import { badLinkDestination, claimEmail, emailLinkSchema } from "@/lib/emailLinks";
 import { createClient } from "@/lib/supabase/server";
 import { openEmailLink } from "./actions";
 import { ContinueButton, LogOutButton } from "./ConfirmButtons";
@@ -17,7 +17,7 @@ import { ContinueButton, LogOutButton } from "./ConfirmButtons";
 export default async function EmailLinkPage({ searchParams }: PageProps<"/auth/confirm">) {
   const { token_hash, type, retry } = await searchParams;
   const link = emailLinkSchema.safeParse({ token_hash, type });
-  if (!link.success) redirect(BAD_LINK_DESTINATION);
+  if (!link.success) redirect(badLinkDestination(type));
 
   const supabase = await createClient();
   const { data } = await supabase.auth.getClaims();
