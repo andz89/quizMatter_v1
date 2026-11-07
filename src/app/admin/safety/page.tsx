@@ -29,6 +29,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { timeAgo } from "@/lib/format";
 import { ClickTabs } from "./ClickTabs";
 import { lookUpEmails, lookUpNames, type AdminClient, type ClickLimit } from "./data";
+import { PasswordResets, loadPasswordResets } from "./PasswordResets";
 import { PausedTeachers, type PausedRow } from "./PausedTeachers";
 
 /**
@@ -53,11 +54,12 @@ export default async function AdminSafetyPage() {
   if (limits.error) throw limits.error;
   const clickLimits = limits.data as ClickLimit[];
 
-  const [banned, autoBanned, blockedDomains, pausedRows] = await Promise.all([
+  const [banned, autoBanned, blockedDomains, pausedRows, passwordResets] = await Promise.all([
     admin.from("banned_users").select("user_id", { count: "exact", head: true }),
     admin.from("banned_users").select("user_id", { count: "exact", head: true }).eq("is_automatic", true),
     admin.from("blocked_email_domains").select("domain", { count: "exact", head: true }),
     buildPausedRows(admin, clickLimits),
+    loadPasswordResets(admin),
   ]);
   if (banned.error) throw banned.error;
   if (autoBanned.error) throw autoBanned.error;
@@ -93,6 +95,8 @@ export default async function AdminSafetyPage() {
         <ClickTabs active="now" />
         <PausedTeachers rows={pausedRows} repeatHours={repeatHours} />
       </section>
+
+      <PasswordResets lists={passwordResets} />
 
       <Group title="Click limits at a glance" count={clickLimits.length}>
         <ClickLimitsTable limits={clickLimits} />
@@ -550,6 +554,7 @@ export default async function AdminSafetyPage() {
               "Supabase's email limits (one email per address per minute, and the emails per hour in Authentication → Rate Limits) refuse only a real account. The page shows the same screen for those too, and its last line says to try again later.",
               "These limits sit on the Forgot password page: Supabase's reset address is public, and it sends the email before it saves anything, so the database can't stop it. A script that skips the page still needs a fresh person check each time and one minute per address, and what it sends counts toward that teacher's limit.",
               "Only someone who can open the inbox can use the link.",
+              "Password resets (above) shows who got reset emails today and which internet addresses asked in the last hour.",
               "“For <email>” on Set a new password shows whose account the link opened, so a forwarded link is easy to spot.",
               "A new password also ends the login lock for wrong tries on that browser.",
             ],

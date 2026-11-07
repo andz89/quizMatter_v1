@@ -103,6 +103,7 @@ const teacher = await makeTeacher({ first: "Forgot" });
 const resetter = await makeTeacher({ first: "Resetter" });
 const banned = await makeTeacher({ first: "Banned" });
 const limited = await makeTeacher({ first: "Limited" });
+const boss = await makeTeacher({ first: "Boss", superAdmin: true });
 let joinerId = null;
 try {
   // ─── Part 1: the Forgot password page and the email ──────────────────────────────────────────────────────────
@@ -438,12 +439,41 @@ try {
   await sendFromPage(limitsPage, `nobody-${Date.now()}@test.local`);
   check("another address still reaches Supabase", recoverCalls === 4, `${recoverCalls} calls`);
   await limits.close();
+
+  // ─── Part 5: Admin → Safety → Password resets lists them for the super admin ───────────────────────────────────
+  psql("insert into public.password_reset_requests (ip) values ('2001:db8:5:6::/64')");
+  const bossContext = await loggedIn(browser, boss);
+  const safety = await bossContext.newPage();
+  const resetsSection = safety.locator("section", { has: safety.getByRole("heading", { name: "Password resets" }) });
+  const openSafety = async () => {
+    await safety.goto(`${APP}/admin/safety`);
+    return resetsSection.waitFor({ timeout: 30000 }).then(() => true, () => false);
+  };
+  const rowText = (text) => resetsSection.locator("li", { hasText: text }).first().innerText({ timeout: 5000 }).catch(() => "");
+  check("Admin → Safety has a Password resets section", await openSafety());
+  const limitedRow = await rowText(limited.email);
+  check("a teacher with 3 reset emails today shows 3 of 3 and Limit reached", /3 of 3/.test(limitedRow) && /Limit reached/.test(limitedRow), limitedRow);
+  check("the teacher's name shows too", /Limited Teacher/.test(limitedRow), limitedRow);
+  const fullAddress = await rowText("203.0.113.71");
+  check("an address with 10 requests this hour shows 10 of 10 and Limit reached", /10 of 10/.test(fullAddress) && /Limit reached/.test(fullAddress), fullAddress);
+  const usedAddress = await rowText("203.0.113.70");
+  check("an address under the limit shows its count", /4 of 10/.test(usedAddress) && !/Limit reached/.test(usedAddress), usedAddress);
+  const ipv6Network = await rowText("2001:db8:5:6::/64");
+  check("an IPv6 network shows as one address", /1 of 10/.test(ipv6Network), ipv6Network);
+  // A script that skipped the page: Supabase sent a 4th email anyway.
+  psql(`insert into public.password_reset_sends (user_id) values ('${limited.id}')`);
+  await openSafety();
+  const overRow = await rowText(limited.email);
+  check("more than 3 shows Over the limit", /4 of 3/.test(overRow) && /Over the limit/.test(overRow), overRow);
+  await safety.screenshot({ path: `${SHOTS}admin-safety-resets.png`, fullPage: true });
+  await bossContext.close();
 } finally {
   await deleteTeacher(teacher);
   await deleteTeacher(resetter);
   await deleteTeacher(banned);
   await deleteTeacher(limited);
-  psql("delete from public.password_reset_requests where ip << '203.0.113.0/24'");
+  await deleteTeacher(boss);
+  psql("delete from public.password_reset_requests where ip << '203.0.113.0/24' or ip << '2001:db8::/32'");
   if (joinerId) await deleteTeacher({ id: joinerId });
   await browser.close();
 }

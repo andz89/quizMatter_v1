@@ -268,7 +268,8 @@ export default function PrivacyPage() {
           <li>Passwords are kept scrambled.</li>
           <li>Database rules let each teacher reach only their own private information.</li>
           <li>
-            Only admins see contact numbers, and teachers’ emails (except an editor’s, on the lessons they review).
+            Only admins see contact numbers, the safety records (like the internet addresses above), and teachers’
+            emails (except an editor’s, on the lessons they review).
           </li>
         </ul>
         <p>
