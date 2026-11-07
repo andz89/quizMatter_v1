@@ -85,8 +85,8 @@ export default function PrivacyPage() {
           sign up, and when.
         </p>
         <p>
-          <strong>Safety records.</strong> The internet address you sign up from (to stop one person making many
-          accounts), a check that you’re a person and not a robot (Cloudflare Turnstile), a record when a feature is
+          <strong>Safety records.</strong> The internet address you sign up or ask for a password reset from (to stop
+          one person making many accounts or sending many emails), a check that you’re a person and not a robot (Cloudflare Turnstile), a record when a feature is
           paused because it was clicked too fast, bans, and a log of what admins do. Our login service keeps its own
           records of logins, for security.
         </p>
@@ -213,7 +213,7 @@ export default function PrivacyPage() {
                 <td>Until you delete your account</td>
               </tr>
               <tr>
-                <td>The internet address you signed up from</td>
+                <td>The internet address you signed up or asked for a password reset from</td>
                 <td>1 day</td>
               </tr>
               <tr>

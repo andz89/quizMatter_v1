@@ -10,6 +10,11 @@ export const passwordSchema = z
   .min(PASSWORD_MIN_LENGTH, `Use at least ${PASSWORD_MIN_LENGTH} characters for your password.`)
   .max(PASSWORD_MAX_LENGTH, `Use at most ${PASSWORD_MAX_LENGTH} characters for your password.`);
 
+// Forgot password's limits (may_send_password_reset, 20261231001000_password_reset_limit.sql): same numbers there.
+// Here so Admin → Safety can show them.
+export const RESETS_PER_DAY = 3;
+export const RESET_REQUESTS_PER_ADDRESS = 10;
+
 // The Forgot password page's email box: spaces and capitals don't matter.
 export const resetEmailSchema = z.string().trim().toLowerCase().pipe(z.email("Enter a real email address."));
 

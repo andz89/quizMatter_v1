@@ -53,7 +53,9 @@ Tests that delete data (the announcements ones empty the announcements table) do
   unconfirmed sign up link (`type=email`, from `generate_link`) → home, confirmed. A failed log out (on the link page and in the account
   menu) says so. Supabase can't be reached at Continue (it stops the local gateway, `supabase_kong_quizBuilder`,
   for a moment): the page says the link still works, and it does. Last, sign up's "Check your email" words and links
-  (Supabase's sign up answer played back, so no account is made; screenshot `signup-check-email.png`). Run it alone:
+  (Supabase's sign up answer played back, so no account is made; screenshot `signup-check-email.png`), and the reset
+  limit: 3 real emails, the 4th shows the same screen and sends none; an address at 10 requests doesn't reach Supabase
+  (the test adds `cf-connecting-ip` to the page's request, as Cloudflare does). Run it alone:
   the outage check stops the gateway every local test uses (Ctrl+C or a failure starts it again).
 - `hidden-slides.mjs`: hide a slide, save, present (→ / ← skip it), the all-slides grid, show it again.
 - `add-slide-menu.mjs`: the slide's + and the workspace's Add slide have no "Embed image" (the other 8 types stay),

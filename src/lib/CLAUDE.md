@@ -96,7 +96,8 @@
   agree box, `z.literal(true)`, `AGREE_TERMS_MESSAGE`) must be ticked; `signUp` then sends `terms_version`
   (`LEGAL_VERSION`), which the database saves with the time (`20261218000000_terms_consent.sql`).
 - `passwords.ts`: the password rules (`passwordSchema`, 8–72 characters), and Forgot password's `resetEmailSchema`
-  (trimmed, small letters) and `newPasswordSchema` (typed twice, must match). Only zod, so tests load it
+  (trimmed, small letters), `newPasswordSchema` (typed twice, must match) and the numbers of Forgot password's limit
+  (`RESETS_PER_DAY`, `RESET_REQUESTS_PER_ADDRESS`; the same in `may_send_password_reset`). Only zod, so tests load it
   (`passwords.test.ts`); `userSettings.ts` re-exports the password rules for the forms.
 - `emailLinks.ts`: our two email links (`/auth/confirm`, types `email` and `recovery`): `emailLinkSchema` (the link's
   `token_hash` and `type`), `emailLinkResult` (where Continue goes after Supabase's answer), `badLinkDestination` (a
@@ -168,7 +169,7 @@ data. Spec: `docs/superpowers/specs/2026-10-23-stable-presentation-data-design.m
 - Claude (MCP): `drafts.ts` (drafts in Cloudflare D1), `importPresentation.ts`, `importGroups.ts` (Claude's
   `"group"` names → editor groups; tested, since `importPresentation.ts` loads drawings), `photoTickets.ts`.
 - Timers: `cleanupPhotos.ts`, `cleanupAccounts.ts` (run by `worker.ts`). `cleanupAccounts.ts`, daily: deletes
-  accounts unconfirmed after 3 days, `sign_up_attempts` older than a day, and `click_history` and `admin_actions`
+  accounts unconfirmed after 3 days, `sign_up_attempts` and `password_reset_requests` older than a day, and `click_history` and `admin_actions`
   rows older than `KEEP_SAFETY_RECORDS_DAYS` (365, from each row's `created_at`; the Privacy Policy promises it),
   and who closed an announcement that ended over 30 days ago (`cleanup_announcement_dismissals`, 50,000 rows a call,
   up to 20 calls a day; the Privacy Policy promises it too).

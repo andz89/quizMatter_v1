@@ -21,6 +21,7 @@ import {
   THROWAWAY_EMAIL_MESSAGE,
 } from "@/lib/userSettings";
 import { MAX_PHOTO_FILE_BYTES, MAX_STORED_PHOTO_BYTES } from "@/lib/constants";
+import { RESET_REQUESTS_PER_ADDRESS, RESETS_PER_DAY } from "@/lib/passwords";
 import { PHOTO_TICKET_LIFETIME_MS } from "@/lib/photoTickets";
 import { REFUSALS } from "@/lib/presentations";
 import { MAX_PRESENTATIONS, MAX_SAVED, MAX_SLIDES, MAX_TAGS, PUBLISH_NEEDS_CONTENT, WRITES_PER_MINUTE } from "@/lib/schema";
@@ -540,11 +541,13 @@ export default async function AdminSafetyPage() {
         <Item
           name="Forgot password"
           where="App + Supabase"
-          rule="The Forgot password page shows “Check your email” for every email, so nobody can find out who has an account. The link works once and needs the person check to ask for. A new password logs the account out on every other device, within the hour"
+          rule={`A teacher gets at most ${RESETS_PER_DAY} reset emails a day (Philippine time), and one internet address at most ${RESET_REQUESTS_PER_ADDRESS} requests an hour. The Forgot password page shows “Check your email” for every email, also over these limits, so nobody can find out who has an account. The link works once and needs the person check to ask for. A new password logs the account out on every other device, within the hour`}
           sees="“Check your email. We sent a link to …”, also for an email with no account (no email is sent then). Set a new password shows “For <email>”."
           more={{
             what: [
-              "Supabase's email limits (one email per address per minute, and the emails per hour in Authentication → Rate Limits) refuse only a real account. The page shows the same screen for those too, and its last line says to try again in an hour.",
+              `Only emails really sent count toward the ${RESETS_PER_DAY}, so nobody can use up another teacher's with made-up requests. The internet address limit is higher because a school or a mobile network puts many teachers behind one address.`,
+              "Supabase's email limits (one email per address per minute, and the emails per hour in Authentication → Rate Limits) refuse only a real account. The page shows the same screen for those too, and its last line says to try again later.",
+              "These limits sit on the Forgot password page: Supabase's reset address is public, and it sends the email before it saves anything, so the database can't stop it. A script that skips the page still needs a fresh person check each time and one minute per address, and what it sends counts toward that teacher's limit.",
               "Only someone who can open the inbox can use the link.",
               "“For <email>” on Set a new password shows whose account the link opened, so a forwarded link is easy to spot.",
               "A new password also ends the login lock for wrong tries on that browser.",
@@ -764,7 +767,7 @@ export default async function AdminSafetyPage() {
           name="Using up the emails per hour"
           where="Not limited"
           rule="Sign up and password reset emails share one limit per hour (Supabase → Authentication → Rate Limits). A person check stands in front of both, but no limit of ours stops someone patient from using it up"
-          sees="While it's used up: Forgot password shows “Check your email” but no email comes (its last line says to try again in an hour), and sign up says it can't send more emails right now."
+          sees="While it's used up: Forgot password shows “Check your email” but no email comes (its last line says to try again later), and sign up says it can't send more emails right now."
           more={{
             what: [
               "Each email needs a passed person check, and Supabase sends one email per address per minute, so using up the hour takes real effort.",

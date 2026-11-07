@@ -157,10 +157,15 @@ Draft / Shared switch on the presentation itself, and aren't counted.
 - `forgot-password/` (spec `docs/superpowers/specs/2026-11-06-forgot-password-design.md`): "Type your email",
   Turnstile, then `resetPasswordForEmail` (email checked with `resetEmailSchema`, `src/lib/passwords.ts`). It always
   shows "Check your email. We sent a link to …", also for an email with no account (Supabase sends nothing then), so
-  it never tells who has an account. Logged-out only, like login (`src/proxy.ts`). No speed bump of ours: Turnstile
-  and Supabase's limits: one email per address per 60 seconds (live; 1 second locally) and the hourly email limit.
-  Both refuse only a real account, so an error would tell who has one: both show "Check your email" too, and that
-  screen's last line says to try again in an hour. The email is Supabase's "Reset Password" template (live: the dashboard; local:
+  it never tells who has an account. Logged-out only, like login (`src/proxy.ts`). Our limit (spec
+  `docs/superpowers/specs/2026-11-07-password-reset-limit-design.md`): 3 reset emails a day per teacher, Philippine time,
+  and 10 requests an hour per internet address. The page asks `mayAskForReset` (`actions.ts`: Cloudflare's address, the
+  secret key, `may_send_password_reset`) first; over a limit it shows the same screen and sends nothing; if the check
+  can't run it allows. Only emails really sent count (a trigger on Supabase's `recovery_sent_at`). It isn't a hard wall:
+  Supabase's reset address is public and it sends before it saves, so a trigger can't stop the email; a script that
+  skips the page still needs a Turnstile pass each time. Supabase's own limits: one email per address per 60 seconds
+  (live; 1 second locally) and the hourly email limit (the whole app). Both refuse only a real account, so an error
+  would tell who has one: both show "Check your email" too, and that screen's last line says to try again later. The email is Supabase's "Reset Password" template (live: the dashboard; local:
   `supabase/templates/recovery.html`), whose link opens `auth/confirm` with `type=recovery`. Resend sends it (the
   Privacy Policy says so). Test: `e2e/forgot-password.mjs`.
 - `set-password/`: Forgot password's last step, opened logged in by the reset link. `page.tsx` (server) reads the

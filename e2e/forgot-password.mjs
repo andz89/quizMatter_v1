@@ -2,7 +2,7 @@
 // Mailpit, local Supabase's mail catcher). The "are you human?" box is a stand-in (fakeTurnstile).
 import { execSync } from "node:child_process";
 import { chromium } from "playwright";
-import { api, APP, check, deleteTeacher, env, fakeTurnstile, finish, loggedIn, makeTeacher, sessionCookies, SHOTS } from "./lib.mjs";
+import { api, APP, check, deleteTeacher, env, fakeTurnstile, finish, loggedIn, makeTeacher, psql, sessionCookies, SHOTS } from "./lib.mjs";
 
 const MAILPIT = "http://127.0.0.1:54324";
 
@@ -19,6 +19,12 @@ async function latestResetTokenHash(email, after = 0) {
     await new Promise((resolve) => setTimeout(resolve, 500));
   }
   return "";
+}
+
+/** How many emails Mailpit holds for `email`. */
+async function emailsTo(email) {
+  const found = await (await fetch(`${MAILPIT}/api/v1/search?query=${encodeURIComponent(`to:"${email}"`)}`)).json();
+  return found.messages?.length ?? 0;
 }
 
 /** Asks for a reset email straight from the local API (as the page does, without the captcha). */
@@ -96,6 +102,7 @@ const browser = await chromium.launch();
 const teacher = await makeTeacher({ first: "Forgot" });
 const resetter = await makeTeacher({ first: "Resetter" });
 const banned = await makeTeacher({ first: "Banned" });
+const limited = await makeTeacher({ first: "Limited" });
 let joinerId = null;
 try {
   // ─── Part 1: the Forgot password page and the email ──────────────────────────────────────────────────────────
@@ -136,21 +143,21 @@ try {
 
   // Supabase's two email limits (local waits only 1 second between emails, so its answer is played back here, in
   // the shape the live one sends).
-  const limited = (msg) => (route) =>
+  const refusal = (msg) => (route) =>
     route.fulfill({ status: 429, contentType: "application/json", body: JSON.stringify({ code: 429, error_code: "over_email_send_rate_limit", msg }) });
-  await visitor.route("**/auth/v1/recover*", limited("For security purposes, you can only request this after 42 seconds."));
+  await visitor.route("**/auth/v1/recover*", refusal("For security purposes, you can only request this after 42 seconds."));
   // Within a minute Supabase refuses a real account but not an unknown email: the page must show the same screen,
   // or it would tell who has an account.
   const againSent = await sendFromPage(page, teacher.email);
   check("asking again within a minute shows the same Check your email screen", againSent && (await page.getByText(teacher.email).isVisible()));
   await visitor.unroute("**/auth/v1/recover*");
-  await visitor.route("**/auth/v1/recover*", limited("Email rate limit exceeded"));
+  await visitor.route("**/auth/v1/recover*", refusal("Email rate limit exceeded"));
   // The hourly limit refuses a real account only, too.
   const hourlySent = await sendFromPage(page, teacher.email);
   check("the hourly email limit shows the same Check your email screen", hourlySent && (await page.getByText(teacher.email).isVisible()));
   check(
-    "it says to try again in an hour",
-    await page.getByText("No email after a few minutes? Check your spam folder, or try again in an hour.").isVisible().catch(() => false),
+    "it says to try again later",
+    await page.getByText("No email after a few minutes? Check your spam folder, or try again later.").isVisible().catch(() => false),
   );
   await visitor.unroute("**/auth/v1/recover*");
   // Every other refusal still shows its words.
@@ -390,10 +397,53 @@ try {
   );
   await signUp.screenshot({ path: `${SHOTS}signup-check-email.png` });
   await signer.close();
+
+  // ─── Part 4: 3 reset emails a day per teacher, 10 requests an hour per internet address ───────────────────────
+  const limits = await browser.newContext();
+  await fakeTurnstile(limits);
+  const limitsPage = await limits.newPage();
+  let recoverCalls = 0;
+  await limits.route("**/auth/v1/recover*", (route) => {
+    recoverCalls++;
+    return route.continue();
+  });
+  // Cloudflare adds the address on the live site; here the test adds it to the page's request to the server.
+  const askFrom = async (ip) => {
+    await limits.unroute(`${APP}/forgot-password`).catch(() => {});
+    await limits.route(`${APP}/forgot-password`, (route) =>
+      route.request().method() === "POST"
+        ? route.continue({ headers: { ...route.request().headers(), "cf-connecting-ip": ip } })
+        : route.continue(),
+    );
+  };
+
+  await askFrom("203.0.113.70");
+  for (let i = 0; i < 3; i++) {
+    await sendFromPage(limitsPage, limited.email);
+    await new Promise((resolve) => setTimeout(resolve, 1300)); // local Supabase waits 1 second between emails
+  }
+  check("3 resets a day each send an email", (await emailsTo(limited.email)) === 3 && recoverCalls === 3, `${await emailsTo(limited.email)} emails, ${recoverCalls} calls`);
+  const fourth = await sendFromPage(limitsPage, limited.email);
+  await new Promise((resolve) => setTimeout(resolve, 2000));
+  check("the 4th shows the same Check your email screen", fourth && (await limitsPage.getByText(limited.email).isVisible()));
+  check("and sends no email", (await emailsTo(limited.email)) === 3 && recoverCalls === 3, `${await emailsTo(limited.email)} emails, ${recoverCalls} calls`);
+
+  // One internet address that already asked 10 times this hour: refused, also for an email with no account.
+  psql("insert into public.password_reset_requests (ip) select '203.0.113.71' from generate_series(1, 10)");
+  await askFrom("203.0.113.71");
+  const eleventh = await sendFromPage(limitsPage, `nobody-${Date.now()}@test.local`);
+  check("the 11th request from an address shows the same screen", eleventh);
+  check("and doesn't reach Supabase", recoverCalls === 3, `${recoverCalls} calls`);
+  await askFrom("203.0.113.72");
+  await sendFromPage(limitsPage, `nobody-${Date.now()}@test.local`);
+  check("another address still reaches Supabase", recoverCalls === 4, `${recoverCalls} calls`);
+  await limits.close();
 } finally {
   await deleteTeacher(teacher);
   await deleteTeacher(resetter);
   await deleteTeacher(banned);
+  await deleteTeacher(limited);
+  psql("delete from public.password_reset_requests where ip << '203.0.113.0/24'");
   if (joinerId) await deleteTeacher({ id: joinerId });
   await browser.close();
 }
