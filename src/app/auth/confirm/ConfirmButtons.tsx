@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useFormStatus } from "react-dom";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { Spinner } from "@/components/Spinner";
 import { TopLoadingBar } from "@/components/TopLoadingBar";
 import { forgetAnnouncements } from "@/lib/announcements";
@@ -32,7 +33,12 @@ export function LogOutButton() {
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const logOut = async () => {
     setIsLoggingOut(true);
-    await createClient().auth.signOut();
+    const { error } = await createClient().auth.signOut();
+    if (error) {
+      toast.error("Couldn't log out. Please try again.");
+      setIsLoggingOut(false);
+      return;
+    }
     forgetAnnouncements();
     router.refresh();
   };

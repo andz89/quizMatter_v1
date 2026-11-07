@@ -11,7 +11,7 @@ notes.
   For "Are you sure?" use `editor/ConfirmModal.tsx` instead, never the browser's `confirm()`.
 - `NavBar.tsx` (server only): the top bar of every page, with the "Support" button (`KeepFreeButton`) and
   `AccountMenu.tsx` (an "Admin" or "Editor" label above the name, then Admin, Account settings, Help & support,
-  Keep QuizMatter free, Log out).
+  Keep QuizMatter free, Log out; a failed log out, e.g. no internet, says so in a toast and the button works again).
 - `KeepFree.tsx`: "Keep QuizMatter free", teachers chipping in with GCash to pay the running costs (instead of ads).
   `KeepFreeModal` shows the owner's GCash QR (`gcash-qr.png`, cropped so no phone number shows), "Save QR image" for
   phones, the name GCash should show (`GCASH_NAME`) and a scam warning. Opened from three places: the top bar's

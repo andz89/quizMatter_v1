@@ -1,3 +1,4 @@
+import { claimEmail } from "@/lib/emailLinks";
 import { createClient } from "@/lib/supabase/server";
 import { SetPasswordForm } from "./SetPasswordForm";
 
@@ -10,6 +11,5 @@ import { SetPasswordForm } from "./SetPasswordForm";
 export default async function SetPasswordPage() {
   const supabase = await createClient();
   const { data } = await supabase.auth.getClaims();
-  const email = typeof data?.claims?.email === "string" && data.claims.email !== "" ? data.claims.email : null;
-  return <SetPasswordForm email={email} />;
+  return <SetPasswordForm email={claimEmail(data?.claims)} />;
 }

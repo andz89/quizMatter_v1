@@ -48,7 +48,9 @@ Tests that delete data (the announcements ones empty the announcements table) do
   Set a new password (mismatch and same password refused, a new one saved), the other device's refresh token stops
   working, new password in / old out, the used link → `/login?error=reset`, `/set-password` logged out → login, a
   link with no token or an unknown type → `/login?error=confirm`, Log out on the link page → Continue works, and a
-  sign up link (`type=email`, from `generate_link`) → home. Last, sign up's "Check your email" words and links
+  sign up link (`type=email`, from `generate_link`) → home. A failed log out (on the link page and in the account
+  menu) says so. Supabase can't be reached at Continue (it stops the local gateway, `supabase_kong_quizBuilder`,
+  for a moment): the page says the link still works, and it does. Last, sign up's "Check your email" words and links
   (Supabase's sign up answer played back, so no account is made; screenshot `signup-check-email.png`).
 - `hidden-slides.mjs`: hide a slide, save, present (→ / ← skip it), the all-slides grid, show it again.
 - `add-slide-menu.mjs`: the slide's + and the workspace's Add slide have no "Embed image" (the other 8 types stay),

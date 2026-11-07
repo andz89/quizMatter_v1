@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { CopyIcon, HeartIcon, LifeBuoyIcon, LogOutIcon, SettingsIcon, ShieldIcon } from "lucide-react";
+import { toast } from "sonner";
 import type { Account } from "@/lib/account";
 import { forgetAnnouncements } from "@/lib/announcements";
 import { createClient } from "@/lib/supabase/client";
@@ -45,7 +46,12 @@ export function AccountMenu({ account }: { account: Account }) {
 
   const logOut = async () => {
     setIsLoggingOut(true);
-    await createClient().auth.signOut();
+    const { error } = await createClient().auth.signOut();
+    if (error) {
+      toast.error("Couldn't log out. Please try again.");
+      setIsLoggingOut(false);
+      return;
+    }
     forgetAnnouncements();
     router.push("/login");
     router.refresh();

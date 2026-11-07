@@ -139,9 +139,11 @@ Draft / Shared switch on the presentation itself, and aren't counted.
   (`emailLinkSchema`, `src/lib/emailLinks.ts`: `email`, the sign up email, opens home; `recovery`, the reset email,
   opens `/set-password`; add a type there if a new email uses it). A link missing its parts goes straight to
   `/login?error=confirm`; a used or old one, after Continue, to `/login?error=confirm` (`error=reset` for a reset
-  link, with a link to Forgot password). Logged in, the page says "You're logged in as … To use this link, log out
-  first." with Log out (`ConfirmButtons.tsx`, like the account menu) and "Go to home"; the action refuses too, so a
-  link never swaps the browser into another account.
+  link, with a link to Forgot password). If Supabase can't be reached the link isn't used, so the action goes back
+  to the page with `retry=1`: "Something went wrong on our side. Your link still works, so click Continue to try
+  again." Logged in, the page says "You're logged in as … To use this link, log out first." with Log out
+  (`ConfirmButtons.tsx`, like the account menu) and "Go to home"; the action refuses too, so a link never swaps the
+  browser into another account.
 - `login/`: login with plain-English errors, a browser speed bump, a "Forgot password?" link and a "Need help?" line
   with the support email (`src/components/SupportEmail.tsx`). `src/proxy.ts` sends logged-out people here. Its
   matcher skips only the real static files (`_next/static`, `_next/image`, `favicon.ico`, `icon.svg` and the five

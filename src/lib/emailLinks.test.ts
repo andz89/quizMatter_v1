@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { emailLinkDestination, emailLinkSchema } from "./emailLinks";
+import { claimEmail, emailLinkDestination, emailLinkPath, emailLinkSchema } from "./emailLinks";
 
 test("emailLinkSchema accepts a reset link", () => {
   assert.equal(emailLinkSchema.safeParse({ token_hash: "abc", type: "recovery" }).success, true);
@@ -27,4 +27,18 @@ test("emailLinkDestination: a good link opens Set a new password or home", () =>
 test("emailLinkDestination: a bad link goes to login with its message", () => {
   assert.equal(emailLinkDestination("recovery", false), "/login?error=reset");
   assert.equal(emailLinkDestination("email", false), "/login?error=confirm");
+});
+
+test("emailLinkPath is the link page's address, with retry when asked", () => {
+  const link = { token_hash: "abc", type: "recovery" } as const;
+  assert.equal(emailLinkPath(link), "/auth/confirm?token_hash=abc&type=recovery");
+  assert.equal(emailLinkPath(link, true), "/auth/confirm?token_hash=abc&type=recovery&retry=1");
+});
+
+test("claimEmail gives the login's email, or null when it has none", () => {
+  assert.equal(claimEmail({ email: "tess@school.ph" }), "tess@school.ph");
+  assert.equal(claimEmail({ email: "" }), null);
+  assert.equal(claimEmail({}), null);
+  assert.equal(claimEmail({ email: 5 }), null);
+  assert.equal(claimEmail(undefined), null);
 });

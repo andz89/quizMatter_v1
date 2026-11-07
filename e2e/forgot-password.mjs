@@ -1,5 +1,6 @@
 // Forgot password: the Forgot password page asks for an email and Supabase sends the reset email (read here from
 // Mailpit, local Supabase's mail catcher). The "are you human?" box is a stand-in (fakeTurnstile).
+import { execSync } from "node:child_process";
 import { chromium } from "playwright";
 import { api, APP, check, deleteTeacher, env, fakeTurnstile, finish, loggedIn, makeTeacher, SHOTS } from "./lib.mjs";
 
@@ -59,6 +60,25 @@ async function passwordLogin(email, password) {
   });
   if (!res.ok) throw new Error(`login ${email}: ${res.status}`);
   return res.json();
+}
+
+const LOG_OUT_FAILED = "Couldn't log out. Please try again.";
+const LINK_STILL_WORKS = "Something went wrong on our side. Your link still works, so click Continue to try again.";
+
+/**
+ * Stops or starts local Supabase's gateway (the outage check): the app then can't reach Supabase at all, at once.
+ * Stopping only the login service isn't steady: the gateway may keep trying its old address for a long time.
+ */
+const docker = (command) => execSync(`docker ${command} supabase_kong_quizBuilder`, { stdio: "ignore" });
+
+/** Waits until Supabase's login service answers again (up to 30 seconds). */
+async function authBack() {
+  for (let i = 0; i < 60; i++) {
+    const res = await fetch(`${env.API_URL}/auth/v1/health`, { headers: { apikey: env.ANON_KEY } }).catch(() => null);
+    if (res?.ok) return;
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
+  throw new Error("The local login service didn't come back.");
 }
 
 const browser = await chromium.launch();
@@ -195,6 +215,14 @@ try {
   const switcher = await loggedIn(browser, teacher);
   const switchPage = await switcher.newPage();
   await switchPage.goto(logOutLink);
+  // Logging out fails (no internet): it says so, and the button works again.
+  await switcher.route("**/auth/v1/logout*", (route) => route.abort());
+  await switchPage.getByRole("button", { name: "Log out" }).click();
+  check(
+    "a failed log out on the link page says so",
+    await switchPage.getByText(LOG_OUT_FAILED).waitFor({ timeout: 10000 }).then(() => true, () => false),
+  );
+  await switcher.unroute("**/auth/v1/logout*");
   await switchPage.getByRole("button", { name: "Log out" }).click();
   const continueShown = await switchPage.getByRole("button", { name: "Continue" }).waitFor({ timeout: 10000 }).then(() => true, () => false);
   check("Log out on the link page shows Continue", continueShown);
@@ -214,6 +242,42 @@ try {
   await continueLink(joinPage, signUpLink);
   check("a sign up link continues home", new URL(joinPage.url()).pathname === "/", joinPage.url());
   await joiner.close();
+
+  // The account menu's Log out, failing the same way.
+  const member2 = await loggedIn(browser, teacher);
+  await member2.route("**/auth/v1/logout*", (route) => route.abort());
+  const menuPage = await member2.newPage();
+  await menuPage.goto(`${APP}/`);
+  await menuPage.getByRole("button", { name: "Account menu" }).click();
+  await menuPage.getByRole("button", { name: "Log out" }).click();
+  check(
+    "a failed log out in the account menu says so",
+    await menuPage.getByText(LOG_OUT_FAILED).waitFor({ timeout: 10000 }).then(() => true, () => false),
+  );
+  check("and the menu's Log out works again", await menuPage.getByRole("button", { name: "Log out" }).isEnabled());
+  await member2.close();
+
+  // Supabase can't be reached when Continue is clicked: the link isn't used up, and the page says so.
+  const outageAt = Date.now() - 1000;
+  await askForReset(resetter.email);
+  const outageLink = `${APP}/auth/confirm?token_hash=${await latestResetTokenHash(resetter.email, outageAt)}&type=recovery`;
+  const outage = await browser.newContext();
+  const outagePage = await outage.newPage();
+  await outagePage.goto(outageLink);
+  try {
+    docker("stop -t 1");
+    await outagePage.getByRole("button", { name: "Continue" }).click();
+    await outagePage.getByText(LINK_STILL_WORKS).waitFor({ timeout: 15000 }).catch(() => {});
+    check("an outage says the link still works", await outagePage.getByText(LINK_STILL_WORKS).isVisible());
+    check("it stays on the link page", new URL(outagePage.url()).pathname === "/auth/confirm", outagePage.url());
+  } finally {
+    docker("start");
+    await authBack();
+  }
+  await outagePage.getByRole("button", { name: "Continue" }).click();
+  await outagePage.waitForURL((u) => !u.pathname.startsWith("/auth/confirm"), { timeout: 15000 }).catch(() => {});
+  check("after the outage, the same link works", new URL(outagePage.url()).pathname === "/set-password", outagePage.url());
+  await outage.close();
 
   // ─── Part 3: sign up's "Check your email" doesn't promise an email ────────────────────────────────────────────
   // Supabase's sign up answer is played back (no account is made); for a used email it answers the same way.
