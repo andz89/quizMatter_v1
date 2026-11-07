@@ -246,6 +246,34 @@ isOneToOne: true
                   Relationships: [
                     
                   ]
+                },"password_reset_requests": {
+                  Row: {
+                    "created_at": string,"ip": unknown
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "created_at"?: string,"ip": unknown
+                  }
+                  Update: {
+                    "created_at"?: string,"ip"?: unknown
+                  }
+                  Relationships: [
+                    
+                  ]
+                },"password_reset_sends": {
+                  Row: {
+                    "sent_at": string,"user_id": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "sent_at"?: string,"user_id": string
+                  }
+                  Update: {
+                    "sent_at"?: string,"user_id"?: string
+                  }
+                  Relationships: [
+                    
+                  ]
                 },"photo_categories": {
                   Row: {
                     "created_at": string,"id": string,"name": string
@@ -849,6 +877,9 @@ isOneToOne: false
                            },
 "manila_today":
 { Args: Record<PropertyKey, never>; Returns: string
+                           },
+"may_send_password_reset":
+{ Args: { "p_email": string,"p_ip": string }; Returns: boolean
                            },
 "my_announcements":
 { Args: Record<PropertyKey, never>; Returns: {

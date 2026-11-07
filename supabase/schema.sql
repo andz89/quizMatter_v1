@@ -1586,6 +1586,24 @@ $$;
 ALTER FUNCTION "public"."count_new_presentation"() OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."count_password_reset_send"() RETURNS "trigger"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+begin
+  delete from public.password_reset_sends s
+    where s.user_id = new.id and s.sent_at < now() - interval '2 days';
+  insert into public.password_reset_sends (user_id) values (new.id);
+  return new;
+exception when others then
+  return new;
+end;
+$$;
+
+
+ALTER FUNCTION "public"."count_password_reset_send"() OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."count_photo_upload"() RETURNS "void"
     LANGUAGE "plpgsql"
     SET "search_path" TO ''
@@ -2667,6 +2685,46 @@ $$;
 
 
 ALTER FUNCTION "public"."manila_today"() OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."may_send_password_reset"("p_email" "text", "p_ip" "text") RETURNS boolean
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+declare
+  client_ip inet;
+  teacher uuid;
+begin
+  begin
+    client_ip := nullif(p_ip, '')::inet;
+  exception when others then
+    client_ip := null;
+  end;
+
+  if client_ip is not null then
+    if (
+      select count(*) from public.password_reset_requests r
+      where r.ip = client_ip and r.created_at > now() - interval '1 hour'
+    ) >= 10 then
+      return false;
+    end if;
+    insert into public.password_reset_requests (ip) values (client_ip);
+  end if;
+
+  select u.id into teacher from auth.users u where u.email = lower(trim(p_email)) limit 1;
+  if teacher is null then
+    return true;
+  end if;
+  return (
+    select count(*) from public.password_reset_sends s
+    where s.user_id = teacher
+      and s.sent_at >= public.manila_today()::timestamp at time zone 'Asia/Manila'
+  ) < 3;
+end;
+$$;
+
+
+ALTER FUNCTION "public"."may_send_password_reset"("p_email" "text", "p_ip" "text") OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."my_announcements"() RETURNS TABLE("id" "uuid", "show_modal" boolean, "modal_text" "text", "modal_attachment" "jsonb", "modal_close_after" integer, "show_bar" boolean, "bar_html" "text", "bar_close_after" integer, "repeat" "text", "pages" "text"[], "created_at" timestamp with time zone, "modal_size" "text", "modal_format" "text", "modal_html" "text", "modal_height" integer, "bar_format" "text", "bar_height" integer, "modal_display" "text", "modal_auto_close" integer, "modal_show_after" integer, "repeat_minutes" integer)
@@ -4558,6 +4616,24 @@ CREATE TABLE IF NOT EXISTS "public"."maintenance" (
 ALTER TABLE "public"."maintenance" OWNER TO "postgres";
 
 
+CREATE TABLE IF NOT EXISTS "public"."password_reset_requests" (
+    "ip" "inet" NOT NULL,
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL
+);
+
+
+ALTER TABLE "public"."password_reset_requests" OWNER TO "postgres";
+
+
+CREATE TABLE IF NOT EXISTS "public"."password_reset_sends" (
+    "user_id" "uuid" NOT NULL,
+    "sent_at" timestamp with time zone DEFAULT "now"() NOT NULL
+);
+
+
+ALTER TABLE "public"."password_reset_sends" OWNER TO "postgres";
+
+
 CREATE TABLE IF NOT EXISTS "public"."photo_categories" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "name" "text" NOT NULL,
@@ -5085,6 +5161,14 @@ CREATE UNIQUE INDEX "folders_owner_name_idx" ON "public"."folders" USING "btree"
 
 
 
+CREATE INDEX "password_reset_requests_ip_created_at" ON "public"."password_reset_requests" USING "btree" ("ip", "created_at");
+
+
+
+CREATE INDEX "password_reset_sends_user_id_sent_at" ON "public"."password_reset_sends" USING "btree" ("user_id", "sent_at");
+
+
+
 CREATE UNIQUE INDEX "photo_categories_name" ON "public"."photo_categories" USING "btree" ("lower"("name"));
 
 
@@ -5482,6 +5566,11 @@ ALTER TABLE ONLY "public"."maintenance"
 
 
 
+ALTER TABLE ONLY "public"."password_reset_sends"
+    ADD CONSTRAINT "password_reset_sends_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "auth"."users"("id") ON DELETE CASCADE;
+
+
+
 ALTER TABLE ONLY "public"."photos"
     ADD CONSTRAINT "photos_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "auth"."users"("id") ON DELETE CASCADE;
 
@@ -5863,6 +5952,12 @@ ALTER TABLE "public"."folders" ENABLE ROW LEVEL SECURITY;
 
 
 ALTER TABLE "public"."maintenance" ENABLE ROW LEVEL SECURITY;
+
+
+ALTER TABLE "public"."password_reset_requests" ENABLE ROW LEVEL SECURITY;
+
+
+ALTER TABLE "public"."password_reset_sends" ENABLE ROW LEVEL SECURITY;
 
 
 ALTER TABLE "public"."photo_categories" ENABLE ROW LEVEL SECURITY;
@@ -6251,6 +6346,11 @@ GRANT ALL ON FUNCTION "public"."count_new_presentation"() TO "service_role";
 
 
 
+REVOKE ALL ON FUNCTION "public"."count_password_reset_send"() FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."count_password_reset_send"() TO "service_role";
+
+
+
 REVOKE ALL ON FUNCTION "public"."count_photo_upload"() FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."count_photo_upload"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."count_photo_upload"() TO "service_role";
@@ -6508,6 +6608,11 @@ GRANT ALL ON FUNCTION "public"."maintenance_status"() TO "supabase_auth_admin";
 GRANT ALL ON FUNCTION "public"."manila_today"() TO "anon";
 GRANT ALL ON FUNCTION "public"."manila_today"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."manila_today"() TO "service_role";
+
+
+
+REVOKE ALL ON FUNCTION "public"."may_send_password_reset"("p_email" "text", "p_ip" "text") FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."may_send_password_reset"("p_email" "text", "p_ip" "text") TO "service_role";
 
 
 
@@ -6932,6 +7037,14 @@ GRANT SELECT("id") ON TABLE "public"."maintenance" TO "service_role";
 GRANT SELECT("is_on") ON TABLE "public"."maintenance" TO "anon";
 GRANT SELECT("is_on") ON TABLE "public"."maintenance" TO "authenticated";
 GRANT SELECT("is_on") ON TABLE "public"."maintenance" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."password_reset_requests" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."password_reset_sends" TO "service_role";
 
 
 
