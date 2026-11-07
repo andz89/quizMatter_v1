@@ -14,6 +14,8 @@ export type ReportedRow = {
   // Who published it ("" if they have no display name).
   meta: string;
   isHidden: boolean;
+  // Whether this admin may hide, show or delete it (a plain admin: only their own or a teacher's shared copy).
+  canModerate: boolean;
   // Newest first. Empty for a hidden presentation nobody reported (anymore).
   reports: { reason: string; note: string; when: string }[];
   // The newest report's exact time ("" when there are none): Dismiss clears only reports up to it.
@@ -101,41 +103,48 @@ function Row({ row }: { row: ReportedRow }) {
             )}
           </div>
           {row.meta && <p className="mt-0.5 text-[13px] text-text-secondary">{row.meta}</p>}
+          {!row.canModerate && (
+            <p className="mt-0.5 text-[13px] text-text-secondary">Only the super admin can hide or delete this one.</p>
+          )}
         </div>
 
         <div className="flex items-center gap-2">
           {isBusy && <Spinner size={16} />}
-          <button type="button" onClick={toggleHidden} disabled={isBusy} className={smallButtonClass}>
-            {row.isHidden ? <EyeIcon size={14} /> : <EyeOffIcon size={14} />}
-            {row.isHidden ? "Unhide" : "Hide"}
-          </button>
+          {row.canModerate && (
+            <button type="button" onClick={toggleHidden} disabled={isBusy} className={smallButtonClass}>
+              {row.isHidden ? <EyeIcon size={14} /> : <EyeOffIcon size={14} />}
+              {row.isHidden ? "Unhide" : "Hide"}
+            </button>
+          )}
           {row.reports.length > 0 && (
             <button type="button" onClick={dismiss} disabled={isBusy} className={smallButtonClass}>
               Dismiss
             </button>
           )}
-          <>
-            <button
-              type="button"
-              onClick={() => setIsConfirming(true)}
-              disabled={isBusy}
-              title="Delete presentation"
-              aria-label={`Delete ${row.title}`}
-              className="rounded-dropdown p-1.5 text-danger-strong transition-colors hover:bg-danger-soft disabled:opacity-60"
-            >
-              <Trash2Icon size={16} />
-            </button>
-            {isConfirming && (
-              <ConfirmModal
-                title="Delete this presentation?"
-                message={`"${row.title}" is deleted for good. Its owner loses it too. This can't be undone.`}
-                confirmLabel="Delete"
-                danger
-                onConfirm={remove}
-                onCancel={() => setIsConfirming(false)}
-              />
-            )}
-          </>
+          {row.canModerate && (
+            <>
+              <button
+                type="button"
+                onClick={() => setIsConfirming(true)}
+                disabled={isBusy}
+                title="Delete presentation"
+                aria-label={`Delete ${row.title}`}
+                className="rounded-dropdown p-1.5 text-danger-strong transition-colors hover:bg-danger-soft disabled:opacity-60"
+              >
+                <Trash2Icon size={16} />
+              </button>
+              {isConfirming && (
+                <ConfirmModal
+                  title="Delete this presentation?"
+                  message={`"${row.title}" is deleted for good. Its owner loses it too. This can't be undone.`}
+                  confirmLabel="Delete"
+                  danger
+                  onConfirm={remove}
+                  onCancel={() => setIsConfirming(false)}
+                />
+              )}
+            </>
+          )}
         </div>
       </div>
 

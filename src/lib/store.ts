@@ -43,6 +43,7 @@ import { shareCopy, unshareCopy, type SharedCopy } from "./sharing";
 import type { SubmissionStatus } from "./submissions";
 import { finishDraft } from "@/app/actions";
 import { isEmbedSlide } from "./embed";
+import { todayCalendarDate } from "./calendarDate";
 import type { Photo, PresentationDetails, Presentation, ReviewerFields, Slide, SlideType, SvgElement } from "./schema";
 import { MAX_ITEM_COUNT, MAX_SLIDES, TOO_MANY_SLIDES_MESSAGE } from "./schema";
 
@@ -1414,6 +1415,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       color: asset?.defaultColor ?? DEFAULT_ELEMENT_COLOR,
       containerId,
       ...(asset?.isTextBox && { text: { html: "<p>Type here</p>" } }),
+      // A new calendar shows today (the teacher's computer's date); Set date changes it.
+      ...(asset?.isCalendar && { calendarDate: todayCalendarDate() }),
       ...(photo && { image: photo }),
     };
     const { recentElementAssetIds, recentPhotos, selectedSlideId, selectedContainerId, selectedContainerIds } = get();

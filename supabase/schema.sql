@@ -277,11 +277,14 @@ CREATE OR REPLACE FUNCTION "public"."admin_may_delete"("target_id" "text") RETUR
     SET "search_path" TO ''
     AS $$
   select public.is_admin() and exists (
-    select 1 from public.presentations p
-    where (p.id = target_id or p.shared_from = target_id)
+    select 1
+    from public.presentations original
+    join public.presentations copy on copy.shared_from = original.id
+    where original.id = target_id
+      and not original.from_admin
       and (
-        p.hidden_at is not null
-        or exists (select 1 from public.presentation_reports r where r.presentation_id = p.id)
+        copy.hidden_at is not null
+        or exists (select 1 from public.presentation_reports r where r.presentation_id = copy.id)
       )
   );
 $$;
@@ -1583,6 +1586,23 @@ $$;
 ALTER FUNCTION "public"."count_new_presentation"() OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."count_password_reset_send"() RETURNS "trigger"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+begin
+  insert into public.password_reset_sends (user_id) values (new.id);
+  return new;
+exception when others then
+  raise warning 'count_password_reset_send: %', sqlerrm;
+  return new;
+end;
+$$;
+
+
+ALTER FUNCTION "public"."count_password_reset_send"() OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."count_photo_upload"() RETURNS "void"
     LANGUAGE "plpgsql"
     SET "search_path" TO ''
@@ -1721,7 +1741,7 @@ CREATE OR REPLACE FUNCTION "public"."current_data_version"() RETURNS integer
     SET "search_path" TO ''
     AS $$
   -- Same as DATA_VERSION in src/lib/schema.ts.
-  select 1;
+  select 2;
 $$;
 
 
@@ -1918,6 +1938,12 @@ begin
   if old.owner_id is distinct from auth.uid()
     and (to_jsonb(new) - 'hidden_at' - 'tags_text' - 'search_text') <> (to_jsonb(old) - 'hidden_at' - 'tags_text' - 'search_text') then
     raise exception 'Admins can only hide or show someone else''s presentation.' using errcode = '42501';
+  end if;
+  -- Only a teacher's shared copy (what teachers see and report). QuizMatter lessons and private presentations are
+  -- the super admin's to hide.
+  if old.owner_id is distinct from auth.uid() and new.hidden_at is distinct from old.hidden_at
+    and (old.shared_from is null or old.from_admin) then
+    raise exception 'Admins can only hide or show a teacher''s published copy.' using errcode = '42501';
   end if;
   return new;
 end;
@@ -2660,6 +2686,51 @@ $$;
 ALTER FUNCTION "public"."manila_today"() OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."may_send_password_reset"("p_email" "text", "p_ip" "text") RETURNS boolean
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+declare
+  client_ip inet;
+  teacher uuid;
+begin
+  begin
+    client_ip := nullif(p_ip, '')::inet;
+  exception when others then
+    client_ip := null;
+  end;
+  if family(client_ip) = 6 then
+    client_ip := network(set_masklen(client_ip, 64))::inet;
+  end if;
+
+  if client_ip is not null then
+    if (
+      select count(*) from public.password_reset_requests r
+      where r.ip = client_ip and r.created_at > now() - interval '1 hour'
+    ) >= 10 then
+      return false;
+    end if;
+    insert into public.password_reset_requests (ip) values (client_ip);
+  end if;
+
+  -- is_sso_user = false: what lets Postgres use Supabase's email index (each email once) instead of reading every
+  -- account. Supabase saves emails in small letters.
+  select u.id into teacher from auth.users u where u.email = lower(trim(p_email)) and u.is_sso_user = false;
+  if teacher is null then
+    return true;
+  end if;
+  return (
+    select count(*) from public.password_reset_sends s
+    where s.user_id = teacher
+      and s.sent_at >= public.manila_today()::timestamp at time zone 'Asia/Manila'
+  ) < 3;
+end;
+$$;
+
+
+ALTER FUNCTION "public"."may_send_password_reset"("p_email" "text", "p_ip" "text") OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."my_announcements"() RETURNS TABLE("id" "uuid", "show_modal" boolean, "modal_text" "text", "modal_attachment" "jsonb", "modal_close_after" integer, "show_bar" boolean, "bar_html" "text", "bar_close_after" integer, "repeat" "text", "pages" "text"[], "created_at" timestamp with time zone, "modal_size" "text", "modal_format" "text", "modal_html" "text", "modal_height" integer, "bar_format" "text", "bar_height" integer, "modal_display" "text", "modal_auto_close" integer, "modal_show_after" integer, "repeat_minutes" integer)
     LANGUAGE "sql" STABLE SECURITY DEFINER
     SET "search_path" TO ''
@@ -3092,6 +3163,20 @@ $$;
 
 
 ALTER FUNCTION "public"."refuse_locked_photo_delete"() OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."remove_banned_editor"() RETURNS "trigger"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+begin
+  delete from public.editors e where e.user_id = new.user_id;
+  return new;
+end;
+$$;
+
+
+ALTER FUNCTION "public"."remove_banned_editor"() OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."remove_copy_of_quizmatter_presentation"() RETURNS "trigger"
@@ -4535,6 +4620,24 @@ CREATE TABLE IF NOT EXISTS "public"."maintenance" (
 ALTER TABLE "public"."maintenance" OWNER TO "postgres";
 
 
+CREATE TABLE IF NOT EXISTS "public"."password_reset_requests" (
+    "ip" "inet" NOT NULL,
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL
+);
+
+
+ALTER TABLE "public"."password_reset_requests" OWNER TO "postgres";
+
+
+CREATE TABLE IF NOT EXISTS "public"."password_reset_sends" (
+    "user_id" "uuid" NOT NULL,
+    "sent_at" timestamp with time zone DEFAULT "now"() NOT NULL
+);
+
+
+ALTER TABLE "public"."password_reset_sends" OWNER TO "postgres";
+
+
 CREATE TABLE IF NOT EXISTS "public"."photo_categories" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "name" "text" NOT NULL,
@@ -5062,6 +5165,14 @@ CREATE UNIQUE INDEX "folders_owner_name_idx" ON "public"."folders" USING "btree"
 
 
 
+CREATE INDEX "password_reset_requests_ip_created_at" ON "public"."password_reset_requests" USING "btree" ("ip", "created_at");
+
+
+
+CREATE INDEX "password_reset_sends_user_id_sent_at" ON "public"."password_reset_sends" USING "btree" ("user_id", "sent_at");
+
+
+
 CREATE UNIQUE INDEX "photo_categories_name" ON "public"."photo_categories" USING "btree" ("lower"("name"));
 
 
@@ -5310,6 +5421,10 @@ CREATE OR REPLACE TRIGGER "refuse_locked_photo_delete" BEFORE DELETE ON "public"
 
 
 
+CREATE OR REPLACE TRIGGER "remove_banned_editor" AFTER INSERT ON "public"."banned_users" FOR EACH ROW EXECUTE FUNCTION "public"."remove_banned_editor"();
+
+
+
 CREATE OR REPLACE TRIGGER "remove_copy_of_quizmatter_presentation" AFTER UPDATE OF "from_admin" ON "public"."presentations" FOR EACH ROW WHEN (("new"."from_admin" AND (NOT "old"."from_admin"))) EXECUTE FUNCTION "public"."remove_copy_of_quizmatter_presentation"();
 
 
@@ -5452,6 +5567,11 @@ ALTER TABLE ONLY "public"."folders"
 
 ALTER TABLE ONLY "public"."maintenance"
     ADD CONSTRAINT "maintenance_started_by_fkey" FOREIGN KEY ("started_by") REFERENCES "auth"."users"("id") ON DELETE SET NULL;
+
+
+
+ALTER TABLE ONLY "public"."password_reset_sends"
+    ADD CONSTRAINT "password_reset_sends_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "auth"."users"("id") ON DELETE CASCADE;
 
 
 
@@ -5836,6 +5956,12 @@ ALTER TABLE "public"."folders" ENABLE ROW LEVEL SECURITY;
 
 
 ALTER TABLE "public"."maintenance" ENABLE ROW LEVEL SECURITY;
+
+
+ALTER TABLE "public"."password_reset_requests" ENABLE ROW LEVEL SECURITY;
+
+
+ALTER TABLE "public"."password_reset_sends" ENABLE ROW LEVEL SECURITY;
 
 
 ALTER TABLE "public"."photo_categories" ENABLE ROW LEVEL SECURITY;
@@ -6224,6 +6350,11 @@ GRANT ALL ON FUNCTION "public"."count_new_presentation"() TO "service_role";
 
 
 
+REVOKE ALL ON FUNCTION "public"."count_password_reset_send"() FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."count_password_reset_send"() TO "service_role";
+
+
+
 REVOKE ALL ON FUNCTION "public"."count_photo_upload"() FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."count_photo_upload"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."count_photo_upload"() TO "service_role";
@@ -6484,6 +6615,11 @@ GRANT ALL ON FUNCTION "public"."manila_today"() TO "service_role";
 
 
 
+REVOKE ALL ON FUNCTION "public"."may_send_password_reset"("p_email" "text", "p_ip" "text") FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."may_send_password_reset"("p_email" "text", "p_ip" "text") TO "service_role";
+
+
+
 REVOKE ALL ON FUNCTION "public"."my_announcements"() FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."my_announcements"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."my_announcements"() TO "service_role";
@@ -6586,6 +6722,11 @@ GRANT ALL ON FUNCTION "public"."refuse_banned_write"() TO "service_role";
 
 REVOKE ALL ON FUNCTION "public"."refuse_locked_photo_delete"() FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."refuse_locked_photo_delete"() TO "service_role";
+
+
+
+REVOKE ALL ON FUNCTION "public"."remove_banned_editor"() FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."remove_banned_editor"() TO "service_role";
 
 
 
@@ -6900,6 +7041,14 @@ GRANT SELECT("id") ON TABLE "public"."maintenance" TO "service_role";
 GRANT SELECT("is_on") ON TABLE "public"."maintenance" TO "anon";
 GRANT SELECT("is_on") ON TABLE "public"."maintenance" TO "authenticated";
 GRANT SELECT("is_on") ON TABLE "public"."maintenance" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."password_reset_requests" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."password_reset_sends" TO "service_role";
 
 
 

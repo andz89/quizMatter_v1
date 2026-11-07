@@ -95,8 +95,24 @@
   refuses with (`20261210000400_blocked_email_domains.sql`): change both together. Its `agreeTerms` field (the
   agree box, `z.literal(true)`, `AGREE_TERMS_MESSAGE`) must be ticked; `signUp` then sends `terms_version`
   (`LEGAL_VERSION`), which the database saves with the time (`20261218000000_terms_consent.sql`).
+- `passwords.ts`: the password rules (`passwordSchema`, 8–72 characters), and Forgot password's `resetEmailSchema`
+  (trimmed, small letters), `newPasswordSchema` (typed twice, must match) and the numbers of Forgot password's limit
+  (`RESETS_PER_DAY`, `RESET_REQUESTS_PER_ADDRESS`; the same in `may_send_password_reset`). Only zod, so tests load it
+  (`passwords.test.ts`); `userSettings.ts` re-exports the password rules for the forms.
+- `emailLinks.ts`: our two email links (`/auth/confirm`, types `email` and `recovery`): `emailLinkSchema` (the link's
+  `token_hash` and `type`), `emailLinkResult` (where Continue goes after Supabase's answer), `badLinkDestination` (a
+  link missing its parts), `emailLinkPath` (the link page's address, `retry=1` when the link still works) and
+  `claimEmail` (a login's email, or null; also used by `/set-password`). Only zod, so tests load it
+  (`emailLinks.test.ts`).
 - `legal.ts`: `LEGAL_VERSION`, the Terms and Privacy Policy version (the date they last changed). The pages show it
   as "Last updated" and each new account saves it. Change it whenever either page changes.
+- `calendarDate.ts`: the date the calendars (Calendar Page, Month Calendar in Elements → Time & Date) show, an
+  element's `calendarDate` (`{ year, month, day }`, DATA_VERSION 2, `20261231000800_calendar_date.sql`).
+  `isRealCalendarDate` (zod's check: a real day, 1900–2100), `weekdayOf`, `monthGrid` (weeks from Sunday),
+  `formatCalendarDate`, `toDateInput` / `fromDateInput` (the Set date box's "YYYY-MM-DD"), `todayCalendarDate` (a new
+  calendar gets the computer's today, in the store's `addElement`; Claude's import uses `todayInManila` when it
+  gives no date). Names are always English, so the server and every browser draw the same. No imports, so tests
+  and `schema.ts` load it. Tests: `calendarDate.test.ts`.
 - `age.ts`: the birthday rules (`MIN_AGE` 18, `MAX_AGE` 100), `ageOn` (the age in whole years on a date),
   `isAllowedBirthDate`, `birthDateRange` (the date picker's limits) and `todayInManila`. The database does the same
   math (`age_on`, `manila_today`, `20261220000000_age_gender_address.sql`): change both together. No imports, so
@@ -142,16 +158,18 @@ data. Spec: `docs/superpowers/specs/2026-10-23-stable-presentation-data-design.m
   photo in something waiting for QuizMatter can't be removed; the editor's Photos panel shows only public shared
   photos, even to admins), `photoFiles.ts` (R2 files, server), `photoTypes.ts` (what a file really is, from its first bytes:
   `readPhotoType` = WebP or JPEG for every upload, `readAnnouncementImageType` also takes a GIF, `MAX_GIF_BYTES`
-  = 1 MB; tests
-  `photoTypes.test.ts`), `photoTickets.ts`
-  (Claude's photo uploads), `cleanupPhotos.ts` (weekly cleanup). `PHOTO_TYPES` (the files a teacher can pick) is in
+  = 1 MB; also `readUploadBody`, an upload's body that stops reading at the size limit, and `isOurPhotoFile`, our
+  file addresses; tests `photoTypes.test.ts`), `photoTickets.ts` (Claude's photo uploads), `cleanupPhotos.ts`
+  (weekly cleanup; `isPastKeepTime` = older than 7 days, also used by Photo cleanup's Delete; tests
+  `cleanupPhotos.test.ts`). `PHOTO_TYPES` (the files a teacher can pick) is in
   `constants.ts`, so pages outside the editor can use it without loading `photos.tsx` (which loads the editor's store).
   Editors' profile photos: `photoCrop.ts` (zoom and move math for the adjust box, with `photoCrop.test.ts`) and
   `profilePhotos.ts` (make the 400 × 400 square, upload it, remove it; kept apart from `photos.tsx` for the same
   reason).
-- Claude (MCP): `drafts.ts` (drafts in Cloudflare D1), `importPresentation.ts`, `photoTickets.ts`.
+- Claude (MCP): `drafts.ts` (drafts in Cloudflare D1), `importPresentation.ts`, `importGroups.ts` (Claude's
+  `"group"` names → editor groups; tested, since `importPresentation.ts` loads drawings), `photoTickets.ts`.
 - Timers: `cleanupPhotos.ts`, `cleanupAccounts.ts` (run by `worker.ts`). `cleanupAccounts.ts`, daily: deletes
-  accounts unconfirmed after 3 days, `sign_up_attempts` older than a day, and `click_history` and `admin_actions`
+  accounts unconfirmed after 3 days, `sign_up_attempts`, `password_reset_requests` and `password_reset_sends` older than a day, and `click_history` and `admin_actions`
   rows older than `KEEP_SAFETY_RECORDS_DAYS` (365, from each row's `created_at`; the Privacy Policy promises it),
   and who closed an announcement that ended over 30 days ago (`cleanup_announcement_dismissals`, 50,000 rows a call,
   up to 20 calls a day; the Privacy Policy promises it too).

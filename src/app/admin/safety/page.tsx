@@ -21,6 +21,7 @@ import {
   THROWAWAY_EMAIL_MESSAGE,
 } from "@/lib/userSettings";
 import { MAX_PHOTO_FILE_BYTES, MAX_STORED_PHOTO_BYTES } from "@/lib/constants";
+import { RESET_REQUESTS_PER_ADDRESS, RESETS_PER_DAY } from "@/lib/passwords";
 import { PHOTO_TICKET_LIFETIME_MS } from "@/lib/photoTickets";
 import { REFUSALS } from "@/lib/presentations";
 import { MAX_PRESENTATIONS, MAX_SAVED, MAX_SLIDES, MAX_TAGS, PUBLISH_NEEDS_CONTENT, WRITES_PER_MINUTE } from "@/lib/schema";
@@ -28,6 +29,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { timeAgo } from "@/lib/format";
 import { ClickTabs } from "./ClickTabs";
 import { lookUpEmails, lookUpNames, type AdminClient, type ClickLimit } from "./data";
+import { PasswordResets, loadPasswordResets } from "./PasswordResets";
 import { PausedTeachers, type PausedRow } from "./PausedTeachers";
 
 /**
@@ -52,11 +54,12 @@ export default async function AdminSafetyPage() {
   if (limits.error) throw limits.error;
   const clickLimits = limits.data as ClickLimit[];
 
-  const [banned, autoBanned, blockedDomains, pausedRows] = await Promise.all([
+  const [banned, autoBanned, blockedDomains, pausedRows, passwordResets] = await Promise.all([
     admin.from("banned_users").select("user_id", { count: "exact", head: true }),
     admin.from("banned_users").select("user_id", { count: "exact", head: true }).eq("is_automatic", true),
     admin.from("blocked_email_domains").select("domain", { count: "exact", head: true }),
     buildPausedRows(admin, clickLimits),
+    loadPasswordResets(admin),
   ]);
   if (banned.error) throw banned.error;
   if (autoBanned.error) throw autoBanned.error;
@@ -92,6 +95,8 @@ export default async function AdminSafetyPage() {
         <ClickTabs active="now" />
         <PausedTeachers rows={pausedRows} repeatHours={repeatHours} />
       </section>
+
+      <PasswordResets lists={passwordResets} />
 
       <Group title="Click limits at a glance" count={clickLimits.length}>
         <ClickLimitsTable limits={clickLimits} />
@@ -378,12 +383,12 @@ export default async function AdminSafetyPage() {
         <Item
           name="Login only returns to QuizMatter pages"
           where="App"
-          rule="After logging in, the app goes back only to a page on quizmatter.com, never to another site. The sign up email link only opens quizmatter.com/auth/confirm"
+          rule="After logging in, the app goes back only to a page on quizmatter.com, never to another site. The links in our emails only open quizmatter.com/auth/confirm"
           sees="Nothing; they land back on the page they wanted."
           more={{
             what: [
               "When a logged-out teacher opens a page, the app remembers it and goes back there after login. It only goes back to a page on this site; anything that points elsewhere is replaced with the home page.",
-              "The link in the sign up email works the same way: it always opens QuizMatter's own page, which logs the teacher in.",
+              "The links in the sign up and reset password emails work the same way: they always open QuizMatter's own page, where the Continue button logs the teacher in.",
             ],
             example: "Ana opens a shared presentation link while logged out, logs in, and lands on that presentation.",
             scenario: "Someone sends teachers a QuizMatter login link that's changed to send them to a fake site afterwards (to steal their password there). The app ignores the other site and opens QuizMatter's home page.",
@@ -501,7 +506,7 @@ export default async function AdminSafetyPage() {
           sees="A quick “are you a person” check before logging in, usually automatic."
           more={{
             what: [
-              "Before logging in or signing up, Cloudflare Turnstile (a free “are you a person?” check) quietly looks at the browser. Most people never have to click anything.",
+              "Before logging in, signing up or asking for a password reset link, Cloudflare Turnstile (a free “are you a person?” check) quietly looks at the browser. Most people never have to click anything.",
               "Supabase, which runs the logins, checks Turnstile's answer too, so a script can't skip the login page and log in directly.",
             ],
             example: "Ana opens the login page, types her email and password, and logs in. The check ran in the background, and she didn't notice it.",
@@ -520,6 +525,41 @@ export default async function AdminSafetyPage() {
             ],
             example: "Ana signs up with ana.cruz@gmail.com, opens her Gmail, clicks “Confirm my email”, and lands on the home page, logged in.",
             scenario: "Someone signs up with a made-up address or another teacher's email. Nobody can click the link, so the account can never be used.",
+          }}
+        />
+        <Item
+          name="Email links need a click"
+          where="App"
+          rule="The links in the sign up and reset password emails open a page with a Continue button. Only the button uses the link, and it refuses while someone is logged in on that browser"
+          sees="“One more step” and Continue. Logged in: “You're logged in as … To use this link, log out first.”"
+          more={{
+            what: [
+              "Mail filters (Outlook's Safe Links, school mail systems) open every link in an email before the teacher does. Opening our link uses nothing up, so the teacher's click still works.",
+              "A link never swaps a browser into another account: while anyone is logged in, Continue does nothing until they log out.",
+              "If Supabase can't be reached or is too busy, the page says the link still works. A banned teacher's link doesn't log them in, and login says the account is blocked.",
+            ],
+            example: "Ana's school email checks every link first. Ana still clicks Continue and lands on the home page, logged in.",
+            scenario: "Ben is logged in on a shared computer and someone opens another teacher's reset link there. The page names Ben's account and asks to log out first, so nobody ends up in the wrong account by accident.",
+          }}
+        />
+        <Item
+          name="Forgot password"
+          where="App + Supabase"
+          rule={`A teacher gets at most ${RESETS_PER_DAY} reset emails a day (Philippine time), and one internet address at most ${RESET_REQUESTS_PER_ADDRESS} requests an hour. The Forgot password page shows “Check your email” for every email, also over these limits, so nobody can find out who has an account. The link works once and needs the person check to ask for. A new password logs the account out on every other device, within the hour`}
+          sees="“Check your email. We sent a link to …”, also for an email with no account (no email is sent then). Set a new password shows “For <email>”."
+          more={{
+            what: [
+              `Only emails really sent count toward the ${RESETS_PER_DAY}, so made-up requests don't. Real ones do: someone who knows a teacher's email and passes the person check ${RESETS_PER_DAY} times uses up that teacher's day, and the teacher gets no email until midnight, Philippine time, though the screen looks the same.`,
+              "The internet address limit is higher because a school or a mobile network puts many teachers behind one address. On IPv6 a whole home or school network counts as one address. It's checked before the person check, so a script on a shared connection can use up its requests for an hour.",
+              "Supabase's email limits (one email per address per minute, and the emails per hour in Authentication → Rate Limits) refuse only a real account. The page shows the same screen for those too, and its last line says to try again later.",
+              "These limits sit on the Forgot password page: Supabase's reset address is public, and it sends the email before it saves anything, so the database can't stop it. A script that skips the page still needs a fresh person check each time and one minute per address, and what it sends counts toward that teacher's limit.",
+              "Only someone who can open the inbox can use the link.",
+              "Password resets (above) shows who got reset emails today and which internet addresses asked in the last hour.",
+              "“For <email>” on Set a new password shows whose account the link opened, so a forwarded link is easy to spot.",
+              "A new password also ends the login lock for wrong tries on that browser.",
+            ],
+            example: "Ana forgets the password, types the email, opens the link, clicks Continue and sets a new one. The login on Ana's old phone ends within the hour.",
+            scenario: "Someone types teachers' emails into Forgot password to see who has an account. Every email gets the same screen, so they learn nothing.",
           }}
         />
         <Item
@@ -627,7 +667,7 @@ export default async function AdminSafetyPage() {
         <Item
           name="Password rules"
           where="App + Supabase"
-          rule={`A password needs ${PASSWORD_MIN_LENGTH} to ${PASSWORD_MAX_LENGTH} characters and must be typed twice the same way, on sign up and on the Account page. Supabase checks its own minimum too (Authentication → Sign In / Providers → Email)`}
+          rule={`A password needs ${PASSWORD_MIN_LENGTH} to ${PASSWORD_MAX_LENGTH} characters and must be typed twice the same way, on sign up, on the Account page and on Set a new password. Supabase checks its own minimum too (Authentication → Sign In / Providers → Email)`}
           sees={`“Use at least ${PASSWORD_MIN_LENGTH} characters for your password.” or “The two passwords don't match.”`}
           more={{
             what: [
@@ -669,7 +709,7 @@ export default async function AdminSafetyPage() {
         <Item
           name="Emails really from QuizMatter"
           where="Cloudflare DNS + Resend"
-          rule="Sign up emails are sent by Resend as no-reply@quizmatter.com. The SPF, DKIM and DMARC records for quizmatter.com in Cloudflare (DNS → Records) prove they really come from QuizMatter. Set up outside the code"
+          rule="Sign up and password reset emails are sent by Resend as no-reply@quizmatter.com. The SPF, DKIM and DMARC records for quizmatter.com in Cloudflare (DNS → Records) prove they really come from QuizMatter. Set up outside the code"
           sees="Emails from “QuizMatter <no-reply@quizmatter.com>” that land in the inbox, not in spam."
           more={{
             what: [
@@ -691,7 +731,7 @@ export default async function AdminSafetyPage() {
               "The links in Supabase's emails can only lead back to quizmatter.com (and localhost while testing), never to another site.",
               "To change the email of an account, both the old and the new address must confirm it, so someone who gets into an account for a moment can't quietly take it over.",
             ],
-            example: "Ben clicks “Confirm my email” in his sign up email. It opens quizmatter.com/auth/confirm, which logs him in.",
+            example: "Ben clicks “Confirm my email” in the sign up email. It opens quizmatter.com/auth/confirm, where Continue logs Ben in.",
             scenario: "Someone edits a QuizMatter email link to send teachers to their own fake site after confirming. Supabase only follows links to the allowed addresses, so it refuses.",
           }}
         />
@@ -729,6 +769,21 @@ export default async function AdminSafetyPage() {
       </Group>
 
       <Group title="Not covered yet">
+        <Item
+          name="Using up the emails per hour"
+          where="Not limited"
+          rule="Sign up and password reset emails share one limit per hour (Supabase → Authentication → Rate Limits). A person check stands in front of both, but no limit of ours stops someone patient from using it up"
+          sees="While it's used up: Forgot password shows “Check your email” but no email comes (its last line says to try again later), and sign up says it can't send more emails right now."
+          more={{
+            what: [
+              "Each email needs a passed person check, and Supabase sends one email per address per minute, so using up the hour takes real effort.",
+              "Sign up still says it can't send more emails, since no account is made then. While the limit is used up, that answer differs from the one a used email gets.",
+              "What helps: raise the emails per hour in the dashboard (within what the Resend plan sends), and a Cloudflare rate limit rule on the app.",
+            ],
+            example: "A big seminar signs up in one hour. Once the limit is reached, the rest are told to try again in an hour.",
+            scenario: "Someone keeps asking for reset links for one teacher after another to use up the hour. New teachers can't get their sign up email until the hour ends.",
+          }}
+        />
         <Item
           name="Page loads and reloads"
           where="Not limited"

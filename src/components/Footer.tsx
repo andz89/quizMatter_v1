@@ -15,8 +15,9 @@ const smallLinkClass = "font-semibold text-text-secondary transition-colors hove
 
 // The editor fills the whole screen, so it has no footer (and MaintenanceNotice floats there).
 export const isEditorPage = (path: string) => path === "/presentation/new" || /^\/presentation\/[^/]+\/edit$/.test(path);
-// Logged-out pages don't ask for support.
-const isLoginPage = (path: string) => path === "/login" || path === "/signup";
+// The pages around logging in don't ask for support.
+const LOGIN_PAGES = ["/login", "/signup", "/forgot-password", "/set-password", "/auth/confirm"];
+const isLoginPage = (path: string) => LOGIN_PAGES.includes(path);
 
 function Dot({ className = "" }: { className?: string }) {
   return <span aria-hidden className={`size-1 rounded-full bg-border-default ${className}`} />;
@@ -24,7 +25,7 @@ function Dot({ className = "" }: { className?: string }) {
 
 /**
  * The footer under every page but the editor (in the root layout). Computers: one row, the logo, © and the
- * Privacy / Terms links on the left, "Keep QuizMatter free" (not on login / sign up), Facebook and the support email
+ * Privacy / Terms links on the left, "Keep QuizMatter free" (not on the login pages), Facebook and the support email
  * on the right. Tablets and phones: all of it centered and stacked, with a short line about QuizMatter.
  */
 export function Footer() {

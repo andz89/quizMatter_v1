@@ -1,10 +1,10 @@
-# Checks every push: types, lint and the unit tests. It only warns (a red X and an email): Cloudflare deploys on
-# its own, whatever this says.
+# Checks every push to main and dev, and every pull request: types, lint and the unit tests. It only warns (a red X
+# and an email): Cloudflare deploys on its own, whatever this says.
 name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, dev]
   pull_request:
 
 jobs:

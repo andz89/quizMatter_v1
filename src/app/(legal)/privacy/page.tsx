@@ -85,8 +85,8 @@ export default function PrivacyPage() {
           sign up, and when.
         </p>
         <p>
-          <strong>Safety records.</strong> The internet address you sign up from (to stop one person making many
-          accounts), a check that you’re a person and not a robot (Cloudflare Turnstile), a record when a feature is
+          <strong>Safety records.</strong> The internet address you sign up or ask for a password reset from (to stop
+          one person making many accounts or sending many emails), when you asked for a reset, a check that you’re a person and not a robot (Cloudflare Turnstile), a record when a feature is
           paused because it was clicked too fast, bans, and a log of what admins do. Our login service keeps its own
           records of logins, for security.
         </p>
@@ -122,7 +122,7 @@ export default function PrivacyPage() {
       <LegalSection title="4. Who can see your information">
         <p>
           <strong>Other teachers</strong> (only when logged in; QuizMatter’s pages are closed to everyone else, except
-          sign up, log in and these two pages). On your profile page: your display name, your first and last name, your
+          sign up, log in, forgot password, the links in our emails and these two pages). On your profile page: your display name, your first and last name, your
           educational background and your bio (you can hide these three, unless you’re an editor), an editor’s profile photo, the presentations you published, and the QuizMatter lessons you made as
           an editor. Your display name or the Author name shows on the work you share. They never see your email,
           contact number, birthday or gender.
@@ -156,7 +156,7 @@ export default function PrivacyPage() {
             human” check. Its servers are around the world.
           </li>
           <li>
-            <strong>Resend</strong>: sends the sign up emails (from no-reply@quizmatter.com).
+            <strong>Resend</strong>: sends the sign up and password reset emails (from no-reply@quizmatter.com).
           </li>
           <li>
             <strong>Google Workspace</strong>: the support email inbox.
@@ -213,8 +213,8 @@ export default function PrivacyPage() {
                 <td>Until you delete your account</td>
               </tr>
               <tr>
-                <td>The internet address you signed up from</td>
-                <td>1 day</td>
+                <td>The internet address you signed up or asked for a password reset from, and when you asked</td>
+                <td>Up to 2 days</td>
               </tr>
               <tr>
                 <td>An account whose email was never confirmed</td>
@@ -268,7 +268,8 @@ export default function PrivacyPage() {
           <li>Passwords are kept scrambled.</li>
           <li>Database rules let each teacher reach only their own private information.</li>
           <li>
-            Only admins see contact numbers, and teachers’ emails (except an editor’s, on the lessons they review).
+            Only admins see contact numbers, the safety records (like the internet addresses above), and teachers’
+            emails (except an editor’s, on the lessons they review).
           </li>
         </ul>
         <p>

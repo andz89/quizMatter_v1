@@ -4,7 +4,8 @@ import { getMaintenanceStatus, MAINTENANCE_HEADER, MAINTENANCE_WORDS } from "@/l
 
 /**
  * Runs before every page request: refreshes the login session (it expires after a while) and sends
- * logged-out users to /login (except the sign up, Privacy and Terms pages), and logged-in users away from login and sign up. Banned users (Admin → Teachers) aren't checked
+ * logged-out users to /login (except the sign up, Forgot password, Privacy and Terms pages), and logged-in users away
+ * from login, sign up and Forgot password. Banned users (Admin → Teachers) aren't checked
  * here, to save a database call on every request: the database refuses their saves and photos at once, and
  * Supabase's own ban ends their login within the hour.
  * Maintenance (Admin → Maintenance): everyone but the super admin is stopped here (see maintenanceAnswer). The
@@ -12,6 +13,16 @@ import { getMaintenanceStatus, MAINTENANCE_HEADER, MAINTENANCE_WORDS } from "@/l
  */
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
+  // A redirect or a maintenance answer is a new response, so it gets the refreshed login cookies (and the headers
+  // that keep them out of caches) too. Without them the browser keeps a used-up refresh token and is logged out later.
+  const keepSession = (answer: NextResponse) => {
+    response.cookies.getAll().forEach((cookie) => answer.cookies.set(cookie));
+    ["cache-control", "expires", "pragma"].forEach((key) => {
+      const value = response.headers.get(key);
+      if (value) answer.headers.set(key, value);
+    });
+    return answer;
+  };
 
   const supabase = createServerClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
     cookies: {
@@ -29,8 +40,9 @@ export async function proxy(request: NextRequest) {
   const { data } = await supabase.auth.getClaims();
   const isLoggedIn = Boolean(data?.claims);
   const path = request.nextUrl.pathname;
-  const isLoginPage = path === "/login" || path === "/signup";
-  // The link in the "Confirm signup" email: it logs the teacher in, so it must open while logged out. Privacy and
+  const isLoginPage = path === "/login" || path === "/signup" || path === "/forgot-password";
+  // The link in the "Confirm signup" and "Reset Password" emails (/auth/confirm, a page whose Continue logs the
+  // teacher in): it must open while logged out, and logged in too (it then says to log out first). Privacy and
   // Terms (the footer's links) can be read before making an account.
   const isOpenToAll = isLoginPage || path === "/auth/confirm" || path === "/privacy" || path === "/terms";
 
@@ -41,21 +53,21 @@ export async function proxy(request: NextRequest) {
     if (!isOpenDuringMaintenance) {
       // Asked only during maintenance (the database guard lets the super admin's call through, and refuses others').
       const isSuperAdmin = isLoggedIn && (await supabase.rpc("is_super_admin")).data === true;
-      if (!isSuperAdmin) return maintenanceAnswer(request);
+      if (!isSuperAdmin) return keepSession(maintenanceAnswer(request));
     }
     // Opens without a login too.
     if (path === "/maintenance") return response;
   } else if (path === "/maintenance") {
-    return NextResponse.redirect(new URL("/", request.url));
+    return keepSession(NextResponse.redirect(new URL("/", request.url)));
   }
 
   if (!isLoggedIn && !isOpenToAll) {
     // Remember the page (e.g. a draft link from Claude) so login can come back to it.
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("next", request.nextUrl.pathname + request.nextUrl.search);
-    return NextResponse.redirect(loginUrl);
+    return keepSession(NextResponse.redirect(loginUrl));
   }
-  if (isLoggedIn && isLoginPage) return NextResponse.redirect(new URL("/", request.url));
+  if (isLoggedIn && isLoginPage) return keepSession(NextResponse.redirect(new URL("/", request.url)));
   return response;
 }
 
@@ -78,8 +90,9 @@ export const config = {
   // Every page, but not Next's own files, the real static files (the icon files and what is in public/), or what
   // Claude calls without a browser login: the MCP server and its OAuth signpost (the MCP server checks Claude's own
   // login token) and Claude's photo uploads (a one-time link). A page address that only ends in ".png" still gets
-  // the login check. Add a new file in public/ here too.
+  // the login check. Add a new file in public/ here too. Claude's routes end in "$" or "/", so a new route whose name
+  // only starts the same (e.g. /api/mcp-admin) still gets the check.
   matcher: [
-    "/((?!api/mcp|api/claude-photo|\\.well-known|_next/static|_next/image|favicon\\.ico$|icon\\.svg$|(?:file|globe|next|vercel|window)\\.svg$).*)",
+    "/((?!api/mcp$|api/mcp/|api/claude-photo$|api/claude-photo/|\\.well-known/|_next/static|_next/image|favicon\\.ico$|icon\\.svg$|(?:file|globe|next|vercel|window)\\.svg$).*)",
   ],
 };

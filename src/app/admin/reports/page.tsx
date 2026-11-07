@@ -11,10 +11,26 @@ type ReportRecord = {
   reason: ReportReason;
   note: string;
   created_at: string;
-  presentation: { title: string; owner_id: string; hidden_at: string | null };
+  presentation: Moderated & { title: string; owner_id: string; hidden_at: string | null };
 };
 
-type HiddenRecord = { id: string; title: string; owner_id: string; hidden_at: string };
+type HiddenRecord = Moderated & { id: string; title: string; owner_id: string; hidden_at: string };
+
+// What decides whether a plain admin may hide or delete it (see canModerate).
+type Moderated = { owner_id: string; shared_from: string | null; from_admin: boolean };
+
+/**
+ * Whether this admin may hide, show or delete it. The super admin: anything. A plain admin: their own, or a teacher's
+ * shared copy (the database refuses them the rest: QuizMatter lessons and private presentations, see the
+ * moderation_fixes migration).
+ */
+function canModerate(presentation: Moderated, me: { id: string; isSuperAdmin: boolean }): boolean {
+  return (
+    me.isSuperAdmin ||
+    presentation.owner_id === me.id ||
+    (presentation.shared_from !== null && !presentation.from_admin)
+  );
+}
 
 /**
  * Admin → Reports: presentations teachers reported (most reported first), and the ones admins hid.
@@ -22,16 +38,17 @@ type HiddenRecord = { id: string; title: string; owner_id: string; hidden_at: st
  */
 export default async function AdminReportsPage() {
   // The layout checks too, but a layout doesn't run again on every request, so the page checks next to its data.
-  if (!(await getAccount()).isAdmin) notFound();
+  const account = await getAccount();
+  if (!account.isAdmin) notFound();
   const supabase = await createClient();
   const [reports, hidden] = await Promise.all([
     supabase
       .from("presentation_reports")
-      .select("presentation_id, reason, note, created_at, presentation:presentations(title, owner_id, hidden_at)")
+      .select("presentation_id, reason, note, created_at, presentation:presentations(title, owner_id, hidden_at, shared_from, from_admin)")
       .order("created_at", { ascending: false }),
     supabase
       .from("presentations")
-      .select("id, title, owner_id, hidden_at")
+      .select("id, title, owner_id, hidden_at, shared_from, from_admin")
       .not("hidden_at", "is", null)
       .order("hidden_at", { ascending: false }),
   ]);
@@ -45,11 +62,16 @@ export default async function AdminReportsPage() {
     ...reportRecords.map((report) => report.presentation.owner_id),
     ...hiddenRecords.map((presentation) => presentation.owner_id),
   ]);
-  return <AdminReports {...buildRows(reportRecords, hiddenRecords, names)} />;
+  return <AdminReports {...buildRows(reportRecords, hiddenRecords, names, account)} />;
 }
 
 /** One row per reported presentation (its reports newest first), and the hidden ones nobody reported. */
-function buildRows(reportRecords: ReportRecord[], hiddenRecords: HiddenRecord[], names: Map<string, string>) {
+function buildRows(
+  reportRecords: ReportRecord[],
+  hiddenRecords: HiddenRecord[],
+  names: Map<string, string>,
+  me: { id: string; isSuperAdmin: boolean },
+) {
   const now = Date.now();
   const reported = new Map<string, ReportedRow>();
   for (const report of reportRecords) {
@@ -58,6 +80,7 @@ function buildRows(reportRecords: ReportRecord[], hiddenRecords: HiddenRecord[],
       title: report.presentation.title || "Untitled presentation",
       meta: ownerLine(names.get(report.presentation.owner_id)),
       isHidden: report.presentation.hidden_at !== null,
+      canModerate: canModerate(report.presentation, me),
       reports: [],
       // The reports come newest first, so the first one seen is the newest.
       newestReportAt: report.created_at,
@@ -79,6 +102,7 @@ function buildRows(reportRecords: ReportRecord[], hiddenRecords: HiddenRecord[],
       title: presentation.title || "Untitled presentation",
       meta: joinParts([ownerLine(names.get(presentation.owner_id)), `Hidden ${timeAgo(Date.parse(presentation.hidden_at), now)}`]),
       isHidden: true,
+      canModerate: canModerate(presentation, me),
       reports: [],
       newestReportAt: "",
     }));

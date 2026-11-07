@@ -128,15 +128,58 @@ Draft / Shared switch on the presentation itself, and aren't counted.
   educational background (here and on the Account page) says it shows on the profile. Also required: Birthday (a date
   picker limited to 18–100 years old, `src/lib/age.ts`), and Gender (Male / Female); a hint says the birthday and gender are private.
   They ride along as metadata like the other details; the database refuses a bad one (`QMAGE` for the birthday) and
-  sign up saves a bad one empty (`20261220000000_age_gender_address.sql`). The email link opens
-  `auth/confirm/route.ts`: it checks `type` with zod (only `email`, the sign up email; add a type there if a new
-  email uses it) and, if someone is already logged in, does nothing and opens home, so a link can't swap them into
-  another account.
-- `login/`: login with plain-English errors, a browser speed bump and a "Need help?" line with the support email
-  (`src/components/SupportEmail.tsx`). `src/proxy.ts` sends logged-out people here. Its
+  sign up saves a bad one empty (`20261220000000_age_gender_address.sql`). After sending, "Check your email" says
+  "If <email> isn't used yet, we sent a link to it", with links to Log in and Forgot password: Supabase answers the
+  same for an email that already has an account (and sends nothing), on purpose, so nobody can find out who has one.
+  Keep it that way: never say "this email is already used". The email link opens
+  `auth/confirm/page.tsx` (spec `docs/superpowers/specs/2026-11-06-email-link-continue-design.md`): "One more step"
+  and a **Continue** button. Opening the page uses nothing up, since mail scanners (Outlook's Safe Links, school
+  mail filters) open every link first; only Continue (`openEmailLink`, `actions.ts`) checks the token
+  (`verifyOtp`), which logs the teacher in. The link is checked with zod on the page and again in the action
+  (`emailLinkSchema`, `src/lib/emailLinks.ts`: `email`, the sign up email, opens home; `recovery`, the reset email,
+  opens `/set-password`; add a type there if a new email uses it). A link missing its parts goes straight to login;
+  a used or old one, after Continue, too: `error=confirm`, or `error=reset` for a reset link, with a link to Forgot
+  password. A banned teacher goes to `error=blocked` (the ban stays, and "expired" would only send them round again).
+  When Supabase didn't really check the link (no answer, 429, a 5xx) it still works, so the action goes back to the
+  page with `retry=1`: "Something went wrong on our side. Your link still works, so click Continue to try again."
+  All of that is `emailLinkResult`. Logged in, the page says "You're logged in as … To use this link, log out first." with Log out
+  (`ConfirmButtons.tsx`, like the account menu) and "Go to home"; the action refuses too, so a link never swaps the
+  browser into another account.
+- `login/`: login with plain-English errors, a browser speed bump, a "Forgot password?" link and a "Need help?" line
+  with the support email (`src/components/SupportEmail.tsx`). `src/proxy.ts` sends logged-out people here. Its
   matcher skips only the real static files (`_next/static`, `_next/image`, `favicon.ico`, `icon.svg` and the five
   `.svg` files in `public/`), never a page address that just ends in `.png`; a new file in `public/` must be added there.
+  Claude's routes are skipped by their exact name (`api/mcp`, `api/claude-photo`, `.well-known/`), so a route that
+  only starts the same (`/api/mcp-admin`) still gets the check. Every redirect and maintenance answer keeps the
+  refreshed login cookies (`keepSession`), or the browser would keep a used-up refresh token and be logged out.
+  Test: `e2e/proxy.mjs`.
   During maintenance it logs anyone but the super admin out again at once (`mayLogInNow`).
+- `forgot-password/` (spec `docs/superpowers/specs/2026-11-06-forgot-password-design.md`): "Type your email",
+  Turnstile, then `resetPasswordForEmail` (email checked with `resetEmailSchema`, `src/lib/passwords.ts`). It always
+  shows "Check your email. We sent a link to …", also for an email with no account (Supabase sends nothing then), so
+  it never tells who has an account. Logged-out only, like login (`src/proxy.ts`). Our limit (spec
+  `docs/superpowers/specs/2026-11-07-password-reset-limit-design.md`): 3 reset emails a day per teacher, Philippine time,
+  and 10 requests an hour per internet address. The page asks `mayAskForReset` (`actions.ts`: Cloudflare's address, the
+  secret key, `may_send_password_reset`) first; over a limit it shows the same screen and sends nothing; if the check
+  can't run it allows. Only emails really sent count (a trigger on Supabase's `recovery_sent_at`): made-up requests
+  don't, but a stranger who passes Turnstile 3 times can use up a teacher's day (3 per teacher is the owner's rule). On
+  IPv6 the whole /64 counts as one address. The address is counted before Turnstile, so a script on a shared connection
+  can use up its 10 for an hour. It isn't a hard wall: Supabase's reset address is public and it sends before it
+  saves, so a trigger can't stop the email; a script that skips the page still needs a Turnstile pass each time.
+  Supabase's own limits: one email per address per 60 seconds
+  (live; 1 second locally) and the hourly email limit (the whole app). Both refuse only a real account, so an error
+  would tell who has one: both show "Check your email" too, and that screen's last line says to try again later. The email is Supabase's "Reset Password" template (live: the dashboard; local:
+  `supabase/templates/recovery.html`), whose link opens `auth/confirm` with `type=recovery`. Resend sends it (the
+  Privacy Policy says so). Test: `e2e/forgot-password.mjs`.
+- `set-password/`: Forgot password's last step, opened logged in by the reset link. `page.tsx` (server) reads the
+  login's email and `SetPasswordForm.tsx` shows "For <email>" under the heading, so someone who opened another
+  person's forwarded link sees it isn't theirs, and a "Go to home" link (the link logged them in, so someone who
+  remembered their password can just go on). New password + Confirm
+  (`newPasswordSchema`), then `setNewPassword` (`src/lib/userSettings.ts`, `updateUser`). Supabase itself logs out
+  every other device whenever a password changes (here and on the Account page): their refresh tokens stop working,
+  so they're out at their next refresh, within the hour. Then a "Password changed." toast and home. The same password
+  as now gets its own words (`same_password`). Saving also ends the login lock for wrong tries on that browser
+  (`clearLock`, `src/lib/browserLimits.ts`). Needs a login like every page.
 - `maintenance/`: the page everyone but the super admin sees during maintenance (open without a login): the note,
   "Try again" and the support email; "QuizMatter is back" if it's already off. See the root `CLAUDE.md`,
   "Maintenance".

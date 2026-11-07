@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isRealCalendarDate } from "./calendarDate";
 import {
   BORDER_WIDTH_MAX,
   CYCLE_STEPS,
@@ -289,6 +290,12 @@ export const svgElementSchema = z.object({
   // Only used by the clocks: the time they show (hours 1–12, minutes 0–59). Missing = 10:10.
   // `pm` is only shown by the digital clock; missing = AM.
   clockTime: z.object({ hours: z.number(), minutes: z.number(), pm: z.boolean().optional() }).optional(),
+  // Only used by the calendars: the date they show (month 1–12, a real date, years 1900–2100). Missing =
+  // DEFAULT_CALENDAR_DATE; a new calendar gets today's date. Added in DATA_VERSION 2.
+  calendarDate: z
+    .object({ year: z.number(), month: z.number(), day: z.number() })
+    .refine(isRealCalendarDate, "Pick a real date between 1900 and 2100.")
+    .optional(),
   // Only used by number lines: first number, how much each tick counts up by, and which tick
   // positions show an empty box instead of a number. Centered (integer) lines ignore `start`.
   // Missing = start 0, step 1, nothing hidden.
@@ -383,7 +390,7 @@ export function embedLinkSchema(kind: EmbedKind) {
 // a save from a lower version than the one that last saved that presentation (QMOLD), so an editor tab running
 // older code can't drop fields it doesn't know. Bump it whenever the saved shape changes: see "Changing the saved
 // shape" in src/lib/CLAUDE.md.
-export const DATA_VERSION = 1;
+export const DATA_VERSION = 2;
 
 // True when a presentation was saved by newer app code than this tab runs. Copying it here would drop fields this tab
 // doesn't know, so copy paths check this first (the database refuses it too, with QMOLD).

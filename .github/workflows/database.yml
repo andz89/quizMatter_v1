@@ -5,7 +5,7 @@ name: Database
 
 on:
   push:
-    branches: [main]
+    branches: [main, dev]
     paths: [supabase/**, src/lib/database.types.ts, scripts/test-sql.mjs, scripts/db-snapshot.mjs, .github/workflows/database.yml]
   pull_request:
     paths: [supabase/**, src/lib/database.types.ts, scripts/test-sql.mjs, scripts/db-snapshot.mjs, .github/workflows/database.yml]

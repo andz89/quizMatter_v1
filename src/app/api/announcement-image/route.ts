@@ -1,6 +1,6 @@
 import { MAX_STORED_PHOTO_BYTES, PHOTO_URL_PREFIX } from "@/lib/constants";
 import { photoFileName, savePhotoFile } from "@/lib/photoFiles";
-import { MAX_GIF_BYTES, readAnnouncementImageType } from "@/lib/photoTypes";
+import { MAX_GIF_BYTES, readAnnouncementImageType, readUploadBody } from "@/lib/photoTypes";
 import { photoSchema } from "@/lib/schema";
 import { createClient } from "@/lib/supabase/server";
 
@@ -17,10 +17,9 @@ export async function POST(request: Request) {
   const { data: isSuperAdmin } = await supabase.rpc("is_super_admin");
   if (isSuperAdmin !== true) return Response.json({ error: "Only the super admin can do this." }, { status: 403 });
 
-  // The header is checked first so a huge upload is refused before it's read.
-  if (Number(request.headers.get("content-length")) > MAX_STORED_PHOTO_BYTES) return tooBig();
-  const body = await request.arrayBuffer();
-  if (body.byteLength > MAX_STORED_PHOTO_BYTES) return tooBig();
+  // Reading stops as soon as it's too big, so a huge upload is never held in memory.
+  const body = await readUploadBody(request, MAX_STORED_PHOTO_BYTES);
+  if (!body) return tooBig();
 
   // The file's first bytes tell what it really is, whatever it claims to be.
   const type = readAnnouncementImageType(body);

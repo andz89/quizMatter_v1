@@ -12,6 +12,10 @@
   },
   // Cloudflare creates the DNS record and HTTPS certificate for this domain on deploy.
   "routes": [{ "pattern": "quizmatter.com", "custom_domain": true }],
+  // Preview links (<name>-quizmatter-v1.andzrivero89.workers.dev): the dev branch's builds make a Worker Preview
+  // named "dev", never the live version (see "Branches and deploys" in CLAUDE.md). Off by default, and a deploy sets
+  // it from here, so it must stay true.
+  "preview_urls": true,
   // Short-lived drafts that Claude sends through the MCP server (/api/mcp), picked up in the editor.
   // "remote": local dev (next dev) uses this live database too, so it sees the drafts Claude sent.
   "d1_databases": [
@@ -34,5 +38,19 @@
   "triggers": { "crons": ["0 3 * * SUN", "0 4 * * *"] },
   // For the photo cleanup. Not secret: the browser already knows it.
   "vars": { "SUPABASE_URL": "https://zmmkqncfbjkmwfyngaha.supabase.co" },
+  // What the dev branch's Worker Previews (`npx wrangler preview`) use. They don't inherit the settings above, so
+  // they are repeated here: the live D1 drafts, the live R2 photos and the live Supabase (the user's choice, see
+  // "Branches and deploys" in CLAUDE.md). Keep them the same as above. No cron triggers: previews never run cleanups.
+  "previews": {
+    "vars": { "SUPABASE_URL": "https://zmmkqncfbjkmwfyngaha.supabase.co" },
+    "d1_databases": [
+      {
+        "binding": "DRAFTS_DB",
+        "database_name": "quizmatter-drafts",
+        "database_id": "7873e00d-72bd-4d7d-acaf-cc3f74f8e467"
+      }
+    ],
+    "r2_buckets": [{ "binding": "PHOTOS_BUCKET", "bucket_name": "quizmatter-images" }]
+  },
   "observability": { "enabled": true }
 }

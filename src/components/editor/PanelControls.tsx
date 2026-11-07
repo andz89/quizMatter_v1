@@ -132,10 +132,11 @@ export function PanelReadout({ children }: { children: ReactNode }) {
   return <span className="text-center text-base font-semibold text-text-primary tabular-nums">{children}</span>;
 }
 
-export function ResetButton({ onClick }: { onClick: () => void }) {
+/** A small violet text button at the bottom right of a panel: "Reset", or another word (e.g. "Today"). */
+export function ResetButton({ onClick, label = "Reset" }: { onClick: () => void; label?: string }) {
   return (
     <button type="button" onClick={onClick} className="self-end text-xs font-semibold text-accent hover:opacity-80">
-      Reset
+      {label}
     </button>
   );
 }

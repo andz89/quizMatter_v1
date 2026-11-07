@@ -90,20 +90,27 @@ export async function deleteTeacher(teacher) {
 
 // ─── Browser ─────────────────────────────────────────────────────────────────────────────────────────────────
 /**
- * A browser context logged in as `teacher`: the session goes straight into @supabase/ssr's cookie (base64url,
- * cut in 3180-character pieces), so the login page's "Verify you are human" box is never needed.
+ * A fresh login session for `teacher` as @supabase/ssr's cookie pieces, [name, value][]. `change` may edit the
+ * session first (e.g. make it look expired, so the app refreshes it).
  */
-export async function loggedIn(browser, teacher, viewport = { width: 1366, height: 800 }) {
+export async function sessionCookies(teacher, change = (session) => session) {
   const res = await fetch(`${env.API_URL}/auth/v1/token?grant_type=password`, {
     method: "POST",
     headers: { apikey: env.ANON_KEY, "Content-Type": "application/json" },
     body: JSON.stringify({ email: teacher.email, password: teacher.password }),
   });
   if (!res.ok) throw new Error(`login ${teacher.email}: ${res.status}`);
-  const value = "base64-" + Buffer.from(JSON.stringify(await res.json())).toString("base64url");
+  const value = "base64-" + Buffer.from(JSON.stringify(change(await res.json()))).toString("base64url");
   const name = `sb-${new URL(env.API_URL).hostname.split(".")[0]}-auth-token`;
-  const pieces = value.length <= 3180 ? [[name, value]] : value.match(/.{1,3180}/g).map((v, i) => [`${name}.${i}`, v]);
+  return value.length <= 3180 ? [[name, value]] : value.match(/.{1,3180}/g).map((v, i) => [`${name}.${i}`, v]);
+}
 
+/**
+ * A browser context logged in as `teacher`: the session goes straight into @supabase/ssr's cookie (base64url,
+ * cut in 3180-character pieces), so the login page's "Verify you are human" box is never needed.
+ */
+export async function loggedIn(browser, teacher, viewport = { width: 1366, height: 800 }) {
+  const pieces = await sessionCookies(teacher);
   const context = await browser.newContext({ viewport });
   await context.addCookies(pieces.map(([n, v]) => ({ name: n, value: v, domain: "localhost", path: "/" })));
   await context.route(
@@ -114,6 +121,20 @@ export async function loggedIn(browser, teacher, viewport = { width: 1366, heigh
     },
   );
   return context;
+}
+
+/**
+ * Cloudflare's real "are you human?" box doesn't pass in a headless browser. This answers its script address with a
+ * stand-in that passes at once with a made-up token: local Supabase has no captcha, so the token isn't checked.
+ * Call it on a context before opening a page with the box (sign up, Forgot password).
+ */
+export async function fakeTurnstile(context) {
+  await context.route("https://challenges.cloudflare.com/turnstile/**", (route) =>
+    route.fulfill({
+      contentType: "text/javascript",
+      body: `window.turnstile = { render: (el, o) => { setTimeout(() => o.callback("e2e-token"), 50); return "e2e"; }, remove() {} };`,
+    }),
+  );
 }
 
 /** Bounding box in words, for a check's detail. */

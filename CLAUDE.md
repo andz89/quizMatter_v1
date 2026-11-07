@@ -6,7 +6,8 @@ first.
 
 - `src/app/` **(notes)**: the teacher pages. `(home)/` home tabs (My presentations, From QuizMatter, Other
   teachers, Saved, Liked, Reviews & submissions, search) and folders; `presentation/[id]/` the view page and `edit/` the
-  editor page; `presentation/new/` opens Claude's drafts; `account/`, `login/`, `signup/`, `teachers/[slug]/`
+  editor page; `presentation/new/` opens Claude's drafts; `account/`, `login/`, `signup/`, `forgot-password/` +
+  `set-password/` (Forgot password), `teachers/[slug]/`
   (profiles); `oauth/` Claude's login; `(legal)/` the Privacy Policy and Terms of Use (version in `src/lib/legal.ts`). Teachers' server actions:
   `actions.ts`, `folderActions.ts`, or an `actions.ts` next to the page.
 - `src/app/admin/` **(notes)**: the admin pages (Overview, the menu
@@ -25,8 +26,8 @@ first.
   (lets `npm test` import app files). `.github/workflows/`: GitHub's checks on push (see "Tests").
 - `e2e/` **(notes)**: the browser tests (Playwright, already installed): `npm run e2e:dev`, then `node e2e/<test>.mjs`.
 - `src/pages/api/` **(notes)**: Claude's connector (MCP server). Its drafts live in Cloudflare D1 (`d1/migrations`).
-- `src/proxy.ts`: the login check before each page (logged-out visitors may open only login, sign up, the email
-  confirm link, Privacy and Terms), and the maintenance stop (see "Maintenance" below; `src/app/maintenance/` is
+- `src/proxy.ts`: the login check before each page (logged-out visitors may open only login, sign up, Forgot
+  password, the email link (`/auth/confirm`), Privacy and Terms), and the maintenance stop (see "Maintenance" below; `src/app/maintenance/` is
   its page). `worker.ts` + `wrangler.jsonc`: Cloudflare timers (cleanups).
 - `docs/superpowers/specs/`: the designs of past features. Read the matching one before changing a big feature.
 
@@ -68,6 +69,26 @@ After implementing, do a checking step before saying the work is done:
 1. Run `npx tsc --noEmit` and `npm run lint`, and fix any errors in the files you changed.
 2. Read your changes again (`git diff`) next to the approved plan. Make sure every part of the plan is done, nothing extra was added, and the rules in this file were followed (zod before saving, the one Spinner, the design system, npm 10 for packages, the folder `CLAUDE.md` notes still true, etc.).
 3. Tell the user what you checked and what passed or failed.
+
+# Branches and deploys (dev → preview, main → quizmatter.com)
+
+Design: `docs/superpowers/specs/2026-11-04-dev-branch-preview-design.md`.
+
+- **Work on `dev`.** Commit and push there. Cloudflare's Worker Previews (beta) build every push to a branch other
+  than `main` as a Preview named after the branch (never the live version, and it runs no cleanup timers):
+  **https://dev-quizmatter-v1.andzrivero89.workers.dev**. Its settings: Cloudflare → the Worker → Settings →
+  Builds → Previews Base (build `npx opennextjs-cloudflare build`, preview command `npx wrangler preview`; previews
+  keep their own secrets). That tab didn't keep build variables, so the two public build values
+  (`NEXT_PUBLIC_SUPABASE_URL`, the anon `NEXT_PUBLIC_SUPABASE_ANON_KEY`) are committed in `.env.production`
+  (`!.env.production` in `.gitignore`); Production's build secrets win over it, `next dev` never reads it. Never put a
+  secret key there: the repo is public. `wrangler.jsonc` keeps `"preview_urls": true`.
+- **The preview uses the live Supabase, R2 photos and D1 drafts** (the user's choice): what's done there is real.
+- **Release:** a pull request from `dev` to `main`
+  (`https://github.com/andz89/quizMatter_v1/compare/main...dev`); GitHub's checks run on it; the user merges.
+  Cloudflare deploys `main` to quizmatter.com. Never push to `main` directly.
+- **Migrations:** test on Docker as always, then the user pastes the migration into the live SQL editor **before**
+  the code that needs it is pushed to `dev` (the preview already uses the live database). A `DATA_VERSION` bump's
+  migration too.
 
 # Installing Packages (npm version)
 
@@ -112,14 +133,14 @@ database, never the live one: `npm run test:sql` resets it (replays every migrat
 (`npm run test:sql -- <file>.sql` runs only that one). By hand: `npx -y supabase@latest db reset`, then
 `docker exec -i supabase_db_quizBuilder psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/<file>.sql`. A file's
 first lines say when it must run as `-U supabase_admin -d postgres` instead (`account_delete.sql`,
-`blocked_email_domains.sql`; the script reads "as supabase_admin" there). It passes when it ends with `ROLLBACK` and
+`blocked_email_domains.sql`, `password_reset_limit.sql`; the script reads "as supabase_admin" there). It passes when it ends with `ROLLBACK` and
 no `FAIL` or `ERROR`.
 
 **Browser tests (Playwright) live in `e2e/`.** Playwright is already a dev package with its browser installed: never
 install it again or start a new browser-test folder in the scratchpad. Read `e2e/CLAUDE.md`, reuse `e2e/lib.mjs`, and
 save new tests in `e2e/`. They run on the local Docker Supabase only (`npm run e2e:dev`, port 3100).
 
-GitHub checks every push to `main` (`.github/workflows/`): `ci.yml` runs `tsc`, lint and `npm test`;
+GitHub checks every push to `main` and `dev`, and every pull request (`.github/workflows/`): `ci.yml` runs `tsc`, lint and `npm test`;
 `database.yml` (only when `supabase/` or the snapshot changes) starts Supabase in GitHub's own Docker, runs
 `npm run test:sql`, and fails if `supabase/schema.sql` or `src/lib/database.types.ts` weren't remade. They only warn
 (a red X and an email): Cloudflare deploys on its own.
@@ -164,7 +185,7 @@ never click limits: an honest teacher hits them.
 
 Editors (teachers an admin trusts) review shared QuizMatter presentations; an admin publishes or sends back each review. Full design: `docs/superpowers/specs/2026-10-04-presentation-reviews-design.md`. When changing it, keep these rules:
 
-- **Editor role:** the `editors` table and `is_editor()`. Only the super admin gives it, in Admin → Teachers (`setEditor`; a box asks first, since their published copies are removed; never to an admin or a banned teacher, which the database refuses too), and any admin takes it away; Admin → Editors (`src/app/admin/editors`) lists the editors with their review numbers, open round and how many presentations / photos they made, and can remove them (same `setEditor`); a name opens `/admin/editors/<id>`, a view-only page of their presentations (with submission status), their reviews and their uploaded photos. Taking it away cancels that editor's open review.
+- **Editor role:** the `editors` table and `is_editor()`. Only the super admin gives it, in Admin → Teachers (`setEditor`; a box asks first, since their published copies are removed; never to an admin or a banned teacher, which the database refuses too), and any admin takes it away; Admin → Editors (`src/app/admin/editors`) lists the editors with their review numbers, open round and how many presentations / photos they made, and can remove them (same `setEditor`); a name opens `/admin/editors/<id>`, a view-only page of their presentations (with submission status), their reviews and their uploaded photos. Taking it away cancels that editor's open review. Banning an editor takes it away too (`remove_banned_editor`, `20261231000900_moderation_fixes.sql`); unbanning doesn't give it back.
 - **One round at a time** per presentation, in `presentation_reviews`: reviewing → submitted → published (or sent back to reviewing, or canceled by Stop review). While reviewing or submitted the presentation is **locked**: database triggers refuse every change to it and its slides (error `QMREV`), except hiding. Only `publish_review` gets through. A round whose reviewer's account is gone doesn't lock, and admins can cancel any open round ("Cancel review" on the Under review list).
 - **The reviewer's work is a draft** in `presentation_reviews.draft`, never in `presentations` / `slides`, until an admin publishes. A reviewer can't change the author, sharing, owner or "from QuizMatter".
 - **The rules live in the database functions** (`start_review`, `save_review_draft`, `submit_review`, `stop_review`, `publish_review`, `send_back_review`, `set_review_open`, `admin_cancel_review`, `review_status`, `my_reviews`, `admin_reviews`, `admin_reviewers`), each checking who is calling. Change a rule there, not only in the app. Migrations: `20261019000000_presentation_reviews.sql`, `20261020000000_review_submit_checks.sql`, `20261021000000_review_approvals.sql`, `20261022000000_review_fixes.sql`, `20261025000000_review_reopen_and_canceled.sql`, `20261102000000_review_auto_reviewer.sql`, `20261202000000_author_updates.sql`, `20261203000000_author_update_published.sql`, `20261209000000_data_version.sql` (newest `save_review_draft`, `publish_review` and `admin_reviewers`: a draft keeps its `draft_version`, and an older app tab's save or submit is refused, `QMOLD`), `20261210000000_data_version_cap.sql` (`draft_version` is capped at `current_data_version()`), `20261210000200_database_fixes.sql` (newest `check_review_draft`: a draft is checked like the tables check, so a bad one is refused at save, not at publish), `20261210000500_admin_overview_counts.sql` (newest `start_review` and `submit_review`: a round keeps its first submit's time, `first_submitted_at`, for Admin → Overview).
@@ -223,8 +244,10 @@ Admins are split in two. Full design: `docs/superpowers/specs/2026-10-16-super-a
   them, never bans them automatically; every admin still skips the
   50-presentation limit (approving a submission makes a copy the admin owns).
 - **These rules live in the database too** (`20261210000100_plain_admin_limits.sql`), so a direct API call can't skip
-  them: on someone else's presentation a plain admin only reads it, hides or shows it
-  (`guard_admin_presentation_update`), and deletes it when it or its shared copy is reported or hidden. Changing an
+  them: on someone else's presentation a plain admin only reads it, hides or shows it if it's a teacher's shared
+  copy (`guard_admin_presentation_update`; never a QuizMatter lesson or a private presentation), and deletes it
+  when it's a teacher's and its shared copy is reported or hidden (`admin_may_delete`;
+  `20261231000900_moderation_fixes.sql`). Changing an
   owner or "from QuizMatter" (Move to QuizMatter), sharing someone else's QuizMatter presentation, adding rows for
   someone else and giving the editor role are the super admin's. A former admin (taken out of `admins`) can't
   delete QuizMatter presentations. The database's own functions (reviews, submissions, sharing, account delete)

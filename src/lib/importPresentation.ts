@@ -50,6 +50,9 @@ import { BACKGROUND_COLORS, BACKGROUND_GRADIENTS, BACKGROUND_MESHES } from "./sl
 import { fitInBox, MIN_ELEMENT_SIZE, TRIM_PADDING, type Rect, type Size } from "./geometry";
 import ASSET_SHAPES from "./assetShapes.json";
 import { createId } from "./id";
+import { groupByName } from "./importGroups";
+import { DEFAULT_CALENDAR_DATE, fromDateInput } from "./calendarDate";
+import { todayInManila } from "./age";
 import { DEFAULT_ROTATION_3D } from "./solids";
 import {
   BAR_COUNTS,
@@ -86,6 +89,10 @@ import {
   TOO_MANY_SLIDES_MESSAGE,
   photoSchema,
   referenceSchema,
+  SLIDE_EFFECT_SPEED_DEFAULT,
+  SLIDE_EFFECT_SPEED_MAX,
+  SLIDE_EFFECT_SPEED_MIN,
+  SLIDE_TRANSITIONS,
   SUBJECTS,
   subjectSchema,
   termSchema,
@@ -163,6 +170,16 @@ const calloutRecipe = z.object({
   color: hexColor.optional().describe("Arrow color. Leave out for dark navy."),
 });
 
+// A group name (see importGroups.ts): items on one slide with the same name become one group in the editor.
+const groupName = z
+  .string()
+  .trim()
+  .min(1)
+  .max(40)
+  .describe(
+    'Give the same name to the pieces that belong together (e.g. a ribbon and its words: "banner"), so the teacher moves them as one. Only within one slide, and all in the same box.',
+  );
+
 // One box of a diagram: its text ("\n" = a new line). Like a text box, long text shrinks to fit the box. Claude
 // always uses the automatic layout; teachers can move and resize boxes in the editor.
 const diagramBox = z.object({ text: z.string().max(DIAGRAM_TEXT_MAX) });
@@ -203,6 +220,11 @@ const elementRecipe = z.object({
     .object({ hours: whole(1, 12), minutes: whole(0, 59), pm: z.boolean().optional() })
     .optional()
     .describe("Only for clock and digital-clock. Only digital-clock shows AM/PM."),
+  calendarDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'A date like "2026-11-04".')
+    .optional()
+    .describe('Only for calendar-page and month-calendar: the date they show, "YYYY-MM-DD" (1900–2100). Leave out for today.'),
   numberLine: z
     .object({
       start: z.number().default(0).describe("First number. Ignored by integer-number-line (0 is always in the middle)."),
@@ -332,6 +354,7 @@ const elementRecipe = z.object({
     .describe(
       "Place the picture yourself instead of letting the app place it, in px: on a blank, title or custom slide on the 1280×720 slide, on a question slide inside its box. Only with count 1.",
     ),
+  group: groupName.optional(),
   // The id makes the JSON Schema write these rules once (as "element") instead of once per slide type.
 }).meta({ id: "element" });
 
@@ -408,6 +431,7 @@ const canvasContent = {
         position: rect.describe("Where the box goes, in px on the 1280×720 slide."),
         fontSize: fontSize.optional().describe(fontSizeNote),
         style: textStyle.optional(),
+        group: groupName.optional(),
       }),
     )
     .max(12)
@@ -535,7 +559,7 @@ const slideRecipe = z.discriminatedUnion("type", [
   }),
   embedRecipe("video", "A YouTube, Vimeo or Canva video link."),
   embedRecipe("embed-slides", 'A Google Slides link (shared with "Anyone with the link") or a Canva Share → Embed link.'),
-  embedRecipe("image", "A picture link that starts with https:// (a Google Drive link works too)."),
+  // No "image" embed slide: new ones were removed on 2026-11-04 (the app still opens old ones).
   z.object({
     type: z.literal("custom"),
     ...common,
@@ -605,6 +629,15 @@ export const claudeDetailsSchema = z.object({
     .describe(
       'What the presentation is based on, one per item: a full https:// link, or a book / module name (e.g. "DepEd SLM Mathematics 5, Quarter 1 – Module 8"). Only links you are sure are real.',
     ),
+  transition: z
+    .enum(SLIDE_TRANSITIONS)
+    .optional()
+    .describe('How each slide comes in when presenting full screen: "none", "fade", "slide" or "zoom". Leave out for "slide".'),
+  transitionSpeed: whole(SLIDE_EFFECT_SPEED_MIN, SLIDE_EFFECT_SPEED_MAX)
+    .optional()
+    .describe(
+      `How fast that effect plays: ${SLIDE_EFFECT_SPEED_MIN} = slowest, ${SLIDE_EFFECT_SPEED_MAX} = fastest. Leave out for ${SLIDE_EFFECT_SPEED_DEFAULT}.`,
+    ),
 });
 
 export type ClaudeDetails = z.infer<typeof claudeDetailsSchema>;
@@ -625,7 +658,7 @@ const BOXES: Record<"choice" | "true-false" | "short-answer", BoxName[]> = {
 };
 
 // Tools you read a value from. They get the tall side box (list-side) and start large.
-const READING_TOOLS = new Set(["clock", "digital-clock", "thermometer", "bar-graph", "protractor", "base-ten-blocks", "fraction-circle"]);
+const READING_TOOLS = new Set(["clock", "digital-clock", "calendar-page", "month-calendar", "thermometer", "bar-graph", "protractor", "base-ten-blocks", "fraction-circle"]);
 
 const CLAUDE_NOTES = `Write a presentation for my app (quizMatter) as JSON. Send it with send_presentation: "slides" is the slides array below, and it must match the JSON Schema at the end.
 
@@ -633,7 +666,7 @@ quizMatter is an open canvas tool for making presentations, like Canva or PowerP
 - Blank slides ("blank" type): a free canvas for any kind of presentation — teaching a topic, a class discussion, a story, a report, instructions, a review. A presentation can be all blank slides, with no questions at all.
 - Title slides ("title" type): a big centered title with a short line under it, to open a presentation or start a new part.
 - Question slides ("choice", "true-false", "short-answer" and "custom"): for checking what learners know — an evaluation, a paper quiz, an assessment, or a short quiz after the discussion.
-- Embed slides ("video", "embed-slides", "image"): a video, a slide deck or a picture from another site, filling the whole slide. Only with a link the user gives you.
+- Embed slides ("video", "embed-slides"): a video or a slide deck from another site, filling the whole slide. Only with a link the user gives you.
 Mix them as the user's request needs: e.g. a title slide, blank slides to teach, then question slides to check.
 
 Be a teacher, and be creative. Act like a kind, skilled teacher teaching this lesson to your own pupils:
@@ -665,7 +698,7 @@ End every presentation with a "References" slide: a blank slide titled "Referenc
 - any other source you used for facts or content.
 Never make up a reference. If there is nothing to list, leave the slide out.
 
-Also fill in "details" when you send it: the presentation's title, a short description, grades, subject, curriculum, learning competency and a few tags (and author, reference links, term, week or day only when the user, or a document or link they gave you, names them).
+Also fill in "details" when you send it: the presentation's title, a short description, grades, subject, curriculum, learning competency and a few tags (and author, reference links, term, week or day only when the user, or a document or link they gave you, names them). You can also pick the slide effect for presenting ("transition" and "transitionSpeed"), e.g. a gentle "fade" for young pupils, or the effect the user asks for; leave them out for the usual one.
 
 Leave a setting out and the app decides it. On question slides that's usually best. On blank and title slides, the app's layouts ("text-top", "text-left", "title-only") are only a quick start: for a designed slide, place the pictures and text yourself ("position", "textBoxes"), using the slide ideas in Design below. The layout report you get back (see "Checking before the final version") shows where everything landed.
 
@@ -712,8 +745,8 @@ The slide is 1280 × 720 px.
    - The same content as a blank slide: "layout", "title", "text", "textBoxes", "elements" (with "position" and "callouts").
    - Plain white like the other question slides (see Design below).
    - "answer" / "answerCanvas": the correct answers (see Answers below).
-7. "video", "embed-slides" and "image" — embed slides: something from another site fills the whole slide. They have only "link" (and "name").
-   - "video": a YouTube, Vimeo or Canva video link. "embed-slides": a Google Slides link (shared with "Anyone with the link") or a Canva Share → Embed link. "image": a picture link that starts with https:// (Google Drive links work too).
+7. "video" and "embed-slides" — embed slides: something from another site fills the whole slide. They have only "link" (and "name").
+   - "video": a YouTube, Vimeo or Canva video link. "embed-slides": a Google Slides link (shared with "Anyone with the link") or a Canva Share → Embed link. There is no picture embed slide: put a picture on a blank slide as a photo (see Photos).
    - Only use a link the user gave you, or one you are sure is real. Never make one up. If you have no link, leave the slide out, or use a blank slide instead.
    - A bad link comes back as an error that says what kind of link works. The layout report shows the link the slide will show.
    - E.g. { "type": "video", "name": "Watch: The Water Cycle", "link": "<the link the user gave>" }.
@@ -739,7 +772,7 @@ The question box, the strip and the options share the slide's height, so giving 
 
 === Layouts ===
 
-Choice slides: "list" (4 rows), "grid" (2×2) or "list-side" (4 rows with a tall picture box beside them). Left out, the app picks, in this order: "grid" when the options are only pictures (empty texts); "list-side" when "side" has a clock, thermometer, bar graph, protractor, base-ten blocks or fraction circle; "grid" when the options have pictures; otherwise "list".
+Choice slides: "list" (4 rows), "grid" (2×2) or "list-side" (4 rows with a tall picture box beside them). Left out, the app picks, in this order: "grid" when the options are only pictures (empty texts); "list-side" when "side" has a clock, calendar, thermometer, bar graph, protractor, base-ten blocks or fraction circle; "grid" when the options have pictures; otherwise "list".
 
 Blank and custom slides:
 - "text-top" (default): title and text across the full width, pictures below.
@@ -767,7 +800,7 @@ How they look:
 - Vary the kids: inside one presentation, you decide when to use a kid again. find_photos gives equally good matches in a new random order each time, so look through every kid it gives you and pick the one that fits the slide best, not just the first. The built-in students too: not always "student-pointing" or "student-globe". Show girls and boys about equally.
 - Drawn fruits (for counting and picture sums; see Real photos for when a photo is better) include apple, banana, grapes, mango, papaya, coconut, rambutan, dragon-fruit, kiwi, avocado, peach, pomegranate, blueberries and more.
 - Shapes include every kind of triangle (equilateral, isosceles, scalene, right, acute, obtuse) and four-sided shape (square, rectangle, trapezoid, right trapezoid, rhombus, kite, parallelogram…). 3D solids include prisms and pyramids with 3–6 sided bases, frustum, hemisphere, octahedron and icosahedron.
-- Settings like "clockTime", "fraction", "numberLine", "tenFrame", "baseTen", "thermometer", "barGraph", "protractor", "flowchart", "cycle", "mindMap", "tree" and "factorTree" only work on the pictures named in their description.
+- Settings like "clockTime", "calendarDate", "fraction", "numberLine", "tenFrame", "baseTen", "thermometer", "barGraph", "protractor", "flowchart", "cycle", "mindMap", "tree" and "factorTree" only work on the pictures named in their description.
 - Diagrams show how ideas connect: flowchart (steps in order, joined by arrows), cycle (steps that repeat in a ring, e.g. the water cycle or a life cycle), mind-map (a main idea with ideas around it), tree-diagram (a top box that splits into groups, each with its own items, e.g. a classification) and factor-tree (a number split into two factors, each split again until only primes are left, for prime factorization). Keep each box's text short: a word or a few.
 - Keep "elements" useful: they should help answer the question or explain the topic. Decoration goes in "design".
 
@@ -779,7 +812,7 @@ Real photos:
 - From a zip the user attached (photos plus lesson text): unzip it, read the text and plan the slides from it, upload the zip's photos with prepare_photo_upload (ask the user for the photos' source if the zip doesn't say), then put each photo on the slide it fits best. Leave a photo out only if it fits nowhere, and tell the user which ones you left out.
 - A photo's "source" says who owns it or where it came from. When it has one, credit it on the slide in a small text box near the photo (e.g. "Photo: Juan Cruz, Pexels"), unless the user says not to. Also list it on the last slide, "References" (see above).
 - If find_photos has nothing that fits, use a drawing from the picture list when one shows it well. If neither fits, leave room for a photo (e.g. a blank slide with "layout": "text-left" and no pictures on the right), and tell the user in your reply which slides need a photo and what it should show. The teacher can add one in the editor with the Photos button (upload from their computer).
-- For one photo that fills the whole slide from a link the user gave you, use an "image" embed slide instead.
+- For a picture from a link the user gave you, upload it with prepare_photo_upload, then put it on a blank slide as a photo (a large one, or "position" covering the slide, to fill it).
 
 Placing them yourself:
 - The app places, centers and sizes pictures itself. To choose the spot yourself, give "position": { x, y, width, height } in px (x, y = top-left corner). Only with count 1.
@@ -790,11 +823,12 @@ Placing them yourself:
 - "square" and "rectangle" take exactly the width and height you give, so they can be a box of any shape: e.g. a soft colored panel behind a group of pictures, or a bar. Add "cornerRadius" for rounded corners.
 - Pictures you place yourself are drawn in list order (a later one sits on top of an earlier one), and behind the pictures the app places. So list a background panel before what goes on it.
 - "textBoxes" (blank, title and custom slides) are placed the same way, and sit on top of pictures — good for labels on a picture.
+- Groups: pieces that belong together — a ribbon or badge and its words, a box and its words, a kid and their speech tag with its words — get the same "group" name (any short name, e.g. "banner", "box-1"). The teacher then clicks and moves them as one, instead of moving the shape and leaving its words behind. A group's pieces must be on the same slide and in the same box; a name is only for its own slide.
 
 Other diagrams — use the ready-made "flowchart", "cycle", "mind-map", "tree-diagram" and "factor-tree" pictures when they fit. For any other diagram (a food web, a map of places, a labeled process with branches), build it from pieces the teacher can move and edit:
 - Every box, arrow and label must be its own picture or text box. Never draw a diagram as one picture: the teacher couldn't move a box, change an arrow or type in it.
 - Boxes: "rectangle" (or "square") with "position", "cornerRadius" (e.g. 15), a soft "color" and a darker "border".
-- Words in the boxes: a "textBoxes" entry with the same position as its box, listed so it sits on top. Keep each to a word or two.
+- Words in the boxes: a "textBoxes" entry with the same position as its box, listed so it sits on top, and the same "group" name as its box. Keep each to a word or two.
 - Arrows: "line-arrow" (or "line-dashed-arrow", "line-double-arrow"). An arrow is drawn pointing right, so to go from point A to point B: width = the distance from A to B, height = 24, its center halfway between A and B, and "rotation" = the angle from A to B in degrees clockwise (0 = right, 90 = down, 180 = left, 270 = up). Leave a small gap between an arrow's ends and the boxes.
 
 Ribbons, banners and badges ("ribbon-…" pictures) — a fun way to show a title, a label or a reward:
@@ -803,7 +837,7 @@ Ribbons, banners and badges ("ribbon-…" pictures) — a fun way to show a titl
 - Hanging tabs: "ribbon-hanging-tab", "ribbon-bookmark", "ribbon-round-tab", "ribbon-pointed-tab". They are tall and narrow (about 1 wide for 2 high), hanging down from a bar, so they only hold one big number or letter. Give them a tall box (e.g. 60 × 120): in a wide box they stay narrow, in its middle. Never use them behind a word or a few words — use a tag or a banner.
 - Badges for a reward or a key word ("Great job!", "New word", "Step 1"): "ribbon-seal", "ribbon-scallop", "ribbon-hexagon", "ribbon-drop". "ribbon-seal" has a white ring inside: its words go inside the ring, so give its text box about half the seal's width (a 200px seal → a 110px text box, centered). For a long word, make the seal bigger or use a banner.
 - They are empty shapes: put the words in a "textBoxes" entry placed over the ribbon's middle (a little smaller than the ribbon, centered), listed so it sits on top. Keep it to a few words, in a color that's easy to read on the ribbon (white on dark ribbons, dark on light ones).
-- Give them "position" so you know exactly where the words go. Use them in "elements", not "design", so the teacher can move them with their words.
+- Give them "position" so you know exactly where the words go. Use them in "elements", not "design", and give the ribbon and its words the same "group" name, so the teacher moves them together.
 - Blobs ("blob-…") are soft, round shapes: good as a light panel behind a picture or a few words, or as a decoration.
 
 Arrows that point at part of a picture ("callouts", blank, title and custom slides only):
@@ -1024,6 +1058,8 @@ function buildSlide(
   }
   // Things Claude may want to fix, for the report.
   const notes: string[] = [];
+  // Element id → the "group" name Claude gave it (made into groups below).
+  const groupNames = new Map<string, string>();
   // Text boxes Claude placed itself. They sit on top of the pictures, so a label can go on one.
   const placedText =
     isCanvas
@@ -1040,6 +1076,7 @@ function buildSlide(
           // Centered unless Claude says otherwise: they're mostly labels on a shape, ribbon or diagram box.
           const element = textBox(rect, markupToHtml(box.text, { align: "center", ...box.style }), box.fontSize);
           texts.push({ label: `text box ${i + 1}`, box: element, words: stripMarkup(box.text), bold: box.style?.bold, color: box.style?.color });
+          if (box.group) groupNames.set(element.id, box.group);
           return element;
         })
       : [];
@@ -1096,7 +1133,9 @@ function buildSlide(
       if (Math.abs(picture.width - inBox.width) > 2 || Math.abs(picture.height - inBox.height) > 2) {
         notes.push(`${where} was fitted to its drawing's shape: ${formatRect(picture)} instead of ${formatRect(inBox)}. Place its words and labels by that.`);
       }
-      pictures.push({ id: createId(), assetId: el.asset, color, containerId, ...settings, ...picture });
+      const id = createId();
+      if (el.group) groupNames.set(id, el.group);
+      pictures.push({ id, assetId: el.asset, color, containerId, ...settings, ...picture });
       calloutParts.push(...calloutElements(picture, el.callouts ?? []));
       return;
     }
@@ -1108,9 +1147,11 @@ function buildSlide(
     const callouts = el.callouts ?? [];
     for (let copy = 0; copy < el.count; copy++) {
       const pictureSize = fitAroundCallouts(startSize(asset, settings, size, areaOf(containerId)), callouts, areaOf(containerId));
+      const id = createId();
+      if (el.group) groupNames.set(id, el.group);
       list.push({
         base: {
-          id: createId(),
+          id,
           assetId: el.asset,
           color,
           containerId,
@@ -1183,6 +1224,13 @@ function buildSlide(
   // Later ones are drawn on top: the title and text sit above every picture, so a panel or bar behind them
   // doesn't cover them.
   slide = { ...slide, elements: [...decorations, ...pictures, ...textBoxes, ...placedText, ...calloutParts] };
+  // Items with the same "group" name become one group, like the editor's Group button.
+  const grouped = groupByName(slide.elements, groupNames, createId);
+  slide.elements = grouped.elements;
+  for (const name of grouped.mixed) {
+    reportError(`group "${name}": its pieces are in different boxes. A group's pieces must all be in the same box ("in").`);
+  }
+  for (const name of grouped.lonely) notes.push(`group "${name}" has only one piece, so it isn't a group. Give the same name to the pieces that go with it.`);
   const report = describeSlide(slide, texts, pictures, notes);
   // Short-answer pictures were placed in the room under the question ("side"); they sit on the slide itself.
   slide.elements = moveShortAnswerPicturesToSlide(slide);
@@ -1773,6 +1821,16 @@ function buildSettings(el: ElementRecipe, asset: Asset): Partial<SvgElement> | s
   if (el.clockTime) {
     if (!asset.isClock) return "clockTime only works on clock and digital-clock.";
     settings.clockTime = el.clockTime;
+  }
+
+  if (el.calendarDate) {
+    if (!asset.isCalendar) return "calendarDate only works on calendar-page and month-calendar.";
+    const date = fromDateInput(el.calendarDate);
+    if (!date) return `calendarDate "${el.calendarDate}" isn't a real date between 1900 and 2100.`;
+    settings.calendarDate = date;
+  } else if (asset.isCalendar) {
+    // Like a calendar the teacher adds: today, in the Philippines (the import runs on the server).
+    settings.calendarDate = fromDateInput(todayInManila()) ?? DEFAULT_CALENDAR_DATE;
   }
 
   if (el.numberLine) {

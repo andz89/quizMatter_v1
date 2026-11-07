@@ -100,6 +100,12 @@ export function clearTries(limit: BrowserLimit) {
   if (saved) write(limit, { ...saved, times: [] });
 }
 
+/** Ends a lock at once (a new password from Forgot password: the login is theirs). Keeps the last lock, like clearTries. */
+export function clearLock(limit: BrowserLimit) {
+  const saved = read(limit);
+  if (saved) write(limit, { ...saved, times: [], lockedUntil: 0 });
+}
+
 /** "3:45 PM", or "tomorrow, 3:45 PM" when it's on another day. */
 export function tryAgainAfter(time: number, now = Date.now()): string {
   const clock = new Date(time).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });

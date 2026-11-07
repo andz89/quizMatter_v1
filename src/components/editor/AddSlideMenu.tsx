@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 import type { SlideType } from "@/lib/schema";
 import { PanelLabel } from "./PanelControls";
-import { HeadingIcon, ImageIcon, LayersIcon, ListChecksIcon, PresentationIcon, SquareCheckBigIcon, SquarePenIcon, SquarePlayIcon, TextCursorInputIcon } from "lucide-react";
+import { HeadingIcon, LayersIcon, ListChecksIcon, PresentationIcon, SquareCheckBigIcon, SquarePenIcon, SquarePlayIcon, TextCursorInputIcon } from "lucide-react";
 
 // The Add slide menu, in labeled groups.
 const SLIDE_TYPE_GROUPS: { label: string; types: { value: SlideType; label: string; icon: ReactNode }[] }[] = [
@@ -23,7 +23,7 @@ const SLIDE_TYPE_GROUPS: { label: string; types: { value: SlideType; label: stri
       { value: "blank", label: "Blank slide", icon: <PresentationIcon size={20} /> },
       { value: "video", label: "Embed video", icon: <SquarePlayIcon size={20} /> },
       { value: "embed-slides", label: "Embed slides", icon: <LayersIcon size={20} /> },
-      { value: "image", label: "Embed image", icon: <ImageIcon size={20} /> },
+      // No "Embed image": new image slides were removed on 2026-11-04 (old ones still open and work).
     ],
   },
 ];

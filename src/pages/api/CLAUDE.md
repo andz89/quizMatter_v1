@@ -44,6 +44,11 @@
 - Everything Claude sends is checked with zod (`presentationRecipeSchema`, `claudeDetailsSchema`,
   `claudePhotoSchema`) before it's stored (see "Saving Data" in the root `CLAUDE.md`).
 - Claude adds diagrams with `{ "text": … }` boxes only (automatic layout).
+- Claude can group pieces: the same `"group"` name on pictures and `textBoxes` of one slide (e.g. a ribbon and its
+  words) becomes one editor group (`groupId`), like the Group button: at least 2 pieces, all in the same box (else an
+  error; one piece = a note in the layout report). `groupByName` in `src/lib/importGroups.ts` (tests
+  `importGroups.test.ts`).
+- Claude can pick the slide effect in its details (`transition`, `transitionSpeed`); left out = the default.
 - Picture boxes are fitted to the drawing's real shape from `src/lib/assetShapes.json` (see `src/lib/CLAUDE.md`).
 - **After adding or renaming a tool, the user must reconnect the connector in claude.ai and start a new chat**, or
   Claude won't see it. Say so when you finish such a change.

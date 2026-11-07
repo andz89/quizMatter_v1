@@ -21,18 +21,57 @@ A plain Node script with the `playwright` library (not `@playwright/test`). From
 - `env` (the local keys; it stops if they aren't for 127.0.0.1), `APP`, `SHOTS`.
 - `makeTeacher({ first, last, superAdmin })`: a new confirmed account with a unique email;
   `deleteTeacher(teacher)` in `finally` deletes it and its presentations.
+- `sessionCookies(teacher, change)`: a fresh login session as cookie pieces (`change` can edit it, e.g. make it
+  look expired), for a plain `fetch` to the app.
 - `loggedIn(browser, teacher, viewport)`: a browser context already logged in (the session goes into the
   `sb-127-auth-token` cookie, so the login page's Turnstile box is skipped). It blocks every `*.supabase.co`
   request, and `finish()` fails the run if one was tried.
 - `api(path, init)`: the local API with the service role key (e.g. insert presentations and slides).
   `psql(sql)`: SQL as postgres in the Docker database.
+- `fakeTurnstile(context)`: Cloudflare's real "are you human?" box never passes headless; this answers its script
+  with a stand-in that passes at once (local Supabase has no captcha), so a test can press sign up's or Forgot
+  password's button.
 - `check(name, ok, detail)` per check, then `finish()` at the end.
+- Emails: local Supabase keeps every email in Mailpit (`http://127.0.0.1:54324`, `/api/v1/search`,
+  `/api/v1/message/<ID>`); see `forgot-password.mjs`.
 
 Tests that delete data (the announcements ones empty the announcements table) do so only in the local database.
 
 ## The tests
 
+- `forgot-password.mjs`: the login link, the Forgot password page (logged out only), the reset email arriving in
+  Mailpit (typed with spaces and capitals), the same "Check your email" for an email with no account and for
+  Supabase's two email limits (played back, since local waits only 1 second), and other refusals keeping their
+  words. Every email link is opened and then Continue clicked
+  (`continueLink`). The page's own link (PKCE) opens Set a new password. Then the email's link: logged in as someone
+  else the page says log out first (no Continue); a plain `fetch` of it first (like a mail scanner) doesn't use it up;
+  Set a new password ("For <email>", "Go to home", mismatch and same password refused, a new one saved and the login
+  lock ended), the other device's refresh token stops working, new password in / old out, the used link →
+  `/login?error=reset`, `/set-password` logged out → login, a link with no token (reset or sign up words) or an
+  unknown type → login, Log out on the link page → Continue works, Continue while logged in (cookies added after the
+  page opened) refuses and leaves the link unused, a banned teacher's link → `/login?error=blocked`, and a real
+  unconfirmed sign up link (`type=email`, from `generate_link`) → home, confirmed. A failed log out (on the link page and in the account
+  menu) says so. Supabase can't be reached at Continue (it stops the local gateway, `supabase_kong_quizBuilder`,
+  for a moment): the page says the link still works, and it does. Last, sign up's "Check your email" words and links
+  (Supabase's sign up answer played back, so no account is made; screenshot `signup-check-email.png`), and the reset
+  limit: 3 real emails, the 4th shows the same screen and sends none; an address at 10 requests doesn't reach Supabase
+  (the test adds `cf-connecting-ip` to the page's request, as Cloudflare does). Then Admin → Safety → Password resets
+  as the super admin: "3 of 3 · Limit reached", the addresses' counts (an IPv6 /64 as one), and "Over the limit"
+  after a 4th send (screenshot `admin-safety-resets.png`). Run it alone:
+  the outage check stops the gateway every local test uses (Ctrl+C or a failure starts it again).
 - `hidden-slides.mjs`: hide a slide, save, present (→ / ← skip it), the all-slides grid, show it again.
+- `add-slide-menu.mjs`: the slide's + and the workspace's Add slide have no "Embed image" (the other 8 types stay),
+  and an image slide saved before still opens with its picture.
+- `calendar-date.mjs`: add a Calendar Page and a Month Calendar (both start on today), Set date to 29 February 2024,
+  Today, save, reload.
+- `proxy.mjs`: an expired session opening /login is refreshed and the redirect keeps the new cookies; `/api/mcp`
+  skips the proxy, `/api/mcp-admin` and `/api/claude-photos` don't.
+- `reports-plain-admin.mjs`: Admin → Reports as a plain admin: a teacher's reported copy has Hide and Delete, a
+  reported QuizMatter lesson has neither and says why.
+- `photo-delete.mjs`: Photo cleanup's Delete refuses a file under 7 days old (a WebP and an announcement's GIF,
+  which counts as our file), and the page shows no Delete button on it.
+- `photo-uploads.mjs`: a plain teacher's profile photo is refused before anything is counted; an editor's is stored
+  and the profile switches to it, counted once; a too-big upload sent in pieces (no Content-Length) gets 413.
 - `announcements-admin.mjs`: the super admin makes a corner box and an HTML modal in the form; a teacher sees them.
 - `announcements-show-after.mjs`: the super admin sets "It shows after 8 seconds" in the form (not on a top bar;
   the list line, the saved number, the edit page). The teacher's modal waits, keeps counting across a reload and an

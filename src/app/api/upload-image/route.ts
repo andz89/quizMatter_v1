@@ -1,6 +1,7 @@
 import { pausedUntilFromError } from "@/lib/clickLimits";
 import { MAX_STORED_PHOTO_BYTES, PHOTO_URL_PREFIX } from "@/lib/constants";
 import { photoFileName, readPhotoType, savePhotoFile } from "@/lib/photoFiles";
+import { readUploadBody } from "@/lib/photoTypes";
 import { photoSchema, sharedPhotoBytesSchema, sharedPhotoInfoSchema, sharedPhotoSchema } from "@/lib/schema";
 import { createClient } from "@/lib/supabase/server";
 
@@ -38,10 +39,9 @@ export async function POST(request: Request) {
     if (isBanned === true) return banned();
   }
 
-  // The header is checked first so a huge upload is refused before it's read.
-  if (Number(request.headers.get("content-length")) > MAX_STORED_PHOTO_BYTES) return tooBig();
-  const body = await request.arrayBuffer();
-  if (body.byteLength > MAX_STORED_PHOTO_BYTES) return tooBig();
+  // Reading stops as soon as it's too big, so a huge upload is never held in memory.
+  const body = await readUploadBody(request, MAX_STORED_PHOTO_BYTES);
+  if (!body) return tooBig();
 
   // The file's first bytes tell what it really is, whatever it claims to be.
   const type = readPhotoType(body);
@@ -92,7 +92,12 @@ export async function POST(request: Request) {
   if (pausedUntilFromError(rateError)) return paused();
   if (rateError) return Response.json({ error: "Couldn't upload the photo. Please try again." }, { status: 500 });
 
-  await savePhotoFile(fileName, body, type);
+  // Rare. The upload stays counted; the teacher sees it failed and can try again.
+  try {
+    await savePhotoFile(fileName, body, type);
+  } catch {
+    return Response.json({ error: "Couldn't upload the photo. Please try again." }, { status: 500 });
+  }
   // Added again = moves back to the top of the list (a shared one also moves to the new category).
   const created_at = new Date().toISOString();
   const { error } = shared

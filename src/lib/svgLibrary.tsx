@@ -4,6 +4,7 @@ import { factorTreeSize, type FactorNode, type SvgElement } from "./schema";
 import { KIDS, KID_VIEWBOX } from "./kids";
 import { CLIPART_KIDS, drawPeopleArt, SCHOOL_BOY } from "./peopleArt";
 import { FLAGS } from "./flags";
+import { DEFAULT_CALENDAR_DATE, MONTH_NAMES, monthGrid, WEEKDAY_NAMES, weekdayOf, type CalendarDate } from "./calendarDate";
 import {
   BORDER_WIDTH_DEFAULT,
   CYCLE_STEPS,
@@ -29,6 +30,7 @@ export type RenderSettings = Partial<Pick<
   SvgElement,
   | "rotation3d"
   | "clockTime"
+  | "calendarDate"
   | "numberLine"
   | "fraction"
   | "tenFrame"
@@ -70,6 +72,8 @@ interface ElementAsset {
   is3d?: boolean;
   // True for the clocks; only they use `clockTime`.
   isClock?: boolean;
+  // True for the calendars; only they use `calendarDate`.
+  isCalendar?: boolean;
   // True for the text box; only it uses `text`. On the slide it shows its text instead of `render`,
   // which just draws the "T" icon for the Elements panel.
   isTextBox?: boolean;
@@ -250,6 +254,78 @@ function renderDigitalClock(color: string, { hours, minutes, pm }: ClockTime = D
           {pm ? "PM" : "AM"}
         </tspan>
       </text>
+    </>
+  );
+}
+
+// Draws a tear-off calendar page: the month on a colored strip, the big day, the weekday and the year under it.
+function renderCalendarPage(color: string, date: CalendarDate = DEFAULT_CALENDAR_DATE) {
+  return (
+    <>
+      <rect x="10" y="10" width="80" height="84" rx="10" fill="#FFFFFF" stroke={color} strokeWidth="4" />
+      <path d="M10 32V20a10 10 0 0 1 10-10h60a10 10 0 0 1 10 10v12Z" fill={color} />
+      {[28, 72].map((x) => (
+        <rect key={x} x={x - 3} y="4" width="6" height="13" rx="3" fill="#FFFFFF" stroke={color} strokeWidth="2.5" />
+      ))}
+      <text x="50" y="22" textAnchor="middle" dominantBaseline="central" fontSize="9" fontWeight="700" fill="#FFFFFF">
+        {MONTH_NAMES[date.month - 1].toUpperCase()}
+      </text>
+      <text x="50" y="55" textAnchor="middle" dominantBaseline="central" fontSize="32" fontWeight="700" fill="#1F1F1F">
+        {date.day}
+      </text>
+      <text x="50" y="75" textAnchor="middle" dominantBaseline="central" fontSize="8" fontWeight="700" fill={color}>
+        {WEEKDAY_NAMES[weekdayOf(date)].toUpperCase()}
+      </text>
+      <text x="50" y="86" textAnchor="middle" dominantBaseline="central" fontSize="7" fontWeight="600" fill="#6B6B6B">
+        {date.year}
+      </text>
+    </>
+  );
+}
+
+// Draws the whole month (Sunday first) with the chosen day circled.
+function renderMonthCalendar(color: string, date: CalendarDate = DEFAULT_CALENDAR_DATE) {
+  const weeks = monthGrid(date.year, date.month);
+  const columnWidth = 92 / 7;
+  const columnX = (i: number) => 4 + columnWidth * (i + 0.5);
+  // The weeks share the space under the weekday letters; 4 or 5 weeks spread out a little, never too far.
+  const rowHeight = Math.min(11, 57 / weeks.length);
+  return (
+    <>
+      <rect x="4" y="6" width="92" height="88" rx="8" fill="#FFFFFF" stroke={color} strokeWidth="3" />
+      <path d="M4 23V14a8 8 0 0 1 8-8h76a8 8 0 0 1 8 8v9Z" fill={color} />
+      <text x="50" y="14.5" textAnchor="middle" dominantBaseline="central" fontSize="7.5" fontWeight="700" fill="#FFFFFF">
+        {MONTH_NAMES[date.month - 1].toUpperCase()} {date.year}
+      </text>
+      {WEEKDAY_NAMES.map((name, i) => (
+        <text key={i} x={columnX(i)} y="30" textAnchor="middle" dominantBaseline="central" fontSize="5.5" fontWeight="700" fill={color}>
+          {name[0]}
+        </text>
+      ))}
+      {weeks.map((week, row) =>
+        week.map((day, i) => {
+          if (day === null) return null;
+          const x = columnX(i);
+          const y = 35 + rowHeight * (row + 0.5);
+          const isChosen = day === date.day;
+          return (
+            <g key={`${row}-${i}`}>
+              {isChosen && <circle cx={x} cy={y} r="4.8" fill={color} />}
+              <text
+                x={x}
+                y={y}
+                textAnchor="middle"
+                dominantBaseline="central"
+                fontSize="5.5"
+                fontWeight={isChosen ? "700" : "500"}
+                fill={isChosen ? "#FFFFFF" : "#1F1F1F"}
+              >
+                {day}
+              </text>
+            </g>
+          );
+        }),
+      )}
     </>
   );
 }
@@ -2494,6 +2570,23 @@ const ASSETS: ElementAsset[] = [
     defaultColor: "#191A2C",
     isClock: true,
     render: (color, { clockTime }) => renderDigitalClock(color, clockTime),
+  },
+  // Both calendars share the same `calendarDate` and the toolbar's Set date panel.
+  {
+    id: "calendar-page",
+    category: "time",
+    label: "Calendar Page",
+    defaultColor: "#E5484D",
+    isCalendar: true,
+    render: (color, { calendarDate }) => renderCalendarPage(color, calendarDate),
+  },
+  {
+    id: "month-calendar",
+    category: "time",
+    label: "Month Calendar",
+    defaultColor: "#3B82F6",
+    isCalendar: true,
+    render: (color, { calendarDate }) => renderMonthCalendar(color, calendarDate),
   },
 
   // Math Tools — both number lines share `numberLine` and the toolbar's Edit numbers panel.
@@ -6119,8 +6212,8 @@ export function getAssetViewBox(asset: ElementAsset, settings: RenderSettings) {
 
 /**
  * Whether an element can be cropped: pictures only. Not text boxes, lines and stretchable shapes (they
- * just get resized), nor elements whose shape changes with their settings (3D shapes, clocks, math tools),
- * where a crop would slip.
+ * just get resized), nor elements whose shape changes with their settings (3D shapes, clocks, calendars, math
+ * tools), where a crop would slip.
  */
 export function canCrop(element: Pick<SvgElement, "assetId" | "svg" | "image">) {
   if (element.svg || element.image) return true;
@@ -6132,6 +6225,7 @@ export function canCrop(element: Pick<SvgElement, "assetId" | "svg" | "image">) 
     !asset.stretchX &&
     !asset.is3d &&
     !asset.isClock &&
+    !asset.isCalendar &&
     !asset.numberLine &&
     !asset.mathTool &&
     typeof asset.viewBox !== "function"
@@ -6147,14 +6241,15 @@ export function getElementAsset(assetId: string): ElementAsset | undefined {
 
 /**
  * Drawings are made with empty space around them in their drawing area, which is trimmed off. Not on
- * elements whose shape changes with their settings (3D angle, clock hands, math tools) — those would
- * jump in size while being adjusted — and not on the text box, which isn't a drawing.
+ * elements whose shape changes with their settings (3D angle, clock hands, calendar dates, math tools) — those
+ * would jump in size while being adjusted — and not on the text box, which isn't a drawing.
  */
 export function canTrimDrawing(asset: ElementAsset): boolean {
   return (
     !asset.isTextBox &&
     !asset.is3d &&
     !asset.isClock &&
+    !asset.isCalendar &&
     !asset.numberLine &&
     !asset.mathTool &&
     typeof asset.viewBox !== "function"
