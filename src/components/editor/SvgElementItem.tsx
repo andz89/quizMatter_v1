@@ -7,7 +7,7 @@ import { ElementSvg } from "./ElementSvg";
 import { TextBoxContent } from "./TextBoxContent";
 import { DiagramBoxEditor, findDiagramBoxAt } from "./DiagramBoxEditor";
 import { DiagramBoxButtons } from "./DiagramBoxButtons";
-import { TableContent, tableCellAt } from "./TableContent";
+import { TableButtons, TableContent, tableCellAt } from "./TableContent";
 import { CORNERS, EDGE_HANDLES, type Corner, type EdgeHandle } from "./handles";
 import {
   clamp,
@@ -786,6 +786,9 @@ export const SvgElementItem = memo(function SvgElementItem({ slideId, element, i
       {/* "+" and × on every box of the selected diagram: last, so they sit on top of the element's own
           handles (a corner box's × is next to the diagram's corner handle). */}
       {showSelection && isOnlySelected && !isCropping && <DiagramBoxButtons slideId={slideId} element={element} />}
+      {showSelection && isOnlySelected && element.table && (
+        <TableButtons slideId={slideId} element={element} table={element.table} bounds={bounds} />
+      )}
     </div>
   );
 },

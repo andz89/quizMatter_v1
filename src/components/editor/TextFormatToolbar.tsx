@@ -152,7 +152,7 @@ function ToolButton({
 }
 
 // Sizes offered in the list; − and + step between them. All within FONT_SIZE_RANGE (see schema.ts).
-const FONT_SIZES = [12, 14, 16, 18, 20, 24, 28, 32, 36, 40, 44, 48, 56, 64, 72, 80, 96];
+export const FONT_SIZES = [12, 14, 16, 18, 20, 24, 28, 32, 36, 40, 44, 48, 56, 64, 72, 80, 96];
 
 /**
  * − / size / + with a list of `sizes`. The size is the largest the text gets: it still shrinks to fit
