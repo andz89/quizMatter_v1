@@ -44,7 +44,7 @@ import type { SubmissionStatus } from "./submissions";
 import { finishDraft } from "@/app/actions";
 import { isEmbedSlide } from "./embed";
 import { todayCalendarDate } from "./calendarDate";
-import { newTable } from "./table";
+import { newTable, type TableCellSpot } from "./table";
 import type { Photo, PresentationDetails, Presentation, ReviewerFields, Slide, SlideType, SvgElement } from "./schema";
 import { MAX_ITEM_COUNT, MAX_SLIDES, TOO_MANY_SLIDES_MESSAGE } from "./schema";
 
@@ -74,7 +74,9 @@ const DEFAULT_PHOTO_SIZE = 480;
 export type TextTarget =
   | { kind: "question"; slideId: string }
   | { kind: "option"; slideId: string; optionId: string }
-  | { kind: "textBox"; slideId: string; elementId: string };
+  | { kind: "textBox"; slideId: string; elementId: string }
+  // A table's cell. Only the table is named: the text size is the whole table's.
+  | { kind: "table"; slideId: string; elementId: string };
 
 /** A text's editor together with which text it is. */
 export type TextEditorEntry = { editor: Editor; target: TextTarget };
@@ -417,6 +419,10 @@ interface EditorState {
   // The diagram box being typed in on the slide (it is also the picked one), or null.
   editingDiagramBox: { elementId: string; path: DiagramBoxPath } | null;
   setEditingDiagramBox: (edit: { elementId: string; path: DiagramBoxPath } | null) => void;
+  // One cell picked in the selected table (a violet outline), or null. `typingAt` is set while typing in it: where
+  // the double-click was, on the screen. Only while that table is the one selected element.
+  pickedTableCell: (TableCellSpot & { elementId: string; typingAt?: { x: number; y: number } }) | null;
+  setPickedTableCell: (pick: EditorState["pickedTableCell"]) => void;
   // Group needs 2+ selected elements in the same box. Both act on the current slide's selection.
   groupSelectedElements: () => void;
   ungroupSelectedElements: () => void;
@@ -1291,6 +1297,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setPickedDiagramBox: (pick) => set({ pickedDiagramBox: pick, editingDiagramBox: null }),
   editingDiagramBox: null,
   setEditingDiagramBox: (edit) => set(edit ? { editingDiagramBox: edit, pickedDiagramBox: edit } : { editingDiagramBox: null }),
+  pickedTableCell: null,
+  setPickedTableCell: (pick) => set({ pickedTableCell: pick }),
 
   groupSelectedElements: () => {
     const { presentation, selectedSlideId, selectedElementIds } = get();
@@ -1373,6 +1381,12 @@ export const useEditorStore = create<EditorState>((set, get) => ({
           if (target.kind === "question") return { ...s, questionFontSize: fontSize };
           if (target.kind === "option") {
             return { ...s, options: s.options.map((o) => (o.id === target.optionId ? { ...o, fontSize } : o)) as typeof s.options };
+          }
+          if (target.kind === "table") {
+            return {
+              ...s,
+              elements: s.elements.map((el) => (el.id === target.elementId && el.table ? { ...el, table: { ...el.table, fontSize } } : el)),
+            };
           }
           return {
             ...s,

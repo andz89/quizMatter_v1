@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useEditorState, type ChainedCommands } from "@tiptap/react";
 import { useEditorStore, type TextEditorEntry, type TextTarget } from "@/lib/store";
 import { formatChain } from "@/lib/richText";
-import { DEFAULT_TEXT_COLOR, OPTION_FONT_SIZE, QUESTION_CONTAINER_ID, QUESTION_FONT_SIZE, TEXT_BOX_FONT_SIZE } from "@/lib/constants";
+import { DEFAULT_TEXT_COLOR, OPTION_FONT_SIZE, QUESTION_CONTAINER_ID, QUESTION_FONT_SIZE, TABLE_FONT_SIZE, TEXT_BOX_FONT_SIZE } from "@/lib/constants";
 import type { Presentation } from "@/lib/schema";
 import { EraserIcon, TextAlignCenterIcon, TextAlignEndIcon, TextAlignStartIcon } from "lucide-react";
 
@@ -37,8 +37,8 @@ export function TextFormatToolbar({ texts }: { texts: TextEditorEntry[] }) {
   const applyToAll = (command: (chain: ChainedCommands) => ChainedCommands) =>
     texts.forEach(({ editor }) => command(formatChain(editor)).run());
 
-  // The question and option boxes (not text box elements) can be cleared of text and pictures.
-  const boxes = texts.filter(({ target }) => target.kind !== "textBox");
+  // The question and option boxes (not text boxes or tables) can be cleared of text and pictures.
+  const boxes = texts.filter(({ target }) => target.kind !== "textBox" && target.kind !== "table");
 
   const handleClearAll = () => {
     boxes.forEach(({ editor, target }) => {
@@ -215,7 +215,8 @@ function chosenFontSize(presentation: Presentation, target: TextTarget): number 
     return option ? (option.fontSize ?? OPTION_FONT_SIZE) : null;
   }
   const element = slide.elements.find((el) => el.id === target.elementId);
-  return element ? (element.text?.fontSize ?? TEXT_BOX_FONT_SIZE) : null;
+  if (!element) return null;
+  return target.kind === "table" ? (element.table?.fontSize ?? TABLE_FONT_SIZE) : (element.text?.fontSize ?? TEXT_BOX_FONT_SIZE);
 }
 
 function Divider() {
