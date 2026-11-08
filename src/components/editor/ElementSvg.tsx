@@ -5,7 +5,7 @@ import { isPeopleArt, isPeopleArtLoaded, loadPeopleArt } from "@/lib/peopleArt";
 import { Spinner } from "@/components/Spinner";
 import { DEFAULT_TEXT_COLOR, GRADIENT_PREFIX, TABLE_CELL_FILL, TABLE_FONT_SIZE, TABLE_LINE_WIDTH, TEXT_BOX_FONT_SIZE, thumbnailUrl } from "@/lib/constants";
 import { isSafeColor } from "@/lib/schema";
-import type { TableSettings } from "@/lib/table";
+import { tableLinePositions, type TableSettings } from "@/lib/table";
 import { SlideText } from "./SlideText";
 
 interface ElementSvgProps {
@@ -98,28 +98,37 @@ const tableTracks = (sizes: number[] | undefined, count: number) =>
   sizes ? sizes.map((size) => `minmax(0, ${size}fr)`).join(" ") : `repeat(${count}, minmax(0, 1fr))`;
 
 /**
- * A table's grid. Its lines are the grid's color showing through the gaps between the white cells, so a gradient
- * works too. `renderCell` lets the editor put something else in a cell (the cell being typed in).
+ * A table's grid: white, with the cells laid out by CSS and the lines drawn over them as one SVG shape. Not as gaps
+ * between the cells: at the editor's zoom the browser rounds each cell's edge to a whole pixel, so some gaps came out
+ * twice as thick as others. `renderCell` lets the editor put something else in a cell (the cell being typed in).
  */
 export function TableGrid({
   table,
   color,
+  width,
+  height,
   renderCell,
 }: {
   table: TableSettings;
   color: string;
+  width: number;
+  height: number;
   renderCell?: (row: number, column: number) => ReactNode;
 }) {
   const fontSize = table.fontSize ?? TABLE_FONT_SIZE;
+  const gradientId = `table-${useId().replace(/[^a-zA-Z0-9_-]/g, "")}`;
+  const gradientStops = color.startsWith(GRADIENT_PREFIX) ? color.slice(GRADIENT_PREFIX.length).split(",") : null;
+  const lines = tableLinePositions({ x: 0, y: 0, width, height, table });
+  const path = [...lines.columns.map((x) => `M${x} 0V${height}`), ...lines.rows.map((y) => `M0 ${y}H${width}`)].join("");
   return (
     <div
-      className="grid h-full w-full select-none"
+      className="relative grid h-full w-full select-none"
       style={{
         gridTemplateColumns: tableTracks(table.columnSizes, table.rows[0].length),
         gridTemplateRows: tableTracks(table.rowSizes, table.rows.length),
         gap: TABLE_LINE_WIDTH,
         padding: TABLE_LINE_WIDTH,
-        background: toCssBackground(color),
+        background: TABLE_CELL_FILL,
       }}
     >
       {table.rows.flatMap((cells, row) =>
@@ -129,7 +138,7 @@ export function TableGrid({
             data-table-row={row}
             data-table-column={column}
             className="min-h-0 min-w-0 overflow-hidden px-2 py-1"
-            style={{ background: TABLE_CELL_FILL, color: DEFAULT_TEXT_COLOR }}
+            style={{ color: DEFAULT_TEXT_COLOR }}
           >
             {/* In the middle top to bottom, like a text box. */}
             {renderCell?.(row, column) ??
@@ -137,6 +146,17 @@ export function TableGrid({
           </div>
         )),
       )}
+      <svg className="pointer-events-none absolute inset-0 h-full w-full" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none">
+        {gradientStops && (
+          <defs>
+            <linearGradient id={gradientId} gradientUnits="userSpaceOnUse" x1="0" y1="0" x2={width} y2={height}>
+              <stop offset="0" stopColor={gradientStops[0]} />
+              <stop offset="1" stopColor={gradientStops[1]} />
+            </linearGradient>
+          </defs>
+        )}
+        <path d={path} fill="none" strokeWidth={TABLE_LINE_WIDTH} stroke={!isSafeColor(color) ? "none" : gradientStops ? `url(#${gradientId})` : color} />
+      </svg>
     </div>
   );
 }
@@ -244,7 +264,9 @@ function ElementDrawing({ assetId, color, settings = {}, onMeasure }: ElementSvg
   }
 
   // A placed table shows its cells (read-only here). Without its rows (the Elements panel tile) it draws its icon.
-  if (asset.isTable && settings.table) return <TableGrid table={settings.table} color={color} />;
+  if (asset.isTable && settings.table && settings.width !== undefined && settings.height !== undefined) {
+    return <TableGrid table={settings.table} color={color} width={settings.width} height={settings.height} />;
+  }
 
   const gradientStops = color.startsWith(GRADIENT_PREFIX) ? color.slice(GRADIENT_PREFIX.length).split(",") : null;
   const viewBox = getAssetViewBox(asset, settings);

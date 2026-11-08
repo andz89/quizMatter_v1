@@ -11,6 +11,7 @@ import {
   resizeTableLine,
   tableCellBox,
   tableColumnSizes,
+  tableLinePositions,
   withCellHtml,
   type TableElement,
   type TableSettings,
@@ -240,4 +241,13 @@ test("after a delete the pick stays inside what's left", () => {
   assert.deepEqual(pickAfterDelete(table, { row: 2, column: 1 }), { row: 1, column: 1 });
   assert.deepEqual(pickAfterDelete(table, { row: 0, column: 2 }), { row: 0, column: 1 });
   assert.deepEqual(pickAfterDelete(table, { row: 0, column: 0 }), { row: 0, column: 0 });
+});
+
+test("the line positions run down the middle of each line, around and between the cells", () => {
+  assert.deepEqual(tableLinePositions(placed(namedTable(1, 2), { width: 102, height: 52 })), { columns: [1, 51, 101], rows: [1, 51] });
+});
+
+test("the line positions follow dragged sizes", () => {
+  const table = { ...namedTable(1, 2), columnSizes: [150, 50] };
+  assert.deepEqual(tableLinePositions(placed(table, { width: 206, height: 52 })).columns, [1, 153, 205]);
 });

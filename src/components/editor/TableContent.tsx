@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { useEditorStore } from "@/lib/store";
-import { DEFAULT_TEXT_COLOR, TABLE_COLUMNS, TABLE_FONT_SIZE, TABLE_LINE_WIDTH, TABLE_ROWS } from "@/lib/constants";
+import { DEFAULT_TEXT_COLOR, TABLE_COLUMNS, TABLE_FONT_SIZE, TABLE_ROWS } from "@/lib/constants";
 import type { Size } from "@/lib/geometry";
 import {
   addTableColumn,
@@ -13,6 +13,7 @@ import {
   removeTableRow,
   resizeTableLine,
   tableCellBox,
+  tableLinePositions,
   withCellHtml,
   type TableCellSpot,
   type TableElement,
@@ -102,7 +103,7 @@ export function TableContent({ slideId, element, table }: TableProps) {
     );
   };
 
-  return <TableGrid table={table} color={element.color} renderCell={renderCell} />;
+  return <TableGrid table={table} color={element.color} width={element.width} height={element.height} renderCell={renderCell} />;
 }
 
 /**
@@ -139,10 +140,10 @@ export function TableLines({ slideId, element, table, bounds }: TableProps & { b
     drag.current = null;
   };
 
+  const lines = tableLinePositions(placed);
   const line = (axis: Axis, index: number) => {
     const isColumn = axis === "column";
-    const cell = tableCellBox(placed, isColumn ? { row: 0, column: index } : { row: index, column: 0 });
-    const middle = (isColumn ? cell.left + cell.width : cell.top + cell.height) + TABLE_LINE_WIDTH / 2;
+    const middle = (isColumn ? lines.columns : lines.rows)[index + 1];
     return (
       <div
         key={`${axis}${index}`}

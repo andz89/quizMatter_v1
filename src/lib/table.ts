@@ -146,6 +146,15 @@ export function tableCellBox(element: TableElement, { row, column }: TableCellSp
   return { left: startOf(columns, column), top: startOf(rows, row), width: columns[column], height: rows[row] };
 }
 
+/** Where the middle of each of the table's lines is, in px: around and between the cells. */
+export function tableLinePositions(element: TableElement) {
+  const middles = (sizes: number[]) => {
+    let at = TABLE_LINE_WIDTH / 2;
+    return [at, ...sizes.map((size) => (at += size + TABLE_LINE_WIDTH))];
+  };
+  return { columns: middles(tableColumnSizes(element)), rows: middles(tableRowSizes(element)) };
+}
+
 /** A picked cell after its row or column was deleted from `table`: the same place, or the last one if that's gone. */
 export function pickAfterDelete(table: TableSettings, { row, column }: TableCellSpot): TableCellSpot {
   return { row: Math.min(row, table.rows.length - 1), column: Math.min(column, table.rows[0].length - 1) };

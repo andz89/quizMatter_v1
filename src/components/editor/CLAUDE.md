@@ -134,8 +134,9 @@ The "Table" tile in the Elements panel. Design: `docs/superpowers/specs/2026-11-
 `src/lib/table.ts`; browser test: `e2e/table-element.mjs`. When changing them, keep these rules:
 
 - **One grid everywhere:** `TableGrid` (`ElementSvg.tsx`) draws a table in the editor, small pictures, presenting and
-  drag previews, each cell a read-only `SlideText`. Its lines are the element's Color showing through 2 px gaps between
-  white cells, so a gradient works. `tableCellBox` must match that layout: it places the picked cell's outline.
+  drag previews, each cell a read-only `SlideText`. Its lines are one SVG shape over the cells (`tableLinePositions`),
+  in the element's Color, so a gradient works. Don't draw them as gaps between filled cells: at the editor's CSS zoom
+  the browser rounds each cell's edge to a whole pixel, so some lines came out 1 px and others 2 px.
 - **Only the cell being typed in has a text editor** (`TextBoxContent` inside `TableContent`), never one per cell: a
   13 × 13 times table would be far too heavy.
 - **Picked / typing cell** is UI state in the store (`pickedTableCell`; `typingAt` is set while typing), never saved.

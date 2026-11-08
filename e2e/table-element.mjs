@@ -123,6 +123,57 @@ try {
   const wider = await size();
   check("the table got one column wider", Math.abs(wider.width - (before.width * 4) / 3) <= 2, JSON.stringify({ before, wider }));
 
+  // Every line looks the same weight at the editor's zoom: counted from the real pixels, along an empty row and column.
+  const lineInk = async () => {
+    const box = await grid.boundingBox();
+    // 1 px extra, so the last line isn't cut by the picture's edge (the selection's dashes start further out).
+    const shot = await page.screenshot({ clip: { x: box.x, y: box.y, width: box.width + 1, height: box.height + 1 } });
+    return page.evaluate(async (png) => {
+      const image = new Image();
+      image.src = `data:image/png;base64,${png}`;
+      await image.decode();
+      const canvas = document.createElement("canvas");
+      canvas.width = image.width;
+      canvas.height = image.height;
+      const context = canvas.getContext("2d");
+      context.drawImage(image, 0, 0);
+      const { data } = context.getImageData(0, 0, image.width, image.height);
+      const ink = (x, y) => 1 - data[(y * image.width + x) * 4 + 1] / 255;
+      const lines = (length, at) => {
+        const found = [];
+        let sum = 0;
+        for (let i = 0; i < length; i++) {
+          const value = at(i);
+          if (value > 0.04) sum += value;
+          else if (sum > 0) {
+            found.push(Math.round(sum * 100) / 100);
+            sum = 0;
+          }
+        }
+        if (sum > 0) found.push(Math.round(sum * 100) / 100);
+        return found;
+      };
+      const x = Math.round(image.width * 0.9);
+      const y = Math.round(image.height * 0.9);
+      return { rows: lines(image.height, (i) => ink(x, i)), columns: lines(image.width, (i) => ink(i, y)) };
+    }, shot.toString("base64"));
+  };
+  await page.mouse.move(5, 5);
+  const ink = await lineInk();
+  const spread = (list) => Math.max(...list) - Math.min(...list);
+  check("the row lines are all the same weight", ink.rows.length === 5 && spread(ink.rows) <= 0.5, JSON.stringify(ink.rows));
+  check("the column lines are all the same weight", ink.columns.length === 5 && spread(ink.columns) <= 0.5, JSON.stringify(ink.columns));
+
+  // The same at a very different zoom.
+  const zoomSlider = page.locator('input[type="range"]').last();
+  await zoomSlider.fill("0.63");
+  await page.waitForTimeout(300);
+  const zoomedInk = await lineInk();
+  check("the row lines are the same weight at another zoom", zoomedInk.rows.length === 5 && spread(zoomedInk.rows) <= 0.5, JSON.stringify(zoomedInk.rows));
+  check("the column lines are the same weight at another zoom", zoomedInk.columns.length === 5 && spread(zoomedInk.columns) <= 0.5, JSON.stringify(zoomedInk.columns));
+  await zoomSlider.fill("0.98");
+  await page.waitForTimeout(300);
+
   // The Table menu acts on the picked cell.
   await cell(0, 0).click();
   await menu.click();

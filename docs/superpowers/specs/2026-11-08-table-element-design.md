@@ -59,9 +59,9 @@ table: {
 
 - **`src/lib/table.ts`** holds the math, with tests and no React: `newTable`, `addTableRow`, `removeTableRow`,
   `addTableColumn`, `removeTableColumn`, `withCellHtml`, `nextTableCell`, `tableCellBox`.
-- **Drawing:** `TableGrid` in `ElementSvg.tsx` is a CSS grid. Its lines are the grid's background showing through 2 px
-  gaps between white cells, so a gradient works. Each cell is a read-only `SlideText`, so a table looks the same in
-  the editor, thumbnails, presenting and drag previews.
+- **Drawing:** `TableGrid` in `ElementSvg.tsx` is a CSS grid on white, with its 2 px lines drawn over the cells as one
+  SVG shape, so a gradient works and every line has the same weight at any zoom. Each cell is a read-only `SlideText`,
+  so a table looks the same in the editor, thumbnails, presenting and drag previews.
 - **Typing:** only the cell being typed in has a text editor, by reusing `TextBoxContent`. A 13 × 13 table would be
   far too heavy with 169 editors.
 - **Picking:** one piece of UI state, `pickedTableCell` (`elementId`, `row`, `column`, and `typingAt` while typing),
