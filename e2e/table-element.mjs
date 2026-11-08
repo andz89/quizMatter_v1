@@ -212,6 +212,65 @@ try {
   await page.keyboard.press("Control+s");
   check("saved: the table's text size", await waitForSaved((t) => t[0]?.table.fontSize === 28));
 
+  // Dragging a column's or row's line changes only that one, like Excel.
+  const widths = () => Promise.all([0, 1, 2].map(async (c) => (await cell(0, c).boundingBox()).width));
+  const heights = () => Promise.all([0, 1].map(async (r) => (await cell(r, 0).boundingBox()).height));
+  const near = (a, b) => Math.abs(a - b) <= 3;
+  async function dragLine(title, index, dx, dy) {
+    const box = await page.locator(`[title="${title}"]`).nth(index).boundingBox();
+    // Near the start of the line, in the first row or column: where lines cross, a row's line is on top.
+    const [x, y] = [box.x + Math.min(box.width / 2, 20), box.y + Math.min(box.height / 2, 20)];
+    await page.mouse.move(x, y);
+    await page.mouse.down();
+    await page.mouse.move(x + dx / 2, y + dy / 2);
+    await page.mouse.move(x + dx, y + dy);
+    await page.mouse.up();
+  }
+  const widthsBefore = await widths();
+  const tableBefore = await size();
+  await page.waitForTimeout(UNDO_STEP_MS);
+  await dragLine("Change column width", 0, 80, 0);
+  const widthsAfter = await widths();
+  const tableAfter = await size();
+  check("dragging a column's line makes it wider", near(widthsAfter[0], widthsBefore[0] + 80), JSON.stringify({ widthsBefore, widthsAfter }));
+  check("the other columns keep their width", near(widthsAfter[1], widthsBefore[1]) && near(widthsAfter[2], widthsBefore[2]));
+  check("the table got wider by the same amount", near(tableAfter.width, tableBefore.width + 80), JSON.stringify({ tableBefore, tableAfter }));
+  check("still selected after dragging a line", (await plusRow.count()) === 1);
+
+  const heightsBefore = await heights();
+  await page.waitForTimeout(UNDO_STEP_MS);
+  await dragLine("Change row height", 0, 0, -20);
+  const heightsAfter = await heights();
+  check("dragging a row's line makes it shorter", near(heightsAfter[0], heightsBefore[0] - 20), JSON.stringify({ heightsBefore, heightsAfter }));
+  check("the other row keeps its height", near(heightsAfter[1], heightsBefore[1]));
+
+  // One undo takes back one whole drag.
+  await page.waitForTimeout(UNDO_STEP_MS);
+  await page.keyboard.press("Control+z");
+  await page.waitForTimeout(UNDO_STEP_MS);
+  check("one undo takes back the whole row drag", near((await heights())[0], heightsBefore[0]));
+  await page.waitForTimeout(UNDO_STEP_MS);
+  await dragLine("Change row height", 0, 0, -20);
+
+  await page.screenshot({ path: SHOTS + "table-element-sized.png" });
+  await page.keyboard.press("Control+s");
+  check(
+    "saved: the dragged sizes",
+    await waitForSaved((t) => t[0]?.table.columnSizes?.length === 3 && t[0]?.table.rowSizes?.length === 4),
+  );
+  await page.reload();
+  await grid.getByText("Name").waitFor();
+  const widthsLoaded = await widths();
+  check("after reload the columns keep their sizes", widthsAfter.every((w, i) => near(w, widthsLoaded[i])), JSON.stringify({ widthsAfter, widthsLoaded }));
+
+  // A click right on a cell still picks it, and the lines are gone while typing.
+  await grid.click({ position: { x: 300, y: 60 } });
+  await cell(1, 1).dblclick();
+  await editable.waitFor();
+  check("no draggable lines while typing", (await page.locator('[title="Change column width"]').count()) === 0);
+  await page.keyboard.press("Escape");
+  await page.waitForFunction(() => !document.querySelector('[contenteditable="true"]'));
+
   // Near the bottom of the slide: a new row stops at the edge.
   const moved = await savedTables();
   await api(`/rest/v1/slides?presentation_id=eq.${presentationId}&id=eq.s1`, {
@@ -226,6 +285,14 @@ try {
   await page.waitForFunction(() => document.querySelectorAll('[data-slide-id="s1"] [data-table-row]').length === 15);
   const stillAtEdge = await size();
   check("at the slide's bottom edge a new row doesn't make it taller", atEdge.height === stillAtEdge.height, JSON.stringify({ atEdge, stillAtEdge }));
+
+  // At the edge a row can't make the table taller, so it takes room from the row under it.
+  const edgeBefore = await heights();
+  await dragLine("Change row height", 0, 0, 15);
+  const edgeAfter = await heights();
+  check("at the edge a dragged row grows", near(edgeAfter[0], edgeBefore[0] + 15), JSON.stringify({ edgeBefore, edgeAfter }));
+  check("at the edge the next row gives up the room", near(edgeAfter[1], edgeBefore[1] - 15));
+  check("at the edge the table's height stays", near((await size()).height, stillAtEdge.height));
 
   // Present shows the text.
   await page.locator('button[title="Present (fullscreen)"]').first().click();

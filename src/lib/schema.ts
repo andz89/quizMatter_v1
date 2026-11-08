@@ -346,7 +346,9 @@ export const svgElementSchema = z.object({
   text: z.object({ html: htmlSchema, fontSize: fontSizeSchema.optional() }).optional(),
   // Only used by the table: its rows top to bottom, each row's cells left to right (every row has the same number).
   // A cell's text is HTML from the text editor, like a text box's. fontSize is the largest the text gets, for the
-  // whole table (missing = TABLE_FONT_SIZE). Added in DATA_VERSION 3.
+  // whole table (missing = TABLE_FONT_SIZE). columnSizes and rowSizes say how big each column and row is compared with
+  // the others, one number each (missing = all the same); they're parts of the whole, so resizing the table keeps its
+  // proportions. Added in DATA_VERSION 3.
   table: z
     .object({
       rows: z
@@ -354,8 +356,14 @@ export const svgElementSchema = z.object({
         .min(TABLE_ROWS.min)
         .max(TABLE_ROWS.max),
       fontSize: fontSizeSchema.optional(),
+      columnSizes: z.array(z.number().positive()).max(TABLE_COLUMNS.max).optional(),
+      rowSizes: z.array(z.number().positive()).max(TABLE_ROWS.max).optional(),
     })
     .refine(({ rows }) => rows.every((cells) => cells.length === rows[0].length), "Every row of a table has the same number of cells.")
+    .refine(
+      ({ rows, columnSizes, rowSizes }) => (!columnSizes || columnSizes.length === rows[0]?.length) && (!rowSizes || rowSizes.length === rows.length),
+      "A table has one size for each column and row.",
+    )
     .optional(),
   // Only used by custom drawings (assetId CUSTOM_SVG_ID, e.g. drawn by Claude): the SVG markup. Shown
   // as an image, so nothing inside it can run.

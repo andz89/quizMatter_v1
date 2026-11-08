@@ -93,6 +93,10 @@ function SlidePhoto({ src }: { src: string }) {
   );
 }
 
+// A table's columns or rows for CSS: its saved sizes as shares of the room, or all the same.
+const tableTracks = (sizes: number[] | undefined, count: number) =>
+  sizes ? sizes.map((size) => `minmax(0, ${size}fr)`).join(" ") : `repeat(${count}, minmax(0, 1fr))`;
+
 /**
  * A table's grid. Its lines are the grid's color showing through the gaps between the white cells, so a gradient
  * works too. `renderCell` lets the editor put something else in a cell (the cell being typed in).
@@ -111,8 +115,8 @@ export function TableGrid({
     <div
       className="grid h-full w-full select-none"
       style={{
-        gridTemplateColumns: `repeat(${table.rows[0].length}, minmax(0, 1fr))`,
-        gridTemplateRows: `repeat(${table.rows.length}, minmax(0, 1fr))`,
+        gridTemplateColumns: tableTracks(table.columnSizes, table.rows[0].length),
+        gridTemplateRows: tableTracks(table.rowSizes, table.rows.length),
         gap: TABLE_LINE_WIDTH,
         padding: TABLE_LINE_WIDTH,
         background: toCssBackground(color),

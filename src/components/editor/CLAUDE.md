@@ -148,7 +148,13 @@ The "Table" tile in the Elements panel. Design: `docs/superpowers/specs/2026-11-
 - **Adding and deleting:** the two "+" (`TableButtons`) add at the end, the toolbar's "Table" menu (`TablePanel`) acts
   on the picked cell or else the last one, then picks the new cell. A new row or column keeps the others' size, so the
   table grows, up to the edge of its box (`addTableRow` / `addTableColumn`); from there they share the room.
-- **All rows are the same height and all columns the same width.** A cell keeps its size and its text shrinks to fit.
+- **Dragging a line, like Excel** (`TableLines`, drawn under the element's handles, gone while typing): the line on a
+  column's right side or a row's bottom side changes only that one, and the table grows or shrinks by it; at the
+  box's edge the rest comes out of the next one (`resizeTableLine`, always from the table as the drag started). Saved
+  as `columnSizes` / `rowSizes`, numbers that only count compared with each other (missing = all the same, until a
+  line is first dragged), so resizing the whole table keeps its proportions. A new column or row copies the size of
+  the one before it. `tableCellBox` and `TableGrid` both read them.
+- **A cell keeps its size and its text shrinks to fit.**
 - **Text size is the whole table's** (`table.fontSize`; `TextTarget` kind `table`), from the toolbar or the text
   format bar while typing. The other text styles are each cell's own, in its HTML.
 - **Limits:** `TABLE_ROWS` and `TABLE_COLUMNS` (`constants.ts`), checked by the `table` zod schema. Never flipped or

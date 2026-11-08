@@ -8,11 +8,14 @@ import {
   pickAfterDelete,
   removeTableColumn,
   removeTableRow,
+  resizeTableLine,
   tableCellBox,
+  tableColumnSizes,
   withCellHtml,
   type TableElement,
   type TableSettings,
 } from "./table";
+import { TABLE_CELL_MIN } from "./constants";
 
 const SLIDE = { width: 1280, height: 720 };
 // A table with its cells named by place: "0:0", "0:1", …
@@ -23,7 +26,7 @@ function namedTable(rows: number, columns: number): TableSettings {
     ),
   };
 }
-const placed = (table: TableSettings, at: Partial<TableElement> = {}): TableElement => ({
+const placed = (table: TableSettings, at: Partial<TableElement> & { rotation?: number } = {}): TableElement & { rotation?: number } => ({
   x: 0,
   y: 0,
   width: 600,
@@ -129,6 +132,107 @@ test("a cell's box sits between the table's lines", () => {
   const element = placed(namedTable(2, 2), { width: 102, height: 102 });
   assert.deepEqual(tableCellBox(element, { row: 0, column: 0 }), { left: 2, top: 2, width: 48, height: 48 });
   assert.deepEqual(tableCellBox(element, { row: 1, column: 1 }), { left: 52, top: 52, width: 48, height: 48 });
+});
+
+// A 3-column table 308 wide: 3 cells of 100 and 4 lines of 2, the same for rows.
+const even = (at: Partial<TableElement> & { rotation?: number } = {}) => placed(namedTable(3, 3), { width: 308, height: 308, ...at });
+
+test("dragging a column's line changes only that column and the table's width", () => {
+  const patch = resizeTableLine(even(), "column", 0, 50, SLIDE);
+  assert.deepEqual(patch.table.columnSizes, [150, 100, 100]);
+  assert.equal(patch.width, 358);
+  assert.equal(patch.height, 308);
+  assert.equal(patch.x, 0);
+  assert.equal(patch.table.rowSizes, undefined);
+});
+
+test("dragging a row's line changes only that row and the table's height", () => {
+  const patch = resizeTableLine(even(), "row", 1, -40, SLIDE);
+  assert.deepEqual(patch.table.rowSizes, [100, 60, 100]);
+  assert.equal(patch.height, 268);
+  assert.equal(patch.width, 308);
+});
+
+test("a column or row can't be dragged smaller than the smallest cell", () => {
+  const patch = resizeTableLine(even(), "column", 1, -500, SLIDE);
+  assert.deepEqual(patch.table.columnSizes, [100, TABLE_CELL_MIN, 100]);
+  assert.equal(patch.width, 308 - (100 - TABLE_CELL_MIN));
+});
+
+test("at the box's edge the extra room comes from the next column", () => {
+  const patch = resizeTableLine(even({ x: 1280 - 308 }), "column", 0, 30, SLIDE);
+  assert.deepEqual(patch.table.columnSizes, [130, 70, 100]);
+  assert.equal(patch.width, 308);
+});
+
+test("near the box's edge the table grows first, then takes from the next column", () => {
+  const patch = resizeTableLine(even({ x: 1280 - 318 }), "column", 0, 30, SLIDE);
+  assert.deepEqual(patch.table.columnSizes, [130, 80, 100]);
+  assert.equal(patch.width, 318);
+});
+
+test("at the box's edge the next column isn't squeezed below the smallest cell", () => {
+  const patch = resizeTableLine(even({ x: 1280 - 308 }), "column", 0, 500, SLIDE);
+  assert.deepEqual(patch.table.columnSizes, [180, TABLE_CELL_MIN, 100]);
+});
+
+test("at the box's edge the last column has nothing to take from and stays", () => {
+  const patch = resizeTableLine(even({ x: 1280 - 308 }), "column", 2, 30, SLIDE);
+  assert.deepEqual(patch.table.columnSizes, [100, 100, 100]);
+  assert.equal(patch.width, 308);
+});
+
+test("a turned table keeps its left side still while a column changes", () => {
+  const start = even({ rotation: 90 });
+  const patch = resizeTableLine(start, "column", 0, 40, SLIDE);
+  // Turned 90°, its left side is its top on the screen: the middle moves down by half the growth.
+  const middleY = patch.y + patch.height / 2;
+  assert.ok(Math.abs(middleY - (start.y + start.height / 2 + 20)) < 0.001);
+  assert.ok(Math.abs(patch.x + patch.width / 2 - (start.x + start.width / 2)) < 0.001);
+});
+
+test("a dragged size shows in the cell's box", () => {
+  const { table, width } = resizeTableLine(even(), "column", 0, 50, SLIDE);
+  const element = placed(table, { width, height: 308 });
+  assert.deepEqual(tableCellBox(element, { row: 0, column: 0 }), { left: 2, top: 2, width: 150, height: 100 });
+  assert.deepEqual(tableCellBox(element, { row: 0, column: 1 }), { left: 154, top: 2, width: 100, height: 100 });
+});
+
+test("sizes stay in proportion when the whole table is resized", () => {
+  const table = { ...namedTable(1, 2), columnSizes: [300, 100] };
+  assert.deepEqual(tableColumnSizes(placed(table, { width: 206 })), [150, 50]);
+});
+
+test("a table too small for its lines still has positive sizes", () => {
+  assert.ok(tableColumnSizes(placed(namedTable(1, 15), { width: 24 })).every((size) => size > 0));
+});
+
+test("a new column takes the size of the column on its left, and the table grows by it", () => {
+  const table = { ...namedTable(2, 2), columnSizes: [300, 100] };
+  const patch = addTableColumn(placed(table, { width: 400 }), 1, SLIDE);
+  assert.deepEqual(patch.table.columnSizes, [300, 300, 100]);
+  assert.equal(patch.width, 700);
+});
+
+test("a new first row takes the size of the row below it", () => {
+  const table = { ...namedTable(2, 2), rowSizes: [50, 150] };
+  const patch = addTableRow(placed(table, { height: 200 }), 0, SLIDE);
+  assert.deepEqual(patch.table.rowSizes, [50, 50, 150]);
+  assert.equal(patch.height, 250);
+});
+
+test("deleting a sized column takes its size away", () => {
+  const table = { ...namedTable(2, 2), columnSizes: [300, 100] };
+  const patch = removeTableColumn(placed(table, { width: 400 }), 0);
+  assert.deepEqual(patch.table.columnSizes, [100]);
+  assert.equal(patch.width, 100);
+});
+
+test("deleting a sized row takes its size away", () => {
+  const table = { ...namedTable(2, 2), rowSizes: [50, 150] };
+  const patch = removeTableRow(placed(table, { height: 200 }), 1);
+  assert.deepEqual(patch.table.rowSizes, [50]);
+  assert.equal(patch.height, 50);
 });
 
 test("after a delete the pick stays inside what's left", () => {

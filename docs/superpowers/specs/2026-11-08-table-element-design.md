@@ -29,7 +29,10 @@ A table a teacher places on a slide, types into, and grows with more rows and co
 - **Rows keep their size when one is added.** A new row makes the table one row taller, and a new column one column
   wider, until it reaches the edge of its box or slide. From there it stops growing and the rows or columns share the
   room. Deleting a row or column makes the table that much smaller.
-- **All rows are the same height and all columns the same width.** Moving the lines by hand isn't part of this feature.
+- **Dragging a line, like Excel.** With the table selected, the line on a column's right side or a row's bottom side
+  can be dragged. Only that column or row changes, down to 20 px, and the table grows or shrinks by it. At the edge of
+  its box the table can't grow, so the rest comes out of the next column or row. A new column or row copies the size
+  of the one before it.
 - **A cell keeps its size; text shrinks.** This is the app's rule for text boxes and diagram boxes.
 - **Limits:** 1–15 rows, 1–15 columns (a times table up to 12 needs 13 × 13). The + and Add buttons stop at the limit;
   Delete stops at 1. Zod refuses anything else.
@@ -42,7 +45,8 @@ The element gets one new optional field, `table`:
 ```
 table: {
   rows: [ [ { html: "<p>Text</p>" }, … ], … ],   // top to bottom, left to right; every row has the same number of cells
-  fontSize?: number                              // the largest the text gets; missing = 24
+  fontSize?: number,                             // the largest the text gets; missing = 24
+  columnSizes?: number[], rowSizes?: number[]    // how big each is compared with the others; missing = all the same
 }
 ```
 
@@ -87,4 +91,4 @@ database).
 
 ## Left out on purpose
 
-Merged cells, a cell's own background, moving column and row lines by hand, a header row style, Claude making tables.
+Merged cells, a cell's own background, a header row style, Claude making tables.

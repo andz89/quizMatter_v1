@@ -108,6 +108,8 @@ export const DIAGRAM_FONT_SIZES = [6, 8, 10, 12, 14, 16, 18, 20, 24, 28, 32, 36]
 export const TABLE_ROWS = { min: 1, max: 15 };
 export const TABLE_COLUMNS = { min: 1, max: 15 };
 export const TABLE_LINE_WIDTH = 2;
+// The smallest a column or row can be dragged to, in px.
+export const TABLE_CELL_MIN = 20;
 export const TABLE_FONT_SIZE = 24;
 export const TABLE_CELL_FILL = "#FFFFFF";
 // A box background or border set to this is left out (see-through box / no border).

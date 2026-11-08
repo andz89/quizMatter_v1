@@ -7,7 +7,7 @@ import { ElementSvg } from "./ElementSvg";
 import { TextBoxContent } from "./TextBoxContent";
 import { DiagramBoxEditor, findDiagramBoxAt } from "./DiagramBoxEditor";
 import { DiagramBoxButtons } from "./DiagramBoxButtons";
-import { TableButtons, TableContent, tableCellAt } from "./TableContent";
+import { TableButtons, TableContent, TableLines, tableCellAt } from "./TableContent";
 import { CORNERS, EDGE_HANDLES, type Corner, type EdgeHandle } from "./handles";
 import {
   clamp,
@@ -715,6 +715,11 @@ export const SvgElementItem = memo(function SvgElementItem({ slideId, element, i
       {/* A picked diagram box: its own outline and handles (under the element's own handles). */}
       {showSelection && isOnlySelected && !isCropping && (
         <DiagramBoxEditor slideId={slideId} element={element} bounds={bounds} overhang={overhang} />
+      )}
+
+      {/* A selected table's lines: before the handles, so the handles stay on top of them. */}
+      {showSelection && isOnlySelected && element.table && (
+        <TableLines slideId={slideId} element={element} table={element.table} bounds={bounds} />
       )}
 
       {showSelection && isOnlySelected && canRotate && !isCropping && (

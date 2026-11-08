@@ -114,7 +114,7 @@
   gives no date). Names are always English, so the server and every browser draw the same. No imports, so tests
   and `schema.ts` load it. Tests: `calendarDate.test.ts`.
 - `table.ts`: the table element's math (an element's `table`, DATA_VERSION 3, `20261231001100_table_element.sql`):
-  a new table, adding and deleting rows and columns (with the table's new size), a cell's new text, Tab's next cell and
+  a new table, adding, deleting and dragging rows and columns (with the table's new size), a cell's new text, Tab's next cell and
   a cell's place in px. Each makes new arrays, so a changed slide is saved. How the editor uses it:
   `src/components/editor/CLAUDE.md`, "Tables". Tests: `table.test.ts`.
 - `age.ts`: the birthday rules (`MIN_AGE` 18, `MAX_AGE` 100), `ageOn` (the age in whole years on a date),

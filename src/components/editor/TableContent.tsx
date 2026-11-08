@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useEditorStore } from "@/lib/store";
-import { DEFAULT_TEXT_COLOR, TABLE_COLUMNS, TABLE_FONT_SIZE, TABLE_ROWS } from "@/lib/constants";
+import { DEFAULT_TEXT_COLOR, TABLE_COLUMNS, TABLE_FONT_SIZE, TABLE_LINE_WIDTH, TABLE_ROWS } from "@/lib/constants";
 import type { Size } from "@/lib/geometry";
 import {
   addTableColumn,
@@ -11,9 +11,11 @@ import {
   pickAfterDelete,
   removeTableColumn,
   removeTableRow,
+  resizeTableLine,
   tableCellBox,
   withCellHtml,
   type TableCellSpot,
+  type TableElement,
   type TableSettings,
 } from "@/lib/table";
 import type { SvgElement } from "@/lib/schema";
@@ -26,6 +28,10 @@ import { TextBoxContent } from "./TextBoxContent";
 const CURSOR_AT_END = { x: -1, y: -1 };
 // How far past the table's edge a "+" sits, so it never covers the resize handles.
 const PLUS_OUT = 20;
+// How wide a table line can be grabbed, in px.
+const LINE_GRAB = 8;
+
+type Axis = "column" | "row";
 
 const stop = (e: React.SyntheticEvent) => e.stopPropagation();
 
@@ -97,6 +103,74 @@ export function TableContent({ slideId, element, table }: TableProps) {
   };
 
   return <TableGrid table={table} color={element.color} renderCell={renderCell} />;
+}
+
+/**
+ * The lines of the selected table that can be dragged, like Excel: each column's right side and each row's bottom
+ * side. Drawn under the element's own handles, so the outer lines still give way to them. Gone while typing, so a
+ * click near a line lands in the cell.
+ */
+export function TableLines({ slideId, element, table, bounds }: TableProps & { bounds: Size }) {
+  const updateElement = useEditorStore((s) => s.updateElement);
+  const zoom = useEditorStore((s) => s.zoom);
+  const isTyping = useEditorStore((s) => s.pickedTableCell?.elementId === element.id && !!s.pickedTableCell.typingAt);
+  // The table as the drag started: every move is worked out from it, so going back undoes what the drag did.
+  const drag = useRef<{ axis: Axis; index: number; pointerX: number; pointerY: number; start: SvgElement & TableElement } | null>(null);
+  if (isTyping) return null;
+  const placed = { ...element, table };
+
+  const startDrag = (e: React.PointerEvent<HTMLDivElement>, axis: Axis, index: number) => {
+    e.stopPropagation();
+    drag.current = { axis, index, pointerX: e.clientX, pointerY: e.clientY, start: placed };
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+  const moveDrag = (e: React.PointerEvent<HTMLDivElement>) => {
+    const state = drag.current;
+    if (!state) return;
+    e.stopPropagation();
+    // On a turned table, the mouse movement is turned back first so it lines up with the table's own sides.
+    const angle = ((state.start.rotation ?? 0) * Math.PI) / 180;
+    const screenX = (e.clientX - state.pointerX) / zoom;
+    const screenY = (e.clientY - state.pointerY) / zoom;
+    const delta = state.axis === "column" ? screenX * Math.cos(angle) + screenY * Math.sin(angle) : -screenX * Math.sin(angle) + screenY * Math.cos(angle);
+    updateElement(slideId, element.id, resizeTableLine(state.start, state.axis, state.index, delta, bounds));
+  };
+  const stopDrag = () => {
+    drag.current = null;
+  };
+
+  const line = (axis: Axis, index: number) => {
+    const isColumn = axis === "column";
+    const cell = tableCellBox(placed, isColumn ? { row: 0, column: index } : { row: index, column: 0 });
+    const middle = (isColumn ? cell.left + cell.width : cell.top + cell.height) + TABLE_LINE_WIDTH / 2;
+    return (
+      <div
+        key={`${axis}${index}`}
+        title={isColumn ? "Change column width" : "Change row height"}
+        onPointerDown={(e) => startDrag(e, axis, index)}
+        onPointerMove={moveDrag}
+        onPointerUp={stopDrag}
+        onPointerCancel={stopDrag}
+        onClick={stop}
+        onDoubleClick={stop}
+        className={`group pointer-events-auto absolute flex items-center justify-center ${isColumn ? "cursor-col-resize" : "cursor-row-resize"}`}
+        style={
+          isColumn
+            ? { left: middle - LINE_GRAB / 2, top: 0, width: LINE_GRAB, height: element.height }
+            : { left: 0, top: middle - LINE_GRAB / 2, width: element.width, height: LINE_GRAB }
+        }
+      >
+        <div className={`bg-accent opacity-0 group-hover:opacity-100 ${isColumn ? "h-full w-0.5" : "h-0.5 w-full"}`} />
+      </div>
+    );
+  };
+
+  return (
+    <>
+      {table.rows[0].map((_, column) => line("column", column))}
+      {table.rows.map((_, row) => line("row", row))}
+    </>
+  );
 }
 
 /** One "+" next to the table, in the same look as a diagram's. */
