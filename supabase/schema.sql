@@ -1741,7 +1741,7 @@ CREATE OR REPLACE FUNCTION "public"."current_data_version"() RETURNS integer
     SET "search_path" TO ''
     AS $$
   -- Same as DATA_VERSION in src/lib/schema.ts.
-  select 2;
+  select 3;
 $$;
 
 

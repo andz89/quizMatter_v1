@@ -5,6 +5,8 @@ import {
   CYCLE_STEPS,
   DIAGRAM_BOX_HEIGHT,
   DIAGRAM_BOX_POSITION_MAX,
+  TABLE_COLUMNS,
+  TABLE_ROWS,
   DIAGRAM_BORDER_WIDTH,
   DIAGRAM_BOX_WIDTH,
   DIAGRAM_FONT_SIZE,
@@ -342,6 +344,19 @@ export const svgElementSchema = z.object({
   // Only used by the text box: its styled text, as HTML from the text editor (empty string = no
   // text), and its chosen font size (missing = TEXT_BOX_FONT_SIZE).
   text: z.object({ html: htmlSchema, fontSize: fontSizeSchema.optional() }).optional(),
+  // Only used by the table: its rows top to bottom, each row's cells left to right (every row has the same number).
+  // A cell's text is HTML from the text editor, like a text box's. fontSize is the largest the text gets, for the
+  // whole table (missing = TABLE_FONT_SIZE). Added in DATA_VERSION 3.
+  table: z
+    .object({
+      rows: z
+        .array(z.array(z.object({ html: htmlSchema })).min(TABLE_COLUMNS.min).max(TABLE_COLUMNS.max))
+        .min(TABLE_ROWS.min)
+        .max(TABLE_ROWS.max),
+      fontSize: fontSizeSchema.optional(),
+    })
+    .refine(({ rows }) => rows.every((cells) => cells.length === rows[0].length), "Every row of a table has the same number of cells.")
+    .optional(),
   // Only used by custom drawings (assetId CUSTOM_SVG_ID, e.g. drawn by Claude): the SVG markup. Shown
   // as an image, so nothing inside it can run.
   svg: svgSchema.optional(),
@@ -390,7 +405,7 @@ export function embedLinkSchema(kind: EmbedKind) {
 // a save from a lower version than the one that last saved that presentation (QMOLD), so an editor tab running
 // older code can't drop fields it doesn't know. Bump it whenever the saved shape changes: see "Changing the saved
 // shape" in src/lib/CLAUDE.md.
-export const DATA_VERSION = 2;
+export const DATA_VERSION = 3;
 
 // True when a presentation was saved by newer app code than this tab runs. Copying it here would drop fields this tab
 // doesn't know, so copy paths check this first (the database refuses it too, with QMOLD).

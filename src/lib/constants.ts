@@ -103,6 +103,13 @@ export const DIAGRAM_BOX_POSITION_MAX = 2000;
 export const DIAGRAM_FONT_SIZE = { min: 6, max: 36, default: 12 };
 // Sizes offered in the diagram's size list; − and + step between them.
 export const DIAGRAM_FONT_SIZES = [6, 8, 10, 12, 14, 16, 18, 20, 24, 28, 32, 36];
+// The table element (src/lib/table.ts): how many rows and columns it can have, the thickness of its lines, the
+// biggest text size when none is chosen (each cell's text still shrinks to fit), and its cells' background.
+export const TABLE_ROWS = { min: 1, max: 15 };
+export const TABLE_COLUMNS = { min: 1, max: 15 };
+export const TABLE_LINE_WIDTH = 2;
+export const TABLE_FONT_SIZE = 24;
+export const TABLE_CELL_FILL = "#FFFFFF";
 // A box background or border set to this is left out (see-through box / no border).
 // `as const` so zod's z.literal gives the type "none".
 export const DIAGRAM_NONE = "none" as const;
