@@ -1,10 +1,11 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { canTrimDrawing, getAssetViewBox, getElementAsset, svgDataUrl, type RenderSettings } from "@/lib/svgLibrary";
 import { TRIM_PADDING } from "@/lib/geometry";
 import { isPeopleArt, isPeopleArtLoaded, loadPeopleArt } from "@/lib/peopleArt";
 import { Spinner } from "@/components/Spinner";
-import { GRADIENT_PREFIX, TEXT_BOX_FONT_SIZE, thumbnailUrl } from "@/lib/constants";
+import { DEFAULT_TEXT_COLOR, GRADIENT_PREFIX, TABLE_CELL_FILL, TABLE_FONT_SIZE, TABLE_LINE_WIDTH, TEXT_BOX_FONT_SIZE, thumbnailUrl } from "@/lib/constants";
 import { isSafeColor } from "@/lib/schema";
+import type { TableSettings } from "@/lib/table";
 import { SlideText } from "./SlideText";
 
 interface ElementSvgProps {
@@ -88,6 +89,50 @@ function SlidePhoto({ src }: { src: string }) {
         onLoad={() => setIsLoaded(true)}
         className="relative h-full w-full object-contain"
       />
+    </div>
+  );
+}
+
+/**
+ * A table's grid. Its lines are the grid's color showing through the gaps between the white cells, so a gradient
+ * works too. `renderCell` lets the editor put something else in a cell (the cell being typed in).
+ */
+export function TableGrid({
+  table,
+  color,
+  renderCell,
+}: {
+  table: TableSettings;
+  color: string;
+  renderCell?: (row: number, column: number) => ReactNode;
+}) {
+  const fontSize = table.fontSize ?? TABLE_FONT_SIZE;
+  return (
+    <div
+      className="grid h-full w-full select-none"
+      style={{
+        gridTemplateColumns: `repeat(${table.rows[0].length}, minmax(0, 1fr))`,
+        gridTemplateRows: `repeat(${table.rows.length}, minmax(0, 1fr))`,
+        gap: TABLE_LINE_WIDTH,
+        padding: TABLE_LINE_WIDTH,
+        background: toCssBackground(color),
+      }}
+    >
+      {table.rows.flatMap((cells, row) =>
+        cells.map((cell, column) => (
+          <div
+            key={`${row}:${column}`}
+            data-table-row={row}
+            data-table-column={column}
+            className="min-h-0 min-w-0 overflow-hidden px-2 py-1"
+            style={{ background: TABLE_CELL_FILL, color: DEFAULT_TEXT_COLOR }}
+          >
+            {/* In the middle top to bottom, like a text box. */}
+            {renderCell?.(row, column) ??
+              (cell.html && <SlideText text="" html={cell.html} fontSize={fontSize} className="flex flex-col justify-center-safe" />)}
+          </div>
+        )),
+      )}
     </div>
   );
 }
@@ -193,6 +238,9 @@ function ElementDrawing({ assetId, color, settings = {}, onMeasure }: ElementSvg
       </div>
     );
   }
+
+  // A placed table shows its cells (read-only here). Without its rows (the Elements panel tile) it draws its icon.
+  if (asset.isTable && settings.table) return <TableGrid table={settings.table} color={color} />;
 
   const gradientStops = color.startsWith(GRADIENT_PREFIX) ? color.slice(GRADIENT_PREFIX.length).split(",") : null;
   const viewBox = getAssetViewBox(asset, settings);

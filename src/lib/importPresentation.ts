@@ -110,8 +110,8 @@ type Asset = NonNullable<ReturnType<typeof getElementAsset>>;
 // The recipe format. The same rules check an upload and (as JSON Schema) tell Claude what's allowed.
 // ---------------------------------------------------------------------------------------------
 
-// Claude doesn't place text boxes itself: a blank slide's "title" and "text" become text boxes.
-const ASSET_IDS = ELEMENT_LIBRARY.filter((asset) => !asset.isTextBox).map((asset) => asset.id) as [string, ...string[]];
+// Claude doesn't place text boxes itself: a blank slide's "title" and "text" become text boxes. It can't make tables yet.
+const ASSET_IDS = ELEMENT_LIBRARY.filter((asset) => !asset.isTextBox && !asset.isTable).map((asset) => asset.id) as [string, ...string[]];
 
 const whole = (min: number, max: number) => z.number().int().min(min).max(max);
 const assetId = z.enum(ASSET_IDS, { error: (issue) => `"${String(issue.input)}" isn't a picture in the app` });

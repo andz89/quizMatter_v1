@@ -163,6 +163,23 @@ export function ElementsPanel() {
               </span>
               Box
             </button>
+            <button
+              type="button"
+              draggable
+              onDragStart={(e) => handleDragStart(e, "table")}
+              onClick={() => insertElement("table")}
+              className="col-span-2 flex cursor-grab items-center justify-center gap-2 whitespace-nowrap rounded-card border border-transparent bg-accent-soft p-2 text-[13px] font-semibold text-text-primary transition-colors hover:border-accent"
+            >
+              <span
+                data-drag-image
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-button bg-accent text-white"
+              >
+                <span className="block h-4 w-4">
+                  <ElementSvg assetId="table" color="currentColor" />
+                </span>
+              </span>
+              Table
+            </button>
           </div>
 
           {/* Waits for the favorites, so the rows don't jump when the starred ones move to the top. */}

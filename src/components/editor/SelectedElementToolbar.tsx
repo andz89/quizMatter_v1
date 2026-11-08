@@ -143,8 +143,8 @@ export function SelectedElementToolbar({ showColor = true }: { showColor?: boole
   };
 
   // Flip mirrors what you see, so a turned element's angle is mirrored too (30° becomes -30°).
-  // Each element flips in its own place. Text boxes are never flipped: mirrored text can't be read.
-  const flippable = elements.filter((el) => !getElementAsset(el.assetId)?.isTextBox);
+  // Each element flips in its own place. Text boxes and tables are never flipped: mirrored text can't be read.
+  const flippable = elements.filter((el) => !getElementAsset(el.assetId)?.isTextBox && !getElementAsset(el.assetId)?.isTable);
   const flip = (axis: "flipX" | "flipY") =>
     updateElements(
       selectedSlideId,
