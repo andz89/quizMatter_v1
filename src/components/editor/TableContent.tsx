@@ -57,7 +57,7 @@ export function TableContent({ slideId, element, table }: TableProps) {
   }, [isGone, setPick]);
 
   const renderCell = (row: number, column: number) => {
-    if (!pick?.typingAt || pick.row !== row || pick.column !== column || isGone) return null;
+    if (!pick?.typingAt || pick.row !== row || pick.column !== column) return null;
     const spot = { row, column };
     // Only if this is still the cell: moving to another one blurs this one after the pick has changed.
     const stopTyping = () => {
@@ -135,7 +135,8 @@ export function TableButtons({ slideId, element, table, bounds }: TableProps & {
   return (
     <>
       {isPickThere && (
-        <div className="pointer-events-none absolute" style={{ ...tableCellBox(placed, pick), outline: "2px solid var(--accent)" }} />
+        // Inside the cell: on the table's lines it would be hard to see.
+        <div className="pointer-events-none absolute" style={{ ...tableCellBox(placed, pick), outline: "2px solid var(--accent)", outlineOffset: -2 }} />
       )}
       {!pick?.typingAt && rows < TABLE_ROWS.max && (
         <PlusButton

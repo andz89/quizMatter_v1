@@ -28,7 +28,8 @@ editor / view / review, and renders `Editor.tsx`, which calls `store.loadPresent
   (`image`) can't be made any more, by the Add slide menu (`AddSlideMenu`) or by Claude (2026-11-04); old ones still
   open, present and edit, so the `image` type stays in the saved data.
 - `SvgElementItem.tsx`: one element: drag, resize (`handles.ts`: `CORNERS` / `EDGE_HANDLES`), rotate, crop.
-  `ElementSvg` draws it, `TextBoxContent` is a text box, `DiagramBoxEditor` / `DiagramBoxButtons` are diagrams.
+  `ElementSvg` draws it, `TextBoxContent` is a text box, `DiagramBoxEditor` / `DiagramBoxButtons` are diagrams,
+  `TableContent.tsx` is a table (see "Tables").
 - Side panels (all use the `side-panel` class, sideways rows use `ScrollRow`): `ElementsPanel`, `PhotosPanel`,
   `ColorPanel`, `BackgroundPanel`, `EffectsPanel`, `PresentationsPanel`. They stay open after you add something
   (don't auto-close them).
@@ -126,6 +127,32 @@ A slide can be hidden from presenting (the slide's `hidden` field, `DATA_VERSION
 - **Looks hidden in every small picture:** `HiddenSlideMark` (`FluidSlidePreview.tsx`) fades it with an eye-off mark,
   in `FluidSlidePreview` and `SlideThumbnailPreview` (grids, view page, cards).
 - Copies (Make a copy, shared copies, QuizMatter approvals) carry `hidden` along, since it's part of the slide's data.
+
+## Tables
+
+The "Table" tile in the Elements panel. Design: `docs/superpowers/specs/2026-11-08-table-element-design.md`; math:
+`src/lib/table.ts`; browser test: `e2e/table-element.mjs`. When changing them, keep these rules:
+
+- **One grid everywhere:** `TableGrid` (`ElementSvg.tsx`) draws a table in the editor, small pictures, presenting and
+  drag previews, each cell a read-only `SlideText`. Its lines are the element's Color showing through 2 px gaps between
+  white cells, so a gradient works. `tableCellBox` must match that layout: it places the picked cell's outline.
+- **Only the cell being typed in has a text editor** (`TextBoxContent` inside `TableContent`), never one per cell: a
+  13 × 13 times table would be far too heavy.
+- **Picked / typing cell** is UI state in the store (`pickedTableCell`; `typingAt` is set while typing), never saved.
+  The first click selects the table, a click on a cell picks it, a double-click types. A cell is found with
+  `tableCellAt` (by screen position, since a dragged element's events all point at it). While typing, a press on
+  another cell only stops the typing (the old cell blurs); the click that follows moves it there (`wasTypingOnPress`).
+- **Keys while typing** are handled in `TableContent` before the text editor sees them: Tab / Shift+Tab move between
+  cells (they stay put at the first and last cell), Escape stops typing. With a cell picked and not typing,
+  `useEditorShortcuts` makes Delete empty the cell (not delete the table) and Escape let go of it.
+- **Adding and deleting:** the two "+" (`TableButtons`) add at the end, the toolbar's "Table" menu (`TablePanel`) acts
+  on the picked cell or else the last one, then picks the new cell. A new row or column keeps the others' size, so the
+  table grows, up to the edge of its box (`addTableRow` / `addTableColumn`); from there they share the room.
+- **All rows are the same height and all columns the same width.** A cell keeps its size and its text shrinks to fit.
+- **Text size is the whole table's** (`table.fontSize`; `TextTarget` kind `table`), from the toolbar or the text
+  format bar while typing. The other text styles are each cell's own, in its HTML.
+- **Limits:** `TABLE_ROWS` and `TABLE_COLUMNS` (`constants.ts`), checked by the `table` zod schema. Never flipped or
+  cropped. Claude can read a table's text (`read_presentation`) but can't make one (left out of `ASSET_IDS`).
 
 ## Helpers this folder uses (in `src/lib`)
 

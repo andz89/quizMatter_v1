@@ -82,8 +82,10 @@ A refusal raises an error with its own code. The app turns the code into a messa
   to the presentation they write. A new function that writes slides from app data must do the same. Its section 0
   also catches up `20261102000000_review_auto_reviewer.sql`, which never reached the live database (old
   `submit_review`, and the `background` column still there); don't run that old file again.
-  `20261210000000_data_version_cap.sql`: both columns are capped at `current_data_version()` (1 today, same as
-  `DATA_VERSION`; raised to 1 for hidden slides in `20261231000500_hidden_slides.sql`, test `supabase/tests/hidden_slides.sql`) on every insert and update, whatever writes them (triggers `cap_presentation_data_version` and
+  `20261210000000_data_version_cap.sql`: both columns are capped at `current_data_version()` (3 today, same as
+  `DATA_VERSION`; raised to 1 for hidden slides in `20261231000500_hidden_slides.sql`, test `supabase/tests/hidden_slides.sql`,
+  to 2 for calendar dates in `20261231000800_calendar_date.sql`, and to 3 for tables in `20261231001100_table_element.sql`,
+  test `supabase/tests/table_element.sql`) on every insert and update, whatever writes them (triggers `cap_presentation_data_version` and
   `cap_review_draft_version`), so a huge `app_version` can't make every later save refuse. Bump it in a migration
   applied before the app with the new `DATA_VERSION` deploys (`src/lib/CLAUDE.md`, "Changing the saved shape").
   `save_presentation` also refuses (`QMOLD`) a new presentation whose `copiedFrom` source has a higher
