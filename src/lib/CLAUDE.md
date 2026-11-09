@@ -43,11 +43,11 @@
   `share_presentation` / `unshare_presentation` (zod first). A teacher's shared copy is its own presentation row
   (`shared_from` = the original). The store keeps `sharedCopy`; `setPublished` / `updateSharedCopy` save unsaved
   edits first. QuizMatter presentations keep the `isPublished` switch. See `20261123000000_shared_copy.sql`.
-- `keptWork.ts`: unsaved work kept in this browser (`qm-unsaved:<id>`) when a save is refused with `QMOLD`, or while
-  the editor is left (`saveBeforeLeaving` in `store.ts` keeps it before it saves, and a save that works forgets it;
 - `autoSave.ts`: the editor's auto save timing (`AUTO_SAVE_MS`) and its daily cap (`AUTO_SAVES_PER_DAY`, counted in
   this browser under `qm-auto-saves`, so it never uses up the `presentation_save_daily` limit; change them together).
   How the editor uses it: `src/components/editor/CLAUDE.md`, "Auto save". Tests: `autoSave.test.ts`.
+- `keptWork.ts`: unsaved work kept in this browser (`qm-unsaved:<id>`) when a save is refused with `QMOLD`, or while
+  the editor is left (`saveBeforeLeaving` in `store.ts` keeps it before it saves, and a save that works forgets it;
   a changed Claude draft not saved yet is only kept, never saved by leaving; how the editor uses it:
   `src/components/editor/CLAUDE.md`). `keepUnsavedWork` returns false when the browser
   can't store it (blocked or full), and stores nothing (true) when there are no real edits (only the publish switch

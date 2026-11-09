@@ -120,6 +120,10 @@ function BackToPresentationsLink() {
  * Saves the presentation to the database (also Ctrl+S). A dot shows while there are unsaved changes. In a review
  * it saves the reviewer's draft ("Save as draft"). Greyed out while saving is paused (saved too fast, the
  * presentation_save click limits; a review draft isn't counted).
+ *
+ * From laptop width the toolbar for what is picked sits in a fixed spot in the middle of the bar, so a wider button
+ * would run into it: while saving, the Spinner shows over the button's hidden label (same size), and the error is
+ * short. Auto save makes this state show often.
  */
 function SaveButton() {
   const savePresentation = useEditorStore((s) => s.savePresentation);
@@ -128,32 +132,43 @@ function SaveButton() {
   const review = useEditorStore((s) => s.review);
   const isPaused = useIsPaused("presentation_save", "presentation_save_daily") && !review;
 
-  const label =
-    saveStatus === "saving"
-      ? "Saving…"
-      : saveStatus === "error"
-        ? "Couldn't save — retry"
-        : hasUnsavedChanges
-          ? review
-            ? "Save as draft"
-            : "Save"
-          : review
-            ? "Draft saved"
-            : "Saved";
+  const isSaving = saveStatus === "saving";
+  const hasFailed = saveStatus === "error";
+  const label = hasUnsavedChanges ? (review ? "Save as draft" : "Save") : review ? "Draft saved" : "Saved";
 
   return (
     <button
       type="button"
       onClick={() => savePresentation()}
-      disabled={saveStatus === "saving" || !hasUnsavedChanges || isPaused}
-      title={isPaused ? "Saving is paused for now. The notice at the bottom says until when." : review ? "Save as draft (Ctrl+S)" : "Save (Ctrl+S)"}
-      className={`ml-auto flex items-center gap-2 rounded-button border border-border-default px-4 py-2 text-sm font-semibold text-text-primary transition-colors hover:bg-bg-page disabled:hover:bg-transparent ${isPaused ? "opacity-40" : ""}`}
+      disabled={isSaving || !hasUnsavedChanges || isPaused}
+      aria-label={isSaving ? "Saving" : undefined}
+      title={
+        isPaused
+          ? "Saving is paused for now. The notice at the bottom says until when."
+          : hasFailed
+            ? "Couldn't save. Click to try again (Ctrl+S)"
+            : review
+              ? "Save as draft (Ctrl+S)"
+              : "Save (Ctrl+S)"
+      }
+      className={`relative ml-auto rounded-button border border-border-default px-4 py-2 text-sm font-semibold text-text-primary transition-colors hover:bg-bg-page disabled:hover:bg-transparent ${isPaused ? "opacity-40" : ""}`}
     >
-      {saveStatus === "saving" && <Spinner size={14} />}
-      {hasUnsavedChanges && saveStatus !== "saving" && (
-        <span className={`h-2 w-2 rounded-full ${saveStatus === "error" ? "bg-danger" : "bg-highlight"}`} />
+      {isSaving && (
+        <span className="absolute inset-0 flex items-center justify-center">
+          <Spinner size={14} />
+        </span>
       )}
-      <span className={saveStatus === "error" ? "text-danger-strong" : undefined}>{label}</span>
+      <span className={`flex items-center gap-2 ${isSaving ? "invisible" : ""}`}>
+        {hasUnsavedChanges && <span className={`h-2 w-2 rounded-full ${hasFailed ? "bg-danger lg:hidden" : "bg-highlight"}`} />}
+        {hasFailed ? (
+          <span className="text-danger-strong">
+            <span className="lg:hidden">Couldn&apos;t save — retry</span>
+            <span className="hidden lg:inline">Retry</span>
+          </span>
+        ) : (
+          label
+        )}
+      </span>
     </button>
   );
 }
