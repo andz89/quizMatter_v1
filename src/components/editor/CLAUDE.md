@@ -159,7 +159,7 @@ The "Table" tile in the Elements panel. Design: `docs/superpowers/specs/2026-11-
 - **Text size is the whole table's** (`table.fontSize`; `TextTarget` kind `table`), from the toolbar or the text
   format bar while typing. The other text styles are each cell's own, in its HTML.
 - **Limits:** `TABLE_ROWS` and `TABLE_COLUMNS` (`constants.ts`), checked by the `table` zod schema. Never flipped or
-  cropped. Claude can read a table's text (`read_presentation`) but can't make one (left out of `ASSET_IDS`).
+  cropped. Claude reads a table's text (`read_presentation`) and makes tables (`src/pages/api/CLAUDE.md`).
 
 ## Helpers this folder uses (in `src/lib`)
 

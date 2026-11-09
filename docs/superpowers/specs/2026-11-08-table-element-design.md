@@ -73,8 +73,8 @@ table: {
 
 ## Claude's connector
 
-`read_presentation` gives Claude each cell's text as plain text, like a text box's. Claude can't make tables yet: the
-asset is left out of the pictures it may use, like the text box.
+`read_presentation` gives Claude each cell's text as plain text, like a text box's. Claude makes tables with `"asset": "table"`
+(added 2026-11-09; `src/lib/importTable.ts` sizes them).
 
 ## Testing
 
@@ -91,4 +91,4 @@ database).
 
 ## Left out on purpose
 
-Merged cells, a cell's own background, a header row style, Claude making tables.
+Merged cells, a cell's own background, a header row style.

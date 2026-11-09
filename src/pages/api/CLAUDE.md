@@ -43,7 +43,15 @@
 
 - Everything Claude sends is checked with zod (`presentationRecipeSchema`, `claudeDetailsSchema`,
   `claudePhotoSchema`) before it's stored (see "Saving Data" in the root `CLAUDE.md`).
-- Claude adds diagrams with `{ "text": … }` boxes only (automatic layout).
+- Claude can make every element in the Elements panel: pictures, math tools, diagrams and tables through `elements`,
+  text boxes through `title`, `text` and `textBoxes` (on question slides too, in the box named by `in`).
+- A table is `"asset": "table"` with `table` (rows of words; `src/lib/importTable.ts` sizes it). A cell's text never
+  shrinks, so the rows are shared out by their text and the layout report names any row still cut off.
+- An element's `color` can be a gradient (`gradient:#A,#B`), except on text.
+- Diagrams use the automatic layout: each box is its `text` and, if wanted, its look (`fill`, `border`, `borderWidth`,
+  `textColor`, `fontSize`, `shape`), the fields the editor saves. Never a box's place or size.
+- Claude never changes a saved presentation: it reads one (`read_presentation`) and sends the changed version as a
+  new draft, which the teacher saves.
 - Claude can group pieces: the same `"group"` name on pictures and `textBoxes` of one slide (e.g. a ribbon and its
   words) becomes one editor group (`groupId`), like the Group button: at least 2 pieces, all in the same box (else an
   error; one piece = a note in the layout report). `groupByName` in `src/lib/importGroups.ts` (tests

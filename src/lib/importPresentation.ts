@@ -32,8 +32,15 @@ import {
   SIDE_CONTAINER_ID,
   ANSWER_CONTAINER_ID,
   TEXT_BOX_FONT_SIZE,
+  TABLE_FONT_SIZE,
   CYCLE_STEPS,
+  DIAGRAM_BORDER_WIDTH,
+  DIAGRAM_FONT_SIZE,
+  DIAGRAM_NONE,
+  DIAGRAM_SHAPES,
   DIAGRAM_TEXT_MAX,
+  TABLE_COLUMNS,
+  TABLE_ROWS,
   FACTOR_TREE_BOXES,
   FACTOR_TREE_LEVELS,
   FLOWCHART_STEPS,
@@ -51,6 +58,7 @@ import { fitInBox, MIN_ELEMENT_SIZE, TRIM_PADDING, type Rect, type Size } from "
 import ASSET_SHAPES from "./assetShapes.json";
 import { createId } from "./id";
 import { groupByName } from "./importGroups";
+import { fitTableRows, tableStartSize } from "./importTable";
 import { DEFAULT_CALENDAR_DATE, fromDateInput } from "./calendarDate";
 import { todayInManila } from "./age";
 import { DEFAULT_ROTATION_3D } from "./solids";
@@ -110,14 +118,17 @@ type Asset = NonNullable<ReturnType<typeof getElementAsset>>;
 // The recipe format. The same rules check an upload and (as JSON Schema) tell Claude what's allowed.
 // ---------------------------------------------------------------------------------------------
 
-// Claude doesn't place text boxes itself: a blank slide's "title" and "text" become text boxes. It can't make tables yet.
+// Not pictures: text boxes come from "title", "text" and "textBoxes"; a table is an "elements" entry with its own "table" (elementAssetId).
 const ASSET_IDS = ELEMENT_LIBRARY.filter((asset) => !asset.isTextBox && !asset.isTable).map((asset) => asset.id) as [string, ...string[]];
 
 const whole = (min: number, max: number) => z.number().int().min(min).max(max);
 const assetId = z.enum(ASSET_IDS, { error: (issue) => `"${String(issue.input)}" isn't a picture in the app` });
-// Pictures in "elements" can also be a shared photo (asset "photo", with the photo from find_photos).
-const elementAssetId = z.enum([...ASSET_IDS, PHOTO_ID], { error: (issue) => `"${String(issue.input)}" isn't a picture in the app` });
+// "elements" can also hold a shared photo (asset "photo", with the photo from find_photos) and a table (asset "table", with "table").
+const TABLE_ID = "table";
+const elementAssetId = z.enum([...ASSET_IDS, PHOTO_ID, TABLE_ID], { error: (issue) => `"${String(issue.input)}" isn't a picture in the app` });
 const hexColor = z.string().regex(/^#[0-9a-fA-F]{6}$/);
+// An element's color can also be the Color panel's two-color gradient. Text and borders can't.
+const elementColor = z.union([hexColor, z.string().regex(new RegExp(`^${GRADIENT_PREFIX}#[0-9a-fA-F]{6},#[0-9a-fA-F]{6}$`))]);
 // Claude's own drawings. They're shown as images (nothing inside can run), so this only checks
 // that it's one <svg> and not huge — every drawing is stored inside the presentation.
 const MAX_SVG_LENGTH = 20_000;
@@ -180,21 +191,39 @@ const groupName = z
     'Give the same name to the pieces that belong together (e.g. a ribbon and its words: "banner"), so the teacher moves them as one. Only within one slide, and all in the same box.',
   );
 
-// One box of a diagram: its text ("\n" = a new line). Like a text box, long text shrinks to fit the box. Claude
-// always uses the automatic layout; teachers can move and resize boxes in the editor.
-const diagramBox = z.object({ text: z.string().max(DIAGRAM_TEXT_MAX) });
+// One box of a diagram: its text ("\n" = a new line) and, if wanted, its own look (the same fields the editor saves). Like
+// a text box, long text shrinks to fit the box. Claude always uses the automatic layout; teachers can move and resize
+// boxes in the editor.
+const diagramBoxColor = z.union([hexColor, z.literal(DIAGRAM_NONE)]);
+const diagramBox = z
+  .object({
+    text: z.string().max(DIAGRAM_TEXT_MAX),
+    fill: diagramBoxColor.optional().describe(`Background color, or "${DIAGRAM_NONE}". Leave out for a soft tint of the diagram's color.`),
+    border: diagramBoxColor.optional().describe(`Border color, or "${DIAGRAM_NONE}". Leave out for the diagram's color.`),
+    borderWidth: z.number().min(DIAGRAM_BORDER_WIDTH.min).max(DIAGRAM_BORDER_WIDTH.max).optional(),
+    textColor: hexColor.optional(),
+    fontSize: z.number().min(DIAGRAM_FONT_SIZE.min).max(DIAGRAM_FONT_SIZE.max).optional().describe("Largest text size; long text still shrinks to fit."),
+    shape: z.enum(DIAGRAM_SHAPES).optional().describe("Leave out for the diagram's own shape."),
+  })
+  .meta({ id: "diagramBox" });
 
 // One number of Claude's factor tree: its text, and the two numbers it splits into (left out for a prime).
-type ClaudeFactorNode = { text: string; children?: [ClaudeFactorNode, ClaudeFactorNode] };
+type ClaudeFactorNode = z.infer<typeof diagramBox> & { children?: [ClaudeFactorNode, ClaudeFactorNode] };
 const claudeFactorNode: z.ZodType<ClaudeFactorNode> = z.lazy(() =>
-  z.object({
-    text: z.string().max(DIAGRAM_TEXT_MAX),
+  diagramBox.extend({
     children: z
       .tuple([claudeFactorNode, claudeFactorNode])
       .optional()
       .describe("The two numbers it splits into. Leave out when it doesn't split (a prime)."),
   }),
 );
+
+// A text's font size (px). The text still shrinks to fit its box, so this is the largest it gets.
+const fontSize = whole(FONT_SIZE_RANGE.min, FONT_SIZE_RANGE.max);
+const fontSizeNote = "Largest font size in px; long text still shrinks to fit. Leave out unless the user asks for bigger or smaller text.";
+
+// A table's cell: its words, or its words with their own look.
+const tableCell = z.union([z.string(), z.object({ text: z.string(), style: textStyle.optional() })]);
 
 const elementRecipe = z.object({
   asset: elementAssetId.describe('Which picture. "photo" = a real photo: then give "photo" too.'),
@@ -210,7 +239,9 @@ const elementRecipe = z.object({
     .enum(["small", "medium", "large"])
     .optional()
     .describe("Size compared to the box it sits in. Leave out for medium (large for reading tools like clocks)."),
-  color: hexColor.optional().describe("Hex color like #EF4444. Leave out to use the picture's own color."),
+  color: elementColor
+    .optional()
+    .describe('Hex color like #EF4444, or a two-color gradient like "gradient:#FF5A5F,#6B3DF5". Leave out to use the picture\'s own color.'),
   callouts: z
     .array(calloutRecipe)
     .max(8)
@@ -330,6 +361,25 @@ const elementRecipe = z.object({
     .refine(factorTreeFits, FACTOR_TREE_LIMIT_MESSAGE)
     .optional()
     .describe(`Only for factor-tree. At most ${FACTOR_TREE_LEVELS} levels and ${FACTOR_TREE_BOXES} numbers.`),
+  table: z
+    .object({
+      rows: z
+        .array(z.array(tableCell).min(TABLE_COLUMNS.min).max(TABLE_COLUMNS.max))
+        .min(TABLE_ROWS.min)
+        .max(TABLE_ROWS.max)
+        .describe('Top to bottom, each row\'s cells left to right, e.g. [["**Animal**", "**Legs**"], ["Cat", "4"]]. A cell is its words (**word** bold, *word* italic, \\n a new line), or { "text", "style" } for its own look.'),
+      fontSize: fontSize.optional().describe("Text size of the whole table, in px. It never shrinks. Leave out for 24."),
+      style: textStyle.optional().describe("Look of every cell."),
+      columnSizes: z.array(z.number().positive()).max(TABLE_COLUMNS.max).optional().describe("How big each column is compared with the others, e.g. [1, 3]. Leave out for equal columns."),
+      rowSizes: z.array(z.number().positive()).max(TABLE_ROWS.max).optional().describe("How big each row is compared with the others. Leave out and each row fits its text."),
+    })
+    .refine(({ rows }) => rows.every((cells) => cells.length === rows[0].length), "Every row of a table needs the same number of cells.")
+    .refine(
+      ({ rows, columnSizes, rowSizes }) => (!columnSizes || columnSizes.length === rows[0]?.length) && (!rowSizes || rowSizes.length === rows.length),
+      "A table needs one size for each column and row.",
+    )
+    .optional()
+    .describe('Only with "asset": "table".'),
   rotation: whole(0, 359).optional().describe("Turn a flat picture, in degrees clockwise. Not for 3D solids (use tilt/turn)."),
   tilt: whole(-90, 90).optional().describe(`Only for 3D solids: tilt toward you, in degrees. Leave out for ${DEFAULT_ROTATION_3D.x}.`),
   turn: whole(-180, 180).optional().describe(`Only for 3D solids: turn left/right, in degrees. Leave out for ${DEFAULT_ROTATION_3D.y}.`),
@@ -384,8 +434,27 @@ const common = {
   name: z.string().optional().describe('Optional slide name, e.g. "Fractions".'),
 };
 
+// Text boxes Claude places itself, on every slide that holds pictures.
+const placedTextBoxes = z
+  .array(
+    z.object({
+      text: z.string().describe("**word** makes a word bold, *word* italic. \\n starts a new paragraph."),
+      in: z.enum(["A", "B", "C", "D", "side"]).optional().describe('Question slides only: which box it goes in. Leave out for "side". Blank, title and custom slides ignore it.'),
+      position: rect.describe("Where the box goes, in px: on a blank, title or custom slide on the 1280×720 slide, on a question slide inside its box."),
+      fontSize: fontSize.optional().describe(fontSizeNote),
+      style: textStyle.optional(),
+      rotation: whole(0, 359).optional().describe("Turn it, in degrees clockwise."),
+      opacity: whole(OPACITY_MIN, 100).optional().describe("How solid it is, in percent. Leave out for 100."),
+      group: groupName.optional(),
+    }).meta({ id: "textBox" }),
+  )
+  .max(12)
+  .default([])
+  .describe("Extra text boxes you place yourself: labels, the words in a diagram's boxes, a speech bubble's words, a second paragraph.");
+
 // The question box and the picture box ("side"), which both question slide types have.
 const questionBoxes = {
+  textBoxes: placedTextBoxes,
   question: z.string().describe("The question. **word** makes a word bold, *word* italic."),
   questionStyle: textStyle.optional().describe("Look of the whole question."),
   questionHeight: whole(MIN_QUESTION_HEIGHT, 400)
@@ -408,10 +477,6 @@ const blankDesign = {
   design: z.array(decorationRecipe).max(6).default([]).describe("Decorations behind everything."),
 };
 
-// A text's font size (px). The text still shrinks to fit its box, so this is the largest it gets.
-const fontSize = whole(FONT_SIZE_RANGE.min, FONT_SIZE_RANGE.max);
-const fontSizeNote = "Largest font size in px; long text still shrinks to fit. Leave out unless the user asks for bigger or smaller text.";
-
 // What's on a free canvas slide (besides its design). Title slides use these as they are; blank and
 // custom slides and the answer canvas add a layout (blankContent).
 const canvasContent = {
@@ -424,19 +489,7 @@ const canvasContent = {
     .describe("The main text: the explanation or instructions. \\n starts a new paragraph. **word** makes a word bold, *word* italic."),
   textFontSize: fontSize.optional().describe(`The text. ${fontSizeNote}`),
   textStyle: textStyle.optional().describe("Look of the text."),
-  textBoxes: z
-    .array(
-      z.object({
-        text: z.string().describe("**word** makes a word bold, *word* italic. \\n starts a new paragraph."),
-        position: rect.describe("Where the box goes, in px on the 1280×720 slide."),
-        fontSize: fontSize.optional().describe(fontSizeNote),
-        style: textStyle.optional(),
-        group: groupName.optional(),
-      }),
-    )
-    .max(12)
-    .default([])
-    .describe("Extra text boxes you place yourself: labels, the words in a diagram's boxes, a speech bubble's words, a second paragraph."),
+  textBoxes: placedTextBoxes,
   elements,
 };
 
@@ -658,7 +711,7 @@ const BOXES: Record<"choice" | "true-false" | "short-answer", BoxName[]> = {
 };
 
 // Tools you read a value from. They get the tall side box (list-side) and start large.
-const READING_TOOLS = new Set(["clock", "digital-clock", "calendar-page", "month-calendar", "thermometer", "bar-graph", "protractor", "base-ten-blocks", "fraction-circle"]);
+const READING_TOOLS = new Set(["clock", "digital-clock", "calendar-page", "month-calendar", "thermometer", "bar-graph", "protractor", "base-ten-blocks", "fraction-circle", TABLE_ID]);
 
 const CLAUDE_NOTES = `Write a presentation for my app (quizMatter) as JSON. Send it with send_presentation: "slides" is the slides array below, and it must match the JSON Schema at the end.
 
@@ -772,7 +825,7 @@ The question box, the strip and the options share the slide's height, so giving 
 
 === Layouts ===
 
-Choice slides: "list" (4 rows), "grid" (2×2) or "list-side" (4 rows with a tall picture box beside them). Left out, the app picks, in this order: "grid" when the options are only pictures (empty texts); "list-side" when "side" has a clock, calendar, thermometer, bar graph, protractor, base-ten blocks or fraction circle; "grid" when the options have pictures; otherwise "list".
+Choice slides: "list" (4 rows), "grid" (2×2) or "list-side" (4 rows with a tall picture box beside them). Left out, the app picks, in this order: "grid" when the options are only pictures (empty texts); "list-side" when "side" has a clock, calendar, thermometer, bar graph, protractor, base-ten blocks, fraction circle or table; "grid" when the options have pictures; otherwise "list".
 
 Blank and custom slides:
 - "text-top" (default): title and text across the full width, pictures below.
@@ -789,7 +842,7 @@ How they look:
 - "size" (small, medium, large) is compared to the box. On "grid" and "list" slides, small is shown as medium.
 - "count" repeats a picture. More than 5 of the same picture wrap in rows of 5 (8 apples = 5 + 3), so they are easy to count.
 - For a picture sum, list the pieces in order: 2 apples, "symbol-plus", 3 apples. Numbers and symbols take the size of the pictures next to them.
-- "color" recolors a picture. "opacity" (${OPACITY_MIN}–100%) makes it see-through.
+- "color" recolors a picture, with one color or a gradient ("gradient:#FF5A5F,#6B3DF5"; not on text). "opacity" (${OPACITY_MIN}–100%) makes it see-through.
 - "rotation" (0–359°) turns a flat picture. 3D solids (cube, cone…) use "tilt" (−90 to 90°) and "turn" (−180 to 180°) instead, to show them from another side.
 - "cornerRadius" (0–${CORNER_RADIUS_MAX}%) rounds the corners of a square or rectangle.
 - "border" gives a square or rectangle a border color (e.g. a soft fill with a darker border of the same color), and "borderWidth" its thickness (1–${BORDER_WIDTH_MAX}px, ${BORDER_WIDTH_DEFAULT} if left out).
@@ -801,7 +854,7 @@ How they look:
 - Drawn fruits (for counting and picture sums; see Real photos for when a photo is better) include apple, banana, grapes, mango, papaya, coconut, rambutan, dragon-fruit, kiwi, avocado, peach, pomegranate, blueberries and more.
 - Shapes include every kind of triangle (equilateral, isosceles, scalene, right, acute, obtuse) and four-sided shape (square, rectangle, trapezoid, right trapezoid, rhombus, kite, parallelogram…). 3D solids include prisms and pyramids with 3–6 sided bases, frustum, hemisphere, octahedron and icosahedron.
 - Settings like "clockTime", "calendarDate", "fraction", "numberLine", "tenFrame", "baseTen", "thermometer", "barGraph", "protractor", "flowchart", "cycle", "mindMap", "tree" and "factorTree" only work on the pictures named in their description.
-- Diagrams show how ideas connect: flowchart (steps in order, joined by arrows), cycle (steps that repeat in a ring, e.g. the water cycle or a life cycle), mind-map (a main idea with ideas around it), tree-diagram (a top box that splits into groups, each with its own items, e.g. a classification) and factor-tree (a number split into two factors, each split again until only primes are left, for prime factorization). Keep each box's text short: a word or a few.
+- Diagrams show how ideas connect: flowchart (steps in order, joined by arrows), cycle (steps that repeat in a ring, e.g. the water cycle or a life cycle), mind-map (a main idea with ideas around it), tree-diagram (a top box that splits into groups, each with its own items, e.g. a classification) and factor-tree (a number split into two factors, each split again until only primes are left, for prime factorization). Keep each box's text short: a word or a few. Each box can have its own look ("fill" and "border", a color or "none"; "borderWidth", "textColor", "fontSize", "shape"): use it to make one box stand out. Left out, the box follows the diagram's "color".
 - Keep "elements" useful: they should help answer the question or explain the topic. Decoration goes in "design".
 
 Real photos:
@@ -814,6 +867,13 @@ Real photos:
 - If find_photos has nothing that fits, use a drawing from the picture list when one shows it well. If neither fits, leave room for a photo (e.g. a blank slide with "layout": "text-left" and no pictures on the right), and tell the user in your reply which slides need a photo and what it should show. The teacher can add one in the editor with the Photos button (upload from their computer).
 - For a picture from a link the user gave you, upload it with prepare_photo_upload, then put it on a blank slide as a photo (a large one, or "position" covering the slide, to fill it).
 
+Tables ("asset": "table" in "elements") — rows and columns the teacher can type in: a times table, a comparison, words and meanings, a schedule.
+- { "asset": "table", "table": { "rows": [["**Animal**", "**Legs**"], ["Cat", "4"], ["Bird", "2"]] } }. 1–15 rows and columns, and every row has the same number of cells. There's no header style: make the first row **bold**, or give its cells their own color with { "text", "style" }.
+- The app sizes a table to its text and places it ("size" does nothing on a table). Give "position" to choose. Give "columnSizes" when one column has longer text, e.g. [1, 3]. Left out, columns are equal and each row fits its text.
+- "color" is the lines. "in", "position", "rotation", "opacity", "group" and "callouts" work. "flipX", "flipY" and "crop" don't. On a question slide it goes in a box, like a picture.
+- A cell's text never shrinks: what doesn't fit is cut off, and the layout report names those rows. Then make the table bigger, shorten the words or lower "fontSize".
+- read_presentation gives a table's cells as { "html": their words }. To change a table, send the words back as plain strings.
+
 Placing them yourself:
 - The app places, centers and sizes pictures itself. To choose the spot yourself, give "position": { x, y, width, height } in px (x, y = top-left corner). Only with count 1.
   - Blank, title and custom slides: on the 1280 × 720 slide.
@@ -822,7 +882,7 @@ Placing them yourself:
 - Each picture's box is then fitted to its drawing's real shape (most drawings have empty space around them), in the middle of the box you gave. The layout report shows the fitted box: place words and callout labels by its numbers.
 - "square" and "rectangle" take exactly the width and height you give, so they can be a box of any shape: e.g. a soft colored panel behind a group of pictures, or a bar. Add "cornerRadius" for rounded corners.
 - Pictures you place yourself are drawn in list order (a later one sits on top of an earlier one), and behind the pictures the app places. So list a background panel before what goes on it.
-- "textBoxes" (blank, title and custom slides) are placed the same way, and sit on top of pictures — good for labels on a picture.
+- "textBoxes" are placed the same way, and sit on top of pictures — good for labels on a picture. On a question slide they go inside the box named by "in" (left out = "side"), from its top-left corner. They can be turned ("rotation") and made see-through ("opacity").
 - Groups: pieces that belong together — a ribbon or badge and its words, a box and its words, a kid and their speech tag with its words — get the same "group" name (any short name, e.g. "banner", "box-1"). The teacher then clicks and moves them as one, instead of moving the shape and leaving its words behind. A group's pieces must be on the same slide and in the same box; a name is only for its own slide.
 
 Other diagrams — use the ready-made "flowchart", "cycle", "mind-map", "tree-diagram" and "factor-tree" pictures when they fit. For any other diagram (a food web, a map of places, a labeled process with branches), build it from pieces the teacher can move and edit:
@@ -1061,25 +1121,37 @@ function buildSlide(
   // Element id → the "group" name Claude gave it (made into groups below).
   const groupNames = new Map<string, string>();
   // Text boxes Claude placed itself. They sit on top of the pictures, so a label can go on one.
-  const placedText =
-    isCanvas
-      ? recipe.textBoxes.map((box, i) => {
-          // Only as tall as its text, in the middle of where Claude put it — so a box over a ribbon or
-          // shape doesn't leave a big empty part.
-          const asked = fitInBox(box.position, CANVAS);
-          if (formatRect(asked) !== formatRect(box.position)) {
-            notes.push(`text box ${i + 1} didn't fit on the slide where you put it, so it was moved or shrunk to ${formatRect(asked)}.`);
-          }
-          const textHeight = textBoxHeightFor(stripMarkup(box.text), asked.width, box.fontSize ?? TEXT_BOX_FONT_SIZE, box.style?.bold);
-          const height = Math.min(asked.height, Math.max(MIN_ELEMENT_SIZE, textHeight));
-          const rect = { ...asked, y: asked.y + Math.round((asked.height - height) / 2), height };
-          // Centered unless Claude says otherwise: they're mostly labels on a shape, ribbon or diagram box.
-          const element = textBox(rect, markupToHtml(box.text, { align: "center", ...box.style }), box.fontSize);
-          texts.push({ label: `text box ${i + 1}`, box: element, words: stripMarkup(box.text), bold: box.style?.bold, color: box.style?.color });
-          if (box.group) groupNames.set(element.id, box.group);
-          return element;
-        })
-      : [];
+  const placedText = recipe.textBoxes.flatMap((box, i) => {
+    const boxName: BoxName = isCanvas ? "canvas" : (box.in ?? "side");
+    if (!isCanvas && !BOXES[recipe.type].includes(boxName)) {
+      reportError(`text box ${i + 1}: a ${recipe.type} slide has no "${boxName}" box. Use one of: ${BOXES[recipe.type].join(", ")}.`);
+      return [];
+    }
+    const containerId = toContainerId(boxName, slide);
+    // Only as tall as its text, in the middle of where Claude put it — so a box over a ribbon or
+    // shape doesn't leave a big empty part.
+    const asked = fitInBox(box.position, boundsOf(containerId, slide));
+    if (formatRect(asked) !== formatRect(box.position)) {
+      notes.push(`text box ${i + 1} didn't fit in "${boxLabel(containerId, slide)}" where you put it, so it was moved or shrunk to ${formatRect(asked)}.`);
+    }
+    const textHeight = textBoxHeightFor(stripMarkup(box.text), asked.width, box.fontSize ?? TEXT_BOX_FONT_SIZE, box.style?.bold);
+    const height = Math.min(asked.height, Math.max(MIN_ELEMENT_SIZE, textHeight));
+    const rect = { ...asked, y: asked.y + Math.round((asked.height - height) / 2), height };
+    // Centered unless Claude says otherwise: they're mostly labels on a shape, ribbon or diagram box.
+    const element: SvgElement = {
+      ...textBox(rect, markupToHtml(box.text, { align: "center", ...box.style }), box.fontSize),
+      containerId,
+      ...(box.rotation && { rotation: box.rotation }),
+      ...(box.opacity !== undefined && box.opacity < 100 && { opacity: box.opacity }),
+    };
+    texts.push({ label: `text box ${i + 1}`, box: element, words: stripMarkup(box.text), bold: box.style?.bold, color: box.style?.color });
+    // Free canvas slides report on their text in describeSlide.
+    if (!isCanvas && tooLong(stripMarkup(box.text), element, box.fontSize ?? TEXT_BOX_FONT_SIZE, box.style?.bold)) {
+      notes.push(`text box ${i + 1} is probably too long for its box, so it will shrink.`);
+    }
+    if (box.group) groupNames.set(element.id, box.group);
+    return [element];
+  });
 
   // The area a box's pictures are placed in: the blank slide's picture area, or the box itself.
   const areaOf = (containerId: string | null): Rect =>
@@ -1201,6 +1273,18 @@ function buildSlide(
       calloutParts.push(...calloutElements(picture, callouts));
     });
   }
+
+  // A cell's text never shrinks: each table's rows are shared out by their text, and rows still too short are reported.
+  pictures.forEach((picture, i) => {
+    if (!picture.table) return;
+    const { table, cutOff } = fitTableRows({ ...picture, table: picture.table }, textHeightFor);
+    pictures[i] = { ...picture, table };
+    if (cutOff.length) {
+      notes.push(
+        `the table at ${formatRect(picture)} can't show all its text at ${table.fontSize ?? TABLE_FONT_SIZE}px: row${cutOff.length > 1 ? "s" : ""} ${cutOff.map((row) => row + 1).join(", ")} would be cut off. Make it bigger, shorten the words, lower "fontSize", or change "columnSizes" / "rowSizes".`,
+      );
+    }
+  });
 
   // Drawn first, so they sit behind everything. Only blank and title slides have decorations.
   const design = hasDesign ? recipe.design : [];
@@ -1873,6 +1957,19 @@ function buildSettings(el: ElementRecipe, asset: Asset): Partial<SvgElement> | s
   if (el.tree) settings.tree = el.tree;
   if (el.factorTree) settings.factorTree = el.factorTree;
 
+  if (el.table) {
+    if (!asset.isTable) return '"table" only works with "asset": "table".';
+    if (el.flipX || el.flipY) return "a table can't be flipped.";
+    const { rows, fontSize, style, columnSizes, rowSizes } = el.table;
+    const cellHtml = (cell: z.infer<typeof tableCell>) => {
+      const { text, style: own } = typeof cell === "string" ? { text: cell, style: undefined } : cell;
+      return text.trim() === "" ? "" : markupToHtml(text, { ...style, ...own });
+    };
+    settings.table = { rows: rows.map((cells) => cells.map((cell) => ({ html: cellHtml(cell) }))), fontSize, columnSizes, rowSizes };
+  } else if (asset.isTable) {
+    return '"asset": "table" needs "table": its rows.';
+  }
+
   if (el.rotation !== undefined) {
     if (asset.is3d) return `"rotation" doesn't work on 3D solids. Use "tilt" and "turn".`;
     settings.rotation = el.rotation;
@@ -1947,6 +2044,8 @@ function startSize(asset: Asset, settings: Partial<SvgElement>, size: SizeName, 
   // The drawing's own shape when it's been measured (see drawnShape). Otherwise: assets whose shape
   // depends on their settings (counting frame, base-ten blocks) take it from the drawing area; the rest
   // from their default size (e.g. wide number lines), or a square.
+  // A table's size comes from its text, not from a drawing.
+  if (settings.table) return tableStartSize(settings.table, box, textHeightFor);
   const drawn = drawnShape(asset.id, settings);
   if (drawn) {
     const height = Math.max(box.height, MIN_SIZE_BASE) * SIZE_SHARE[size];

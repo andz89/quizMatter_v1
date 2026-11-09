@@ -21,6 +21,8 @@
   code here, read the Diagrams rules in `src/components/editor/CLAUDE.md`.
 - `importPresentation.ts` (very big): turns Claude's simple "recipe" JSON into real slides, working out every
   element's size and place. `getClaudeFormat()` is the format text Claude reads.
+- `importTable.ts`: how big Claude's tables are: the start size and the rows shared out by their text, naming the rows
+  still cut off for the layout report. Kept out of `importPresentation.ts` so it's tested (`importTable.test.ts`).
 
 ## Saving and loading
 
