@@ -159,8 +159,7 @@ export function SlideToolbar({ slide, slideNumber, isFirst, isLast, canDelete, o
             }
             className="flex h-11 w-11 items-center justify-center rounded-dropdown bg-success-soft text-success-strong hover:bg-success/25"
           >
-            {/* Blank and title slides hold a "Reveal" (hint, activity, example), not a correct answer — same eye as present mode. */}
-            {isReveal ? <EyeIcon size={18} /> : <CheckIcon size={18} />}
+            <CheckIcon size={18} />
           </button>
         )}
 
