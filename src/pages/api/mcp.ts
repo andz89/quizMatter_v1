@@ -382,6 +382,9 @@ function shrinkPresentation({ slides, ...details }: Presentation) {
       elements: slide.elements.map((element) => ({
         ...element,
         ...(element.text && { text: { ...element.text, html: htmlToText(element.text.html) } }),
+        ...(element.table && {
+          table: { ...element.table, rows: element.table.rows.map((cells) => cells.map((cell) => ({ html: htmlToText(cell.html) }))) },
+        }),
         ...(element.svg && { svg: svgNote(element.svg) }),
       })),
     })),

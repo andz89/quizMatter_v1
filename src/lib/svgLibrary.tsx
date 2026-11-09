@@ -44,6 +44,7 @@ export type RenderSettings = Partial<Pick<
   | "tree"
   | "factorTree"
   | "text"
+  | "table"
   | "svg"
   | "image"
   | "crop"
@@ -77,6 +78,8 @@ interface ElementAsset {
   // True for the text box; only it uses `text`. On the slide it shows its text instead of `render`,
   // which just draws the "T" icon for the Elements panel.
   isTextBox?: boolean;
+  // True for the table; only it uses `table`. Like the text box, `render` is just its icon for the Elements panel.
+  isTable?: boolean;
   // Set for lines; they get left/right handles that make them longer without making them thicker.
   isLine?: boolean;
   // Set for the square and rectangle; they get side and top/bottom handles that make them wider or taller.
@@ -6198,6 +6201,20 @@ const ASSETS: ElementAsset[] = [
       <path d="M22 26V18H78V26M50 18V84M38 84H62" fill="none" stroke={color} strokeWidth="7" strokeLinecap="round" strokeLinejoin="round" />
     ),
   },
+  {
+    id: "table",
+    category: "text",
+    label: "Table",
+    defaultColor: DEFAULT_TEXT_COLOR,
+    isTable: true,
+    defaultSize: { width: 600, height: 240 },
+    render: (color) => (
+      <g fill="none" stroke={color} strokeWidth="7" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="12" y="18" width="76" height="64" rx="6" />
+        <path d="M12 39H88M12 61H88M37 18V82M63 18V82" />
+      </g>
+    ),
+  },
 ];
 
 // Shapes already have hand-picked colors; everything else gets a random-looking bright one.
@@ -6211,7 +6228,7 @@ export function getAssetViewBox(asset: ElementAsset, settings: RenderSettings) {
 }
 
 /**
- * Whether an element can be cropped: pictures only. Not text boxes, lines and stretchable shapes (they
+ * Whether an element can be cropped: pictures only. Not text boxes, tables, lines and stretchable shapes (they
  * just get resized), nor elements whose shape changes with their settings (3D shapes, clocks, calendars, math
  * tools), where a crop would slip.
  */
@@ -6221,6 +6238,7 @@ export function canCrop(element: Pick<SvgElement, "assetId" | "svg" | "image">) 
   return (
     !!asset &&
     !asset.isTextBox &&
+    !asset.isTable &&
     !asset.isLine &&
     !asset.stretchX &&
     !asset.is3d &&
@@ -6242,11 +6260,12 @@ export function getElementAsset(assetId: string): ElementAsset | undefined {
 /**
  * Drawings are made with empty space around them in their drawing area, which is trimmed off. Not on
  * elements whose shape changes with their settings (3D angle, clock hands, calendar dates, math tools) — those
- * would jump in size while being adjusted — and not on the text box, which isn't a drawing.
+ * would jump in size while being adjusted — and not on the text box and table, which aren't drawings.
  */
 export function canTrimDrawing(asset: ElementAsset): boolean {
   return (
     !asset.isTextBox &&
+    !asset.isTable &&
     !asset.is3d &&
     !asset.isClock &&
     !asset.isCalendar &&

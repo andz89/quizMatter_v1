@@ -7,6 +7,7 @@ import { ElementSvg } from "./ElementSvg";
 import { TextBoxContent } from "./TextBoxContent";
 import { DiagramBoxEditor, findDiagramBoxAt } from "./DiagramBoxEditor";
 import { DiagramBoxButtons } from "./DiagramBoxButtons";
+import { TableButtons, TableContent, TableLines, tableCellAt } from "./TableContent";
 import { CORNERS, EDGE_HANDLES, type Corner, type EdgeHandle } from "./handles";
 import {
   clamp,
@@ -148,6 +149,17 @@ export const SvgElementItem = memo(function SvgElementItem({ slideId, element, i
     s.editingDiagramBox?.elementId === element.id ? s.editingDiagramBox.path : undefined,
   );
 
+  const setPickedTableCell = useEditorStore((s) => s.setPickedTableCell);
+  const isTableCellPicked = useEditorStore((s) => s.pickedTableCell?.elementId === element.id);
+  const isTypingInTable = useEditorStore((s) => s.pickedTableCell?.elementId === element.id && !!s.pickedTableCell.typingAt);
+  // Set when a press on a table happened while typing in one of its cells (see the click).
+  const wasTypingOnPress = useRef(false);
+
+  // A picked table cell is let go once this isn't the one selected element anymore.
+  useEffect(() => {
+    if (isTableCellPicked && !isOnlySelected) setPickedTableCell(null);
+  }, [isTableCellPicked, isOnlySelected, setPickedTableCell]);
+
   // Cropping ends once this isn't the one selected element anymore (e.g. after a click elsewhere).
   useEffect(() => {
     if (isCropTarget && !isOnlySelected) setCroppingElementId(null);
@@ -170,6 +182,9 @@ export const SvgElementItem = memo(function SvgElementItem({ slideId, element, i
     e.stopPropagation();
     // While typing, clicks and drags place the cursor or select words instead of moving the box.
     if (editStart) return;
+    // A press outside the cell being typed in: that cell stops typing now, and the click moves the typing.
+    wasTypingOnPress.current = isTypingInTable;
+    if (isTypingInTable) return;
 
     // While cropping, dragging slides the picture inside its box instead of moving the element.
     if (isCropping) {
@@ -203,8 +218,8 @@ export const SvgElementItem = memo(function SvgElementItem({ slideId, element, i
       canvasRootEl: e.currentTarget.closest<HTMLElement>("[data-canvas-root]"),
       grabOffsetX: (e.clientX - elementRect.left) / zoom,
       grabOffsetY: (e.clientY - elementRect.top) / zoom,
-      // Read from before this click, so the first click on a diagram only selects it.
-      pickOnClick: isOnlySelected && !!getDiagramBoxes(element.assetId, element),
+      // Read from before this click, so the first click on a diagram or table only selects it.
+      pickOnClick: isOnlySelected && (!!getDiagramBoxes(element.assetId, element) || !!asset?.isTable),
     };
     e.currentTarget.setPointerCapture(e.pointerId);
   };
@@ -425,7 +440,7 @@ export const SvgElementItem = memo(function SvgElementItem({ slideId, element, i
     edgeResizeState.current = null;
   };
 
-  // Text boxes, lines, squares and rectangles only: the side handles change the width alone, the top/bottom ones the height alone.
+  // Text boxes, tables, lines, squares and rectangles only: the side handles change the width alone, the top/bottom ones the height alone.
   const handleEdgePointerDown = (e: React.PointerEvent<HTMLDivElement>, handle: EdgeHandle) => {
     e.stopPropagation();
     edgeResizeState.current = {
@@ -632,8 +647,18 @@ export const SvgElementItem = memo(function SvgElementItem({ slideId, element, i
           onPointerLeave={stopDrag}
           onClick={(e) => {
             e.stopPropagation();
+            // A click on a selected table picks the cell under the pointer. If it was typing, it goes on typing there.
+            if (asset?.isTable) {
+              const cell = tableCellAt(e.clientX, e.clientY);
+              if (wasTypingOnPress.current) {
+                if (cell) setPickedTableCell({ elementId: element.id, ...cell, typingAt: { x: e.clientX, y: e.clientY } });
+              } else if (pickOnNextClick.current) {
+                setPickedTableCell(cell && { elementId: element.id, ...cell });
+              }
+              wasTypingOnPress.current = false;
+            }
             // Picks the diagram box under the pointer (or lets go of the picked one when it's not on a box).
-            if (pickOnNextClick.current && boxRef.current) {
+            else if (pickOnNextClick.current && boxRef.current) {
               const path = findDiagramBoxAt(element, e.clientX, e.clientY, boxRef.current, zoom);
               setPickedDiagramBox(path ? { elementId: element.id, path } : null);
             }
@@ -648,13 +673,18 @@ export const SvgElementItem = memo(function SvgElementItem({ slideId, element, i
               const path = boxRef.current && findDiagramBoxAt(element, e.clientX, e.clientY, boxRef.current, zoom);
               if (path) setEditingDiagramBox({ elementId: element.id, path });
             }
+            // On a table that's selected on its own, it starts typing in the cell under the pointer.
+            else if (isOnlySelected && asset?.isTable) {
+              const cell = tableCellAt(e.clientX, e.clientY);
+              if (cell) setPickedTableCell({ elementId: element.id, ...cell, typingAt: { x: e.clientX, y: e.clientY } });
+            }
             // On a picture that's already selected on its own, it starts cropping.
             else if (canCrop(element)) setCroppingElementId(element.id);
             // Already typing: leave it be, so a double-click selects a word instead of moving the cursor.
             if (asset?.isTextBox) setEditStart((current) => current ?? { x: e.clientX, y: e.clientY });
           }}
           // relative: stays above the faded crop picture drawn before it.
-          className={`relative h-full w-full ${editStart ? "cursor-text" : "cursor-move"}`}
+          className={`relative h-full w-full ${editStart || isTypingInTable ? "cursor-text" : "cursor-move"}`}
           style={{ opacity: (element.opacity ?? 100) / 100 }}
         >
           {asset?.isTextBox ? (
@@ -668,6 +698,8 @@ export const SvgElementItem = memo(function SvgElementItem({ slideId, element, i
               onChange={(html) => updateElement(slideId, element.id, { text: { ...element.text, html } })}
               onStopEditing={() => setEditStart(null)}
             />
+          ) : asset?.isTable && element.table ? (
+            <TableContent slideId={slideId} element={element} table={element.table} />
           ) : (
             // A cropped box is the shown part, not the drawing's shape, so it isn't fitted to the drawing.
             <ElementSvg
@@ -683,6 +715,11 @@ export const SvgElementItem = memo(function SvgElementItem({ slideId, element, i
       {/* A picked diagram box: its own outline and handles (under the element's own handles). */}
       {showSelection && isOnlySelected && !isCropping && (
         <DiagramBoxEditor slideId={slideId} element={element} bounds={bounds} overhang={overhang} />
+      )}
+
+      {/* A selected table's lines: before the handles, so the handles stay on top of them. */}
+      {showSelection && isOnlySelected && element.table && (
+        <TableLines slideId={slideId} element={element} table={element.table} bounds={bounds} />
       )}
 
       {showSelection && isOnlySelected && canRotate && !isCropping && (
@@ -719,7 +756,7 @@ export const SvgElementItem = memo(function SvgElementItem({ slideId, element, i
       {showSelection &&
         isOnlySelected &&
         !isCropping &&
-        (asset?.isTextBox || asset?.isLine || asset?.stretchX) &&
+        (asset?.isTextBox || asset?.isTable || asset?.isLine || asset?.stretchX) &&
         // Lines only get the left/right handles (they grow longer, never thicker).
         EDGE_HANDLES.filter((handle) => !asset.isLine || handle.axis === "x").map((handle) => (
           <div
@@ -754,6 +791,9 @@ export const SvgElementItem = memo(function SvgElementItem({ slideId, element, i
       {/* "+" and × on every box of the selected diagram: last, so they sit on top of the element's own
           handles (a corner box's × is next to the diagram's corner handle). */}
       {showSelection && isOnlySelected && !isCropping && <DiagramBoxButtons slideId={slideId} element={element} />}
+      {showSelection && isOnlySelected && element.table && (
+        <TableButtons slideId={slideId} element={element} table={element.table} bounds={bounds} />
+      )}
     </div>
   );
 },

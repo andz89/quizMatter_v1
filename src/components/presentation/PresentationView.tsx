@@ -8,7 +8,7 @@ import type { Presentation } from "@/lib/schema";
 import { SlideStaticView } from "./SlideStaticView";
 import { AnswerModal } from "@/components/editor/AnswerModal";
 import { SlideThumbnailPreview } from "@/components/editor/SlideThumbnailPreview";
-import { EyeIcon, LayoutGridIcon, XIcon } from "lucide-react";
+import { CheckIcon, LayoutGridIcon, XIcon } from "lucide-react";
 
 // Clicks in the left 25% of the screen go to the previous slide.
 const PREV_ZONE = 0.25;
@@ -307,7 +307,7 @@ export function PresentationView() {
             title={hasReveal(slide) ? "Reveal" : isChoice && isAnswerShown ? "Hide answer" : "Show answer"}
             className={roundButtonClass}
           >
-            <EyeIcon size={18} />
+            <CheckIcon size={18} />
           </button>
         )}
       </div>

@@ -64,6 +64,9 @@ Tests that delete data (the announcements ones empty the announcements table) do
   and an image slide saved before still opens with its picture.
 - `calendar-date.mjs`: add a Calendar Page and a Month Calendar (both start on today), Set date to 29 February 2024,
   Today, save, reload.
+- `table-element.mjs`: add a table, type, Tab, the text bar, both "+", the Table menu, undo taking away a picked or
+  typed-in row, Delete on a picked cell, duplicate, dragging column and row lines, save, reload, the slide's edge, present, a table in a question
+  slide's box.
 - `proxy.mjs`: an expired session opening /login is refreshed and the redirect keeps the new cookies; `/api/mcp`
   skips the proxy, `/api/mcp-admin` and `/api/claude-photos` don't.
 - `reports-plain-admin.mjs`: Admin → Reports as a plain admin: a teacher's reported copy has Hide and Delete, a

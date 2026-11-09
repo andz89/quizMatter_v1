@@ -156,6 +156,36 @@ test("an element keeps a real calendar date and refuses one that doesn't exist",
   assert.equal(svgElementSchema.safeParse({ ...calendar, calendarDate: { year: 2026, month: 2, day: 30 } }).success, false);
 });
 
+test("an element keeps a table and refuses one with the wrong shape", () => {
+  const element = { id: "e1", assetId: "table", x: 0, y: 0, width: 100, height: 100, color: "#191A2C", containerId: null };
+  const cells = (count: number) => Array.from({ length: count }, () => ({ html: "" }));
+  const rows = (count: number, columns: number) => Array.from({ length: count }, () => cells(columns));
+  const fits = (table: unknown) => svgElementSchema.safeParse({ ...element, table }).success;
+
+  const kept = svgElementSchema.parse({ ...element, table: { rows: [[{ html: "<p>Hi</p>" }]], fontSize: 24 } });
+  assert.deepEqual(kept.table, { rows: [[{ html: "<p>Hi</p>" }]], fontSize: 24 });
+  assert.ok(fits({ rows: rows(15, 15) }));
+  assert.equal(fits({ rows: [cells(2), cells(3)] }), false, "rows of different lengths");
+  assert.equal(fits({ rows: rows(16, 2) }), false, "16 rows");
+  assert.equal(fits({ rows: rows(2, 16) }), false, "16 columns");
+  assert.equal(fits({ rows: [] }), false, "no rows");
+  assert.equal(fits({ rows: [[]] }), false, "no columns");
+});
+
+test("a table keeps its column and row sizes and refuses ones that don't match", () => {
+  const element = { id: "e1", assetId: "table", x: 0, y: 0, width: 100, height: 100, color: "#191A2C", containerId: null };
+  const rows = [[{ html: "" }, { html: "" }]];
+  const fits = (sizes: object) => svgElementSchema.safeParse({ ...element, table: { rows, ...sizes } }).success;
+
+  const kept = svgElementSchema.parse({ ...element, table: { rows, columnSizes: [30, 70], rowSizes: [50] } });
+  assert.deepEqual(kept.table?.columnSizes, [30, 70]);
+  assert.deepEqual(kept.table?.rowSizes, [50]);
+  assert.equal(fits({ columnSizes: [30] }), false, "too few column sizes");
+  assert.equal(fits({ rowSizes: [50, 50] }), false, "too many row sizes");
+  assert.equal(fits({ columnSizes: [30, 0] }), false, "a zero size");
+  assert.equal(fits({ columnSizes: [30, -5] }), false, "a negative size");
+});
+
 test("slideSchema keeps a slide's hidden mark", () => {
   assert.equal(slideSchema.parse({ ...blankSlide, hidden: true }).hidden, true);
   assert.equal(slideSchema.parse(blankSlide).hidden, undefined);

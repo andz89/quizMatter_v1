@@ -20,6 +20,7 @@ import {
   getContainerBounds,
   GRADIENT_PREFIX,
   OPACITY_MIN,
+  TABLE_FONT_SIZE,
 } from "@/lib/constants";
 import { boxForShownPart, getCropFrame } from "@/lib/crop";
 import { fitInBox } from "@/lib/geometry";
@@ -27,7 +28,8 @@ import { toCssBackground } from "./ElementSvg";
 import { NONE_SWATCH } from "./ColorPanel";
 import { ArrangePanel } from "./ArrangePanel";
 import { MathToolControls } from "./MathToolPanels";
-import { FontSizePicker } from "./TextFormatToolbar";
+import { FONT_SIZES, FontSizePicker } from "./TextFormatToolbar";
+import { TablePanel } from "./TableContent";
 import { PanelLabel, PanelReadout, PanelSlider, ResetButton, ToggleChip, ToolPanelButton } from "./PanelControls";
 import {
   CALENDAR_YEARS,
@@ -101,6 +103,9 @@ export function SelectedElementToolbar({ showColor = true }: { showColor?: boole
   const setDate = (calendarDate: CalendarDate | null) =>
     calendar && calendarDate && updateElement(selectedSlideId, calendar.id, { calendarDate });
 
+  // The Table menu is offered when exactly one table is selected.
+  const tableElement = elements.length === 1 && elements[0].table ? elements[0] : null;
+
   // Box style is offered when exactly one diagram is selected: for its picked box, or every box.
   const diagramElement = elements.length === 1 ? elements[0] : null;
   const diagram = diagramElement ? getDiagramBoxes(diagramElement.assetId, diagramElement) : null;
@@ -143,8 +148,8 @@ export function SelectedElementToolbar({ showColor = true }: { showColor?: boole
   };
 
   // Flip mirrors what you see, so a turned element's angle is mirrored too (30° becomes -30°).
-  // Each element flips in its own place. Text boxes are never flipped: mirrored text can't be read.
-  const flippable = elements.filter((el) => !getElementAsset(el.assetId)?.isTextBox);
+  // Each element flips in its own place. Text boxes and tables are never flipped: mirrored text can't be read.
+  const flippable = elements.filter((el) => !getElementAsset(el.assetId)?.isTextBox && !getElementAsset(el.assetId)?.isTable);
   const flip = (axis: "flipX" | "flipY") =>
     updateElements(
       selectedSlideId,
@@ -253,7 +258,7 @@ export function SelectedElementToolbar({ showColor = true }: { showColor?: boole
         <>
           <button
             type="button"
-            title="Color"
+            title={tableElement ? "Line color" : "Color"}
             onClick={() => openColorPanelOn("fill")}
             className="h-6 w-6 shrink-0 rounded-full"
             style={{ background: commonColor ? toCssBackground(commonColor) : MIXED_COLOR_SWATCH, ...outline("fill") }}
@@ -316,6 +321,25 @@ export function SelectedElementToolbar({ showColor = true }: { showColor?: boole
           >
             {boxShape === "circle" ? <CircleIcon size={16} /> : <SquareIcon size={16} />}
           </button>
+          <div className="mx-1 h-5 w-px bg-border-default" />
+        </>
+      )}
+      {/* A table's menu, and its text size (while typing, the text toolbar next to this has the size). */}
+      {tableElement?.table && slide && (
+        <>
+          <TablePanel
+            slideId={selectedSlideId}
+            element={tableElement}
+            table={tableElement.table}
+            bounds={getContainerBounds(tableElement.containerId, slide)}
+          />
+          {showColor && (
+            <FontSizePicker
+              size={tableElement.table.fontSize ?? TABLE_FONT_SIZE}
+              sizes={FONT_SIZES}
+              onChoose={(fontSize) => tableElement.table && updateElement(selectedSlideId, tableElement.id, { table: { ...tableElement.table, fontSize } })}
+            />
+          )}
           <div className="mx-1 h-5 w-px bg-border-default" />
         </>
       )}

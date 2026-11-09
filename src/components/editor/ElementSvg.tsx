@@ -1,10 +1,11 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { canTrimDrawing, getAssetViewBox, getElementAsset, svgDataUrl, type RenderSettings } from "@/lib/svgLibrary";
 import { TRIM_PADDING } from "@/lib/geometry";
 import { isPeopleArt, isPeopleArtLoaded, loadPeopleArt } from "@/lib/peopleArt";
 import { Spinner } from "@/components/Spinner";
-import { GRADIENT_PREFIX, TEXT_BOX_FONT_SIZE, thumbnailUrl } from "@/lib/constants";
+import { DEFAULT_TEXT_COLOR, GRADIENT_PREFIX, TABLE_CELL_FILL, TABLE_FONT_SIZE, TABLE_LINE_WIDTH, TEXT_BOX_FONT_SIZE, thumbnailUrl } from "@/lib/constants";
 import { isSafeColor } from "@/lib/schema";
+import { tableLinePositions, type TableSettings } from "@/lib/table";
 import { SlideText } from "./SlideText";
 
 interface ElementSvgProps {
@@ -88,6 +89,74 @@ function SlidePhoto({ src }: { src: string }) {
         onLoad={() => setIsLoaded(true)}
         className="relative h-full w-full object-contain"
       />
+    </div>
+  );
+}
+
+// A table's columns or rows for CSS: its saved sizes as shares of the room, or all the same.
+const tableTracks = (sizes: number[] | undefined, count: number) =>
+  sizes ? sizes.map((size) => `minmax(0, ${size}fr)`).join(" ") : `repeat(${count}, minmax(0, 1fr))`;
+
+/**
+ * A table's grid: white, with the cells laid out by CSS and the lines drawn over them as one SVG shape. Not as gaps
+ * between the cells: at the editor's zoom the browser rounds each cell's edge to a whole pixel, so some gaps came out
+ * twice as thick as others. `renderCell` lets the editor put something else in a cell (the cell being typed in).
+ */
+export function TableGrid({
+  table,
+  color,
+  width,
+  height,
+  renderCell,
+}: {
+  table: TableSettings;
+  color: string;
+  width: number;
+  height: number;
+  renderCell?: (row: number, column: number) => ReactNode;
+}) {
+  const fontSize = table.fontSize ?? TABLE_FONT_SIZE;
+  const gradientId = `table-${useId().replace(/[^a-zA-Z0-9_-]/g, "")}`;
+  const gradientStops = color.startsWith(GRADIENT_PREFIX) ? color.slice(GRADIENT_PREFIX.length).split(",") : null;
+  const lines = tableLinePositions({ x: 0, y: 0, width, height, table });
+  const path = [...lines.columns.map((x) => `M${x} 0V${height}`), ...lines.rows.map((y) => `M0 ${y}H${width}`)].join("");
+  return (
+    <div
+      className="relative grid h-full w-full select-none"
+      style={{
+        gridTemplateColumns: tableTracks(table.columnSizes, table.rows[0].length),
+        gridTemplateRows: tableTracks(table.rowSizes, table.rows.length),
+        gap: TABLE_LINE_WIDTH,
+        padding: TABLE_LINE_WIDTH,
+        background: TABLE_CELL_FILL,
+      }}
+    >
+      {table.rows.flatMap((cells, row) =>
+        cells.map((cell, column) => (
+          <div
+            key={`${row}:${column}`}
+            data-table-row={row}
+            data-table-column={column}
+            className="min-h-0 min-w-0 overflow-hidden px-2 py-1"
+            style={{ color: DEFAULT_TEXT_COLOR }}
+          >
+            {/* In the middle top to bottom, like a text box. */}
+            {renderCell?.(row, column) ??
+              (cell.html && <SlideText text="" html={cell.html} fontSize={fontSize} className="flex flex-col justify-center-safe" />)}
+          </div>
+        )),
+      )}
+      <svg className="pointer-events-none absolute inset-0 h-full w-full" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none">
+        {gradientStops && (
+          <defs>
+            <linearGradient id={gradientId} gradientUnits="userSpaceOnUse" x1="0" y1="0" x2={width} y2={height}>
+              <stop offset="0" stopColor={gradientStops[0]} />
+              <stop offset="1" stopColor={gradientStops[1]} />
+            </linearGradient>
+          </defs>
+        )}
+        <path d={path} fill="none" strokeWidth={TABLE_LINE_WIDTH} stroke={!isSafeColor(color) ? "none" : gradientStops ? `url(#${gradientId})` : color} />
+      </svg>
     </div>
   );
 }
@@ -192,6 +261,11 @@ function ElementDrawing({ assetId, color, settings = {}, onMeasure }: ElementSvg
         />
       </div>
     );
+  }
+
+  // A placed table shows its cells (read-only here). Without its rows (the Elements panel tile) it draws its icon.
+  if (asset.isTable && settings.table && settings.width !== undefined && settings.height !== undefined) {
+    return <TableGrid table={settings.table} color={color} width={settings.width} height={settings.height} />;
   }
 
   const gradientStops = color.startsWith(GRADIENT_PREFIX) ? color.slice(GRADIENT_PREFIX.length).split(",") : null;

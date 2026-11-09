@@ -3,6 +3,7 @@ import { useEditorStore } from "./store";
 import { isTextFieldOrDialog, isTypingTarget } from "./dom";
 import { getContainerBounds } from "./constants";
 import { overhangFor, positionRange } from "./geometry";
+import { withCellHtml } from "./table";
 
 // How far (px) an arrow key moves the selected element(s); Shift moves further.
 const ARROW_STEP = 1;
@@ -25,7 +26,8 @@ const ARROW_DIRECTIONS: Record<string, { x: number; y: number }> = {
  * - Ctrl/Cmd+G groups, Ctrl/Cmd+Shift+G ungroups
  * - Ctrl/Cmd+] brings forward, Ctrl/Cmd+[ sends backward; add Alt to go all the way to the front/back
  * - Escape or Enter stops cropping
- * - Delete removes the selected element(s) (Backspace doesn't), Escape deselects
+ * - Delete removes the selected element(s) (Backspace doesn't), Escape deselects; with a table cell picked, Delete
+ *   empties that cell and Escape lets go of it
  * - Arrow keys move the selected element(s) 1px (10px with Shift), kept inside their box
  */
 export function useEditorShortcuts() {
@@ -113,6 +115,18 @@ export function useEditorShortcuts() {
       ) {
         e.preventDefault();
         state.setPickedDiagramBox(null);
+      } else if (
+        // A picked table cell: Escape goes back to the whole table (it stays selected), Delete empties just that cell.
+        state.pickedTableCell &&
+        selectedElementIds.length === 1 &&
+        selectedElementIds[0] === state.pickedTableCell.elementId &&
+        (e.key === "Escape" || e.key === "Delete")
+      ) {
+        e.preventDefault();
+        const pick = state.pickedTableCell;
+        if (e.key === "Escape") return state.setPickedTableCell(null);
+        const table = state.presentation.slides.find((sl) => sl.id === selectedSlideId)?.elements.find((el) => el.id === pick.elementId)?.table;
+        if (table) state.updateElement(selectedSlideId, pick.elementId, { table: withCellHtml(table, pick, "") });
       } else if (selectedElementIds.length > 0 && e.key === "Delete") {
         // Only the Delete key, not Backspace, so a stray Backspace can't remove elements.
         e.preventDefault();
