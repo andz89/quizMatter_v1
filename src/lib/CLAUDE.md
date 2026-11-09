@@ -21,6 +21,8 @@
   code here, read the Diagrams rules in `src/components/editor/CLAUDE.md`.
 - `importPresentation.ts` (very big): turns Claude's simple "recipe" JSON into real slides, working out every
   element's size and place. `getClaudeFormat()` is the format text Claude reads.
+- `importTable.ts`: how big Claude's tables are: the start size and the rows shared out by their text, naming the rows
+  still cut off for the layout report. Kept out of `importPresentation.ts` so it's tested (`importTable.test.ts`).
 
 ## Saving and loading
 
@@ -43,6 +45,9 @@
   edits first. QuizMatter presentations keep the `isPublished` switch. See `20261123000000_shared_copy.sql`.
 - `keptWork.ts`: unsaved work kept in this browser (`qm-unsaved:<id>`) when a save is refused with `QMOLD`, or while
   the editor is left (`saveBeforeLeaving` in `store.ts` keeps it before it saves, and a save that works forgets it;
+- `autoSave.ts`: the editor's auto save timing (`AUTO_SAVE_MS`) and its daily cap (`AUTO_SAVES_PER_DAY`, counted in
+  this browser under `qm-auto-saves`, so it never uses up the `presentation_save_daily` limit; change them together).
+  How the editor uses it: `src/components/editor/CLAUDE.md`, "Auto save". Tests: `autoSave.test.ts`.
   a changed Claude draft not saved yet is only kept, never saved by leaving; how the editor uses it:
   `src/components/editor/CLAUDE.md`). `keepUnsavedWork` returns false when the browser
   can't store it (blocked or full), and stores nothing (true) when there are no real edits (only the publish switch

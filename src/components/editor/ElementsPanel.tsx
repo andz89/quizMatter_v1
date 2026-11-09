@@ -127,13 +127,13 @@ export function ElementsPanel() {
 
       {openCategory === null ? (
         <>
-          <div className="mb-5 grid grid-cols-2 gap-2">
+          <div className="mb-5 grid grid-cols-3 gap-2">
             <button
               type="button"
               draggable
               onDragStart={(e) => handleDragStart(e, "text-box")}
               onClick={() => insertElement("text-box")}
-              className="flex cursor-grab items-center justify-center gap-2 whitespace-nowrap rounded-card border border-transparent bg-accent-soft p-2 text-[13px] font-semibold text-text-primary transition-colors hover:border-accent"
+              className="flex cursor-grab flex-col items-center justify-center gap-2 whitespace-nowrap rounded-card border border-transparent bg-accent-soft p-2 text-[13px] font-semibold text-text-primary transition-colors hover:border-accent"
             >
               {/* The colored square is the drag image, so the ghost shows the icon, not a white "T". */}
               <span
@@ -151,7 +151,7 @@ export function ElementsPanel() {
               draggable
               onDragStart={(e) => handleDragStart(e, "rectangle")}
               onClick={() => insertElement("rectangle")}
-              className="flex cursor-grab items-center justify-center gap-2 whitespace-nowrap rounded-card border border-transparent bg-accent-soft p-2 text-[13px] font-semibold text-text-primary transition-colors hover:border-accent"
+              className="flex cursor-grab flex-col items-center justify-center gap-2 whitespace-nowrap rounded-card border border-transparent bg-accent-soft p-2 text-[13px] font-semibold text-text-primary transition-colors hover:border-accent"
             >
               <span
                 data-drag-image
@@ -168,7 +168,7 @@ export function ElementsPanel() {
               draggable
               onDragStart={(e) => handleDragStart(e, "table")}
               onClick={() => insertElement("table")}
-              className="col-span-2 flex cursor-grab items-center justify-center gap-2 whitespace-nowrap rounded-card border border-transparent bg-accent-soft p-2 text-[13px] font-semibold text-text-primary transition-colors hover:border-accent"
+              className="flex cursor-grab flex-col items-center justify-center gap-2 whitespace-nowrap rounded-card border border-transparent bg-accent-soft p-2 text-[13px] font-semibold text-text-primary transition-colors hover:border-accent"
             >
               <span
                 data-drag-image

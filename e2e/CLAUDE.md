@@ -59,6 +59,9 @@ Tests that delete data (the announcements ones empty the announcements table) do
   as the super admin: "3 of 3 · Limit reached", the addresses' counts (an IPv6 /64 as one), and "Over the limit"
   after a 4th send (screenshot `admin-safety-resets.png`). Run it alone:
   the outage check stops the gateway every local test uses (Ctrl+C or a failure starts it again).
+- `auto-save.mjs`: an edit saves itself within 12 seconds with no toast, and nothing is sent without a change. It
+  holds back when the day's auto saves are used up (Ctrl+S still saves), after a refused save, for restored work, on
+  a Claude draft and on a live QuizMatter lesson; it retries after a lost connection; a review saves its own draft.
 - `hidden-slides.mjs`: hide a slide, save, present (→ / ← skip it), the all-slides grid, show it again.
 - `add-slide-menu.mjs`: the slide's + and the workspace's Add slide have no "Embed image" (the other 8 types stay),
   and an image slide saved before still opens with its picture.

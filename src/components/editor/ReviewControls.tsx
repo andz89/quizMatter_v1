@@ -12,7 +12,7 @@ import { forgetKeptWork } from "@/lib/keptWork";
 import { SaveRefusedError, saveErrorMessage } from "@/lib/presentations";
 import { stopReview, submitReview } from "@/lib/reviews";
 import type { ReviewerFields } from "@/lib/schema";
-import { forgetLastSave, useEditorStore } from "@/lib/store";
+import { forgetLastSave, useEditorStore, withoutAutoSave } from "@/lib/store";
 import { SentBackBanner } from "./SentBackBanner";
 
 /**
@@ -52,7 +52,7 @@ export function ReviewControls() {
     const { presentation } = useEditorStore.getState();
     setIsStopping(true);
     try {
-      await stopReview(presentation.id);
+      await withoutAutoSave(() => stopReview(presentation.id));
       toast.success("Review stopped. Nothing was changed.");
       // Nothing left to save, so leaving doesn't save the thrown-away work (see saveBeforeLeaving), and a new review
       // in this tab doesn't open the thrown-away draft (see lastSaveOf). As it is now: edits typed while it stopped
@@ -131,10 +131,14 @@ function SubmitForm({ reviewer, onClose }: { reviewer: ReviewerFields; onClose: 
 
   const send = async (e: React.FormEvent) => {
     e.preventDefault();
-    const { presentation, savedAt } = useEditorStore.getState();
     setIsSending(true);
     try {
-      await submitReview(presentation, savedAt);
+      // Read after a running auto save ends: it changes the save time this submit is based on.
+      const presentation = await withoutAutoSave(async () => {
+        const state = useEditorStore.getState();
+        await submitReview(state.presentation, state.savedAt);
+        return state.presentation;
+      });
       forgetKeptWork(presentation.id);
       toast.success("Thanks! QuizMatter will publish this presentation in 1–2 days.");
       // Saved with the submit, so leaving doesn't save it again (see saveBeforeLeaving).
