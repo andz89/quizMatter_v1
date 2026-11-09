@@ -10,7 +10,7 @@ import { Spinner } from "@/components/Spinner";
 import { TopLoadingBar } from "@/components/TopLoadingBar";
 import { isPaused, useIsPaused } from "@/lib/clickLimits";
 import { publishableSchema } from "@/lib/schema";
-import { useEditorStore } from "@/lib/store";
+import { useEditorStore, whenNotSaving } from "@/lib/store";
 
 // What happens when it's switched, told in the "Continue?" box first.
 const TEACHER_CONFIRM = {
@@ -174,6 +174,8 @@ export function ShareButton() {
 
   const submit = async () => {
     setIsSubmitting(true);
+    // An auto save may be running: a second save would be turned down until it ends.
+    await whenNotSaving();
     // QuizMatter gets what the editor sees, so unsaved edits are saved first.
     if (!(await savePresentation({ quiet: true }))) {
       setIsSubmitting(false);

@@ -22,6 +22,7 @@ import { ConfirmModal } from "./ConfirmModal";
 import { Modal } from "@/components/Modal";
 import { Spinner } from "@/components/Spinner";
 import { TopLoadingBar } from "@/components/TopLoadingBar";
+import { AUTO_SAVE_MS } from "@/lib/autoSave";
 import { MAINTENANCE_EVENT } from "@/lib/maintenance";
 import type { Presentation } from "@/lib/schema";
 import type { SharedCopy } from "@/lib/sharing";
@@ -155,6 +156,11 @@ export function Editor({
       isOpenRef.current = false;
       useEditorStore.getState().saveBeforeLeaving(() => !isOpenRef.current);
     };
+  }, []);
+
+  useEffect(() => {
+    const timer = setInterval(() => useEditorStore.getState().autoSave(), AUTO_SAVE_MS);
+    return () => clearInterval(timer);
   }, []);
 
   // Closing or reloading the tab with unsaved changes makes the browser ask "Leave page?" first (a save can't finish

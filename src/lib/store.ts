@@ -38,7 +38,9 @@ import { clamp, fitInBox, getOuterEdges } from "./geometry";
 import { REFUSALS, SaveRefusedError, saveErrorMessage, savePresentationToDb } from "./presentations";
 import { saveReviewDraft } from "./reviews";
 import { forgetKeptWork, keepUnsavedWork, takeKeptWork } from "./keptWork";
-import { checkPauses, pausedUntilFromError } from "./clickLimits";
+import { checkPauses, isPaused, pausedUntilFromError } from "./clickLimits";
+import { countAutoSave, hasAutoSavesLeft } from "./autoSave";
+import { todayInManila } from "./age";
 import { shareCopy, unshareCopy, type SharedCopy } from "./sharing";
 import type { SubmissionStatus } from "./submissions";
 import { finishDraft } from "@/app/actions";
@@ -285,6 +287,9 @@ interface EditorState {
   // Saves the whole presentation and shows a toast (not when `quiet`). Resolves true if it's saved (or had
   // nothing new to save), false if it failed or another save is still running.
   savePresentation: (options?: { quiet?: boolean }) => Promise<boolean>;
+  // The editor's timer (every AUTO_SAVE_MS): a quiet savePresentation, when there are changes and nothing holds it
+  // back (see the notes in src/components/editor/CLAUDE.md, "Auto save").
+  autoSave: () => Promise<void>;
   // True after a save was refused because newer app code saved this presentation (QMOLD): the unsaved work was kept
   // in the browser (keptWork.ts; if it could be, see keptInBrowser) and the editor asks for a reload.
   isOutdated: boolean;
@@ -598,8 +603,30 @@ function hasNothingToSave({ presentation, savedPresentation, claudeDraft }: Edit
 }
 
 /** Resolves once the saves running now have ended, even if another presentation was opened meanwhile. */
-function whenNotSaving(): Promise<void> {
+export function whenNotSaving(): Promise<void> {
   return Promise.all(runningSaves).then(() => {});
+}
+
+// Auto save is off until a save works or another presentation opens: a save was refused (one toast, not a new one
+// every 12 seconds), or kept work came back and the teacher hasn't chosen between Save and Throw away.
+let autoSaveIsStopped = false;
+// How many steps that can't overlap a save are running (withoutAutoSave).
+let autoSaveHolds = 0;
+// So the "used up" toast shows once per tab.
+let toldAutoSavesUsedUp = false;
+
+/**
+ * Runs `step` after the running save ends, with auto save held back until it's done. For a step that sends the
+ * presentation itself: a save at the same moment would change the save time it's based on, or be refused by its lock.
+ */
+export async function withoutAutoSave<T>(step: () => Promise<T>): Promise<T> {
+  autoSaveHolds += 1;
+  try {
+    await whenNotSaving();
+    return await step();
+  } finally {
+    autoSaveHolds -= 1;
+  }
 }
 
 export const useEditorStore = create<EditorState>((set, get) => ({
@@ -609,6 +636,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   loadPresentation: (presentation) => {
     openCount += 1;
+    autoSaveIsStopped = false;
     withoutHistory(() =>
       set({
         presentation,
@@ -657,6 +685,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     // A Claude draft isn't in the database, so there's nothing newer to merge with: the kept slides replace Claude's.
     const kept = takeKeptWork(claudeDraft ? { ...presentation, slides: [] } : presentation, review !== null);
     if (!kept) return;
+    // Saving it replaces what was saved since, so that's the teacher's choice (the toast below), not the timer's.
+    autoSaveIsStopped = true;
     // savedPresentation (and savedAt) stay the ones just loaded, so the kept work counts as unsaved and saves over
     // what was saved since. After a refused save someone usually did save since (that's what refused it): keeping
     // the old save time would only make the next save a conflict, and the reload it asks for would lose the work.
@@ -671,6 +701,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         label: "Throw away",
         onClick: () => {
           forgetKeptWork(kept.id);
+          if (get().presentation.id === kept.id) autoSaveIsStopped = false;
           // Only while nothing else was edited since: later edits stay.
           if (get().presentation === kept) get().undo();
         },
@@ -712,10 +743,15 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       toast.dismiss("kept-work");
       if (!quiet) toast.success(review ? "Draft saved. Teachers still see the old version." : "Presentation saved.");
       // Edits made while saving aren't in the database yet, so they still count as unsaved.
-      if (isStillOpen()) set({ savedPresentation: presentation, savedAt: newSavedAt, saveStatus: "idle", claudeDraft: null });
+      if (isStillOpen()) {
+        autoSaveIsStopped = false;
+        set({ savedPresentation: presentation, savedAt: newSavedAt, saveStatus: "idle", claudeDraft: null });
+      }
       return true;
     } catch (error) {
       console.error("Couldn't save the presentation", error);
+      // Trying again can't help (a conflict, a lock, an older tab…). A lost connection isn't a refusal: it retries.
+      if (error instanceof SaveRefusedError && isStillOpen()) autoSaveIsStopped = true;
       // Newer app code saved it: keep the work in the browser and ask for a reload (Editor shows the box), which
       // gives it back with the new code. Kept as it is now (with edits made while it saved), or as it was sent if
       // another presentation was opened meanwhile.
@@ -747,6 +783,29 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       runningSaves.delete(thisSave);
       endSave();
     }
+  },
+
+  autoSave: async () => {
+    const state = get();
+    const { presentation, review, claudeDraft } = state;
+    if (autoSaveIsStopped || autoSaveHolds > 0 || leavingSave || hasNothingToSave(state)) return;
+    // Only Save makes Claude's draft a presentation.
+    if (claudeDraft) return;
+    // A review saves to its own draft and isn't counted by the click limits; the rest below is for everything else.
+    if (review) {
+      await state.savePresentation({ quiet: true });
+      return;
+    }
+    // Every teacher sees a shared QuizMatter lesson's save at once, so half-done edits wait for Save.
+    if (presentation.fromAdmin && presentation.isPublished) return;
+    if (isPaused("presentation_save") || isPaused("presentation_save_daily")) return;
+    const today = todayInManila();
+    if (!hasAutoSavesLeft(today)) {
+      if (!toldAutoSavesUsedUp) toast("Auto save has stopped for today. Click Save to keep your changes.", { duration: Infinity });
+      toldAutoSavesUsedUp = true;
+      return;
+    }
+    if (await state.savePresentation({ quiet: true })) countAutoSave(today);
   },
 
   saveBeforeLeaving: (stillLeaving) => {
@@ -1194,6 +1253,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   setPublished: async (isPublished) => {
+    // An auto save may be running: wait for it instead of telling the teacher to try again.
+    await whenNotSaving();
     const { presentation, saveStatus, setPresentationDetails, savePresentation } = get();
     if (saveStatus === "saving") return "It's still saving. Try again in a moment.";
     // A teacher's presentation: the shared copy is made, updated or removed (the presentation itself stays private).

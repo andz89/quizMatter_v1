@@ -60,6 +60,20 @@ editor / view / review, and renders `Editor.tsx`, which calls `store.loadPresent
 - `savePresentation` saves (Save button, Ctrl+S): `saveReviewDraft` in review mode, else `savePresentationToDb`.
   It shows a sonner toast for success and for failure.
 - **Kept work after an app update:** when a save (or a review's Submit) is refused because newer app code saved the
+- **Auto save:** `Editor`'s timer calls the store's `autoSave` every 12 seconds (`AUTO_SAVE_MS`, `src/lib/autoSave.ts`):
+  a quiet `savePresentation` (the Save button shows "Saving…", no toast), only when there are changes. Test:
+  `e2e/auto-save.mjs`. It holds back:
+  - on a **Claude draft** (only Save makes it a presentation) and a **live QuizMatter lesson** (`fromAdmin` and
+    published: every teacher would see half-done edits at once; a review of one does auto save, to its own draft);
+  - after a **refused save** (`SaveRefusedError`: one toast, not one every 12 seconds) and while **restored work**
+    waits for Save or Throw away (`autoSaveIsStopped`), until a save works or another presentation opens. A lost
+    connection isn't a refusal, so it tries again quietly;
+  - while saving is **paused** by a click limit, during a leave-save, and while a step that sends the presentation
+    itself runs (`withoutAutoSave`: the review's Submit and Stop). Share and Submit to QuizMatter wait for a running
+    save first (`whenNotSaving`);
+  - after **600 auto saves in a day** in this browser, Philippine time (`AUTO_SAVES_PER_DAY`), with one toast. Each
+    one counts toward the database's 1,000 saves a day, and three days in a row at that limit bans the account. A
+    review draft isn't counted by the database, so it has no cap. Save and Ctrl+S always work.
   presentation (`QMOLD`, `SaveRefusedError.isOutdated`), the unsaved presentation goes into this browser's storage
   (`src/lib/keptWork.ts`, key `qm-unsaved:<id>`, through the store's `keepWorkNow`) and `isOutdated` makes `Editor`
   show "QuizMatter was updated" with Reload (not focused, as it can pop up while typing). Reloading or closing the tab
