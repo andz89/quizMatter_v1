@@ -261,7 +261,10 @@ export function PresentationView() {
   const roundButtonClass =
     // A darker fill keeps the buttons easy to see when the slide behind them is white.
     "flex h-9 w-9 items-center justify-center rounded-full bg-black/40 text-white/80 hover:bg-black/50 hover:text-white";
-  const buttonsClass =`transition-opacity duration-300 ${showButtons ? "opacity-100" : "pointer-events-none opacity-0"}`;
+  // A live video or deck is another site's frame: a mouse moving over it never reaches this page, so hidden buttons
+  // couldn't come back. They stay while one is showing.
+  const hasLivePlayer = !!slide.embedUrl && (slide.type === "video" || slide.type === "embed-slides");
+  const buttonsClass = `transition-opacity duration-300 ${showButtons || hasLivePlayer ? "opacity-100" : "pointer-events-none opacity-0"}`;
 
   return (
     <div

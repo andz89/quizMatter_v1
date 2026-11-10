@@ -68,6 +68,21 @@ export function Workspace() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // The slide stays centered when the zoom changes or a side panel narrows the work area, also when it's wider than
+  // the screen. Measured on the list, not scrollWidth, which also counts anything hanging off a slide's right edge.
+  useLayoutEffect(() => {
+    const el = scrollRef.current;
+    const list = el?.firstElementChild;
+    if (!el || !list) return;
+    const center = () => {
+      el.scrollLeft = (list.clientWidth - el.clientWidth) / 2;
+    };
+    center();
+    const observer = new ResizeObserver(center);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [zoom]);
+
   // Whichever slide crosses the vertical center of the scroll area becomes the selected one,
   // so the toolbar and the elements panel always act on the slide the user is looking at.
   //
@@ -284,7 +299,8 @@ export function Workspace() {
     <div className="relative flex-1 overflow-hidden bg-bg-page" {...slideDropHandlers}>
       <div ref={scrollRef} className="h-full select-none overflow-y-auto" {...marqueeHandlers}>
         <div
-          className="flex flex-col items-center"
+          // As wide as the slides when they don't fit: centering alone would push their left part where scrolling can't go.
+          className="flex w-max min-w-full flex-col items-center"
           style={{ gap: SLIDE_GAP, padding: `${WORKSPACE_PADDING}px` }}
         >
           <DndContext

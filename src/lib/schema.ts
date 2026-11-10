@@ -20,6 +20,13 @@ import {
   MIND_MAP_IDEAS,
   TREE_BRANCHES,
   TREE_LEAVES_MAX,
+  BAR_GRAPH_MAX,
+  BASE_TEN_MAX,
+  FRACTION_NUMBER_MAX,
+  FRACTION_PARTS,
+  TEN_FRAME_SIDE_MAX,
+  THERMOMETER_MAX,
+  THERMOMETER_MIN,
   CANVAS_HEIGHT,
   GRADIENT_PREFIX,
   MESH_PREFIX,
@@ -65,7 +72,7 @@ export const WRITES_PER_MINUTE = 30;
 // Size limits for the rest of the slide content. They're far above what the editor or Claude ever make (Claude's
 // drawings are at most 20,000 characters), so they only stop broken or huge data. Like MAX_SLIDES, lowering one
 // could stop an old presentation from opening.
-const MAX_ELEMENTS = 1000;
+export const MAX_ELEMENTS = 1000;
 export const idSchema = z.string().max(100);
 
 // One color: hex (#rgb, #rgba, #rrggbb, #rrggbbaa), rgb() / rgba() with only numbers in it, or "transparent".
@@ -262,6 +269,66 @@ export const factorTreeFits = ({ root }: { root: Splits }) => {
 };
 export const FACTOR_TREE_LIMIT_MESSAGE = `A factor tree has at most ${FACTOR_TREE_LEVELS} levels and ${FACTOR_TREE_BOXES} boxes.`;
 
+const flowchartSchema = z.object({
+  steps: z.array(diagramBoxSchema).min(FLOWCHART_STEPS.min).max(FLOWCHART_STEPS.max),
+  vertical: z.boolean().optional(),
+});
+const cycleSchema = z.object({ steps: z.array(diagramBoxSchema).min(CYCLE_STEPS.min).max(CYCLE_STEPS.max) });
+const mindMapSchema = z.object({ center: diagramBoxSchema, ideas: z.array(diagramBoxSchema).min(MIND_MAP_IDEAS.min).max(MIND_MAP_IDEAS.max) });
+const treeSchema = z.object({
+  root: diagramBoxSchema,
+  branches: z
+    .array(z.object({ label: diagramBoxSchema, leaves: z.array(diagramBoxSchema).max(TREE_LEAVES_MAX) }))
+    .min(TREE_BRANCHES.min)
+    .max(TREE_BRANCHES.max),
+});
+const factorTreeSchema = z.object({ root: factorNodeSchema }).refine(factorTreeFits, FACTOR_TREE_LIMIT_MESSAGE);
+// Each diagram's own field on an element, and the schema it must pass (see cleanElement).
+const DIAGRAM_SCHEMAS = {
+  flowchart: flowchartSchema,
+  cycle: cycleSchema,
+  mindMap: mindMapSchema,
+  tree: treeSchema,
+  factorTree: factorTreeSchema,
+};
+
+const clockTimeSchema = z.object({
+  hours: z.number().int().min(1).max(12),
+  minutes: z.number().int().min(0).max(59),
+  pm: z.boolean().optional(),
+});
+
+const calendarDateSchema = z
+  .object({ year: z.number(), month: z.number(), day: z.number() })
+  .refine(isRealCalendarDate, "Pick a real date between 1900 and 2100.");
+
+const wholeNumber = (min: number, max: number) => z.number().int().min(min).max(max);
+
+// The math tools' settings, with the limits of their panels. Counts are whole numbers: they decide how many shapes
+// get drawn, so a huge one would slow every teacher who opens the slide.
+const MATH_TOOL_SCHEMAS = {
+  // Number lines: first number, how much each tick counts up by, and which tick positions show an empty box instead
+  // of a number. Centered (integer) lines ignore `start`. Missing = start 0, step 1, nothing hidden.
+  numberLine: z.object({ start: z.number(), step: z.number(), hidden: z.array(z.number()).max(100) }),
+  // Fraction bars/circles: equal parts and how many are shaded, missing = 4 parts, 1 shaded (cleanElement also holds a
+  // bar or circle to FRACTION_PARTS). Written fractions: `shaded` on top, `parts` below, missing = 1/2.
+  fraction: z.object({ parts: wholeNumber(1, FRACTION_NUMBER_MAX), shaded: wholeNumber(0, FRACTION_NUMBER_MAX) }),
+  // The counting frame: how many dots, and the grid size (missing rows/columns = 2×5). Missing = 5 dots on a 2×5 grid.
+  tenFrame: z.object({
+    count: wholeNumber(0, TEN_FRAME_SIDE_MAX * TEN_FRAME_SIDE_MAX),
+    rows: wholeNumber(1, TEN_FRAME_SIDE_MAX).optional(),
+    columns: wholeNumber(1, TEN_FRAME_SIDE_MAX).optional(),
+  }),
+  // Base-ten blocks: how many flats (100), rods (10) and cubes (1).
+  baseTen: z.object({ hundreds: wholeNumber(0, BASE_TEN_MAX), tens: wholeNumber(0, BASE_TEN_MAX), ones: wholeNumber(0, BASE_TEN_MAX) }),
+  // The thermometer: the temperature shown, in °C.
+  thermometer: z.object({ value: z.number().min(THERMOMETER_MIN).max(THERMOMETER_MAX) }),
+  // The bar graph: one entry per bar, left to right.
+  barGraph: z.object({ bars: z.array(z.object({ label: z.string().max(100), value: z.number().min(0).max(BAR_GRAPH_MAX) })).max(50) }),
+  // The protractor: the angle between its two lines.
+  protractor: z.object({ angle: z.number().min(0).max(180) }),
+};
+
 export const svgElementSchema = z.object({
   id: idSchema,
   assetId: idSchema,
@@ -291,56 +358,29 @@ export const svgElementSchema = z.object({
   borderWidth: z.number().min(1).max(BORDER_WIDTH_MAX).optional(),
   // Only used by the clocks: the time they show (hours 1–12, minutes 0–59). Missing = 10:10.
   // `pm` is only shown by the digital clock; missing = AM.
-  clockTime: z.object({ hours: z.number(), minutes: z.number(), pm: z.boolean().optional() }).optional(),
+  clockTime: clockTimeSchema.optional(),
   // Only used by the calendars: the date they show (month 1–12, a real date, years 1900–2100). Missing =
   // DEFAULT_CALENDAR_DATE; a new calendar gets today's date. Added in DATA_VERSION 2.
-  calendarDate: z
-    .object({ year: z.number(), month: z.number(), day: z.number() })
-    .refine(isRealCalendarDate, "Pick a real date between 1900 and 2100.")
-    .optional(),
-  // Only used by number lines: first number, how much each tick counts up by, and which tick
-  // positions show an empty box instead of a number. Centered (integer) lines ignore `start`.
-  // Missing = start 0, step 1, nothing hidden.
-  numberLine: z.object({ start: z.number(), step: z.number(), hidden: z.array(z.number()).max(100) }).optional(),
-  // Only used by fraction bars/circles: equal parts and how many are shaded. Missing = 4 parts, 1 shaded.
-  fraction: z.object({ parts: z.number(), shaded: z.number() }).optional(),
-  // Only used by the counting frame: how many dots, and the grid size (missing rows/columns = 2×5).
-  // Missing = 5 dots on a 2×5 grid.
-  tenFrame: z.object({ count: z.number(), rows: z.number().optional(), columns: z.number().optional() }).optional(),
-  // Only used by base-ten blocks: how many flats (100), rods (10) and cubes (1), 0–9 each.
-  baseTen: z.object({ hundreds: z.number(), tens: z.number(), ones: z.number() }).optional(),
-  // Only used by the thermometer: the temperature shown, in °C (-20 to 50).
-  thermometer: z.object({ value: z.number() }).optional(),
-  // Only used by the bar graph: one entry per bar, left to right; values are 0–10.
-  barGraph: z.object({ bars: z.array(z.object({ label: z.string().max(100), value: z.number() })).max(50) }).optional(),
-  // Only used by the protractor: the angle between its two lines, 0–180°.
-  protractor: z.object({ angle: z.number() }).optional(),
+  calendarDate: calendarDateSchema.optional(),
+  // Only used by the math tools; see MATH_TOOL_SCHEMAS.
+  numberLine: MATH_TOOL_SCHEMAS.numberLine.optional(),
+  fraction: MATH_TOOL_SCHEMAS.fraction.optional(),
+  tenFrame: MATH_TOOL_SCHEMAS.tenFrame.optional(),
+  baseTen: MATH_TOOL_SCHEMAS.baseTen.optional(),
+  thermometer: MATH_TOOL_SCHEMAS.thermometer.optional(),
+  barGraph: MATH_TOOL_SCHEMAS.barGraph.optional(),
+  protractor: MATH_TOOL_SCHEMAS.protractor.optional(),
   // Only used by the flowchart: each step's box, in order, in order, and whether the steps go down
   // instead of across. Missing vertical = across.
-  flowchart: z
-    .object({
-      steps: z.array(diagramBoxSchema).min(FLOWCHART_STEPS.min).max(FLOWCHART_STEPS.max),
-      vertical: z.boolean().optional(),
-    })
-    .optional(),
+  flowchart: flowchartSchema.optional(),
   // Only used by the cycle: each step's box, going clockwise from the top.
-  cycle: z.object({ steps: z.array(diagramBoxSchema).min(CYCLE_STEPS.min).max(CYCLE_STEPS.max) }).optional(),
+  cycle: cycleSchema.optional(),
   // Only used by the mind map: the main idea in the middle and the ideas around it.
-  mindMap: z
-    .object({ center: diagramBoxSchema, ideas: z.array(diagramBoxSchema).min(MIND_MAP_IDEAS.min).max(MIND_MAP_IDEAS.max) })
-    .optional(),
+  mindMap: mindMapSchema.optional(),
   // Only used by the tree: the top box, its branches, and the smaller boxes ("leaves") under each branch.
-  tree: z
-    .object({
-      root: diagramBoxSchema,
-      branches: z
-        .array(z.object({ label: diagramBoxSchema, leaves: z.array(diagramBoxSchema).max(TREE_LEAVES_MAX) }))
-        .min(TREE_BRANCHES.min)
-        .max(TREE_BRANCHES.max),
-    })
-    .optional(),
+  tree: treeSchema.optional(),
   // Only used by the factor tree: the top number; each number splits into two (children) or none.
-  factorTree: z.object({ root: factorNodeSchema }).refine(factorTreeFits, FACTOR_TREE_LIMIT_MESSAGE).optional(),
+  factorTree: factorTreeSchema.optional(),
   // Only used by the text box: its styled text, as HTML from the text editor (empty string = no
   // text), and its chosen font size (missing = TEXT_BOX_FONT_SIZE).
   text: z.object({ html: htmlSchema, fontSize: fontSizeSchema.optional() }).optional(),
@@ -437,7 +477,7 @@ export function upgradeSlide(data: unknown): unknown {
   for (const field of ["background", "shapeBoxFill", "shapeBoxBorder"]) {
     if (isUnsafeColor(slide[field])) delete slide[field];
   }
-  if (Array.isArray(slide.elements)) slide.elements = slide.elements.map(cleanElementColors);
+  if (Array.isArray(slide.elements)) slide.elements = slide.elements.map(cleanElement);
   return slide;
 }
 
@@ -445,13 +485,36 @@ function isUnsafeColor(value: unknown): boolean {
   return typeof value === "string" && !isSafeColor(value);
 }
 
-/** An element with its unsafe colors cleaned out (see upgradeSlide). */
-function cleanElementColors(element: unknown): unknown {
+/** An element with its unsafe colors, impossible clock time or date and broken diagram or math tool cleaned out (see upgradeSlide). */
+function cleanElement(element: unknown): unknown {
   if (typeof element !== "object" || element === null) return element;
   const cleaned: Record<string, unknown> = { ...element };
   if (isUnsafeColor(cleaned.color)) cleaned.color = DEFAULT_TEXT_COLOR;
   if (isUnsafeColor(cleaned.borderColor)) delete cleaned.borderColor;
+  // Before 2026-11-09 clockTime took any number. A time no clock can show is left out (= 10:10), so the slide opens.
+  if (cleaned.clockTime !== undefined && !clockTimeSchema.safeParse(cleaned.clockTime).success) delete cleaned.clockTime;
+  // The database doesn't check dates either: one no calendar can show is left out (= DEFAULT_CALENDAR_DATE).
+  if (cleaned.calendarDate !== undefined && !calendarDateSchema.safeParse(cleaned.calendarDate).success) delete cleaned.calendarDate;
+  // The database doesn't check diagrams or math tools, so a request edited by hand could save one the editor can't
+  // make, and that one element would stop the whole presentation from opening. It's left out (= its starting look).
+  for (const [field, schema] of [...Object.entries(DIAGRAM_SCHEMAS), ...Object.entries(MATH_TOOL_SCHEMAS)]) {
+    if (cleaned[field] !== undefined && !isValidSetting(schema, cleaned[field])) delete cleaned[field];
+  }
+  // A written fraction can reach 999, but a bar or circle is drawn in FRACTION_PARTS pieces at most.
+  const { assetId, fraction } = cleaned as { assetId?: unknown; fraction?: { parts: number } };
+  if ((assetId === "fraction-bar" || assetId === "fraction-circle") && fraction) {
+    if (fraction.parts < FRACTION_PARTS.min || fraction.parts > FRACTION_PARTS.max) delete cleaned.fraction;
+  }
   return cleaned;
+}
+
+/** Whether a setting passes its schema. A factor tree nested too deep to walk overflows the stack: that's a no too. */
+function isValidSetting(schema: z.ZodType, value: unknown): boolean {
+  try {
+    return schema.safeParse(value).success;
+  } catch {
+    return false;
+  }
 }
 
 export const slideSchema = z.preprocess(upgradeSlide, z.object({
@@ -818,6 +881,27 @@ export function parseSlide(data: unknown): Slide | null {
   return result.success ? result.data : null;
 }
 export type Presentation = z.infer<typeof presentationSchema>;
+
+/**
+ * A saved presentation, checked for opening it. An element the schema refuses (from a request edited by hand) is
+ * taken out so the rest still opens, and a slide over its element limit keeps its first ones. Only for opening: saves
+ * keep using presentationSchema, which refuses these instead of losing a teacher's work, and so does Admin → Data
+ * check, so it still lists them.
+ */
+export function parseSavedPresentation(input: unknown): Presentation {
+  const checked = presentationSchema.safeParse(input);
+  if (checked.success) return checked.data;
+  const { slides } = (input ?? {}) as { slides?: unknown };
+  if (!Array.isArray(slides)) return presentationSchema.parse(input);
+  return presentationSchema.parse({ ...(input as object), slides: slides.map(withoutBrokenElements) });
+}
+
+/** The slide without the elements the schema refuses, checked after upgrading them, so an old shape isn't lost. */
+function withoutBrokenElements(slide: unknown): unknown {
+  const upgraded = upgradeSlide(slide) as { elements?: unknown } | null;
+  if (typeof upgraded !== "object" || upgraded === null || !Array.isArray(upgraded.elements)) return slide;
+  return { ...upgraded, elements: upgraded.elements.filter((element) => svgElementSchema.safeParse(element).success).slice(0, MAX_ELEMENTS) };
+}
 export type PresentationDetails = Pick<
   Presentation,
   | "title"

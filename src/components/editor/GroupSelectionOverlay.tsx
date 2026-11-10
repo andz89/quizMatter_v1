@@ -2,7 +2,7 @@
 
 import { useRef } from "react";
 import { useEditorStore, selectedIdsOn } from "@/lib/store";
-import { getOuterEdges, MIN_ELEMENT_SIZE, overhangFor, pullIntoBox } from "@/lib/geometry";
+import { cornerDragScale, getOuterEdges, MIN_ELEMENT_SIZE, overhangFor, pullIntoBox } from "@/lib/geometry";
 import type { SvgElement } from "@/lib/schema";
 import { CORNERS, type Corner } from "./handles";
 
@@ -73,8 +73,6 @@ export function GroupSelectionOverlay({ slideId, elements, bounds }: GroupSelect
     // handle under the cursor.
     const dx = ((e.clientX - x) / zoom) * sx;
     const dy = ((e.clientY - y) / zoom) * sy;
-    const originalDistance = Math.hypot(groupWidth, groupHeight);
-    const newDistance = Math.hypot(groupWidth + dx, groupHeight + dy);
 
     // Fixed corner every element scales toward/away from.
     const anchorX = sx > 0 ? groupX : groupX + groupWidth;
@@ -87,7 +85,7 @@ export function GroupSelectionOverlay({ slideId, elements, bounds }: GroupSelect
     const minScale = MIN_ELEMENT_SIZE / smallestDimension;
     // On the slide the group may grow past the edge (it's pulled back below if too little stays on).
     const maxScale = overhang ? Infinity : Math.min(roomX / groupWidth, roomY / groupHeight);
-    const scale = Math.min(maxScale, Math.max(minScale, newDistance / originalDistance));
+    const scale = Math.min(maxScale, Math.max(minScale, cornerDragScale(groupWidth, groupHeight, dx, dy)));
 
     // The whole group moves back together, so its layout stays the same.
     const scaledGroup = {

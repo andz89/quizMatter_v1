@@ -13,8 +13,8 @@ A table a teacher places on a slide, types into, and grows with more rows and co
   Enter makes a new line, Escape stops typing. Tab goes to the next cell, Shift+Tab to the one before. While typing,
   a click on another cell moves the typing there.
 - **Format text:** while typing, the header's format bar works as in a text box (bold, italic, underline, align, text
-  color). Text size is for the whole table, like a text box's size is for the whole box. Each cell's text shrinks to
-  fit on its own, down to the usual smallest size.
+  color). Text size is for the whole table, like a text box's size is for the whole box. Each cell's text stays at
+  that size and goes onto new lines at the cell's edge (changed 2026-11-09; it used to shrink to fit).
 - **Add rows and columns:**
   - A "+" below the table adds a row at the end. A "+" to its right adds a column at the end.
   - The toolbar's "Table" menu has Add row above / below, Add column left / right, Delete row, Delete column. They act
@@ -33,7 +33,8 @@ A table a teacher places on a slide, types into, and grows with more rows and co
   can be dragged. Only that column or row changes, down to 20 px, and the table grows or shrinks by it. At the edge of
   its box the table can't grow, so the rest comes out of the next column or row. A new column or row copies the size
   of the one before it.
-- **A cell keeps its size; text shrinks.** This is the app's rule for text boxes and diagram boxes.
+- **A cell keeps its size; text wraps** onto new lines and never shrinks (changed 2026-11-09). Lines past the cell's
+  bottom are cut off until the row is made taller.
 - **Limits:** 1–15 rows, 1–15 columns (a times table up to 12 needs 13 × 13). The + and Add buttons stop at the limit;
   Delete stops at 1. Zod refuses anything else.
 - A table is never flipped (mirrored text can't be read) and never cropped.

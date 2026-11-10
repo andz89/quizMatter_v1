@@ -121,6 +121,19 @@ export const DIAGRAM_BORDER_WIDTH = { min: 1, max: 8, default: 2 };
 // own default: circle for the Factor Tree, rounded for the others.
 export const DIAGRAM_SHAPES = ["rounded", "circle"] as const;
 export type DiagramShape = (typeof DIAGRAM_SHAPES)[number];
+// The math tools' limits: the panels, Claude's import and the saved data's zod schema all use these.
+// Fraction bars and circles: how many parts they can be cut into.
+export const FRACTION_PARTS = { min: 2, max: 12 };
+// Written fraction: up to 3 digits, so the numbers still fit inside the element's square.
+export const FRACTION_NUMBER_MAX = 999;
+// Most rows (and most columns) a counting frame can have.
+export const TEN_FRAME_SIDE_MAX = 10;
+// Most flats, rods or cubes of one kind.
+export const BASE_TEN_MAX = 9;
+export const THERMOMETER_MIN = -20;
+export const THERMOMETER_MAX = 50;
+// A bar graph's scale runs 0 to this.
+export const BAR_GRAPH_MAX = 10;
 export const FLOWCHART_STEPS = { min: 2, max: 8 };
 export const CYCLE_STEPS = { min: 3, max: 8 };
 export const MIND_MAP_IDEAS = { min: 2, max: 8 };

@@ -11,12 +11,14 @@ interface SlideTextProps {
   html?: string;
   // The largest the text gets; it shrinks when it's too long for its box.
   fontSize: number;
+  // Never shrink: long text goes onto new lines, even in the middle of a word too long for the box (a table's cells).
+  keepFontSize?: boolean;
   className?: string;
 }
 
 /** Read-only slide text that shrinks to fit its box. Used in presentation mode and thumbnails. */
-export function SlideText({ text, html, fontSize: chosenFontSize, className }: SlideTextProps) {
-  const { ref, fontSize, remeasure } = useAutoFitText<HTMLDivElement>(autoFitRange(chosenFontSize));
+export function SlideText({ text, html, fontSize: chosenFontSize, keepFontSize = false, className }: SlideTextProps) {
+  const { ref, fontSize, remeasure } = useAutoFitText<HTMLDivElement>({ ...autoFitRange(chosenFontSize), keepFontSize });
 
   // Filled in here instead of in JSX: toSafeHtml needs the browser's DOM, which the server doesn't have.
   useLayoutEffect(() => {
@@ -30,9 +32,9 @@ export function SlideText({ text, html, fontSize: chosenFontSize, className }: S
     <div
       ref={ref}
       // break-spaces, like the editor's Tiptap text: a space at the end of a line takes room there too, so the
-      // lines break in the same places in the editor, presentation and thumbnails. Words never break in the
-      // middle: a word too long for the box makes the text shrink instead.
-      className={`h-full w-full overflow-hidden whitespace-break-spaces ${className ?? ""}`}
+      // lines break in the same places in the editor, presentation and thumbnails. Unless the size is kept, words
+      // never break in the middle: a word too long for the box makes the text shrink instead.
+      className={`h-full w-full overflow-hidden whitespace-break-spaces ${keepFontSize ? "wrap-break-word" : ""} ${className ?? ""}`}
       style={{ fontSize, lineHeight: 1.25 }}
     />
   );

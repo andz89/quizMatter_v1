@@ -23,9 +23,9 @@ A plain Node script with the `playwright` library (not `@playwright/test`). From
   `deleteTeacher(teacher)` in `finally` deletes it and its presentations.
 - `sessionCookies(teacher, change)`: a fresh login session as cookie pieces (`change` can edit it, e.g. make it
   look expired), for a plain `fetch` to the app.
-- `loggedIn(browser, teacher, viewport)`: a browser context already logged in (the session goes into the
-  `sb-127-auth-token` cookie, so the login page's Turnstile box is skipped). It blocks every `*.supabase.co`
-  request, and `finish()` fails the run if one was tried.
+- `loggedIn(browser, teacher, viewport, options)`: a browser context already logged in (the session goes into the
+  `sb-127-auth-token` cookie, so the login page's Turnstile box is skipped). `options` go to Playwright's `newContext`
+  (e.g. `timezoneId`, `locale`). It blocks every `*.supabase.co` request, and `finish()` fails the run if one was tried.
 - `api(path, init)`: the local API with the service role key (e.g. insert presentations and slides).
   `psql(sql)`: SQL as postgres in the Docker database.
 - `fakeTurnstile(context)`: Cloudflare's real "are you human?" box never passes headless; this answers its script
@@ -67,11 +67,48 @@ Tests that delete data (the announcements ones empty the announcements table) do
 - `hidden-slides.mjs`: hide a slide, save, present (→ / ← skip it), the all-slides grid, show it again.
 - `add-slide-menu.mjs`: the slide's + and the workspace's Add slide have no "Embed image" (the other 8 types stay),
   and an image slide saved before still opens with its picture.
+- `embed-slides.mjs`: add an Embed video and an Embed slides slide in the editor (a bad link is refused), save,
+  reload, present fullscreen (only the slide shown plays its embed; YouTube and Google Slides are stand-in pages; the buttons
+  stay on a live player and hide on other slides), Exit.
 - `calendar-date.mjs`: add a Calendar Page and a Month Calendar (both start on today), Set date to 29 February 2024,
   Today, save, reload.
 - `table-element.mjs`: add a table, type, Tab, the text bar, both "+", the Table menu, undo taking away a picked or
   typed-in row, Delete on a picked cell, duplicate, dragging column and row lines, save, reload, the slide's edge, present, a table in a question
-  slide's box.
+  slide's box, long text and a very long word wrapping at the table's text size (never shrinking).
+- `table-date-time.mjs`: a table, the Clock, the Digital Clock, the Calendar Page and the Month Calendar together on
+  one slide, each added from the Elements panel and dragged to its own spot: typing and Tab, Set time (the hands' real
+  angles, AM/PM, Reset, Undo, Redo and Ctrl+Z with the box staying open; a slide already holding an impossible time
+  opens showing 10:10), Set date (an empty date and a year before 1900 are ignored), duplicates, save, reload
+  (the panels read the saved values back), present fullscreen, Exit, and neither opening nor presenting counts as a change.
+- `diagrams.mjs`: the Flowchart, Cycle, Mind Map, Tree and Factor Tree, each on its own slide: every "+" and × up to the
+  limits, the panels, typing (Enter, Escape, Shift+Enter, long, empty, `<` and `&`, a click outside), dragging and
+  resizing a box and its size limits, Tidy up, Reset, undo, box styles (all boxes or the picked one, a new box copies
+  them), flip, rotate, a duplicate, moving a Factor Tree number with those under it, a Factor Tree at 8 levels and at
+  31 boxes, a diagram stopping at a question box's edge, diagrams saved earlier, broken saved diagrams opening with
+  their starting boxes, whole words shrinking instead of being cut, a box's corner at the diagram's corner, save,
+  reload, present.
+- `diagrams-date-time.mjs`: diagrams, clocks and calendars together, each scenario with its own presentation and page
+  so one failure can't hide the next: clock hands and digital times at their edges; every calendar drawn against
+  dates worked out without the app's code (4 and 6 week months, leap days, 1900 and 2100); the date box and sliders
+  by keyboard (it first finds which part of the date box comes first on this computer); switching between kinds,
+  grouping, things on top of each other; undo across kinds and undo taking away what's picked; Delete on a picked box
+  in all five diagrams (only that box, by its ×'s rules); typing in a box
+  (Ctrl+S mid-typing, a 50,000 letter paste); dragging at 50% and 150% zoom and on turned and flipped diagrams; a box
+  dragged to its limit; copy, paste and Duplicate slide; the question and answer boxes; slides with no time or date;
+  bad saved dates, times and diagrams still opening; every field surviving a save; present, All slides, the view
+  page; a 1280 × 720 screen; New Year's Eve in Manila and Honolulu (Playwright's `clock`, a German browser).
+  `ONLY="date box|zoomed" node e2e/diagrams-date-time.mjs` runs just the scenarios whose names match.
+- `math-tools.mjs`: every math tool added from the Elements panel, then each panel at its limits with the drawing read
+  from the SVG: number lines, fractions, the counting frame, blocks, thermometer, bar graph, protractor. Save, reopen
+  and read the panel back; Reset and undo with the panel open; copy, paste, Duplicate slide; turned and flipped; groups;
+  the question and answer boxes; every field surviving a save; present, All slides, the view page; a 1280 × 720 screen;
+  bad saved values and numbers no panel can make. `ONLY="bar graph|undo"` runs just the scenarios that match.
+- `all-elements.mjs`: every tile in the Elements panel added, drawn, saved and opened again (the categories are read
+  from the panel), then pictures, photo crops, squares, lines, 3D solids, text boxes, custom drawings, layers, align,
+  groups, moving into and between boxes (Alt keeps a free picture on the slide), a photo that never answers, letters
+  keeping their size when opened again, a slide at 1,000 elements, present, the view page, and about 30 kinds of bad
+  saved data. Each scenario has its own presentation and page. `ONLY="crop|layers"` runs just the scenarios that
+  match; to run tiles add `lists its categories|every tile$` (for example `ONLY="lists its categories|every tile$|every tile: Emoji"`).
 - `proxy.mjs`: an expired session opening /login is refreshed and the redirect keeps the new cookies; `/api/mcp`
   skips the proxy, `/api/mcp-admin` and `/api/claude-photos` don't.
 - `reports-plain-admin.mjs`: Admin → Reports as a plain admin: a teacher's reported copy has Hide and Delete, a

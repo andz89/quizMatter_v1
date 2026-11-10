@@ -3,6 +3,8 @@ import { useCallback, useLayoutEffect, useRef, useState } from "react";
 interface AutoFitOptions {
   minFontSize: number;
   maxFontSize: number;
+  // Always show `maxFontSize` and never measure (a table's cells: long text goes onto new lines instead).
+  keepFontSize?: boolean;
 }
 
 // Hard floor used only when text is too long to fit even at `minFontSize` — better to keep
@@ -15,14 +17,14 @@ const ABSOLUTE_MIN_FONT_SIZE = 8;
  * changes in a way that doesn't itself resize the container — e.g. an editable field re-measures
  * from its input handler, while a read-only field re-measures from an effect keyed on its text prop.
  */
-export function useAutoFitText<T extends HTMLElement>({ minFontSize, maxFontSize }: AutoFitOptions) {
+export function useAutoFitText<T extends HTMLElement>({ minFontSize, maxFontSize, keepFontSize = false }: AutoFitOptions) {
   const ref = useRef<T>(null);
   const [fontSize, setFontSize] = useState(maxFontSize);
   const measureRef = useRef<() => void>(() => {});
 
   useLayoutEffect(() => {
     const el = ref.current;
-    if (!el) return;
+    if (!el || keepFontSize) return;
 
     const fits = (size: number) => {
       el.style.fontSize = `${size}px`;
@@ -59,9 +61,9 @@ export function useAutoFitText<T extends HTMLElement>({ minFontSize, maxFontSize
     const observer = new ResizeObserver(measure);
     observer.observe(el);
     return () => observer.disconnect();
-  }, [minFontSize, maxFontSize]);
+  }, [minFontSize, maxFontSize, keepFontSize]);
 
   const remeasure = useCallback(() => measureRef.current(), []);
 
-  return { ref, fontSize, remeasure };
+  return { ref, fontSize: keepFontSize ? maxFontSize : fontSize, remeasure };
 }

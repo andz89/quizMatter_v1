@@ -28,20 +28,20 @@ import {
   type FactorTreeSettings,
   type DiagramBoxItem,
   diagramBoxLook,
-  THERMOMETER_MIN,
-  THERMOMETER_MAX,
   NUMBER_LINE_STEPS,
-  FRACTION_PARTS,
-  FRACTION_NUMBER_MAX,
-  TEN_FRAME_SIDE_MAX,
-  BASE_TEN_MAX,
-  BAR_GRAPH_MAX,
   BAR_COUNTS,
   BAR_LABEL_MAX,
 } from "@/lib/svgLibrary";
 import {
   getContainerBounds,
+  BAR_GRAPH_MAX,
+  BASE_TEN_MAX,
   CYCLE_STEPS,
+  FRACTION_NUMBER_MAX,
+  FRACTION_PARTS,
+  TEN_FRAME_SIDE_MAX,
+  THERMOMETER_MAX,
+  THERMOMETER_MIN,
   FLOWCHART_STEPS,
   MIND_MAP_IDEAS,
   TREE_BRANCHES,
@@ -76,11 +76,36 @@ interface MathToolControlsProps {
   box: BoxLayout;
 }
 
+// What a tool shows while it has no saved settings of its own (fractions depend on the tool, so they're added below).
+const SHOWN_WITHOUT_SETTINGS = {
+  numberLine: DEFAULT_NUMBER_LINE,
+  tenFrame: DEFAULT_TEN_FRAME,
+  baseTen: DEFAULT_BASE_TEN,
+  thermometer: DEFAULT_THERMOMETER,
+  barGraph: DEFAULT_BAR_GRAPH,
+  protractor: DEFAULT_PROTRACTOR,
+  flowchart: DEFAULT_FLOWCHART,
+  cycle: DEFAULT_CYCLE,
+  mindMap: DEFAULT_MIND_MAP,
+  tree: DEFAULT_TREE,
+  factorTree: DEFAULT_FACTOR_TREE,
+};
+
 /** The settings button + panel for a selected math tool or diagram (number line, fraction, flowchart…), or nothing. */
 export function MathToolControls({ element, slideId, box }: MathToolControlsProps) {
   const updateElement = useEditorStore((s) => s.updateElement);
   const asset = getElementAsset(element.assetId);
-  const update: Update = (patch) => updateElement(slideId, element.id, patch);
+  // A button that lands on what the tool already shows (Reset on an untouched one) isn't an edit.
+  const update: Update = (patch) => {
+    const shown: Record<string, unknown> = {
+      ...SHOWN_WITHOUT_SETTINGS,
+      fraction: asset?.mathTool === "fractionNumber" ? DEFAULT_FRACTION_NUMBER : DEFAULT_FRACTION,
+      ...element,
+    };
+    if (Object.entries(patch).some(([field, value]) => JSON.stringify(value) !== JSON.stringify(shown[field]))) {
+      updateElement(slideId, element.id, patch);
+    }
+  };
 
   if (asset?.numberLine)
     return <NumberLineControls key={element.id} element={element} shape={asset.numberLine} update={update} />;
@@ -180,8 +205,9 @@ function NumberLineControls({
 }) {
   const settings = element.numberLine ?? DEFAULT_NUMBER_LINE;
   const set = (patch: Partial<typeof settings>) => update({ numberLine: { ...settings, ...patch } });
-  // The typed text is kept here so the box can be empty or hold just "-" while typing.
-  const [startText, setStartText] = useState(String(settings.start));
+  // The typed text is kept here so the box can be empty or hold just "-" while typing. It belongs to the number it was
+  // typed for, so undo, redo or Reset shows the real number again.
+  const [draft, setDraft] = useState<{ text: string; over: number } | null>(null);
 
   return (
     <ToolPanelButton title="Edit numbers" icon={<MoveHorizontalIcon size={16} />} wide>
@@ -191,13 +217,14 @@ function NumberLineControls({
           <PanelLabel>Start</PanelLabel>
           <input
             type="number"
-            value={startText}
+            value={draft?.over === settings.start ? draft.text : String(settings.start)}
             onChange={(e) => {
-              setStartText(e.target.value);
               const start = Number(e.target.value);
-              if (e.target.value !== "" && Number.isFinite(start)) set({ start });
+              const isNumber = e.target.value !== "" && Number.isFinite(start);
+              setDraft({ text: e.target.value, over: isNumber ? start : settings.start });
+              if (isNumber) set({ start });
             }}
-            onBlur={() => setStartText(String(settings.start))}
+            onBlur={() => setDraft(null)}
             className="w-20 rounded-input border border-border-default px-2 py-1 text-right text-sm text-text-primary"
           />
         </label>
@@ -227,12 +254,7 @@ function NumberLineControls({
           ))}
         </div>
       </div>
-      <ResetButton
-        onClick={() => {
-          set(DEFAULT_NUMBER_LINE);
-          setStartText(String(DEFAULT_NUMBER_LINE.start));
-        }}
-      />
+      <ResetButton onClick={() => set(DEFAULT_NUMBER_LINE)} />
     </ToolPanelButton>
   );
 }

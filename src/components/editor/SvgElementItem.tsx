@@ -11,6 +11,7 @@ import { TableButtons, TableContent, TableLines, tableCellAt } from "./TableCont
 import { CORNERS, EDGE_HANDLES, type Corner, type EdgeHandle } from "./handles";
 import {
   clamp,
+  cornerDragScale,
   findSnap,
   fitInBox,
   getOuterEdges,
@@ -82,11 +83,26 @@ interface DragState {
   hoverContainerId: string | null;
   /** The canvas root, used to convert cursor position into canvas-wide coordinates for the drag ghost. */
   canvasRootEl: HTMLElement | null;
+  /** The box under the pointer when the drag began: never a drop spot, so nudging a picture lying over a box doesn't pull it in. */
+  startBoxId: string | null;
   /** Where inside this element the pointer grabbed it — keeps that same spot under the cursor in another box. */
   grabOffsetX: number;
   grabOffsetY: number;
   /** A click (no drag) on an already selected diagram picks the box under the pointer. */
   pickOnClick: boolean;
+}
+
+/**
+ * The box under the pointer on this slide. It looks under whatever lies on top (the picture being dragged follows the
+ * pointer, so it's always the top one). Boxes on other slides don't count: they reuse the "question" id, and an option
+ * id from another slide would leave the element bound to a box that doesn't exist here.
+ */
+function boxAtPoint(x: number, y: number, canvasRoot: HTMLElement | null) {
+  for (const el of document.elementsFromPoint(x, y)) {
+    const box = el.closest<HTMLElement>("[data-container-id]");
+    if (box && canvasRoot?.contains(box)) return box;
+  }
+  return null;
 }
 
 /**
@@ -204,6 +220,7 @@ export const SvgElementItem = memo(function SvgElementItem({ slideId, element, i
     const boxElements = getBoxElements();
 
     const elementRect = e.currentTarget.getBoundingClientRect();
+    const canvasRootEl = e.currentTarget.closest<HTMLElement>("[data-canvas-root]");
     dragState.current = {
       x: e.clientX,
       y: e.clientY,
@@ -215,7 +232,8 @@ export const SvgElementItem = memo(function SvgElementItem({ slideId, element, i
       dy: 0,
       hoverContainerEl: null,
       hoverContainerId: null,
-      canvasRootEl: e.currentTarget.closest<HTMLElement>("[data-canvas-root]"),
+      canvasRootEl,
+      startBoxId: boxAtPoint(e.clientX, e.clientY, canvasRootEl)?.dataset.containerId ?? null,
       grabOffsetX: (e.clientX - elementRect.left) / zoom,
       grabOffsetY: (e.clientY - elementRect.top) / zoom,
       // Read from before this click, so the first click on a diagram or table only selects it.
@@ -272,13 +290,12 @@ export const SvgElementItem = memo(function SvgElementItem({ slideId, element, i
     updateElements(slideId, Object.fromEntries(items.map((item) => [item.id, { x: item.x + dx, y: item.y + dy }])));
 
     // Which box (if any other than this element's own) is under the pointer right now — drives
-    // the "drop here" highlight and, on release, where the element ends up.
-    // Only boxes on this same slide count — other slides reuse the "question" id, and an option id
-    // from another slide would leave the element bound to a box that doesn't exist here.
-    const pointed = document.elementFromPoint(e.clientX, e.clientY)?.closest<HTMLElement>("[data-container-id]") ?? null;
-    const hovered = pointed && state.canvasRootEl?.contains(pointed) ? pointed : null;
+    // the "drop here" highlight and, on release, where the element ends up. Alt keeps a free picture on the slide,
+    // so it can still be laid over a box.
+    const hovered = boxAtPoint(e.clientX, e.clientY, state.canvasRootEl);
     const hoveredId = hovered?.dataset.containerId ?? null;
-    const isOtherContainer = hovered !== null && hoveredId !== element.containerId;
+    const staysOnSlide = element.containerId === null && e.altKey;
+    const isOtherContainer = hovered !== null && hoveredId !== element.containerId && hoveredId !== state.startBoxId && !staysOnSlide;
     const nextHoverId = isOtherContainer ? hoveredId : null;
 
     // No lines while the drag is headed into another box — the ghost preview shows it there instead.
@@ -404,8 +421,6 @@ export const SvgElementItem = memo(function SvgElementItem({ slideId, element, i
     const screenDy = (e.clientY - pointerY) / zoom;
     const dx = (screenDx * cos + screenDy * sin) * sx;
     const dy = (-screenDx * sin + screenDy * cos) * sy;
-    const originalDistance = Math.hypot(w, h);
-    const newDistance = Math.hypot(w + dx, h + dy);
     // The shape spins around its center, and the center moves when the size changes. The center
     // shifts by the growth (turned by the angle) so the opposite corner stays put on screen.
     // For a scale s: center = (x + w/2, y + h/2) + (s - 1) * (moveX, moveY).
@@ -423,7 +438,7 @@ export const SvgElementItem = memo(function SvgElementItem({ slideId, element, i
           maxScaleFor(y + h / 2 - moveY, moveY + h / 2, 0, bounds.height), // bottom edge
         );
     const minScale = Math.max(MIN_ELEMENT_SIZE / w, MIN_ELEMENT_SIZE / h);
-    const scale = Math.min(maxScale, Math.max(minScale, newDistance / originalDistance));
+    const scale = Math.min(maxScale, Math.max(minScale, cornerDragScale(w, h, dx, dy)));
     const width = w * scale;
     const height = h * scale;
     const centerX = x + w / 2 + (scale - 1) * moveX;
@@ -712,11 +727,6 @@ export const SvgElementItem = memo(function SvgElementItem({ slideId, element, i
         </div>
       )}
 
-      {/* A picked diagram box: its own outline and handles (under the element's own handles). */}
-      {showSelection && isOnlySelected && !isCropping && (
-        <DiagramBoxEditor slideId={slideId} element={element} bounds={bounds} overhang={overhang} />
-      )}
-
       {/* A selected table's lines: before the handles, so the handles stay on top of them. */}
       {showSelection && isOnlySelected && element.table && (
         <TableLines slideId={slideId} element={element} table={element.table} bounds={bounds} />
@@ -787,6 +797,12 @@ export const SvgElementItem = memo(function SvgElementItem({ slideId, element, i
             style={{ borderColor: "var(--accent)" }}
           />
         ))}
+
+      {/* A picked diagram box: its own outline and handles, over the element's own handles, so a box at the
+          diagram's corner can still be resized from that corner (the diagram's handle pokes out past it). */}
+      {showSelection && isOnlySelected && !isCropping && (
+        <DiagramBoxEditor slideId={slideId} element={element} bounds={bounds} overhang={overhang} />
+      )}
 
       {/* "+" and × on every box of the selected diagram: last, so they sit on top of the element's own
           handles (a corner box's × is next to the diagram's corner handle). */}

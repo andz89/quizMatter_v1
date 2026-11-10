@@ -107,11 +107,12 @@ export async function sessionCookies(teacher, change = (session) => session) {
 
 /**
  * A browser context logged in as `teacher`: the session goes straight into @supabase/ssr's cookie (base64url,
- * cut in 3180-character pieces), so the login page's "Verify you are human" box is never needed.
+ * cut in 3180-character pieces), so the login page's "Verify you are human" box is never needed. `options` go to
+ * Playwright's newContext (e.g. `timezoneId`, `locale`).
  */
-export async function loggedIn(browser, teacher, viewport = { width: 1366, height: 800 }) {
+export async function loggedIn(browser, teacher, viewport = { width: 1366, height: 800 }, options = {}) {
   const pieces = await sessionCookies(teacher);
-  const context = await browser.newContext({ viewport });
+  const context = await browser.newContext({ viewport, ...options });
   await context.addCookies(pieces.map(([n, v]) => ({ name: n, value: v, domain: "localhost", path: "/" })));
   await context.route(
     (url) => url.hostname.endsWith("supabase.co"),

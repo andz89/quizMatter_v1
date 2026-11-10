@@ -43,7 +43,8 @@ export function EditorTopBar() {
       </button>
       {isDetailsOpen && <DetailsModal onClose={() => setIsDetailsOpen(false)} />}
 
-      <div className="flex items-center">
+      {/* These keep the picked element, so an open panel like Set time stays open and shows the undone value. */}
+      <div data-keep-container-selection="true" className="flex items-center">
         <button type="button" onClick={undo} disabled={!canUndo} title="Undo (Ctrl+Z)" className={historyButtonClass}>
           <Undo2Icon size={18} />
         </button>

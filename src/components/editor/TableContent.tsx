@@ -92,6 +92,7 @@ export function TableContent({ slideId, element, table }: TableProps) {
         <TextBoxContent
           html={table.rows[row][column].html}
           fontSize={table.fontSize ?? TABLE_FONT_SIZE}
+          keepFontSize
           target={{ kind: "table", slideId, elementId: element.id }}
           color={DEFAULT_TEXT_COLOR}
           editStart={pick.typingAt}

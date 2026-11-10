@@ -11,7 +11,11 @@ editor / view / review, and renders `Editor.tsx`, which calls `store.loadPresent
   `SelectedElementToolbar` (elements), `TextFormatToolbar` (text), `ShapeBoxToolbar`. `ArrangePanel` and
   `MathToolPanels` are drop-downs inside those toolbars (`ToolPanelButton` in `PanelControls.tsx`). One picked
   clock gets "Set time" (`clockTime`); one picked calendar gets "Set date" (`calendarDate`: the date box, and
-  "Today"; an empty or half-typed date isn't saved). Both calendars share it, like both clocks share the time.
+  "Today"; `DateBox` lets typing pass through dates that can't be saved, like the year "0002" or 31 February, and
+  only a real date reaches the calendar; leaving the box shows the calendar's date again). Both calendars share it,
+  like both clocks share the time. A button that changes nothing (Reset, Today) isn't an edit: `updateElements` skips
+  a patch with the values the element already has, the toolbar's setters write "no value" for a default, and
+  `MathToolControls` skips a change that lands on what a tool without saved settings already shows.
 - `ShareButton.tsx` (the Share card): a teacher's Published = a shared copy (store `sharedCopy`). It says "up to
   date" or "You have changes the shared copy doesn't have" (unsaved edits, or saved after `sharedCopy.sharedAt`),
   with "Update shared presentation". When QuizMatter hid the copy (`sharedCopy.isHidden`) it says so, and Private and
@@ -21,13 +25,19 @@ editor / view / review, and renders `Editor.tsx`, which calls `store.loadPresent
   keep the Draft / Shared switch.
 - `Workspace.tsx`: the scrolling list of slides (drag to reorder with `@dnd-kit`). Each slide is a
   `SlideWorkspaceItem` = `SlideToolbar` + `SlideCanvas`. It also draws `AnswerArea` (the answer of a short-answer,
-  custom or blank slide) over itself.
+  custom or blank slide) over itself. Zoomed past the screen's width, the list grows (`w-max`), so both edges of a
+  slide can be scrolled to; a zoom change or a side panel narrowing the area centers it again.
 - `SlideCanvas.tsx`: one 1280×720 slide (`CANVAS_WIDTH` / `CANVAS_HEIGHT` in `constants.ts`). It holds the boxes
   (`QuestionContainer`, `OptionCard` A–D, `SideContainer` = the shape box) and the elements (`SvgElementItem`, one
   per element). Embed slides (video, slide deck, picture) use `EmbedSlide` instead. New picture embed slides
   (`image`) can't be made any more, by the Add slide menu (`AddSlideMenu`) or by Claude (2026-11-04); old ones still
   open, present and edit, so the `image` type stays in the saved data.
 - `SvgElementItem.tsx`: one element: drag, resize (`handles.ts`: `CORNERS` / `EDGE_HANDLES`), rotate, crop.
+  Dropped on a question or answer box, an element moves into it (`boxAtPoint` looks under the dragged picture). Not
+  the box the drag began over, so nudging a free picture lying over a box leaves it free; hold Alt to lay a free
+  picture over a box. A corner dragged past the opposite one stops at the smallest size (`cornerDragScale`).
+  Letters and emoji are `<text>`, measured to trim them: `ElementSvg` draws them with `textRendering="geometricPrecision"`,
+  or the browser's size-based adjusting would change their boxes each time a presentation opens.
   `ElementSvg` draws it, `TextBoxContent` is a text box, `DiagramBoxEditor` / `DiagramBoxButtons` are diagrams,
   `TableContent.tsx` is a table (see "Tables").
 - Side panels (all use the `side-panel` class, sideways rows use `ScrollRow`): `ElementsPanel`, `PhotosPanel`,
@@ -54,7 +64,8 @@ editor / view / review, and renders `Editor.tsx`, which calls `store.loadPresent
   change the presentation themselves.
 - **Never change a slide in place.** An action makes a new slide object. Saving sends only the slides that are not
   the same object as last time (`savePresentationToDb` with `savedSlides`), so an in-place change would never save.
-- Undo / redo keep up to 100 past copies (`past` / `future`).
+- Undo / redo keep up to 100 past copies (`past` / `future`). Their top-bar buttons keep the picked element
+  (`data-keep-container-selection`), so an open panel like Set time stays open and shows the undone value.
 - UI-only state (picked element, open panel, zoom, typing box, picked diagram box) also lives in the store and is
   never saved.
 - `savePresentation` saves (Save button, Ctrl+S): `saveReviewDraft` in review mode, else `savePresentationToDb`.
@@ -170,7 +181,10 @@ The "Table" tile in the Elements panel. Design: `docs/superpowers/specs/2026-11-
   as `columnSizes` / `rowSizes`, numbers that only count compared with each other (missing = all the same, until a
   line is first dragged), so resizing the whole table keeps its proportions. A new column or row copies the size of
   the one before it. `tableCellBox` and `TableGrid` both read them.
-- **A cell keeps its size and its text shrinks to fit.**
+- **A cell keeps its size and its text keeps the table's text size:** unlike text boxes, it never shrinks
+  (`keepFontSize` on `SlideText` and `TextBoxContent`). Text that reaches the cell's edge goes onto a new line, and a
+  word too long for the cell breaks in the middle. Lines past the cell's bottom are cut off until the row is made
+  taller.
 - **Text size is the whole table's** (`table.fontSize`; `TextTarget` kind `table`), from the toolbar or the text
   format bar while typing. The other text styles are each cell's own, in its HTML.
 - **Limits:** `TABLE_ROWS` and `TABLE_COLUMNS` (`constants.ts`), checked by the `table` zod schema. Never flipped or
@@ -180,7 +194,7 @@ The "Table" tile in the Elements panel. Design: `docs/superpowers/specs/2026-11-
 
 `useEditorShortcuts` (keys; Ctrl+V pastes a copied element only when no input, textarea, rich text or dialog has
 focus, and Ctrl+Z / Ctrl+Y / Ctrl+Shift+Z leave a plain input or textarea to the browser's own typing undo, while rich
-text on a slide keeps the store's undo; `isTextFieldOrDialog` in `dom.ts`), `useMarqueeSelection` (drag a rectangle to select), `useElementDropTarget` (drop from a
+text on a slide, sliders and date boxes keep the store's undo; `isTextFieldOrDialog` in `dom.ts`), `useMarqueeSelection` (drag a rectangle to select), `useElementDropTarget` (drop from a
 panel or the computer), `useCanvasTextEditor` + `richText.ts` (text typing, with tiptap), `useAutoFitText` (text
 shrinks to fit), `useFormatTexts` (which texts the format toolbar changes), `geometry.ts` / `crop.ts` (math),
 `svgLibrary.tsx` (every drawing in the Elements panel, and the diagram layouts).
@@ -189,12 +203,12 @@ shrinks to fit), `useFormatTexts` (which texts the format toolbar changes), `geo
 
 The "Diagrams" group of the Elements panel. Full design: `docs/superpowers/specs/2026-10-06-diagram-box-drag-design.md`. When changing them, keep these rules:
 
-- **Each box works like a text box:** it keeps its size, its text shrinks to fit (size 12 down to 1), and a picked box has the same handles (corners keep the shape, side handles change width or height). Reuse `CORNERS` / `EDGE_HANDLES` from `src/components/editor/handles.ts`; don't make new handles.
+- **Each box works like a text box:** it keeps its size, its text shrinks to fit (size 12 down to 1; a word too wide for the box shrinks it first so the word isn't cut in two, but not below size 8, `DIAGRAM_WHOLE_WORD_FONT`), and a picked box has the same handles (corners keep the shape, side handles change width or height), drawn over the diagram's own handles so a box at the diagram's corner can be resized from there. Reuse `CORNERS` / `EDGE_HANDLES` from `src/components/editor/handles.ts`; don't make new handles.
 - **One layout, two users:** the layouts in `svgLibrary.tsx` place every box, and `getDiagramBoxes` gives those same boxes to the editor (`DiagramBoxEditor.tsx`). Never place boxes a second way in the editor, or the outline won't match the drawing.
 - **Text is typed on the slide** (double-click a box; Shift+Enter = new line, Enter/Esc/click outside = done). The panels have no text boxes, only box count, Across/Down, Tidy up, Reset (and the Tree's add/remove).
 - **A box's own place and size** (`x, y, width, height`) are saved all together or not at all; missing = its automatic spot. Limits live in `constants.ts` and are checked by `diagramBoxSchema` (zod) before saving.
 - **A box's own look** (`fill`, `border`, `borderWidth`, `textColor`, `fontSize`) is optional; missing = the diagram's Color tint and border, dark text, size 12. The toolbar's box style group and the Color panel (`boxFill` / `boxBorder` / `boxText`) change the picked box, or every box when none is picked, through `diagramStyleTargets` + `withDiagramBoxStyle`. Moving, Tidy up and new boxes keep or copy the look. Spec: `docs/superpowers/specs/2026-10-07-diagram-box-style-design.md`.
-- **"+" and × on every box** of a selected diagram (`DiagramBoxButtons.tsx`) add a box next to it or remove it. The rules per diagram (where, limits, new text, copying the look) live only in `diagramBoxActions` (`svgLibrary.tsx`); the element is kept in place with `keepInPlace`. Spec: `docs/superpowers/specs/2026-10-07-diagram-box-add-remove-design.md`.
+- **"+" and × on every box** of a selected diagram (`DiagramBoxButtons.tsx`) add a box next to it or remove it. The rules per diagram (where, limits, new text, copying the look) live only in `diagramBoxActions` (`svgLibrary.tsx`); the element is kept in place with `keepInPlace`. Delete on a picked box does the same as its × (`boxRemovalPatch`); a box with no × stays, and Delete removes the whole diagram only when no box is picked. Spec: `docs/superpowers/specs/2026-10-07-diagram-box-add-remove-design.md`.
 - **Nothing else moves on the slide** when the drawing area changes: use `keepInPlace` (dragging) or `useResizeForViewBox` (panel), which both keep the other boxes still.
 - **Text widths are measured only once the fonts have loaded** (`fontsReady` from `ElementSvg.tsx`); before that, and on the server, use the estimate, so server and browser draw the same.
 - **Picked / typing box** is UI state in the store (`pickedDiagramBox`, `editingDiagramBox`), never saved.

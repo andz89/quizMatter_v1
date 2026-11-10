@@ -51,6 +51,13 @@ import {
   MESH_PREFIX,
   RADIAL_PREFIX,
   DEFAULT_TEXT_COLOR,
+  BAR_GRAPH_MAX,
+  BASE_TEN_MAX,
+  FRACTION_NUMBER_MAX,
+  FRACTION_PARTS,
+  TEN_FRAME_SIDE_MAX,
+  THERMOMETER_MAX,
+  THERMOMETER_MIN,
 } from "./constants";
 import { markupToHtml, stripMarkup } from "./richText";
 import { BACKGROUND_COLORS, BACKGROUND_GRADIENTS, BACKGROUND_MESHES } from "./slideBackground";
@@ -64,17 +71,10 @@ import { todayInManila } from "./age";
 import { DEFAULT_ROTATION_3D } from "./solids";
 import {
   BAR_COUNTS,
-  BAR_GRAPH_MAX,
   BAR_LABEL_MAX,
-  BASE_TEN_MAX,
   DEFAULT_ELEMENT_COLOR,
   ELEMENT_LIBRARY,
-  FRACTION_NUMBER_MAX,
-  FRACTION_PARTS,
   NUMBER_LINE_STEPS,
-  TEN_FRAME_SIDE_MAX,
-  THERMOMETER_MAX,
-  THERMOMETER_MIN,
   canCrop,
   getAssetViewBox,
   getElementAsset,

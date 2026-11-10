@@ -12,6 +12,16 @@
   older bad value out (left out; an element's `color` becomes `DEFAULT_TEXT_COLOR`), and the drawing helpers
   (`toCssBackground`, `slideBackgroundCss`, `getSlideBackgroundStyle`) draw nothing for one. A new color format the
   app writes goes in `isSafeColor` first.
+  A clock's time (`clockTimeSchema`) is whole hours 1–12 and minutes 0–59. The database doesn't check it, so
+  `upgradeSlide` leaves out a time outside that (the clock then shows 10:10), and such a slide still opens. A date
+  (`calendarDateSchema`) the same way (the calendar then shows `DEFAULT_CALENDAR_DATE`).
+  Diagrams the same way (`DIAGRAM_SCHEMAS`): one that breaks its limits goes back to its starting boxes, since it
+  would otherwise stop the whole presentation from opening. Math tools too (`MATH_TOOL_SCHEMAS`, with the panels'
+  limits from `constants.ts`): a value of the wrong kind or past its limit is left out, and the tool shows its
+  starting look. Those limits also keep a request edited by hand from drawing thousands of shapes.
+  Any other broken element: `parseSavedPresentation` (opening a presentation or a review draft) takes that element
+  out so the rest still opens, and keeps a slide's first `MAX_ELEMENTS`. Never use it for saving: `presentationSchema`
+  refuses them there, so a teacher's work isn't dropped silently, and Admin → Data check still lists them.
 - `store.ts`: the editor's state and every edit action (zustand). Notes in `src/components/editor/CLAUDE.md`.
 - `constants.ts`: canvas size, box ids (`QUESTION_CONTAINER_ID`, …), photo URLs, slide effect speeds, diagram limits,
   the default text color (`DEFAULT_TEXT_COLOR`). Slide numbers (`getSlideNumbers`, hidden slides take none) and
