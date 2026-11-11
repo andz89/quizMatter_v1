@@ -104,6 +104,10 @@
 - `reviews.ts` (reviewer's saves) / `reviewStatus.ts` (reads), `submissions.ts` (Submit to QuizMatter reads).
 - `lessons.ts`: reads for "This week's lessons", "You may also like" and an editor's profile list (only ids; see `src/app/CLAUDE.md`).
 - `folders.ts`, `userSettings.ts`, `profiles.ts`, `account.ts` (`getAccount`: who is logged in, `isAdmin`).
+- `publishers.ts`: `loadPublisherNames` → the `publisher_names` database function: the "Publisher" line on cards, the
+  view page and the editor's Presentations panel. A teacher gets the display name only (an admin-owned one shows
+  "QuizMatter"; no display name = no line); only admins get "Display Name (email)" for Admin → Reports
+  (`20261231001200_publisher_names_no_email.sql`, test `supabase/tests/publisher_names.sql`).
   `userSettings.ts` also holds the sign up rules: `signUpSchema(blockedDomains)` is a function, since the throwaway
   email services live in the database (`blocked_email_domains`; the sign up page reads them on the server and passes
   them in, and `signUp` takes them too). `THROWAWAY_EMAIL_MESSAGE` is the same text the database's sign up hook

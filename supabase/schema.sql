@@ -3056,6 +3056,7 @@ CREATE OR REPLACE FUNCTION "public"."publisher_names"("owner_ids" "uuid"[]) RETU
     select o.id as user_id,
       case
         when a.user_id is not null and not (select public.is_admin()) then 'QuizMatter'
+        when not (select public.is_admin()) then coalesce(s.display_name, '')
         when coalesce(s.display_name, '') = '' then coalesce(u.email, '')
         else s.display_name || coalesce(' (' || u.email || ')', '')
       end as display_name
