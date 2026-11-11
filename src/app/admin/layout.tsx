@@ -26,7 +26,8 @@ export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
           Home
           <LinkPending />
         </Link>
-        <span aria-current="page" className={navLinkClass}>
+        {/* Hidden on phones, where the bar has no room for it (the page's own heading says Admin). */}
+        <span aria-current="page" className={`${navLinkClass} hidden sm:inline`}>
           Admin
         </span>
       </NavBar>

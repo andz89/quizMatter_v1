@@ -57,6 +57,38 @@ export async function api(path, init = {}) {
   return text ? JSON.parse(text) : null;
 }
 
+const tokens = new Map();
+/**
+ * A call to the local API as `person` (the anon key + their own login token), so the database rules apply to them,
+ * like the app's browser calls. Never throws on a refusal: { ok, status, body } (body.code is the refusal's code).
+ */
+export async function asUser(person, path, init = {}) {
+  if (!tokens.has(person.id)) {
+    const res = await fetch(`${env.API_URL}/auth/v1/token?grant_type=password`, {
+      method: "POST",
+      headers: { apikey: env.ANON_KEY, "Content-Type": "application/json" },
+      body: JSON.stringify({ email: person.email, password: person.password }),
+    });
+    if (!res.ok) throw new Error(`login ${person.email}: ${res.status}`);
+    tokens.set(person.id, (await res.json()).access_token);
+  }
+  const res = await fetch(`${env.API_URL}${path}`, {
+    ...init,
+    headers: {
+      apikey: env.ANON_KEY,
+      Authorization: `Bearer ${tokens.get(person.id)}`,
+      "Content-Type": "application/json",
+      Prefer: "return=representation",
+    },
+  });
+  const text = await res.text();
+  return { ok: res.ok, status: res.status, body: text ? JSON.parse(text) : null };
+}
+
+/** A database function called as `person` (see asUser). */
+export const rpc = (person, name, args = {}) =>
+  asUser(person, `/rest/v1/rpc/${name}`, { method: "POST", body: JSON.stringify(args) });
+
 /** Runs SQL as postgres in the local Docker database and returns the plain result. */
 export function psql(sql) {
   return execSync(`docker exec -i supabase_db_quizBuilder psql -U postgres -v ON_ERROR_STOP=1 -tA`, {

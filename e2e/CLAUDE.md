@@ -27,7 +27,11 @@ A plain Node script with the `playwright` library (not `@playwright/test`). From
   `sb-127-auth-token` cookie, so the login page's Turnstile box is skipped). `options` go to Playwright's `newContext`
   (e.g. `timezoneId`, `locale`). It blocks every `*.supabase.co` request, and `finish()` fails the run if one was tried.
 - `api(path, init)`: the local API with the service role key (e.g. insert presentations and slides).
-  `psql(sql)`: SQL as postgres in the Docker database.
+  `psql(sql)`: SQL as postgres in the Docker database. Some triggers still refuse postgres (e.g. only an admin may
+  hide, and an open review locks a lesson even against deleting), so do those as the right person.
+- `asUser(person, path, init)` / `rpc(person, name, args)`: the local API as that person (their own login token),
+  so the database rules apply to them, like the app's calls. They return `{ ok, status, body }` and never throw on a
+  refusal; `body.code` is the refusal's code (`QMREV`, `QMSUB`, …).
 - `fakeTurnstile(context)`: Cloudflare's real "are you human?" box never passes headless; this answers its script
   with a stand-in that passes at once (local Supabase has no captcha), so a test can press sign up's or Forgot
   password's button.
@@ -113,6 +117,38 @@ Tests that delete data (the announcements ones empty the announcements table) do
   skips the proxy, `/api/mcp-admin` and `/api/claude-photos` don't.
 - `reports-plain-admin.mjs`: Admin → Reports as a plain admin: a teacher's reported copy has Hide and Delete, a
   reported QuizMatter lesson has neither and says why.
+- `submissions.mjs`: Submit to QuizMatter from start to end. An editor submits from the card's ⋮ menu (an empty
+  presentation is refused). While it waits, the card says so, has no Edit or Delete, and changes, slide changes,
+  deleting and a second submit are all refused. A plain teacher has no Submit, and their call is refused. A plain admin
+  sends it back with a note, and the editor sees the note in Reviews & submissions. The editor fixes it and clicks
+  "Submit again". The super admin approves it: QuizMatter gets a shared copy that the admin owns, with the editor as
+  Author and the same slides. The original stays the editor's, unlocked, and can't be submitted again. Deleting the
+  original keeps the receipt ("(original deleted)", with its link) and QuizMatter's copy. Opening a waiting one's
+  editor goes to the view page. A presentation
+  hidden while it waits can't be approved. A decided presentation's admin page shows "Page not found" with status 200,
+  because `loading.tsx` was already sent.
+- `reviews.mjs`: Presentation reviews. A plain teacher has no Review button. An editor clicks Review, and the lesson
+  locks: teachers see "Under review" and can't copy it, another editor can't start, and even the owner can't change
+  it. The editor saves a draft, leaves, and clicks Continue review (the draft is still there). They submit, and the
+  submitted round opens view only. A plain admin sends it back with a note; the editor's banner shows it, and Escape
+  closes the comments box. They submit again, and the super admin publishes: the live slides change, the reviewer is
+  listed, and the lesson unlocks. Then nobody can start another review until the admin clicks "Open to all".
+  Other paths: an editor stops their own review ("Canceled by you", draft gone, nothing changed); an admin cancels
+  one while it's open in the editor (the editor's next save is refused; "Canceled by QuizMatter"); an editor
+  loses the role (their open review and waiting submission are canceled and unlock); a reviewer's account is deleted
+  (the lesson unlocks, and another editor can start); and the author's own update of a closed lesson ("Update this
+  lesson"; publishing it adds no Reviewed by row and keeps the last reviewer and Open to all as they were).
+- `editor-edges.mjs`: the edges of those two. Submitting from the editor's Share card saves an unsaved edit first
+  (and Published is greyed out for editors; their publish call is refused). An editor's photo stays private (and
+  can't be removed, `QMPHL`) while its submission or review waits, and turns public once approved or published. Two
+  admins clicking Approve, or Publish, at the same moment: one works, the other is refused, one copy or one Reviewed
+  by row. An older app tab's review save and submit get `QMOLD`. Banning an editor in Admin → Teachers, or a plain
+  admin removing one in Admin → Editors, takes the role away and cancels their review and waiting submission;
+  unbanning doesn't give the role back. The submission page's "Copied from" line (and "… that was deleted"; the
+  database keeps only a real source, so the test copies a lesson, then deletes it). No admin, review or submission
+  page scrolls sideways at 390 px. While the Details box is open in the editor, Ctrl+V, arrows, Delete and Ctrl+Z
+  change nothing behind it. The banned-editor refusal at Approve (`QMBRV`) can't be reached from the app: banning
+  cancels the submission first.
 - `photo-delete.mjs`: Photo cleanup's Delete refuses a file under 7 days old (a WebP and an announcement's GIF,
   which counts as our file), and the page shows no Delete button on it.
 - `photo-uploads.mjs`: a plain teacher's profile photo is refused before anything is counted; an editor's is stored

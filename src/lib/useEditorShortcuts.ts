@@ -20,7 +20,8 @@ const ARROW_DIRECTIONS: Record<string, { x: number; y: number }> = {
  * The editor's keyboard shortcuts, set up once for the whole editor. They read the store when a key
  * is pressed, so the listener never has to be rebuilt when the selection changes.
  *
- * - Ctrl/Cmd+S saves the presentation (also while typing)
+ * - Ctrl/Cmd+S saves the presentation (also while typing, and while a box is open); every other key does nothing
+ *   here while a box (Modal, ConfirmModal) is open over the editor
  * - Ctrl/Cmd+Z undoes; Ctrl+Y or Ctrl/Cmd+Shift+Z redoes (also in rich text, so there's only one undo history;
  *   in a plain input or textarea the browser undoes the typing instead)
  * - Ctrl/Cmd+C copies and Ctrl/Cmd+V pastes the selected element(s) (not while a text field or dialog has focus)
@@ -47,6 +48,9 @@ export function useEditorShortcuts() {
         state.savePresentation();
         return;
       }
+      // A box (Modal, ConfirmModal) is open over the editor: the other keys are its own, never the slides' behind it.
+      // The focus is often not inside the box (a click on its background moves it to the page), so ask the page.
+      if (document.querySelector('[role="dialog"][aria-modal="true"]')) return;
       // In a plain input or textarea, undo/redo belong to the browser (they undo the typing there). A slider or a date
       // box has no typing to undo, so they stay the editor's.
       const field = e.target as HTMLInputElement | null;

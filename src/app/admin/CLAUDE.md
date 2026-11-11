@@ -3,7 +3,8 @@
 Admin-only work (things shared with every teacher, managing teachers) lives here, not in the editor.
 
 - `layout.tsx` checks `getAccount().isAdmin` and shows "page not found" to everyone else, plus the header and the
-  left menu (`AdminMenu.tsx`: the list of pages). A new admin page = a folder here + a line in `AdminMenu`.
+  left menu (`AdminMenu.tsx`: the list of pages). The top bar's "Admin" mark hides on phones (no room for it; the
+  page's heading says Admin). A new admin page = a folder here + a line in `AdminMenu`.
 - The admin pages use the full screen width. From `lg` the menu is a column on the left (it stays in place as
   you scroll); below that it is one row above the page that scrolls sideways. The menu has Overview on top, then groups, each a card with its label in violet: **Waiting for you** (Under review, Submissions, Reports), **Library**
   (Presentations, Photos, Photo cleanup, Data check), **People** (Teachers, Editors, Safety), and Admin log, Maintenance and Announcements on their own. The Waiting for you

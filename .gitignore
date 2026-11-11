@@ -52,3 +52,6 @@ next-env.d.ts
 # browser tests (e2e/): their own Next build folder and screenshots
 /.next-e2e/
 /e2e/shots/
+
+# Claude Code local settings and generated types
+.claude/
