@@ -66,6 +66,15 @@
   changed or new one stays; then each slide the newer save added goes in right after the nearest slide before it
   that's in the result (or first). A slide this tab deleted stays deleted. Nothing to give back = null. Tests:
   `keptWork.test.ts` (`npm test`).
+- `securityHeaders.ts`: `securityHeaders(supabaseUrl)`, the headers `next.config.ts` adds to every response (pages
+  and `/api/*`): `X-Frame-Options: DENY` + `frame-ancestors 'none'` (no other site can frame a page, so an admin can't
+  be tricked into clicking through an invisible frame), HSTS for a year (also subdomains), `nosniff`,
+  `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy` with camera, microphone and location off
+  (fullscreen isn't named: presenting and YouTube need it). The enforced CSP has only `frame-ancestors`, `object-src`
+  and `base-uri`, which can't break a page. The full policy is **report-only** (the browser only logs in its console
+  what it would block): a new outside service (a new embed host, script or API) must be added to it there, and the
+  browser test `e2e/security-headers.mjs` fails if a plain page logs one. Enforcing it later needs nonces for Next's
+  inline scripts. No imports, so `securityHeaders.test.ts` checks it with `npm test`.
 - `maintenance.ts`: maintenance status for the proxy, pages, Claude's connector and the timers
   (`getMaintenanceStatus`, remembered 60 seconds; `fetchMaintenanceStatus`, fresh), the note's limit and the
   `QMMNT` / header / event names. `REFUSALS.QMMNT` has its words. See the root `CLAUDE.md`, "Maintenance". The

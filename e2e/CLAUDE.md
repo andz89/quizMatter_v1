@@ -149,6 +149,9 @@ Tests that delete data (the announcements ones empty the announcements table) do
   page scrolls sideways at 390 px. While the Details box is open in the editor, Ctrl+V, arrows, Delete and Ctrl+Z
   change nothing behind it. The banned-editor refusal at Approve (`QMBRV`) can't be reached from the app: banning
   cancels the submission first.
+- `security-headers.mjs`: every page and API answer carries the security headers (`src/lib/securityHeaders.ts`), the
+  home page, editor, view page and account still work with the enforced policy, and the report-only policy logs
+  nothing in the console on them (a missing outside host would).
 - `photo-delete.mjs`: Photo cleanup's Delete refuses a file under 7 days old (a WebP and an announcement's GIF,
   which counts as our file), and the page shows no Delete button on it.
 - `photo-uploads.mjs`: a plain teacher's profile photo is refused before anything is counted; an editor's is stored

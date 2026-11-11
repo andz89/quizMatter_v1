@@ -28,7 +28,8 @@ first.
 - `src/pages/api/` **(notes)**: Claude's connector (MCP server). Its drafts live in Cloudflare D1 (`d1/migrations`).
 - `src/proxy.ts`: the login check before each page (logged-out visitors may open only login, sign up, Forgot
   password, the email link (`/auth/confirm`), Privacy and Terms), and the maintenance stop (see "Maintenance" below; `src/app/maintenance/` is
-  its page). `worker.ts` + `wrangler.jsonc`: Cloudflare timers (cleanups).
+  its page). `worker.ts` + `wrangler.jsonc`: Cloudflare timers (cleanups). `src/lib/securityHeaders.ts`: the
+  security headers `next.config.ts` puts on every response (no framing, https only, …; see `src/lib/CLAUDE.md`).
 - `docs/superpowers/specs/`: the designs of past features. Read the matching one before changing a big feature.
 
 **How a save works:** an edit in the editor → a store action in `store.ts` (kept for undo) → Save / Ctrl+S / auto save
