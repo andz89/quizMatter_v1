@@ -26,7 +26,7 @@ $$;
 create function pg_temp.save(a jsonb) returns uuid language plpgsql as $$
 begin
   perform set_config('request.jwt.claims',
-    json_build_object('sub', '00000000-0000-4000-8000-0000000000e1', 'role', 'authenticated')::text, true);
+    json_build_object('sub', '00000000-0000-4000-8000-0000000000e1', 'role', 'authenticated', 'aal', 'aal2')::text, true);
   perform set_config('quizmatter.admin_logged', '', true);
   -- One modal on at a time (20261228000000_announcement_one_on.sql): each save takes the place of the last.
   return public.save_announcement(a, true);
@@ -37,14 +37,14 @@ $$;
 create function pg_temp.teacher_size(target uuid) returns text language plpgsql as $$
 begin
   perform set_config('request.jwt.claims',
-    json_build_object('sub', '00000000-0000-4000-8000-0000000000e2', 'role', 'authenticated')::text, true);
+    json_build_object('sub', '00000000-0000-4000-8000-0000000000e2', 'role', 'authenticated', 'aal', 'aal2')::text, true);
   return (select m.modal_size from public.my_announcements() m where m.id = target);
 end;
 $$;
 create function pg_temp.admin_size(target uuid) returns text language plpgsql as $$
 begin
   perform set_config('request.jwt.claims',
-    json_build_object('sub', '00000000-0000-4000-8000-0000000000e1', 'role', 'authenticated')::text, true);
+    json_build_object('sub', '00000000-0000-4000-8000-0000000000e1', 'role', 'authenticated', 'aal', 'aal2')::text, true);
   return (select a.modal_size from public.admin_announcements() a where a.id = target);
 end;
 $$;

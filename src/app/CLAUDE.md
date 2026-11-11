@@ -92,6 +92,11 @@ Draft / Shared switch on the presentation itself, and aren't counted.
   `docs/superpowers/specs/2026-10-30-age-gender-address-design.md`), both required, like at sign up: an account with
   none (e.g. made in the Supabase dashboard) must fill them in to save. The province and town were removed
   (`docs/superpowers/specs/2026-11-01-remove-address-design.md`).
+- `account/two-step/`: Two-step login, admins only (a teacher gets "page not found"; the page checks
+  `isAdmin || adminRole !== "none"`). `TwoStepSetup.tsx` lists the factors: a verified one → "Two-step login is on";
+  none → it removes unfinished ones, enrolls a new TOTP factor (`friendlyName` "QuizMatter") and shows the QR code and
+  the key (`data-testid="totp-secret"`); the first right code (`challengeAndVerify`) turns it on, lifts this login to
+  aal2 and opens Admin. The Account page links here for admins. See the root `CLAUDE.md`, "Two-step login".
 - Profile privacy (spec `docs/superpowers/specs/2026-10-28-profile-privacy-design.md`): in Personal details, plain
   teachers get a "Show on my profile" checkbox under the full name, the
   educational background (degree and field together) and the bio, saved with Save details
@@ -153,7 +158,14 @@ Draft / Shared switch on the presentation itself, and aren't counted.
   only starts the same (`/api/mcp-admin`) still gets the check. Every redirect and maintenance answer keeps the
   refreshed login cookies (`keepSession`), or the browser would keep a used-up refresh token and be logged out.
   Test: `e2e/proxy.mjs`.
-  During maintenance it logs anyone but the super admin out again at once (`mayLogInNow`).
+  During maintenance it logs anyone but the super admin out again at once (`mayLogInNow`, by membership:
+  `admin_membership`). After the password, an account with a verified authenticator app goes to `login/verify/`
+  (`?next=` kept, `safeNextPath` in `src/lib/nextPath.ts`); others go to `next` at once.
+- `login/verify/`: the second step (admins): the 6-digit code from the authenticator app
+  (`listFactors` → the verified TOTP factor → `challengeAndVerify`); a right code gives the browser an aal2 login
+  and goes to `?next=` (only a page on this site, never the verify page itself). An account with no factor is told
+  there is nothing to check. "Not you? Log out". Needs a login like every page; open during maintenance.
+  Test: `e2e/second-factor.mjs`.
 - `forgot-password/` (spec `docs/superpowers/specs/2026-11-06-forgot-password-design.md`): "Type your email",
   Turnstile, then `resetPasswordForEmail` (email checked with `resetEmailSchema`, `src/lib/passwords.ts`). It always
   shows "Check your email. We sent a link to …", also for an email with no account (Supabase sends nothing then), so

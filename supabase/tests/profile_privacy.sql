@@ -23,7 +23,7 @@ where user_id = '00000000-0000-4000-8000-0000000000f4';
 -- ─── As the other teacher: everything shows before any change ─────────────────────────────────────────────────
 set local role authenticated;
 select set_config('request.jwt.claims',
-  json_build_object('sub', '00000000-0000-4000-8000-0000000000f2', 'role', 'authenticated')::text, true);
+  json_build_object('sub', '00000000-0000-4000-8000-0000000000f2', 'role', 'authenticated', 'aal', 'aal2')::text, true);
 
 do $$
 declare p record;
@@ -38,7 +38,7 @@ $$;
 
 -- ─── As the teacher: turn all three off, with a bio ───────────────────────────────────────────────────────────
 select set_config('request.jwt.claims',
-  json_build_object('sub', '00000000-0000-4000-8000-0000000000f1', 'role', 'authenticated')::text, true);
+  json_build_object('sub', '00000000-0000-4000-8000-0000000000f1', 'role', 'authenticated', 'aal', 'aal2')::text, true);
 
 do $$
 declare n int;
@@ -69,7 +69,7 @@ $$;
 
 -- ─── As the other teacher: only the display name is left ──────────────────────────────────────────────────────
 select set_config('request.jwt.claims',
-  json_build_object('sub', '00000000-0000-4000-8000-0000000000f2', 'role', 'authenticated')::text, true);
+  json_build_object('sub', '00000000-0000-4000-8000-0000000000f2', 'role', 'authenticated', 'aal', 'aal2')::text, true);
 
 do $$
 declare p record;
@@ -109,7 +109,7 @@ $$;
 
 -- ─── As the admin: the same blanks as any teacher ─────────────────────────────────────────────────────────────
 select set_config('request.jwt.claims',
-  json_build_object('sub', '00000000-0000-4000-8000-0000000000f3', 'role', 'authenticated')::text, true);
+  json_build_object('sub', '00000000-0000-4000-8000-0000000000f3', 'role', 'authenticated', 'aal', 'aal2')::text, true);
 
 do $$
 declare p record;
@@ -127,7 +127,7 @@ delete from public.editors where user_id = '00000000-0000-4000-8000-0000000000f4
 
 set local role authenticated;
 select set_config('request.jwt.claims',
-  json_build_object('sub', '00000000-0000-4000-8000-0000000000f2', 'role', 'authenticated')::text, true);
+  json_build_object('sub', '00000000-0000-4000-8000-0000000000f2', 'role', 'authenticated', 'aal', 'aal2')::text, true);
 
 do $$
 declare p record;

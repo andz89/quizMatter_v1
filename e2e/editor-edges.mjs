@@ -10,13 +10,12 @@ import { APP, api, asUser, check, deleteTeacher, finish, loggedIn, makeTeacher, 
 
 const tag = Date.now();
 const superAdmin = await makeTeacher({ first: "Edgesuper", superAdmin: true });
-const plainAdmin = await makeTeacher({ first: "Edgeplainadmin" });
+const plainAdmin = await makeTeacher({ first: "Edgeplainadmin", admin: true });
 const editorA = await makeTeacher({ first: "Edgeone", last: "Editor" });
 const editorB = await makeTeacher({ first: "Edgetwo", last: "Editor" });
 const editorBan = await makeTeacher({ first: "Edgeban", last: "Editor" });
 const editorGone = await makeTeacher({ first: "Edgegone", last: "Editor" });
 psql(`
-  insert into public.admins (user_id, is_super) values ('${plainAdmin.id}', false);
   insert into public.editors (user_id) values ('${editorA.id}'), ('${editorB.id}'), ('${editorBan.id}'), ('${editorGone.id}');
 `);
 

@@ -112,7 +112,11 @@
   `uploadAnnouncementPhoto` returns a photo attachment.
 - `reviews.ts` (reviewer's saves) / `reviewStatus.ts` (reads), `submissions.ts` (Submit to QuizMatter reads).
 - `lessons.ts`: reads for "This week's lessons", "You may also like" and an editor's profile list (only ids; see `src/app/CLAUDE.md`).
-- `folders.ts`, `userSettings.ts`, `profiles.ts`, `account.ts` (`getAccount`: who is logged in, `isAdmin`).
+- `folders.ts`, `userSettings.ts`, `profiles.ts`, `account.ts` (`getAccount`: who is logged in, `isAdmin` /
+  `isSuperAdmin` (true only after the second step), `adminRole` (membership: 'super' / 'admin' / 'none', from
+  `admin_membership`), and `hasVerifiedFactor()` (asks Supabase whether the account has a verified authenticator app)).
+- `secondFactor.ts`: two-step login words (`codeErrorMessage`); browser-safe. `nextPath.ts`: `safeNextPath(next,
+  origin)`, the `?next=` page after login or the second step: only this site, never `/login/verify` itself.
 - `publishers.ts`: `loadPublisherNames` → the `publisher_names` database function: the "Publisher" line on cards, the
   view page and the editor's Presentations panel. A teacher gets the display name only (an admin-owned one shows
   "QuizMatter"; no display name = no line); only admins get "Display Name (email)" for Admin → Reports

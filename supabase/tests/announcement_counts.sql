@@ -33,7 +33,7 @@ create function pg_temp.ann(extra jsonb) returns jsonb language sql as $$
 $$;
 
 create function pg_temp.act_as(who uuid) returns void language sql as $$
-  select set_config('request.jwt.claims', json_build_object('sub', who, 'role', 'authenticated')::text, true);
+  select set_config('request.jwt.claims', json_build_object('sub', who, 'role', 'authenticated', 'aal', 'aal2')::text, true);
   select set_config('quizmatter.admin_logged', '', true);
 $$;
 

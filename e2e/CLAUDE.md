@@ -19,19 +19,24 @@ Don't install it again, and don't make a new folder for browser tests in the scr
 A plain Node script with the `playwright` library (not `@playwright/test`). From `lib.mjs`:
 
 - `env` (the local keys; it stops if they aren't for 127.0.0.1), `APP`, `SHOTS`.
-- `makeTeacher({ first, last, superAdmin })`: a new confirmed account with a unique email;
-  `deleteTeacher(teacher)` in `finally` deletes it and its presentations.
+- `makeTeacher({ first, last, superAdmin, admin })`: a new confirmed account with a unique email;
+  `superAdmin` / `admin` also put it in `admins` and set up an authenticator app (`enrollSecondFactor`), since admins
+  need the second step; their logins below then pass it (aal2). An admin without one: make a teacher and insert the
+  `admins` row with `psql`. `deleteTeacher(teacher)` in `finally` deletes it and its presentations.
+- `loginSession(teacher, { skipSecondStep })`: a fresh Supabase session (with the second step when the teacher has
+  `totpSecret`); `totpCode(secret)`: the app's 6-digit code now; `enrollSecondFactor(teacher)`.
 - `sessionCookies(teacher, change)`: a fresh login session as cookie pieces (`change` can edit it, e.g. make it
   look expired), for a plain `fetch` to the app.
 - `loggedIn(browser, teacher, viewport, options)`: a browser context already logged in (the session goes into the
   `sb-127-auth-token` cookie, so the login page's Turnstile box is skipped). `options` go to Playwright's `newContext`
-  (e.g. `timezoneId`, `locale`). It blocks every `*.supabase.co` request, and `finish()` fails the run if one was tried.
+  (e.g. `timezoneId`, `locale`); `skipSecondStep: true` logs an admin in with the password only (aal1). It blocks every `*.supabase.co` request, and `finish()` fails the run if one was tried.
 - `api(path, init)`: the local API with the service role key (e.g. insert presentations and slides).
   `psql(sql)`: SQL as postgres in the Docker database. Some triggers still refuse postgres (e.g. only an admin may
   hide, and an open review locks a lesson even against deleting), so do those as the right person.
 - `asUser(person, path, init)` / `rpc(person, name, args)`: the local API as that person (their own login token),
   so the database rules apply to them, like the app's calls. They return `{ ok, status, body }` and never throw on a
-  refusal; `body.code` is the refusal's code (`QMREV`, `QMSUB`, …).
+  refusal; `body.code` is the refusal's code (`QMREV`, `QMSUB`, …). The token is kept per person;
+  `forgetLogin(person)` drops it (e.g. after their second step was set up).
 - `fakeTurnstile(context)`: Cloudflare's real "are you human?" box never passes headless; this answers its script
   with a stand-in that passes at once (local Supabase has no captcha), so a test can press sign up's or Forgot
   password's button.
@@ -149,6 +154,12 @@ Tests that delete data (the announcements ones empty the announcements table) do
   page scrolls sideways at 390 px. While the Details box is open in the editor, Ctrl+V, arrows, Delete and Ctrl+Z
   change nothing behind it. The banned-editor refusal at Approve (`QMBRV`) can't be reached from the app: banning
   cancels the submission first.
+- `second-factor.mjs`: two-step login. An admin member without an authenticator app is sent from Admin to
+  Account → Two-step login, a wrong code is refused, the right one (made from the key on the page) turns it on and
+  opens Admin. A password-only login is sent from the admin pages to `/login/verify` (wrong code refused, right code
+  opens Admin and the pages stay open); `is_admin` is false before and true after; the login page itself goes to the
+  verify page after the password and then to the remembered page; a teacher gets "page not found" on the set-up page
+  and Admin, and the verify page says there is nothing to check.
 - `security-headers.mjs`: every page and API answer carries the security headers (`src/lib/securityHeaders.ts`), the
   home page, editor, view page and account still work with the enforced policy, and the report-only policy logs
   nothing in the console on them (a missing outside host would).

@@ -40,12 +40,12 @@ values ('test-mod-lesson', '00000000-0000-4000-8000-0000000000c4', 'reviewing', 
 -- ─── As the teacher: publish p2 (its shared copy) ─────────────────────────────────────────────────────────────
 set local role authenticated;
 select set_config('request.jwt.claims',
-  json_build_object('sub', '00000000-0000-4000-8000-0000000000c3', 'role', 'authenticated')::text, true);
+  json_build_object('sub', '00000000-0000-4000-8000-0000000000c3', 'role', 'authenticated', 'aal', 'aal2')::text, true);
 select public.share_presentation(target_id => 'test-mod-p2');
 
 -- ─── As the plain admin ───────────────────────────────────────────────────────────────────────────────────────
 select set_config('request.jwt.claims',
-  json_build_object('sub', '00000000-0000-4000-8000-0000000000c2', 'role', 'authenticated')::text, true);
+  json_build_object('sub', '00000000-0000-4000-8000-0000000000c2', 'role', 'authenticated', 'aal', 'aal2')::text, true);
 
 -- 1. Hiding the super admin's QuizMatter lesson is refused.
 do $$
@@ -126,7 +126,7 @@ end $$;
 
 -- ─── As the super admin ───────────────────────────────────────────────────────────────────────────────────────
 select set_config('request.jwt.claims',
-  json_build_object('sub', '00000000-0000-4000-8000-0000000000c1', 'role', 'authenticated')::text, true);
+  json_build_object('sub', '00000000-0000-4000-8000-0000000000c1', 'role', 'authenticated', 'aal', 'aal2')::text, true);
 
 -- The super admin still hides anything.
 do $$

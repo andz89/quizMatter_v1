@@ -18,7 +18,7 @@ end $$;
 -- ─── As the teacher ───────────────────────────────────────────────────────────────────────────────────────
 set local role authenticated;
 select set_config('request.jwt.claims',
-  json_build_object('sub', '00000000-0000-4000-8000-0000000000e1', 'role', 'authenticated')::text, true);
+  json_build_object('sub', '00000000-0000-4000-8000-0000000000e1', 'role', 'authenticated', 'aal', 'aal2')::text, true);
 
 -- A new presentation: s1 shown (it has a question, so it can be published), s2 hidden. The save time is kept for the
 -- next saves.

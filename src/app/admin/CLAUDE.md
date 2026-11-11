@@ -2,7 +2,9 @@
 
 Admin-only work (things shared with every teacher, managing teachers) lives here, not in the editor.
 
-- `layout.tsx` checks `getAccount().isAdmin` and shows "page not found" to everyone else, plus the header and the
+- `layout.tsx` checks `getAccount().isAdmin` and shows "page not found" to everyone else (an admin *member*
+  whose login hasn't passed the second step is sent to `/login/verify?next=/admin`, or to `/account/two-step` if
+  they have no authenticator app yet: `adminRole` + `hasVerifiedFactor`; root `CLAUDE.md`, "Two-step login"), plus the header and the
   left menu (`AdminMenu.tsx`: the list of pages). The top bar's "Admin" mark hides on phones (no room for it; the
   page's heading says Admin). A new admin page = a folder here + a line in `AdminMenu`.
 - The admin pages use the full screen width. From `lg` the menu is a column on the left (it stays in place as

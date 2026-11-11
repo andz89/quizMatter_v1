@@ -9,14 +9,13 @@ import { APP, SHOTS, api, asUser, check, deleteTeacher, finish, loggedIn, makeTe
 
 const tag = Date.now();
 const superAdmin = await makeTeacher({ first: "Revsuper", superAdmin: true });
-const plainAdmin = await makeTeacher({ first: "Revplainadmin" });
+const plainAdmin = await makeTeacher({ first: "Revplainadmin", admin: true });
 const editorA = await makeTeacher({ first: "Revone", last: "Editor" });
 const editorB = await makeTeacher({ first: "Revtwo", last: "Editor" });
 const editorC = await makeTeacher({ first: "Revthree", last: "Editor" });
 const editorD = await makeTeacher({ first: "Revfour", last: "Editor" });
 const teacher = await makeTeacher({ first: "Revteacher" });
 psql(`
-  insert into public.admins (user_id, is_super) values ('${plainAdmin.id}', false);
   insert into public.editors (user_id) values ('${editorA.id}'), ('${editorB.id}'), ('${editorC.id}'), ('${editorD.id}');
 `);
 

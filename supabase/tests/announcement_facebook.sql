@@ -23,7 +23,7 @@ $$;
 create function pg_temp.save(a jsonb) returns uuid language plpgsql as $$
 begin
   perform set_config('request.jwt.claims',
-    json_build_object('sub', '00000000-0000-4000-8000-000000000071', 'role', 'authenticated')::text, true);
+    json_build_object('sub', '00000000-0000-4000-8000-000000000071', 'role', 'authenticated', 'aal', 'aal2')::text, true);
   perform set_config('quizmatter.admin_logged', '', true);
   -- One modal on at a time (20261228000000_announcement_one_on.sql): each save takes the place of the last.
   return public.save_announcement(a, true);
@@ -51,7 +51,7 @@ begin
   -- 1. Accepted, and teachers get it back as it was saved.
   saved := pg_temp.save(pg_temp.ann(jsonb_build_object('modal_attachment', video)));
   perform set_config('request.jwt.claims',
-    json_build_object('sub', '00000000-0000-4000-8000-000000000072', 'role', 'authenticated')::text, true);
+    json_build_object('sub', '00000000-0000-4000-8000-000000000072', 'role', 'authenticated', 'aal', 'aal2')::text, true);
   select * into r from public.my_announcements() m where m.id = saved;
   if r.modal_attachment is distinct from video then
     raise exception 'FAIL: my_announcements gave %', r.modal_attachment;

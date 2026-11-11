@@ -10,10 +10,9 @@ import { APP, SHOTS, api, asUser, check, deleteTeacher, finish, loggedIn, makeTe
 const tag = Date.now();
 const editor = await makeTeacher({ first: "Subeditor", last: "Maker" });
 const teacher = await makeTeacher({ first: "Subteacher" });
-const plainAdmin = await makeTeacher({ first: "Subplainadmin" });
+const plainAdmin = await makeTeacher({ first: "Subplainadmin", admin: true });
 const superAdmin = await makeTeacher({ first: "Subsuper", superAdmin: true });
 psql(`insert into public.editors (user_id) values ('${editor.id}')`);
-psql(`insert into public.admins (user_id, is_super) values ('${plainAdmin.id}', false)`);
 
 const slideData = (id, question) => ({
   id,

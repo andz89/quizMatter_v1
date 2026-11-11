@@ -1,18 +1,23 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { LinkPending } from "@/components/LinkPending";
 import { NavBar, navLinkClass } from "@/components/NavBar";
-import { getAccount } from "@/lib/account";
+import { getAccount, hasVerifiedFactor } from "@/lib/account";
 import { AdminMenu } from "./AdminMenu";
 import { getTodoCounts } from "./todoCounts";
 
 /**
  * Every admin page: a header and a left menu. Anyone who isn't an admin gets "page not found", so teachers
  * don't learn it exists. (The database rules still block non-admins from changing anything.)
+ * An admin whose login hasn't passed the second step (two-step login) isn't an admin to the database yet: with an
+ * authenticator app set up they go and type its code, without one they go and set it up.
  */
 export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
-  const { isAdmin, isSuperAdmin } = await getAccount();
-  if (!isAdmin) notFound();
+  const { isAdmin, isSuperAdmin, adminRole } = await getAccount();
+  if (!isAdmin) {
+    if (adminRole === "none") notFound();
+    redirect((await hasVerifiedFactor()) ? "/login/verify?next=%2Fadmin" : "/account/two-step");
+  }
 
   // What's waiting for an admin, shown as pills in the menu. If this fails, the menu just shows no pills.
   // The page may ask too (Overview, Presentations): one call, cached for the request.

@@ -41,6 +41,10 @@ even if the app has a bug. The app's checks (zod, hidden buttons) are only the f
   throwaway email check (they read `blocked_email_domains`).
 - Then check in the Supabase dashboard (Authentication → Hooks) that the Before User Created hook is still on: the
   sign up limit and the throwaway email check run only through it.
+- `20261231001300_admin_second_factor.sql` goes **after** the app too: turn on TOTP in the dashboard
+  (Authentication → Multi-Factor), deploy the app, set up the second step in Account → Two-step login, then apply
+  it. Applied first, every admin loses the admin pages (is_admin() needs aal2) until the app that sets it up is live.
+  SQL tests that act as an admin put `'aal', 'aal2'` in their claims.
 
 ## Finding a function's newest version
 

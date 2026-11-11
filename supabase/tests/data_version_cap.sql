@@ -20,7 +20,7 @@ select set_config('test.cap', public.current_data_version()::text, true);
 -- ─── As the teacher ───────────────────────────────────────────────────────────────────────────────────────
 set local role authenticated;
 select set_config('request.jwt.claims',
-  json_build_object('sub', '00000000-0000-4000-8000-0000000000a1', 'role', 'authenticated')::text, true);
+  json_build_object('sub', '00000000-0000-4000-8000-0000000000a1', 'role', 'authenticated', 'aal', 'aal2')::text, true);
 
 -- A save with a huge app_version is stored with the newest version the database knows (the cap).
 select public.save_presentation(
@@ -54,7 +54,7 @@ end $$;
 
 -- ─── As the editor: a review draft ────────────────────────────────────────────────────────────────────────
 select set_config('request.jwt.claims',
-  json_build_object('sub', '00000000-0000-4000-8000-0000000000a2', 'role', 'authenticated')::text, true);
+  json_build_object('sub', '00000000-0000-4000-8000-0000000000a2', 'role', 'authenticated', 'aal', 'aal2')::text, true);
 
 select public.start_review(target_id => 'test-cap-lesson');
 select public.save_review_draft(
@@ -88,7 +88,7 @@ end $$;
 
 set local role authenticated;
 select set_config('request.jwt.claims',
-  json_build_object('sub', '00000000-0000-4000-8000-0000000000a1', 'role', 'authenticated')::text, true);
+  json_build_object('sub', '00000000-0000-4000-8000-0000000000a1', 'role', 'authenticated', 'aal', 'aal2')::text, true);
 
 -- An older app (at the cap) making a copy of it is refused.
 do $$
@@ -143,7 +143,7 @@ alter table public.presentations disable trigger cap_presentation_data_version;
 
 set local role authenticated;
 select set_config('request.jwt.claims',
-  json_build_object('sub', '00000000-0000-4000-8000-0000000000a1', 'role', 'authenticated')::text, true);
+  json_build_object('sub', '00000000-0000-4000-8000-0000000000a1', 'role', 'authenticated', 'aal', 'aal2')::text, true);
 
 -- Publish: a new shared copy (the insert branch).
 select public.share_presentation(target_id => 'test-cap-a');
@@ -162,7 +162,7 @@ update public.presentations set data_version = current_setting('test.cap')::int 
 
 set local role authenticated;
 select set_config('request.jwt.claims',
-  json_build_object('sub', '00000000-0000-4000-8000-0000000000a1', 'role', 'authenticated')::text, true);
+  json_build_object('sub', '00000000-0000-4000-8000-0000000000a1', 'role', 'authenticated', 'aal', 'aal2')::text, true);
 
 select public.share_presentation(target_id => 'test-cap-a');
 

@@ -13,6 +13,7 @@ import { TopLoadingBar } from "@/components/TopLoadingBar";
 import { Turnstile, type TurnstileStatus } from "@/components/Turnstile";
 import { clearTries, lockedUntil, LOGIN_LIMIT, recordTry, tryAgainAfter } from "@/lib/browserLimits";
 import { MAINTENANCE_WORDS } from "@/lib/maintenance";
+import { safeNextPath } from "@/lib/nextPath";
 import { createClient } from "@/lib/supabase/client";
 import { SUPPORT_EMAIL } from "@/lib/support";
 
@@ -66,7 +67,7 @@ export default function LoginPage({ searchParams }: PageProps<"/login">) {
     setError(null);
     setIsResetLinkError(false);
     const supabase = createClient();
-    const { error } = await supabase.auth.signInWithPassword({ email, password, options: { captchaToken } });
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password, options: { captchaToken } });
     if (!error && !(await mayLogInNow(supabase))) {
       await supabase.auth.signOut();
       setError(MAINTENANCE_WORDS);
@@ -85,7 +86,11 @@ export default function LoginPage({ searchParams }: PageProps<"/login">) {
       return;
     }
     clearTries(LOGIN_LIMIT);
-    router.push(nextPath());
+    // An admin with an authenticator app set up types its code next (src/app/login/verify); the page they wanted
+    // waits in ?next=. The database counts them as an admin only after it.
+    const next = safeNextPath(new URLSearchParams(window.location.search).get("next"), window.location.origin);
+    const hasSecondStep = data.user?.factors?.some((factor) => factor.status === "verified") ?? false;
+    router.push(hasSecondStep ? `/login/verify?next=${encodeURIComponent(next)}` : next);
     router.refresh();
   };
 
@@ -194,26 +199,19 @@ function loginErrorMessage(error: AuthError) {
   return "Something went wrong. Please try again.";
 }
 
-// Back to the page the proxy sent us from: only a page on this site, never another domain (e.g. "/\evil.com").
-function nextPath() {
-  const next = new URLSearchParams(window.location.search).get("next");
-  if (!next) return "/";
-  const url = new URL(next, window.location.origin);
-  return url.origin === window.location.origin ? url.pathname + url.search + url.hash : "/";
-}
-
 const inputClass =
   "w-full rounded-input border border-border-default px-3 py-2 text-sm text-text-primary outline-none focus:border-text-secondary";
 
 /**
  * During maintenance only the super admin may log in (the page stays open for them, see src/proxy.ts); anyone else
- * is logged out again at once. The database guard refuses the others' is_super_admin call, which counts as no.
+ * is logged out again at once. Membership is enough here (the super admin still has to type their code before the
+ * database counts them as an admin). The database guard refuses the others' call, which counts as no.
  * MaintenanceWatch leaves this page alone, so the logout finishes.
  */
 async function mayLogInNow(supabase: ReturnType<typeof createClient>): Promise<boolean> {
   const { data } = await supabase.rpc("maintenance_status");
   const status = data as { is_on?: boolean } | null;
   if (status?.is_on !== true) return true;
-  const { data: isSuperAdmin } = await supabase.rpc("is_super_admin");
-  return isSuperAdmin === true;
+  const { data: membership } = await supabase.rpc("admin_membership");
+  return membership === "super";
 }

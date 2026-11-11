@@ -80,7 +80,7 @@ end $$;
 -- ─── 3. The teacher's own writes follow the rules ─────────────────────────────────────────────────────────────
 set local role authenticated;
 select set_config('request.jwt.claims',
-  json_build_object('sub', '00000000-0000-4000-8000-0000000000e1', 'role', 'authenticated')::text, true);
+  json_build_object('sub', '00000000-0000-4000-8000-0000000000e1', 'role', 'authenticated', 'aal', 'aal2')::text, true);
 
 do $$
 declare
@@ -127,7 +127,7 @@ end $$;
 
 -- ─── 4. Another teacher can't read the birthday or gender ─────────────────────────────────────────────────────
 select set_config('request.jwt.claims',
-  json_build_object('sub', '00000000-0000-4000-8000-0000000000e4', 'role', 'authenticated')::text, true);
+  json_build_object('sub', '00000000-0000-4000-8000-0000000000e4', 'role', 'authenticated', 'aal', 'aal2')::text, true);
 
 do $$
 begin
@@ -163,7 +163,7 @@ create temp table ag_everyone as select count(*) as total from public.user_setti
 grant select on ag_everyone to authenticated;
 set local role authenticated;
 select set_config('request.jwt.claims',
-  json_build_object('sub', '00000000-0000-4000-8000-0000000000e5', 'role', 'authenticated')::text, true);
+  json_build_object('sub', '00000000-0000-4000-8000-0000000000e5', 'role', 'authenticated', 'aal', 'aal2')::text, true);
 
 do $$
 declare

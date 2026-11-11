@@ -258,6 +258,36 @@ Admins are split in two. Full design: `docs/superpowers/specs/2026-10-16-super-a
   so teachers keep them; deleting a super admin who owns some, with no other super admin, is refused
   (`before_account_delete`, `20261205000000_account_delete_keeps_quizmatter.sql`).
 
+# Two-step login (admins need an authenticator app)
+
+Every admin (super and plain) logs in with their password and then a 6-digit code from an authenticator app
+(Supabase's TOTP MFA). Design: `docs/superpowers/specs/2026-11-11-admin-second-factor-design.md`. Migration:
+`20261231001300_admin_second_factor.sql`; tests: `supabase/tests/admin_second_factor.sql`, `e2e/second-factor.mjs`.
+Keep these rules:
+
+- **The database is the real check.** `is_admin()` and `is_super_admin()` are true only when the login passed the
+  second step: the token's `aal` claim is `aal2` (`second_factor_ok()`). So every admin function, policy, trigger
+  and the maintenance guard ask for it at once, and a password alone never gives admin powers, not even through a
+  direct API call. Claude's connector token (Supabase's OAuth server, a `client_id` claim) counts when the admin has
+  a verified factor: consent for it can only be given in the app, after the second step.
+- **`admin_membership()`** ('super' / 'admin' / 'none') says who is in the `admins` table whatever the level, for
+  routing only: `getAccount().adminRole`. The admin layout sends a member who isn't an admin yet to
+  `/login/verify?next=/admin` (they have an app) or to `/account/two-step` (they don't); the login page goes to
+  `/login/verify` after the password when the account has a verified factor; the proxy and the login page let a
+  super admin *member* through maintenance, so they can reach the verify page (`check_maintenance` too). A new
+  super-admin-only rule in the database still uses `is_super_admin()`.
+- **Pages:** `/account/two-step` (admins only, else "page not found"; `TwoStepSetup.tsx` enrolls a factor: QR code,
+  the key, the first code turns it on and lifts the login to aal2) and `/login/verify` (the code; `safeNextPath`
+  keeps `?next=` on this site). To start over (a lost phone), the super admin removes the factor in the Supabase
+  dashboard (Authentication → Users → the account); there is no in-app removal.
+- **Deploy order (the one exception to "database first"):** turn on TOTP in the dashboard (Authentication →
+  Multi-Factor), deploy the app, set up the second step, THEN apply the migration. Applied first, every admin loses
+  the admin pages until the app that sets up the second step is live.
+- **Tests:** SQL tests set `'aal', 'aal2'` in their claims (an admin without it is not an admin); browser tests get
+  admins from `makeTeacher({ superAdmin: true })` / `({ admin: true })`, which enroll a factor and log in at aal2
+  (`e2e/lib.mjs`: `enrollSecondFactor`, `loginSession`, `totpCode`). Local Supabase has TOTP on
+  (`supabase/config.toml`, `[auth.mfa.totp]`).
+
 # Maintenance (stopping everyone but the super admin)
 
 The super admin turns it on in Admin → Maintenance (`src/app/admin/maintenance`) while fixing things. Everyone else
@@ -277,8 +307,9 @@ test: `supabase/tests/maintenance.sql`. Keep these rules:
 - **The app** reads the status with `src/lib/maintenance.ts`: `getMaintenanceStatus()` remembers it for 60 seconds
   per server copy (so the proxy isn't a database call per request; if it can't be read it counts as off).
   `src/proxy.ts` sends page opens (and in-app page loads: Next's router follows the redirect) to `/maintenance` and
-  answers server actions and `/api/*` with 503 + the `x-qm-maintenance` header; only `/maintenance`, `/login`, `/privacy` and `/terms` stay
-  open, and the super admin passes. `/maintenance` goes to `/` once it's off (by the proxy, not the page, so the two
+  answers server actions and `/api/*` with 503 + the `x-qm-maintenance` header; only `/maintenance`, `/login`,
+  `/login/verify`, `/privacy` and `/terms` stay open, and the super admin passes (by membership, `admin_membership()`,
+  so they can still type their second-step code). `/maintenance` goes to `/` once it's off (by the proxy, not the page, so the two
   can't bounce).
 - **Open tabs:** `MaintenanceWatch` (root layout) wraps the browser's fetch; a 503 with the header or code `QMMNT`
   sends the tab to `/maintenance`, after `MAINTENANCE_EVENT`, which makes the editor keep unsaved work in the browser

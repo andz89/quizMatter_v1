@@ -33,15 +33,15 @@ $$;
 -- ─── As each publisher: publish with the Share button ─────────────────────────────────────────────────────────
 set local role authenticated;
 select set_config('request.jwt.claims',
-  json_build_object('sub', '00000000-0000-4000-8000-0000000000e1', 'role', 'authenticated')::text, true);
+  json_build_object('sub', '00000000-0000-4000-8000-0000000000e1', 'role', 'authenticated', 'aal', 'aal2')::text, true);
 select public.share_presentation(target_id => 'test-pn-1');
 select set_config('request.jwt.claims',
-  json_build_object('sub', '00000000-0000-4000-8000-0000000000e2', 'role', 'authenticated')::text, true);
+  json_build_object('sub', '00000000-0000-4000-8000-0000000000e2', 'role', 'authenticated', 'aal', 'aal2')::text, true);
 select public.share_presentation(target_id => 'test-pn-2');
 
 -- ─── As another teacher: the name only, never an email ────────────────────────────────────────────────────────
 select set_config('request.jwt.claims',
-  json_build_object('sub', '00000000-0000-4000-8000-0000000000e3', 'role', 'authenticated')::text, true);
+  json_build_object('sub', '00000000-0000-4000-8000-0000000000e3', 'role', 'authenticated', 'aal', 'aal2')::text, true);
 
 do $$
 declare named text; leaked int;
@@ -63,7 +63,7 @@ $$;
 
 -- ─── As an admin: "Display Name (email)", or the email alone ──────────────────────────────────────────────────
 select set_config('request.jwt.claims',
-  json_build_object('sub', '00000000-0000-4000-8000-0000000000e4', 'role', 'authenticated')::text, true);
+  json_build_object('sub', '00000000-0000-4000-8000-0000000000e4', 'role', 'authenticated', 'aal', 'aal2')::text, true);
 
 do $$
 declare named text; nameless text;

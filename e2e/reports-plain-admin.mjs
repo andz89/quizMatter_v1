@@ -4,8 +4,7 @@ import { randomUUID } from "node:crypto";
 import { chromium } from "playwright";
 import { APP, SHOTS, check, deleteTeacher, finish, loggedIn, makeTeacher, psql } from "./lib.mjs";
 
-const admin = await makeTeacher({ first: "Plainadmin" });
-psql(`insert into public.admins (user_id, is_super) values ('${admin.id}', false)`);
+const admin = await makeTeacher({ first: "Plainadmin", admin: true });
 const teacher = await makeTeacher({ first: "Reported" });
 const reporter = await makeTeacher({ first: "Reporter" });
 const superAdmin = await makeTeacher({ first: "Superowner", superAdmin: true });

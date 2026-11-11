@@ -293,6 +293,20 @@ $$;
 ALTER FUNCTION "public"."admin_may_delete"("target_id" "text") OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."admin_membership"() RETURNS "text"
+    LANGUAGE "sql" STABLE SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+  select coalesce(
+    (select case when a.is_super then 'super' else 'admin' end
+     from public.admins a where a.user_id = (select auth.uid())),
+    'none');
+$$;
+
+
+ALTER FUNCTION "public"."admin_membership"() OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."admin_overview"("days" integer) RETURNS TABLE("series" "text", "day" "date", "total" integer)
     LANGUAGE "plpgsql" STABLE SECURITY DEFINER
     SET "search_path" TO ''
@@ -1046,10 +1060,10 @@ begin
   then
     return;
   end if;
-  -- Its own step: Postgres checks the right to call is_super_admin() even when an "or" wouldn't need it, and anon
-  -- has none.
+  -- Its own step: Postgres checks the right to call admin_membership() even when an "or" wouldn't need it, and
+  -- anon has none.
   if current_user = 'authenticated' then
-    if public.is_super_admin() then
+    if public.admin_membership() = 'super' then
       return;
     end if;
   end if;
@@ -2132,7 +2146,8 @@ CREATE OR REPLACE FUNCTION "public"."is_admin"() RETURNS boolean
     LANGUAGE "sql" STABLE SECURITY DEFINER
     SET "search_path" TO ''
     AS $$
-  select exists (select 1 from public.admins where user_id = (select auth.uid()));
+  select exists (select 1 from public.admins where user_id = (select auth.uid()))
+    and public.second_factor_ok();
 $$;
 
 
@@ -2183,7 +2198,8 @@ CREATE OR REPLACE FUNCTION "public"."is_super_admin"() RETURNS boolean
     LANGUAGE "sql" STABLE SECURITY DEFINER
     SET "search_path" TO ''
     AS $$
-  select exists (select 1 from public.admins where user_id = (select auth.uid()) and is_super);
+  select exists (select 1 from public.admins where user_id = (select auth.uid()) and is_super)
+    and public.second_factor_ok();
 $$;
 
 
@@ -3510,6 +3526,24 @@ $$;
 
 
 ALTER FUNCTION "public"."search_shared_photos"("query" "text") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."second_factor_ok"() RETURNS boolean
+    LANGUAGE "sql" STABLE SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+  select coalesce((select auth.jwt() ->> 'aal'), '') = 'aal2'
+    or (
+      (select auth.jwt() ->> 'client_id') is not null
+      and exists (
+        select 1 from auth.mfa_factors f
+        where f.user_id = (select auth.uid()) and f.status = 'verified'
+      )
+    );
+$$;
+
+
+ALTER FUNCTION "public"."second_factor_ok"() OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."send_back_review"("target_id" "text", "note" "text") RETURNS "void"
@@ -6079,6 +6113,12 @@ GRANT ALL ON FUNCTION "public"."admin_may_delete"("target_id" "text") TO "servic
 
 
 
+REVOKE ALL ON FUNCTION "public"."admin_membership"() FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."admin_membership"() TO "authenticated";
+GRANT ALL ON FUNCTION "public"."admin_membership"() TO "service_role";
+
+
+
 REVOKE ALL ON FUNCTION "public"."admin_overview"("days" integer) FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."admin_overview"("days" integer) TO "authenticated";
 GRANT ALL ON FUNCTION "public"."admin_overview"("days" integer) TO "service_role";
@@ -6773,6 +6813,11 @@ GRANT ALL ON FUNCTION "public"."save_review_draft"("target_id" "text", "review_d
 
 REVOKE ALL ON FUNCTION "public"."search_shared_photos"("query" "text") FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."search_shared_photos"("query" "text") TO "service_role";
+
+
+
+REVOKE ALL ON FUNCTION "public"."second_factor_ok"() FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."second_factor_ok"() TO "service_role";
 
 
 

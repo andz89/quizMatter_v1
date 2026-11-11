@@ -31,7 +31,7 @@ insert into public.folders (id, owner_id, name) values
 -- ─── 1. At most 100 slides per presentation, however they're written ──────────────────────────────────────────
 set local role authenticated;
 select set_config('request.jwt.claims',
-  json_build_object('sub', '00000000-0000-4000-8000-0000000000e2', 'role', 'authenticated')::text, true);
+  json_build_object('sub', '00000000-0000-4000-8000-0000000000e2', 'role', 'authenticated', 'aal', 'aal2')::text, true);
 
 -- The app's save (save_presentation runs as the teacher): a new presentation with 100 slides…
 select public.save_presentation(
@@ -135,7 +135,7 @@ end $$;
 
 -- As the banned teacher.
 select set_config('request.jwt.claims',
-  json_build_object('sub', '00000000-0000-4000-8000-0000000000e3', 'role', 'authenticated')::text, true);
+  json_build_object('sub', '00000000-0000-4000-8000-0000000000e3', 'role', 'authenticated', 'aal', 'aal2')::text, true);
 
 do $$
 declare
@@ -178,7 +178,7 @@ end $$;
 
 -- ─── 3. Photos written straight to the table: 30 in a minute pauses it (20261211000000) ──────────────────────
 select set_config('request.jwt.claims',
-  json_build_object('sub', '00000000-0000-4000-8000-0000000000e4', 'role', 'authenticated')::text, true);
+  json_build_object('sub', '00000000-0000-4000-8000-0000000000e4', 'role', 'authenticated', 'aal', 'aal2')::text, true);
 
 insert into public.photos (src, width, height)
 select 'https://images.quizmatter.com/uploads/test-dwl-' || n || '.webp', 10, 10
@@ -196,7 +196,7 @@ end $$;
 -- The app's upload (src/app/api/upload-image): count_photo_upload() before the file is stored, then the
 -- row. Each counts once, in its own counter, so an upload isn't counted twice.
 select set_config('request.jwt.claims',
-  json_build_object('sub', '00000000-0000-4000-8000-0000000000e5', 'role', 'authenticated')::text, true);
+  json_build_object('sub', '00000000-0000-4000-8000-0000000000e5', 'role', 'authenticated', 'aal', 'aal2')::text, true);
 
 select public.count_photo_upload();
 insert into public.photos (user_id, src, width, height, created_at)
@@ -263,7 +263,7 @@ end $$;
 -- A logged-in teacher still can (saves fill in tags_text and profile_slug with them).
 set local role authenticated;
 select set_config('request.jwt.claims',
-  json_build_object('sub', '00000000-0000-4000-8000-0000000000e2', 'role', 'authenticated')::text, true);
+  json_build_object('sub', '00000000-0000-4000-8000-0000000000e2', 'role', 'authenticated', 'aal', 'aal2')::text, true);
 
 select public.slide_photo_srcs('{}'::jsonb), public.grades_from('{}'::jsonb), public.profile_slug('Ms. Cruz'),
   public.tags_text(array['frog']);
@@ -271,7 +271,7 @@ select public.slide_photo_srcs('{}'::jsonb), public.grades_from('{}'::jsonb), pu
 -- ─── 6. The admin log: is_super_admin() once per query, and an index for log_ban ─────────────────────────────
 -- As the super admin: log a ban (log_ban looks up the teacher's earlier rows by target_id).
 select set_config('request.jwt.claims',
-  json_build_object('sub', '00000000-0000-4000-8000-0000000000e1', 'role', 'authenticated')::text, true);
+  json_build_object('sub', '00000000-0000-4000-8000-0000000000e1', 'role', 'authenticated', 'aal', 'aal2')::text, true);
 
 select public.log_ban(target => '00000000-0000-4000-8000-0000000000e3');
 
@@ -284,7 +284,7 @@ end $$;
 
 -- A teacher still reads nothing.
 select set_config('request.jwt.claims',
-  json_build_object('sub', '00000000-0000-4000-8000-0000000000e2', 'role', 'authenticated')::text, true);
+  json_build_object('sub', '00000000-0000-4000-8000-0000000000e2', 'role', 'authenticated', 'aal', 'aal2')::text, true);
 
 do $$
 begin
