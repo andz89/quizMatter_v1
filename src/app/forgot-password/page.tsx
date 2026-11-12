@@ -2,7 +2,6 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
-import { isAuthError, isAuthRetryableFetchError } from "@supabase/supabase-js";
 import { MailCheckIcon } from "lucide-react";
 import { LinkPending } from "@/components/LinkPending";
 import { Logo } from "@/components/Logo";
@@ -10,14 +9,13 @@ import { Spinner } from "@/components/Spinner";
 import { TopLoadingBar } from "@/components/TopLoadingBar";
 import { Turnstile, type TurnstileStatus } from "@/components/Turnstile";
 import { resetEmailSchema } from "@/lib/passwords";
-import { createClient } from "@/lib/supabase/client";
-import { mayAskForReset } from "./actions";
+import { askForReset } from "./actions";
 
 /**
  * Forgot password: the teacher types their email and Supabase sends the "Reset Password" email, whose link opens
  * /auth/confirm (type=recovery) and then /set-password. The page shows "Check your email" for every email, also one
  * with no account (Supabase answers the same and sends nothing) and when our limit or Supabase's email limits stop a
- * real account (see sendLink), so it never tells who has an account.
+ * real account, so it never tells who has an account. The request is made by the server (askForReset, actions.ts).
  */
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
@@ -49,19 +47,11 @@ export default function ForgotPasswordPage() {
     if (!checked.success) return setError(checked.error.issues[0].message);
     setIsSending(true);
     setError(null);
-    // Over our limit (3 a day per teacher, 10 an hour per internet address): the same screen, and no email. A failed
-    // call counts as allowed, so a teacher is never stuck by our mistake.
-    if (!(await mayAskForReset(checked.data).catch(() => true))) {
-      setSentTo(checked.data);
-      setIsSending(false);
-      return;
-    }
-    const { error } = await createClient().auth.resetPasswordForEmail(checked.data, { captchaToken });
-    // Supabase's email limits (this address within a minute, "…only request this after 42 seconds", or the hourly
-    // limit for all) refuse only a real account: an unknown email is never refused. So an error here would tell who
-    // has an account: these two show the same screen, and its last line says to try again later.
-    if (error && error.code !== "over_email_send_rate_limit" && !/after \d+ seconds?/i.test(error.message)) {
-      setError(resetErrorMessage(error));
+    // The server checks our limit and asks Supabase (askForReset): its answer is the same for a real account, an
+    // unknown email and every limit, so nothing here tells who has an account.
+    const refusal = await askForReset(checked.data, captchaToken).catch(() => "Couldn't reach the server. Check your internet and try again.");
+    if (refusal) {
+      setError(refusal);
       setCaptchaToken(null);
       setCaptchaRound((round) => round + 1);
     } else {
@@ -140,15 +130,6 @@ function BackToLogin() {
       <LinkPending />
     </Link>
   );
-}
-
-// Plain-English words for what went wrong.
-function resetErrorMessage(error: unknown) {
-  if (!isAuthError(error)) return "Something went wrong. Please try again.";
-  if (error.code === "captcha_failed" || /captcha/i.test(error.message)) return "The security check expired. Please try again.";
-  if (error.code === "over_request_rate_limit") return "Too many tries. Please wait a few minutes and try again.";
-  if (isAuthRetryableFetchError(error)) return "Couldn't reach the server. Check your internet and try again.";
-  return "Something went wrong. Please try again.";
 }
 
 const inputClass =

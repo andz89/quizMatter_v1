@@ -173,13 +173,18 @@ Draft / Shared switch on the presentation itself, and aren't counted.
   there is nothing to check. "Not you? Log out". Needs a login like every page; open during maintenance.
   Test: `e2e/second-factor.mjs`.
 - `forgot-password/` (spec `docs/superpowers/specs/2026-11-06-forgot-password-design.md`): "Type your email",
-  Turnstile, then `resetPasswordForEmail` (email checked with `resetEmailSchema`, `src/lib/passwords.ts`). It always
+  Turnstile, then one server action, `askForReset` (`actions.ts`; email checked with `resetEmailSchema`,
+  `src/lib/passwords.ts`), which checks our limit and calls `resetPasswordForEmail` on the server (a plain client,
+  no cookies). The browser never talks to Supabase here and never gets a yes/no about the email: the action answers
+  nothing ("Check your email") or words that don't depend on the account (`resetErrorMessage`: security check
+  expired, too many tries, can't reach), and every answer takes at least 1.5 seconds, so a skipped send isn't told
+  apart by its speed. It always
   shows "Check your email. We sent a link to …", also for an email with no account (Supabase sends nothing then), so
   it never tells who has an account. Logged-out only, like login (`src/proxy.ts`). Our limit (spec
   `docs/superpowers/specs/2026-11-07-password-reset-limit-design.md`): 3 reset emails a day per teacher, Philippine time,
-  and 10 requests an hour per internet address. The page asks `mayAskForReset` (`actions.ts`: Cloudflare's address, the
-  secret key, `may_send_password_reset`) first; over a limit it shows the same screen and sends nothing; if the check
-  can't run it allows. Only emails really sent count (a trigger on Supabase's `recovery_sent_at`): made-up requests
+  and 10 requests an hour per internet address. The action asks `mayAskForReset` (inside `actions.ts`, never sent to the browser:
+  Cloudflare's address, the secret key, `may_send_password_reset`) first; over a limit it answers the same and sends
+  nothing; if the check can't run it allows. Only emails really sent count (a trigger on Supabase's `recovery_sent_at`): made-up requests
   don't, but a stranger who passes Turnstile 3 times can use up a teacher's day (3 per teacher is the owner's rule). On
   IPv6 the whole /64 counts as one address. The address is counted before Turnstile, so a script on a shared connection
   can use up its 10 for an hour. It isn't a hard wall: Supabase's reset address is public and it sends before it

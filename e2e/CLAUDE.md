@@ -49,9 +49,9 @@ Tests that delete data (the announcements ones empty the announcements table) do
 ## The tests
 
 - `forgot-password.mjs`: the login link, the Forgot password page (logged out only), the reset email arriving in
-  Mailpit (typed with spaces and capitals), the same "Check your email" for an email with no account and for
-  Supabase's two email limits (played back, since local waits only 1 second), and other refusals keeping their
-  words. Every email link is opened and then Continue clicked
+  Mailpit (typed with spaces and capitals), the same "Check your email" for an email with no account, the server's answer being the same for a
+  real account and for none, and the browser never asking Supabase for a reset itself (the server does; Supabase's
+  refusals as words are in `passwords.test.ts`). Every email link is opened and then Continue clicked
   (`continueLink`). The page's own link (PKCE) opens Set a new password. Then the email's link: logged in as someone
   else the page says log out first (no Continue); a plain `fetch` of it first (like a mail scanner) doesn't use it up;
   Set a new password ("For <email>", "Go to home", mismatch and same password refused, a new one saved and the login
@@ -63,7 +63,7 @@ Tests that delete data (the announcements ones empty the announcements table) do
   menu) says so. Supabase can't be reached at Continue (it stops the local gateway, `supabase_kong_quizBuilder`,
   for a moment): the page says the link still works, and it does. Last, sign up's "Check your email" words and links
   (Supabase's sign up answer played back, so no account is made; screenshot `signup-check-email.png`), and the reset
-  limit: 3 real emails, the 4th shows the same screen and sends none; an address at 10 requests doesn't reach Supabase
+  limit: 3 real emails, the 4th shows the same screen and sends none; an address at 10 requests gets no email, another address does
   (the test adds `cf-connecting-ip` to the page's request, as Cloudflare does). Then Admin → Safety → Password resets
   as the super admin: "3 of 3 · Limit reached", the addresses' counts (an IPv6 /64 as one), and "Over the limit"
   after a 4th send (screenshot `admin-safety-resets.png`). Run it alone:

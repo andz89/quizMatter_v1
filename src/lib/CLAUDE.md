@@ -128,7 +128,8 @@
   agree box, `z.literal(true)`, `AGREE_TERMS_MESSAGE`) must be ticked; `signUp` then sends `terms_version`
   (`LEGAL_VERSION`), which the database saves with the time (`20261218000000_terms_consent.sql`).
 - `passwords.ts`: the password rules (`passwordSchema`, 8–72 characters), and Forgot password's `resetEmailSchema`
-  (trimmed, small letters), `newPasswordSchema` (typed twice, must match), the Account page's `changePasswordSchema`
+  (trimmed, small letters) and `resetErrorMessage` (Supabase's answer to a reset request as words, or null for "Check
+  your email": its two email limits count as sent, since they refuse only a real account), `newPasswordSchema` (typed twice, must match), the Account page's `changePasswordSchema`
   (the current password, and a different new one typed twice) and the numbers of Forgot password's limit
   (`RESETS_PER_DAY`, `RESET_REQUESTS_PER_ADDRESS`; the same in `may_send_password_reset`). Only zod, so tests load it
   (`passwords.test.ts`); `userSettings.ts` re-exports the password rules for the forms.
