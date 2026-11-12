@@ -160,6 +160,9 @@ Tests that delete data (the announcements ones empty the announcements table) do
   opens Admin and the pages stay open); `is_admin` is false before and true after; the login page itself goes to the
   verify page after the password and then to the remembered page; a teacher gets "page not found" on the set-up page
   and Admin, and the verify page says there is nothing to check.
+- `account-password.mjs`: Account → Password. A direct call to Supabase without the current password, or with a
+  wrong one, is refused; on the page a mismatch, the same password and a wrong current password each get their
+  words, and the right one changes it (new password in, old out, the browser stays logged in).
 - `security-headers.mjs`: every page and API answer carries the security headers (`src/lib/securityHeaders.ts`), the
   home page, editor, view page and account still work with the enforced policy, and the report-only policy logs
   nothing in the console on them (a missing outside host would).

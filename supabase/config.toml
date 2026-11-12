@@ -227,6 +227,9 @@ double_confirm_changes = true
 enable_confirmations = false
 # If enabled, users will need to reauthenticate or have logged in recently to change their password.
 secure_password_change = false
+# Changing a password needs the current one (Account → Password sends it). A login from a reset link is exempt, so
+# Forgot password's /set-password works without it. Live: the same switch in the Supabase dashboard.
+require_current_password = true
 # Controls the minimum amount of time that must pass before sending another signup confirmation or password reset email.
 max_frequency = "1s"
 # Number of characters used in the email OTP.

@@ -92,6 +92,12 @@ Draft / Shared switch on the presentation itself, and aren't counted.
   `docs/superpowers/specs/2026-10-30-age-gender-address-design.md`), both required, like at sign up: an account with
   none (e.g. made in the Supabase dashboard) must fill them in to save. The province and town were removed
   (`docs/superpowers/specs/2026-11-01-remove-address-design.md`).
+  The Password card asks for the current password, then the new one twice (`changePasswordSchema`,
+  `src/lib/passwords.ts`; `changePassword` sends `current_password`). Supabase itself checks it ("require current
+  password": `require_current_password` in `supabase/config.toml`, and the same switch in the live dashboard), so a
+  stolen login can't change the password with a direct call. A login from a reset link is exempt, so `/set-password`
+  needs none. The app must be live before the dashboard switch is turned on (the older page sends no current
+  password). Test: `e2e/account-password.mjs`.
 - `account/two-step/`: Two-step login, admins only (a teacher gets "page not found"; the page checks
   `isAdmin || adminRole !== "none"`). `TwoStepSetup.tsx` lists the factors: a verified one → "Two-step login is on";
   none → it removes unfinished ones, enrolls a new TOTP factor (`friendlyName` "QuizMatter") and shows the QR code and

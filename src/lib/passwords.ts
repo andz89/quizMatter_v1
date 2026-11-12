@@ -28,3 +28,19 @@ export const newPasswordSchema = z
 
 // Supabase's same_password: the new password is the one the account already has.
 export const SAME_PASSWORD_MESSAGE = "That's your current password. Pick a new one.";
+
+// Supabase's current_password_invalid: the current password typed on the Account page is wrong.
+export const WRONG_CURRENT_PASSWORD_MESSAGE = "That isn't your current password.";
+
+// The Account page's Password card: the current password (Supabase checks it), and the new one typed twice.
+export const changePasswordSchema = z
+  .object({
+    currentPassword: z.string().min(1, "Type your current password.").max(PASSWORD_MAX_LENGTH, WRONG_CURRENT_PASSWORD_MESSAGE),
+    password: passwordSchema,
+    confirmPassword: z.string(),
+  })
+  .refine((fields) => fields.password === fields.confirmPassword, {
+    error: "The two passwords don't match.",
+    path: ["confirmPassword"],
+  })
+  .refine((fields) => fields.password !== fields.currentPassword, { error: SAME_PASSWORD_MESSAGE, path: ["password"] });
