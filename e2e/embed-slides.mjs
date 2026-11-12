@@ -104,6 +104,9 @@ try {
   await video.getByRole("button", { name: "Add video", exact: true }).click();
   await video.locator("iframe").waitFor();
   check("Embed video: a YouTube link becomes the player", (await video.locator("iframe").getAttribute("src")) === VIDEO_SRC);
+  // The frame is sandboxed: the embedded site runs as itself, but can't move this tab to another page.
+  const sandbox = (await video.locator("iframe").getAttribute("sandbox")) ?? "";
+  check("Embed video: the player is sandboxed, with no top navigation", sandbox.includes("allow-scripts") && !sandbox.includes("top-navigation"), sandbox);
 
   // Embed slides: a Google Slides share link becomes the deck viewer.
   const deckId = await addSlide("Embed slides");

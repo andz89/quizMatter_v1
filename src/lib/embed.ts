@@ -120,3 +120,18 @@ function readImageLink(link: URL, host: string, parts: string[]): Embed | { erro
   if (link.protocol !== "https:") return { error: NOT_A_LINK.image };
   return { src: link.href };
 }
+
+/**
+ * The website a picture slide's picture comes from ("example.com") when it's any website a teacher typed, or null
+ * for Google Drive's picture address (and a broken link). Loading a picture shows its website the viewer's internet
+ * address, so outside the editor a picture from a named website waits for a click.
+ */
+export function outsidePictureHost(src: string): string | null {
+  let host: string;
+  try {
+    host = new URL(src).hostname;
+  } catch {
+    return null;
+  }
+  return host === "drive.google.com" ? null : host.replace(/^www\./, "");
+}

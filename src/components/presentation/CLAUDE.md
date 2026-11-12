@@ -6,7 +6,8 @@ Slides drawn without the editor: fullscreen presenting, cards, the view page, re
   the editor, so a slide looks the same everywhere. Also has the background helpers (`getSlideBackgroundStyle`,
   `slideBackgroundCss`; they draw nothing for a color `isSafeColor` refuses, see `src/lib/CLAUDE.md`), the shape box
   frame and `QuestionNumberBadge`, which the editor reuses.
-  `revealAnswer` shows the right answer; `liveEmbed` plays a video / slide deck (only on the slide being shown).
+  `revealAnswer` shows the right answer; `liveEmbed` plays a video / slide deck (only on the slide being shown), and gives a picture slide from another
+  website its "Show picture" button (see `src/components/editor/CLAUDE.md`).
 - `FluidSlidePreview.tsx`: a slide shrunk to fit its box's width (cards, lists, panels). Use it for any small
   picture of a slide; don't scale slides another way. `HiddenSlideMark` there fades a hidden slide's picture and adds
   an eye-off mark (also used by the editor's `SlideThumbnailPreview`).

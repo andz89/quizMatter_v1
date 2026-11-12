@@ -75,8 +75,9 @@ Tests that delete data (the announcements ones empty the announcements table) do
   middle of the bar (saved, unsaved, saving, couldn't save), and keeps its size while it saves.
 - `hidden-slides.mjs`: hide a slide, save, present (→ / ← skip it), the all-slides grid, show it again.
 - `add-slide-menu.mjs`: the slide's + and the workspace's Add slide have no "Embed image" (the other 8 types stay),
-  and an image slide saved before still opens with its picture.
-- `embed-slides.mjs`: add an Embed video and an Embed slides slide in the editor (a bad link is refused), save,
+  and an image slide saved before still opens with its picture. Outside the editor that picture (from another
+  website) isn't asked for: the view page names the website, and presenting loads it only after "Show picture".
+- `embed-slides.mjs`: add an Embed video and an Embed slides slide in the editor (a bad link is refused; the player's frame is sandboxed with no top navigation), save,
   reload, present fullscreen (only the slide shown plays its embed; YouTube and Google Slides are stand-in pages; the buttons
   stay on a live player and hide on other slides), Exit.
 - `calendar-date.mjs`: add a Calendar Page and a Month Calendar (both start on today), Set date to 29 February 2024,

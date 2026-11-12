@@ -31,7 +31,13 @@ editor / view / review, and renders `Editor.tsx`, which calls `store.loadPresent
   (`QuestionContainer`, `OptionCard` A–D, `SideContainer` = the shape box) and the elements (`SvgElementItem`, one
   per element). Embed slides (video, slide deck, picture) use `EmbedSlide` instead. New picture embed slides
   (`image`) can't be made any more, by the Add slide menu (`AddSlideMenu`) or by Claude (2026-11-04); old ones still
-  open, present and edit, so the `image` type stays in the saved data.
+  open, present and edit, so the `image` type stays in the saved data. Outside the editor (`EmbedSlideView`: home
+  cards, the view page, presenting) a picture from a website a teacher typed doesn't load by itself, since that
+  website would see the internet address of everyone who only looks: the slide says "Picture from example.com", and
+  while presenting "Show picture" loads it (`ViewerPicture`; `outsidePictureHost` in `src/lib/embed.ts`; Google
+  Drive's pictures load at once; a shown one stays shown until the tab reloads). The editor loads it as before. The
+  video / deck frame (`EmbedPlayer`) is sandboxed: scripts, its own site's storage, new tabs, forms and fullscreen,
+  but never `allow-top-navigation` (the site can't move the teacher's tab). Keep both if this changes.
 - `SvgElementItem.tsx`: one element: drag, resize (`handles.ts`: `CORNERS` / `EDGE_HANDLES`), rotate, crop.
   Dropped on a question or answer box, an element moves into it (`boxAtPoint` looks under the dragged picture). Not
   the box the drag began over, so nudging a free picture lying over a box leaves it free; hold Alt to lay a free
