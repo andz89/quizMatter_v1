@@ -9,6 +9,8 @@ interface TextBoxContentProps {
   html: string;
   // Chosen font size (the largest it gets; it shrinks to fit). Missing = the default.
   fontSize: number | undefined;
+  // Never shrink: long text goes onto new lines, even in the middle of a word too long for the box (a table's cells).
+  keepFontSize?: boolean;
   target: TextTarget;
   // Text color for words that don't have their own color.
   color: string;
@@ -21,13 +23,14 @@ interface TextBoxContentProps {
 }
 
 /** The text inside a text box element on the canvas. Read-only until double-clicked, then typeable. */
-export function TextBoxContent({ html, fontSize: chosenFontSize = TEXT_BOX_FONT_SIZE, target, color, editStart, isSelected, onChange, onStopEditing }: TextBoxContentProps) {
+export function TextBoxContent({ html, fontSize: chosenFontSize = TEXT_BOX_FONT_SIZE, keepFontSize = false, target, color, editStart, isSelected, onChange, onStopEditing }: TextBoxContentProps) {
   const { editor, ref, fontSize } = useCanvasTextEditor({
     content: html,
     editStart,
     isSelected,
     target,
     fontSize: chosenFontSize,
+    keepFontSize,
     onUpdate: (editor) => onChange(editor.isEmpty ? "" : editor.getHTML()),
     onStopEditing,
   });
@@ -38,7 +41,7 @@ export function TextBoxContent({ html, fontSize: chosenFontSize = TEXT_BOX_FONT_
       // Not typing: no text highlighting, so dragging moves the box instead. The text sits in the middle
       // (top to bottom); "safe" puts it back at the top when it's too long, so shrink-to-fit still sees it overflow.
       // no-word-break: a word too long for the box makes the text shrink instead of breaking in the middle.
-      className={`no-word-break flex h-full w-full flex-col justify-center-safe overflow-hidden ${editStart ? "" : "select-none"}`}
+      className={`${keepFontSize ? "" : "no-word-break"} flex h-full w-full flex-col justify-center-safe overflow-hidden ${editStart ? "" : "select-none"}`}
       style={{ fontSize, lineHeight: 1.25, color }}
     >
       <EditorContent editor={editor} />

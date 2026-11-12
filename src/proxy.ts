@@ -48,11 +48,13 @@ export async function proxy(request: NextRequest) {
 
   const maintenance = await getMaintenanceStatus();
   if (maintenance.isOn) {
-    // Login stays open so the super admin can get in (the login page logs anyone else out again).
-    const isOpenDuringMaintenance = path === "/maintenance" || path === "/login" || path === "/privacy" || path === "/terms";
+    // Login (and its second step) stays open so the super admin can get in (the login page logs anyone else out again).
+    const isOpenDuringMaintenance =
+      path === "/maintenance" || path === "/login" || path === "/login/verify" || path === "/privacy" || path === "/terms";
     if (!isOpenDuringMaintenance) {
       // Asked only during maintenance (the database guard lets the super admin's call through, and refuses others').
-      const isSuperAdmin = isLoggedIn && (await supabase.rpc("is_super_admin")).data === true;
+      // Membership is enough to get past this stop: the admin pages still ask for the second step.
+      const isSuperAdmin = isLoggedIn && (await supabase.rpc("admin_membership")).data === "super";
       if (!isSuperAdmin) return keepSession(maintenanceAnswer(request));
     }
     // Opens without a login too.

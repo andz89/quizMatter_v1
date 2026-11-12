@@ -8,7 +8,7 @@ import { PresentDraftButton } from "@/components/presentation/PresentDraftButton
 import { ReviewDraftView } from "@/components/presentation/ReviewDraftView";
 import { detailsLabel, joinParts, slideCountLabel } from "@/lib/format";
 import { usesPeopleArt } from "@/lib/peopleArt";
-import { gradesTitle, presentationSchema, type ReviewerFields } from "@/lib/schema";
+import { gradesTitle, parseSavedPresentation, type ReviewerFields } from "@/lib/schema";
 import { createClient } from "@/lib/supabase/server";
 import { ReviewDecision } from "./ReviewDecision";
 
@@ -26,7 +26,7 @@ export default async function AdminReviewPage({ params }: PageProps<"/admin/pres
   if (error) throw error;
   if (!data || data.status !== "submitted") notFound();
 
-  const presentation = presentationSchema.parse(data.draft);
+  const presentation = parseSavedPresentation(data.draft);
   const fields = data.submitted_fields as ReviewerFields;
 
   return (

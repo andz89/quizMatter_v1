@@ -134,7 +134,7 @@ try {
   await teacherPage.route("**/rpc/save_presentation*", blockSaves);
   await hideButton(teacherPage).click();
   check("offline: auto save tries", await within(() => saves.length >= 1));
-  check("offline: the Save button says it failed", await within(() => saveButtonSays(teacherPage, "Couldn't save — retry"), 3000));
+  check("offline: the Save button says it failed", await within(() => saveButtonSays(teacherPage, "Retry"), 3000));
   check("offline: no toast", (await toasts(teacherPage, "Couldn't save").count()) === 0);
   await teacherPage.unroute("**/rpc/save_presentation*", blockSaves);
   check("offline: saved by the next try once back", await within(() => isHiddenInDb(offline)));

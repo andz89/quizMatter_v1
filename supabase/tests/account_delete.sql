@@ -57,7 +57,7 @@ where c.name = 'Test acd photos';
 select set_config('quizmatter.write_counted', '', true);
 set local role authenticated;
 select set_config('request.jwt.claims',
-  json_build_object('sub', '00000000-0000-4000-8000-0000000000a3', 'role', 'authenticated')::text, true);
+  json_build_object('sub', '00000000-0000-4000-8000-0000000000a3', 'role', 'authenticated', 'aal', 'aal2')::text, true);
 
 select public.share_presentation(target_id => 'test-acd-t1');
 insert into public.folders (id, name) values ('00000000-0000-4000-8000-0000000000fa', 'Week 1');
@@ -71,13 +71,13 @@ update public.user_settings set favorite_element_categories = '{}' where user_id
 
 -- As the editor: a review round on the lesson.
 select set_config('request.jwt.claims',
-  json_build_object('sub', '00000000-0000-4000-8000-0000000000a4', 'role', 'authenticated')::text, true);
+  json_build_object('sub', '00000000-0000-4000-8000-0000000000a4', 'role', 'authenticated', 'aal', 'aal2')::text, true);
 
 select public.start_review(target_id => 'test-acd-lesson');
 
 -- As the super admin: approve the editor's first submission (QuizMatter's copy is the super admin's).
 select set_config('request.jwt.claims',
-  json_build_object('sub', '00000000-0000-4000-8000-0000000000a1', 'role', 'authenticated')::text, true);
+  json_build_object('sub', '00000000-0000-4000-8000-0000000000a1', 'role', 'authenticated', 'aal', 'aal2')::text, true);
 
 select public.approve_submission(target_id => 'test-acd-e1');
 

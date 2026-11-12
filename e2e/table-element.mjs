@@ -388,6 +388,55 @@ try {
   await page2.screenshot({ path: SHOTS + "table-element-question.png" });
   await page2.close({ runBeforeUnload: false });
 
+  // Long text keeps the table's text size and goes onto new lines, while typing and after.
+  const wrapId = randomUUID();
+  await api("/rest/v1/presentations", {
+    method: "POST",
+    body: JSON.stringify({ id: wrapId, owner_id: teacher.id, title: "Table wrapping", data_version: 1 }),
+  });
+  await api("/rest/v1/slides", {
+    method: "POST",
+    body: JSON.stringify([{ presentation_id: wrapId, id: "s1", position: 0, data: blankSlide([]) }]),
+  });
+  const page3 = await page.context().newPage();
+  page3.on("pageerror", (e) => errors.push(e.message));
+  await page3.goto(`${APP}/presentation/${wrapId}/edit`, { timeout: 120_000 });
+  const wrapSlide = page3.locator('[data-slide-id="s1"]');
+  await wrapSlide.waitFor();
+  await page3.locator('button[title="Elements"]').click();
+  await page3.getByRole("button", { name: "Table", exact: true }).first().click();
+  const wrapCell = (column) => wrapSlide.locator(`[data-table-row="0"][data-table-column="${column}"]`);
+  await wrapCell(0).waitFor();
+  const wrapEditable = wrapSlide.locator('[contenteditable="true"]');
+  // The first paragraph of a cell: its text size, how many lines it takes and whether it pokes out sideways.
+  const measure = (paragraph) =>
+    paragraph.evaluate((p) => {
+      const fontSize = parseFloat(getComputedStyle(p).fontSize);
+      return { fontSize, lines: Math.round(p.offsetHeight / (fontSize * 1.25)), pokesOut: p.scrollWidth > p.clientWidth };
+    });
+  const wrapsAtFullSize = (m) => m.fontSize === 24 && m.lines >= 2 && !m.pokesOut;
+  const SENTENCE = "one two three four five six seven eight nine ten eleven twelve";
+  const LONG_WORD = "W".repeat(60);
+
+  await wrapCell(0).dblclick();
+  await wrapEditable.waitFor();
+  await page3.keyboard.type(SENTENCE);
+  const typingSentence = await measure(wrapEditable.locator("p").first());
+  check("typing long text keeps the size and goes onto new lines", wrapsAtFullSize(typingSentence), JSON.stringify(typingSentence));
+  await page3.keyboard.press("Tab");
+  await page3.keyboard.type(LONG_WORD);
+  const typingWord = await measure(wrapEditable.locator("p").first());
+  check("typing one very long word breaks it onto new lines", wrapsAtFullSize(typingWord), JSON.stringify(typingWord));
+  await page3.keyboard.press("Escape");
+  await page3.waitForFunction(() => !document.querySelector('[contenteditable="true"]'));
+
+  const shownSentence = await measure(wrapCell(0).locator("p").first());
+  check("not typing: long text keeps the size and its lines", wrapsAtFullSize(shownSentence), JSON.stringify(shownSentence));
+  const shownWord = await measure(wrapCell(1).locator("p").first());
+  check("not typing: a very long word stays inside the cell", wrapsAtFullSize(shownWord), JSON.stringify(shownWord));
+  await page3.screenshot({ path: SHOTS + "table-element-wrap.png" });
+  await page3.close({ runBeforeUnload: false });
+
   check("no page errors", errors.length === 0, errors.join(" | "));
 } catch (error) {
   check("run finished without an exception", false, String(error).split("\n").slice(0, 4).join(" "));

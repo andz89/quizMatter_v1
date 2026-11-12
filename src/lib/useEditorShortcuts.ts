@@ -4,6 +4,7 @@ import { isTextFieldOrDialog, isTypingTarget } from "./dom";
 import { getContainerBounds } from "./constants";
 import { overhangFor, positionRange } from "./geometry";
 import { withCellHtml } from "./table";
+import { boxRemovalPatch } from "@/components/editor/DiagramBoxButtons";
 
 // How far (px) an arrow key moves the selected element(s); Shift moves further.
 const ARROW_STEP = 1;
@@ -19,7 +20,8 @@ const ARROW_DIRECTIONS: Record<string, { x: number; y: number }> = {
  * The editor's keyboard shortcuts, set up once for the whole editor. They read the store when a key
  * is pressed, so the listener never has to be rebuilt when the selection changes.
  *
- * - Ctrl/Cmd+S saves the presentation (also while typing)
+ * - Ctrl/Cmd+S saves the presentation (also while typing, and while a box is open); every other key does nothing
+ *   here while a box (Modal, ConfirmModal) is open over the editor
  * - Ctrl/Cmd+Z undoes; Ctrl+Y or Ctrl/Cmd+Shift+Z redoes (also in rich text, so there's only one undo history;
  *   in a plain input or textarea the browser undoes the typing instead)
  * - Ctrl/Cmd+C copies and Ctrl/Cmd+V pastes the selected element(s) (not while a text field or dialog has focus)
@@ -27,7 +29,8 @@ const ARROW_DIRECTIONS: Record<string, { x: number; y: number }> = {
  * - Ctrl/Cmd+] brings forward, Ctrl/Cmd+[ sends backward; add Alt to go all the way to the front/back
  * - Escape or Enter stops cropping
  * - Delete removes the selected element(s) (Backspace doesn't), Escape deselects; with a table cell picked, Delete
- *   empties that cell and Escape lets go of it
+ *   empties that cell and Escape lets go of it; with a diagram box picked, Delete removes that box (nothing happens
+ *   if it has no ×) and Escape lets go of it
  * - Arrow keys move the selected element(s) 1px (10px with Shift), kept inside their box
  */
 export function useEditorShortcuts() {
@@ -45,9 +48,13 @@ export function useEditorShortcuts() {
         state.savePresentation();
         return;
       }
-      // In a plain input or textarea, undo/redo belong to the browser (they undo the typing there).
-      const tagName = (e.target as HTMLElement | null)?.tagName;
-      const inPlainInput = tagName === "INPUT" || tagName === "TEXTAREA";
+      // A box (Modal, ConfirmModal) is open over the editor: the other keys are its own, never the slides' behind it.
+      // The focus is often not inside the box (a click on its background moves it to the page), so ask the page.
+      if (document.querySelector('[role="dialog"][aria-modal="true"]')) return;
+      // In a plain input or textarea, undo/redo belong to the browser (they undo the typing there). A slider or a date
+      // box has no typing to undo, so they stay the editor's.
+      const field = e.target as HTMLInputElement | null;
+      const inPlainInput = (field?.tagName === "INPUT" && field.type !== "range" && field.type !== "date") || field?.tagName === "TEXTAREA";
       if (isMeta && key === "z") {
         if (inPlainInput) return;
         e.preventDefault();
@@ -107,13 +114,20 @@ export function useEditorShortcuts() {
         e.preventDefault();
         state.setCroppingElementId(null);
       } else if (
-        // A picked diagram box: Escape goes back to the whole diagram (it stays selected).
+        // A picked diagram box: Escape goes back to the whole diagram (it stays selected), Delete removes just that box.
         state.pickedDiagramBox &&
         selectedElementIds.length === 1 &&
         selectedElementIds[0] === state.pickedDiagramBox.elementId &&
-        e.key === "Escape"
+        (e.key === "Escape" || e.key === "Delete")
       ) {
         e.preventDefault();
+        const pick = state.pickedDiagramBox;
+        if (e.key === "Escape") return state.setPickedDiagramBox(null);
+        const element = state.presentation.slides.find((sl) => sl.id === selectedSlideId)?.elements.find((el) => el.id === pick.elementId);
+        const patch = element && boxRemovalPatch(element, pick.path);
+        if (!patch) return;
+        state.updateElement(selectedSlideId, pick.elementId, patch);
+        // The boxes shift in their lists, so the pick would point at the wrong one.
         state.setPickedDiagramBox(null);
       } else if (
         // A picked table cell: Escape goes back to the whole table (it stays selected), Delete empties just that cell.

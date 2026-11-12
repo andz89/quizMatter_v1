@@ -77,7 +77,7 @@ grant all on got to authenticated;
 
 -- ─── The fast count, as the super admin ──────────────────────────────────────────────────────────────────────
 select set_config('request.jwt.claims',
-  '{"sub": "00000000-0000-4000-8000-0000000000b1", "role": "authenticated"}', true);
+  '{"sub": "00000000-0000-4000-8000-0000000000b1", "role": "authenticated", "aal": "aal2"}', true);
 set local role authenticated;
 insert into got select f.name, public.announcement_audience(f.filters) from filter_sets f;
 reset role;

@@ -180,6 +180,14 @@ function dropLoneGroups(elements: SvgElement[]): SvgElement[] {
   return elements.map((el) => (el.groupId && counts.get(el.groupId)! < 2 ? { ...el, groupId: undefined } : el));
 }
 
+/** False when every value in the patch is what the element already has. Most patches are plain numbers (a drag). */
+function patchChanges(element: SvgElement, patch: ElementPatch): boolean {
+  return Object.entries(patch).some(([field, value]) => {
+    const current = element[field as keyof ElementPatch];
+    return current !== value && JSON.stringify(current) !== JSON.stringify(value);
+  });
+}
+
 /** Copies get fresh group ids, so a copied group becomes its own group instead of joining the original. */
 function giveCopiesNewGroups(copies: SvgElement[]): SvgElement[] {
   const newIds = new Map<string, string>();
@@ -1530,6 +1538,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   updateElements: (slideId, patches) => {
     const { presentation } = get();
+    // A button that changes nothing (Today on today's calendar) isn't an edit: no "unsaved", no undo step.
+    const slide = presentation.slides.find((s) => s.id === slideId);
+    if (!slide?.elements.some((el) => patches[el.id] && patchChanges(el, patches[el.id]))) return;
     // Taking an element out of its group may leave one member behind on its own.
     const changesGroups = Object.values(patches).some((patch) => "groupId" in patch);
     set({

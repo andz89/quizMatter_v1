@@ -54,7 +54,7 @@ grant select on tcs_before to authenticated;
 
 set local role authenticated;
 select set_config('request.jwt.claims',
-  json_build_object('sub', '00000000-0000-4000-8000-0000000000d1', 'role', 'authenticated')::text, true);
+  json_build_object('sub', '00000000-0000-4000-8000-0000000000d1', 'role', 'authenticated', 'aal', 'aal2')::text, true);
 
 update public.user_settings set terms_version = 'fake', terms_accepted_at = '2020-01-01', bio = 'Hi'
 where user_id = '00000000-0000-4000-8000-0000000000d1';
@@ -77,7 +77,7 @@ end $$;
 -- ─── 4. The Account page's upsert, and a new row, can't set a consent record either ───────────────────────────
 set local role authenticated;
 select set_config('request.jwt.claims',
-  json_build_object('sub', '00000000-0000-4000-8000-0000000000d1', 'role', 'authenticated')::text, true);
+  json_build_object('sub', '00000000-0000-4000-8000-0000000000d1', 'role', 'authenticated', 'aal', 'aal2')::text, true);
 
 insert into public.user_settings (user_id, terms_version, terms_accepted_at)
 values ('00000000-0000-4000-8000-0000000000d1', 'fake', now())
@@ -104,7 +104,7 @@ delete from public.user_settings where user_id = '00000000-0000-4000-8000-000000
 
 set local role authenticated;
 select set_config('request.jwt.claims',
-  json_build_object('sub', '00000000-0000-4000-8000-0000000000d2', 'role', 'authenticated')::text, true);
+  json_build_object('sub', '00000000-0000-4000-8000-0000000000d2', 'role', 'authenticated', 'aal', 'aal2')::text, true);
 
 insert into public.user_settings (user_id, terms_version, terms_accepted_at)
 values ('00000000-0000-4000-8000-0000000000d2', 'fake', now());

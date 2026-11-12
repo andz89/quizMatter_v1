@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { isAllowedBirthDate, todayInManila } from "./age";
 import { LEGAL_VERSION } from "./legal";
-import { newPasswordSchema, PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH, passwordSchema } from "./passwords";
+import { changePasswordSchema, newPasswordSchema, PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH, passwordSchema } from "./passwords";
 import { createClient } from "./supabase/client";
 import { ELEMENT_PANEL_CATEGORIES, type ElementCategory } from "./svgLibrary";
 
@@ -228,9 +228,14 @@ export async function saveProfile(fields: ProfileFields, visibility: ProfileVisi
   if (error) throw error;
 }
 
-/** Changes the signed-in user's password (Supabase keeps it, not our tables). Throws if it fails. */
-export async function changePassword(password: string) {
-  const { error } = await createClient().auth.updateUser({ password: passwordSchema.parse(password) });
+/**
+ * The Account page's Password card: changes the signed-in user's password (Supabase keeps it, not our tables).
+ * Supabase checks the current password itself ("require current password", config.toml and the dashboard), so a
+ * stolen login can't change it with a direct call either. Throws Supabase's error if it fails.
+ */
+export async function changePassword(fields: { currentPassword: string; password: string; confirmPassword: string }) {
+  const { currentPassword, password } = changePasswordSchema.parse(fields);
+  const { error } = await createClient().auth.updateUser({ password, current_password: currentPassword });
   if (error) throw error;
 }
 

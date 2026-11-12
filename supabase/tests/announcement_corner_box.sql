@@ -27,7 +27,7 @@ $$;
 
 create function pg_temp.act_as(who uuid) returns void language plpgsql as $$
 begin
-  perform set_config('request.jwt.claims', json_build_object('sub', who, 'role', 'authenticated')::text, true);
+  perform set_config('request.jwt.claims', json_build_object('sub', who, 'role', 'authenticated', 'aal', 'aal2')::text, true);
   perform set_config('quizmatter.admin_logged', '', true);
 end;
 $$;

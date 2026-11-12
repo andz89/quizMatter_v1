@@ -35,14 +35,14 @@ $$;
 -- ─── As the teacher: publish t1 and t2 ────────────────────────────────────────────────────────────────────────
 set local role authenticated;
 select set_config('request.jwt.claims',
-  json_build_object('sub', '00000000-0000-4000-8000-0000000000d1', 'role', 'authenticated')::text, true);
+  json_build_object('sub', '00000000-0000-4000-8000-0000000000d1', 'role', 'authenticated', 'aal', 'aal2')::text, true);
 
 select public.share_presentation(target_id => 'test-tsp-t1');
 select public.share_presentation(target_id => 'test-tsp-t2');
 
 -- ─── As the admin: hide t2's copy (Admin → Reports) ───────────────────────────────────────────────────────────
 select set_config('request.jwt.claims',
-  json_build_object('sub', '00000000-0000-4000-8000-0000000000d3', 'role', 'authenticated')::text, true);
+  json_build_object('sub', '00000000-0000-4000-8000-0000000000d3', 'role', 'authenticated', 'aal', 'aal2')::text, true);
 
 do $$
 declare n int;
@@ -58,7 +58,7 @@ $$;
 -- ─── As the other teacher: only t1's copy is listed ───────────────────────────────────────────────────────────
 set local role authenticated;
 select set_config('request.jwt.claims',
-  json_build_object('sub', '00000000-0000-4000-8000-0000000000d2', 'role', 'authenticated')::text, true);
+  json_build_object('sub', '00000000-0000-4000-8000-0000000000d2', 'role', 'authenticated', 'aal', 'aal2')::text, true);
 
 do $$
 declare
@@ -87,7 +87,7 @@ insert into public.admins (user_id) values ('00000000-0000-4000-8000-0000000000d
 
 set local role authenticated;
 select set_config('request.jwt.claims',
-  json_build_object('sub', '00000000-0000-4000-8000-0000000000d2', 'role', 'authenticated')::text, true);
+  json_build_object('sub', '00000000-0000-4000-8000-0000000000d2', 'role', 'authenticated', 'aal', 'aal2')::text, true);
 
 do $$
 begin

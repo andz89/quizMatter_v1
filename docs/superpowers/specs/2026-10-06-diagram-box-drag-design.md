@@ -123,8 +123,7 @@ single boxes. A factor tree's numbers are `{ "text": "…", "children"?: [two nu
 - Runs of spaces show while typing but shrink to one in the drawing; words with "-" or "/" may break
   a little differently from the typing area.
 - Very long text (thousands of letters) can't fit a small box even at size 1, so it spills out.
-- A box at the diagram's corner has its corner handle under the diagram's own; on a tiny box the
-  handles can cover it.
+- On a tiny box the handles can cover it.
 - A picked box can stay picked after switching slides and back, or point at a neighbor after the panel
   removes a box.
 - With a gradient color, the gradient shifts when the drawing area changes.

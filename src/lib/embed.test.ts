@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readEmbedLink, type EmbedKind } from "./embed";
+import { outsidePictureHost, readEmbedLink, type EmbedKind } from "./embed";
 
 const srcOf = (kind: EmbedKind, pasted: string) => {
   const result = readEmbedLink(kind, pasted);
@@ -78,4 +78,12 @@ test("a saved address passes the same check again, unchanged", () => {
     const src = srcOf(kind, link)!;
     assert.equal(srcOf(kind, src), src, link);
   }
+});
+
+test("a picture from another website is named, so it waits for a click; Drive's and broken links aren't", () => {
+  assert.equal(outsidePictureHost("https://example.com/cat.png"), "example.com");
+  assert.equal(outsidePictureHost("https://www.Example.com:8443/cat.png?x=1"), "example.com");
+  assert.equal(outsidePictureHost("https://drive.google.com/thumbnail?id=1AbC&sz=w2000"), null);
+  assert.equal(outsidePictureHost("https://drive.google.com.example.com/thumbnail?id=1AbC"), "drive.google.com.example.com");
+  assert.equal(outsidePictureHost("not a link"), null);
 });

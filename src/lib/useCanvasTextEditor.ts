@@ -30,6 +30,8 @@ interface CanvasTextEditorOptions {
   target: TextTarget;
   // The largest the text gets; it shrinks when it's too long for its box.
   fontSize: number;
+  // Never shrink: long text only goes onto new lines (a table's cells).
+  keepFontSize?: boolean;
   // Selected with one click (not typing): the header's format toolbar changes all of this text.
   isSelected?: boolean;
   // Extra classes on the editable area itself.
@@ -48,6 +50,7 @@ export function useCanvasTextEditor({
   editStart,
   target,
   fontSize,
+  keepFontSize = false,
   isSelected = false,
   editorClass = "",
   onUpdate,
@@ -55,7 +58,7 @@ export function useCanvasTextEditor({
 }: CanvasTextEditorOptions) {
   const setActiveTextEditor = useEditorStore((s) => s.setActiveTextEditor);
   // Re-measures by itself when the font size or the box's size changes.
-  const { ref, fontSize: fittedFontSize, remeasure } = useAutoFitText<HTMLDivElement>(autoFitRange(fontSize));
+  const { ref, fontSize: fittedFontSize, remeasure } = useAutoFitText<HTMLDivElement>({ ...autoFitRange(fontSize), keepFontSize });
   // Read when the editor gets focus; kept in a ref so that handler always sees the latest one.
   const targetRef = useRef(target);
   useEffect(() => {

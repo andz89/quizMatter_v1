@@ -22,7 +22,7 @@ insert into public.banned_users (user_id, reason) values ('00000000-0000-4000-80
 -- ─── As the editor: a wrong address is refused and doesn't count ──────────────────────────────────────────────
 set local role authenticated;
 select set_config('request.jwt.claims',
-  json_build_object('sub', '00000000-0000-4000-8000-0000000000e1', 'role', 'authenticated')::text, true);
+  json_build_object('sub', '00000000-0000-4000-8000-0000000000e1', 'role', 'authenticated', 'aal', 'aal2')::text, true);
 
 do $$
 begin
@@ -105,7 +105,7 @@ update public.profile_photos set day = day - 1 where user_id = '00000000-0000-40
 
 set local role authenticated;
 select set_config('request.jwt.claims',
-  json_build_object('sub', '00000000-0000-4000-8000-0000000000e1', 'role', 'authenticated')::text, true);
+  json_build_object('sub', '00000000-0000-4000-8000-0000000000e1', 'role', 'authenticated', 'aal', 'aal2')::text, true);
 
 do $$
 declare
@@ -119,7 +119,7 @@ $$;
 
 -- ─── As a plain teacher: no photo of their own, but they see the editor's on the profile ──────────────────────
 select set_config('request.jwt.claims',
-  json_build_object('sub', '00000000-0000-4000-8000-0000000000e2', 'role', 'authenticated')::text, true);
+  json_build_object('sub', '00000000-0000-4000-8000-0000000000e2', 'role', 'authenticated', 'aal', 'aal2')::text, true);
 
 do $$
 begin
@@ -151,7 +151,7 @@ $$;
 
 -- ─── As the banned editor: refused ────────────────────────────────────────────────────────────────────────────
 select set_config('request.jwt.claims',
-  json_build_object('sub', '00000000-0000-4000-8000-0000000000e4', 'role', 'authenticated')::text, true);
+  json_build_object('sub', '00000000-0000-4000-8000-0000000000e4', 'role', 'authenticated', 'aal', 'aal2')::text, true);
 
 do $$
 begin
@@ -176,7 +176,7 @@ $$;
 -- ─── As the admin: remove it, logged, count kept ──────────────────────────────────────────────────────────────
 set local role authenticated;
 select set_config('request.jwt.claims',
-  json_build_object('sub', '00000000-0000-4000-8000-0000000000e3', 'role', 'authenticated')::text, true);
+  json_build_object('sub', '00000000-0000-4000-8000-0000000000e3', 'role', 'authenticated', 'aal', 'aal2')::text, true);
 
 select public.admin_remove_profile_photo('00000000-0000-4000-8000-0000000000e1');
 

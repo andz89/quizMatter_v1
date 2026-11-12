@@ -6,9 +6,12 @@ import {
   getAssetViewBox,
   getDiagramBoxes,
   getElementAsset,
+  sameDiagramPath,
   type DiagramBoxAdd,
   type DiagramBoxes,
+  type DiagramBoxPath,
   type DiagramEdge,
+  type ElementAsset,
 } from "@/lib/svgLibrary";
 import type { SvgElement } from "@/lib/schema";
 import { PlusIcon, XIcon } from "lucide-react";
@@ -29,6 +32,25 @@ function screenEdge(edge: DiagramEdge, element: SvgElement): DiagramEdge {
 // Stops a button's pointer and clicks from picking a box, starting a drag, deselecting or typing.
 const stop = (e: React.SyntheticEvent) => e.stopPropagation();
 
+// One change with the new boxes and the element's new place, so one undo puts both back. When the boxes already
+// there move by `shift` in the drawing, the old drawing area is moved by it too, so they keep their spot on the slide.
+function withNewBoxes(element: SvgElement, diagram: DiagramBoxes, asset: ElementAsset, settings: DiagramBoxes["settings"], shift?: DiagramBoxAdd["shift"]) {
+  const patch = { [diagram.key]: settings } as Partial<SvgElement>;
+  const viewBox = getAssetViewBox(asset, element);
+  const [minX, minY, width, height] = viewBox.split(" ").map(Number);
+  const oldViewBox = shift ? `${minX + shift.x} ${minY + shift.y} ${width} ${height}` : viewBox;
+  return { ...patch, ...keepInPlace(element, oldViewBox, getAssetViewBox(asset, patch)) };
+}
+
+/** The change that removes one box, by its × button's rules (Delete on a picked box), or null when it has no ×. */
+export function boxRemovalPatch(element: SvgElement, path: DiagramBoxPath) {
+  const diagram = getDiagramBoxes(element.assetId, element);
+  const asset = getElementAsset(element.assetId);
+  const box = diagram?.boxes.find((b) => sameDiagramPath(b.path, path));
+  const remove = diagram && box ? diagramBoxActions(diagram, box).remove : null;
+  return diagram && asset && remove ? withNewBoxes(element, diagram, asset, remove.settings) : null;
+}
+
 /**
  * "+" and × on every box of the selected diagram: "+" adds a box next to that one (on the side where it
  * goes), × removes it. Like a box drag, the element is moved and resized so nothing already drawn moves
@@ -46,14 +68,8 @@ export function DiagramBoxButtons({ slideId, element }: { slideId: string; eleme
   const viewBox = getAssetViewBox(asset, element);
   const frame = getFrame(element, viewBox);
 
-  // One change with the new boxes and the element's new place, so one undo puts both back. When the
-  // boxes already there move by `shift` in the drawing, the old drawing area is moved by it too, so
-  // they keep their spot on the slide.
   const apply = (settings: DiagramBoxes["settings"], shift: DiagramBoxAdd["shift"]) => {
-    const patch = { [diagram.key]: settings } as Partial<SvgElement>;
-    const [minX, minY, width, height] = viewBox.split(" ").map(Number);
-    const oldViewBox = shift ? `${minX + shift.x} ${minY + shift.y} ${width} ${height}` : viewBox;
-    updateElement(slideId, element.id, { ...patch, ...keepInPlace(element, oldViewBox, getAssetViewBox(asset, patch)) });
+    updateElement(slideId, element.id, withNewBoxes(element, diagram, asset, settings, shift));
     // The boxes shift in their lists, so a picked box would point at the wrong one: let go of it.
     if (isPicked) setPickedDiagramBox(null);
   };

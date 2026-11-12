@@ -29,7 +29,7 @@ $$;
 create function pg_temp.as_super() returns void language plpgsql as $$
 begin
   perform set_config('request.jwt.claims',
-    json_build_object('sub', '00000000-0000-4000-8000-0000000001a1', 'role', 'authenticated')::text, true);
+    json_build_object('sub', '00000000-0000-4000-8000-0000000001a1', 'role', 'authenticated', 'aal', 'aal2')::text, true);
   perform set_config('quizmatter.admin_logged', '', true);
 end;
 $$;

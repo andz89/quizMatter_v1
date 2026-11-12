@@ -12,6 +12,16 @@
   older bad value out (left out; an element's `color` becomes `DEFAULT_TEXT_COLOR`), and the drawing helpers
   (`toCssBackground`, `slideBackgroundCss`, `getSlideBackgroundStyle`) draw nothing for one. A new color format the
   app writes goes in `isSafeColor` first.
+  A clock's time (`clockTimeSchema`) is whole hours 1–12 and minutes 0–59. The database doesn't check it, so
+  `upgradeSlide` leaves out a time outside that (the clock then shows 10:10), and such a slide still opens. A date
+  (`calendarDateSchema`) the same way (the calendar then shows `DEFAULT_CALENDAR_DATE`).
+  Diagrams the same way (`DIAGRAM_SCHEMAS`): one that breaks its limits goes back to its starting boxes, since it
+  would otherwise stop the whole presentation from opening. Math tools too (`MATH_TOOL_SCHEMAS`, with the panels'
+  limits from `constants.ts`): a value of the wrong kind or past its limit is left out, and the tool shows its
+  starting look. Those limits also keep a request edited by hand from drawing thousands of shapes.
+  Any other broken element: `parseSavedPresentation` (opening a presentation or a review draft) takes that element
+  out so the rest still opens, and keeps a slide's first `MAX_ELEMENTS`. Never use it for saving: `presentationSchema`
+  refuses them there, so a teacher's work isn't dropped silently, and Admin → Data check still lists them.
 - `store.ts`: the editor's state and every edit action (zustand). Notes in `src/components/editor/CLAUDE.md`.
 - `constants.ts`: canvas size, box ids (`QUESTION_CONTAINER_ID`, …), photo URLs, slide effect speeds, diagram limits,
   the default text color (`DEFAULT_TEXT_COLOR`). Slide numbers (`getSlideNumbers`, hidden slides take none) and
@@ -43,11 +53,11 @@
   `share_presentation` / `unshare_presentation` (zod first). A teacher's shared copy is its own presentation row
   (`shared_from` = the original). The store keeps `sharedCopy`; `setPublished` / `updateSharedCopy` save unsaved
   edits first. QuizMatter presentations keep the `isPublished` switch. See `20261123000000_shared_copy.sql`.
-- `keptWork.ts`: unsaved work kept in this browser (`qm-unsaved:<id>`) when a save is refused with `QMOLD`, or while
-  the editor is left (`saveBeforeLeaving` in `store.ts` keeps it before it saves, and a save that works forgets it;
 - `autoSave.ts`: the editor's auto save timing (`AUTO_SAVE_MS`) and its daily cap (`AUTO_SAVES_PER_DAY`, counted in
   this browser under `qm-auto-saves`, so it never uses up the `presentation_save_daily` limit; change them together).
   How the editor uses it: `src/components/editor/CLAUDE.md`, "Auto save". Tests: `autoSave.test.ts`.
+- `keptWork.ts`: unsaved work kept in this browser (`qm-unsaved:<id>`) when a save is refused with `QMOLD`, or while
+  the editor is left (`saveBeforeLeaving` in `store.ts` keeps it before it saves, and a save that works forgets it;
   a changed Claude draft not saved yet is only kept, never saved by leaving; how the editor uses it:
   `src/components/editor/CLAUDE.md`). `keepUnsavedWork` returns false when the browser
   can't store it (blocked or full), and stores nothing (true) when there are no real edits (only the publish switch
@@ -56,6 +66,15 @@
   changed or new one stays; then each slide the newer save added goes in right after the nearest slide before it
   that's in the result (or first). A slide this tab deleted stays deleted. Nothing to give back = null. Tests:
   `keptWork.test.ts` (`npm test`).
+- `securityHeaders.ts`: `securityHeaders(supabaseUrl)`, the headers `next.config.ts` adds to every response (pages
+  and `/api/*`): `X-Frame-Options: DENY` + `frame-ancestors 'none'` (no other site can frame a page, so an admin can't
+  be tricked into clicking through an invisible frame), HSTS for a year (also subdomains), `nosniff`,
+  `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy` with camera, microphone and location off
+  (fullscreen isn't named: presenting and YouTube need it). The enforced CSP has only `frame-ancestors`, `object-src`
+  and `base-uri`, which can't break a page. The full policy is **report-only** (the browser only logs in its console
+  what it would block): a new outside service (a new embed host, script or API) must be added to it there, and the
+  browser test `e2e/security-headers.mjs` fails if a plain page logs one. Enforcing it later needs nonces for Next's
+  inline scripts. No imports, so `securityHeaders.test.ts` checks it with `npm test`.
 - `maintenance.ts`: maintenance status for the proxy, pages, Claude's connector and the timers
   (`getMaintenanceStatus`, remembered 60 seconds; `fetchMaintenanceStatus`, fresh), the note's limit and the
   `QMMNT` / header / event names. `REFUSALS.QMMNT` has its words. See the root `CLAUDE.md`, "Maintenance". The
@@ -93,7 +112,15 @@
   `uploadAnnouncementPhoto` returns a photo attachment.
 - `reviews.ts` (reviewer's saves) / `reviewStatus.ts` (reads), `submissions.ts` (Submit to QuizMatter reads).
 - `lessons.ts`: reads for "This week's lessons", "You may also like" and an editor's profile list (only ids; see `src/app/CLAUDE.md`).
-- `folders.ts`, `userSettings.ts`, `profiles.ts`, `account.ts` (`getAccount`: who is logged in, `isAdmin`).
+- `folders.ts`, `userSettings.ts`, `profiles.ts`, `account.ts` (`getAccount`: who is logged in, `isAdmin` /
+  `isSuperAdmin` (true only after the second step), `adminRole` (membership: 'super' / 'admin' / 'none', from
+  `admin_membership`), and `hasVerifiedFactor()` (asks Supabase whether the account has a verified authenticator app)).
+- `secondFactor.ts`: two-step login words (`codeErrorMessage`); browser-safe. `nextPath.ts`: `safeNextPath(next,
+  origin)`, the `?next=` page after login or the second step: only this site, never `/login/verify` itself.
+- `publishers.ts`: `loadPublisherNames` → the `publisher_names` database function: the "Publisher" line on cards, the
+  view page and the editor's Presentations panel. A teacher gets the display name only (an admin-owned one shows
+  "QuizMatter"; no display name = no line); only admins get "Display Name (email)" for Admin → Reports
+  (`20261231001200_publisher_names_no_email.sql`, test `supabase/tests/publisher_names.sql`).
   `userSettings.ts` also holds the sign up rules: `signUpSchema(blockedDomains)` is a function, since the throwaway
   email services live in the database (`blocked_email_domains`; the sign up page reads them on the server and passes
   them in, and `signUp` takes them too). `THROWAWAY_EMAIL_MESSAGE` is the same text the database's sign up hook
@@ -101,7 +128,9 @@
   agree box, `z.literal(true)`, `AGREE_TERMS_MESSAGE`) must be ticked; `signUp` then sends `terms_version`
   (`LEGAL_VERSION`), which the database saves with the time (`20261218000000_terms_consent.sql`).
 - `passwords.ts`: the password rules (`passwordSchema`, 8–72 characters), and Forgot password's `resetEmailSchema`
-  (trimmed, small letters), `newPasswordSchema` (typed twice, must match) and the numbers of Forgot password's limit
+  (trimmed, small letters) and `resetErrorMessage` (Supabase's answer to a reset request as words, or null for "Check
+  your email": its two email limits count as sent, since they refuse only a real account), `newPasswordSchema` (typed twice, must match), the Account page's `changePasswordSchema`
+  (the current password, and a different new one typed twice) and the numbers of Forgot password's limit
   (`RESETS_PER_DAY`, `RESET_REQUESTS_PER_ADDRESS`; the same in `may_send_password_reset`). Only zod, so tests load it
   (`passwords.test.ts`); `userSettings.ts` re-exports the password rules for the forms.
 - `emailLinks.ts`: our two email links (`/auth/confirm`, types `email` and `recovery`): `emailLinkSchema` (the link's

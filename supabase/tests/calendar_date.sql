@@ -18,7 +18,7 @@ end $$;
 -- ─── As the teacher ───────────────────────────────────────────────────────────────────────────────────────
 set local role authenticated;
 select set_config('request.jwt.claims',
-  json_build_object('sub', '00000000-0000-4000-8000-0000000000e2', 'role', 'authenticated')::text, true);
+  json_build_object('sub', '00000000-0000-4000-8000-0000000000e2', 'role', 'authenticated', 'aal', 'aal2')::text, true);
 
 -- A new presentation with a calendar set to 4 November 2026, saved by the new app (version 2).
 select set_config('test.saved_at', public.save_presentation(

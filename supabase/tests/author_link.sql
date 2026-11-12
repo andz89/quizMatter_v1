@@ -46,7 +46,7 @@ create function pg_temp.act_as(account uuid)
 returns void
 language sql
 as $$
-  select set_config('request.jwt.claims', json_build_object('sub', account, 'role', 'authenticated')::text, true);
+  select set_config('request.jwt.claims', json_build_object('sub', account, 'role', 'authenticated', 'aal', 'aal2')::text, true);
 $$;
 
 set local role authenticated;

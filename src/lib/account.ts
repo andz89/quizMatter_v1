@@ -19,9 +19,19 @@ export type Account = {
   // The one admin who can do everything (admins.is_super). Plain admins can't manage teachers, safety or the
   // photo cleanup, and only manage the shared photos they uploaded.
   isSuperAdmin: boolean;
+  // In the admins table ('super' / 'admin'), whatever the login's level. isAdmin / isSuperAdmin are true only after
+  // the second step (two-step login, src/lib/secondFactor.ts); this says who must be sent to set it up or verify.
+  adminRole: "super" | "admin" | "none";
   isEditor: boolean;
   isBanned: boolean;
 };
+
+/** Whether the logged-in account has a working (verified) authenticator app (two-step login). Asks Supabase. */
+export async function hasVerifiedFactor(): Promise<boolean> {
+  const supabase = await createClient();
+  const { data } = await supabase.auth.mfa.listFactors();
+  return (data?.totp ?? []).some((factor) => factor.status === "verified");
+}
 
 /**
  * The logged-in user: id ("" if logged out), email, display name and personal details ("" if not set), and whether
@@ -30,7 +40,7 @@ export type Account = {
  */
 export const getAccount = cache(async (): Promise<Account> => {
   const supabase = await createClient();
-  const [{ data: claims }, { data: settings }, { data: isAdmin }, { data: isSuperAdmin }, { data: isEditor }, { data: isBanned }] = await Promise.all([
+  const [{ data: claims }, { data: settings }, { data: isAdmin }, { data: isSuperAdmin }, { data: membership }, { data: isEditor }, { data: isBanned }] = await Promise.all([
     supabase.auth.getClaims(),
     supabase
       .from("user_settings")
@@ -40,6 +50,7 @@ export const getAccount = cache(async (): Promise<Account> => {
       .maybeSingle(),
     supabase.rpc("is_admin"),
     supabase.rpc("is_super_admin"),
+    supabase.rpc("admin_membership"),
     supabase.rpc("is_editor"),
     supabase.rpc("is_banned"),
   ]);
@@ -68,6 +79,7 @@ export const getAccount = cache(async (): Promise<Account> => {
     },
     isAdmin: isAdmin === true,
     isSuperAdmin: isSuperAdmin === true,
+    adminRole: membership === "super" || membership === "admin" ? membership : "none",
     isEditor: isEditor === true,
     isBanned: isBanned === true,
   };

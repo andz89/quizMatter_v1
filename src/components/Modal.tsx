@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useEffectEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { Spinner } from "./Spinner";
 import { XIcon } from "lucide-react";
@@ -41,13 +41,17 @@ export function Modal({
   footer?: ReactNode;
   children: ReactNode;
 }) {
+  // Added once, reading the newest props when a key is pressed. Re-adding it on every render (onClose is a new
+  // function each time) lost Escape in the editor: its own Escape (deselect) re-renders the page mid-press, and a
+  // listener added during a key press doesn't hear that press.
+  const onKeyDown = useEffectEvent((e: KeyboardEvent) => {
+    if (e.key === "Escape" && !isBusy && canClose) onClose();
+  });
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !isBusy && canClose) onClose();
-    };
+    const handleKeyDown = (e: KeyboardEvent) => onKeyDown(e);
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [onClose, isBusy, canClose]);
+  }, []);
 
   // Portal into <body>, so no parent's `zoom` or `transform` shifts this `position: fixed` box.
   return createPortal(

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { clamp, fitInBox, getOuterEdges } from "./geometry";
+import { clamp, cornerDragScale, fitInBox, getOuterEdges } from "./geometry";
 
 const box = { width: 1000, height: 500 };
 
@@ -45,4 +45,17 @@ test("getOuterEdges takes several rects together", () => {
     ]),
     { minX: -5, minY: 20, maxX: 110, maxY: 240 },
   );
+});
+
+test("cornerDragScale follows the corner outward and inward", () => {
+  assert.equal(cornerDragScale(100, 100, 100, 100), 2);
+  assert.equal(cornerDragScale(100, 100, -50, -50), 0.5);
+});
+
+test("cornerDragScale never grows back when the corner goes past the opposite one", () => {
+  assert.equal(cornerDragScale(100, 100, -900, -900), 0);
+});
+
+test("cornerDragScale counts a side dragged past its opposite side as size 0", () => {
+  assert.equal(cornerDragScale(100, 100, -900, 100), Math.hypot(0, 200) / Math.hypot(100, 100));
 });

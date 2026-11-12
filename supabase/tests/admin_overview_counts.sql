@@ -38,7 +38,7 @@ insert into public.presentation_reviewers (presentation_id, reviewer_id, name, e
 -- Before anything happens: how many reviews today's bar already has (0 on a fresh database).
 set local role authenticated;
 select set_config('request.jwt.claims',
-  json_build_object('sub', '00000000-0000-4000-8000-0000000000f1', 'role', 'authenticated')::text, true);
+  json_build_object('sub', '00000000-0000-4000-8000-0000000000f1', 'role', 'authenticated', 'aal', 'aal2')::text, true);
 select set_config('test.reviews_before', coalesce((
   select o.total from public.admin_overview(7) o
   where o.series = 'reviews' and o.day = (now() at time zone 'utc')::date
@@ -47,7 +47,7 @@ select set_config('test.reviews_before', coalesce((
 -- ─── 1. A round submitted, then sent back, is still counted as submitted (once) ───────────────────────────────
 -- As the editor f2: start a review of lesson one and submit it.
 select set_config('request.jwt.claims',
-  json_build_object('sub', '00000000-0000-4000-8000-0000000000f2', 'role', 'authenticated')::text, true);
+  json_build_object('sub', '00000000-0000-4000-8000-0000000000f2', 'role', 'authenticated', 'aal', 'aal2')::text, true);
 
 select public.start_review(target_id => 'test-aoc-l1');
 select public.submit_review(
@@ -59,7 +59,7 @@ select public.submit_review(
 
 -- As the super admin: send it back.
 select set_config('request.jwt.claims',
-  json_build_object('sub', '00000000-0000-4000-8000-0000000000f1', 'role', 'authenticated')::text, true);
+  json_build_object('sub', '00000000-0000-4000-8000-0000000000f1', 'role', 'authenticated', 'aal', 'aal2')::text, true);
 
 select public.send_back_review(target_id => 'test-aoc-l1', note => 'Please fix slide 1.');
 
@@ -75,7 +75,7 @@ end $$;
 
 -- As the editor f2: submit it again (the draft was saved at the first submit, so pass its time).
 select set_config('request.jwt.claims',
-  json_build_object('sub', '00000000-0000-4000-8000-0000000000f2', 'role', 'authenticated')::text, true);
+  json_build_object('sub', '00000000-0000-4000-8000-0000000000f2', 'role', 'authenticated', 'aal', 'aal2')::text, true);
 
 select public.submit_review(
   target_id => 'test-aoc-l1',
@@ -88,7 +88,7 @@ select public.submit_review(
 );
 
 select set_config('request.jwt.claims',
-  json_build_object('sub', '00000000-0000-4000-8000-0000000000f1', 'role', 'authenticated')::text, true);
+  json_build_object('sub', '00000000-0000-4000-8000-0000000000f1', 'role', 'authenticated', 'aal', 'aal2')::text, true);
 
 do $$
 declare n int;
@@ -103,7 +103,7 @@ end $$;
 -- ─── 2. A round canceled after its submit still counts; a new round counts only once submitted ────────────────
 -- As the editor f3: start a review of lesson two and submit it. The super admin cancels it.
 select set_config('request.jwt.claims',
-  json_build_object('sub', '00000000-0000-4000-8000-0000000000f3', 'role', 'authenticated')::text, true);
+  json_build_object('sub', '00000000-0000-4000-8000-0000000000f3', 'role', 'authenticated', 'aal', 'aal2')::text, true);
 
 select public.start_review(target_id => 'test-aoc-l2');
 select public.submit_review(
@@ -114,7 +114,7 @@ select public.submit_review(
 );
 
 select set_config('request.jwt.claims',
-  json_build_object('sub', '00000000-0000-4000-8000-0000000000f1', 'role', 'authenticated')::text, true);
+  json_build_object('sub', '00000000-0000-4000-8000-0000000000f1', 'role', 'authenticated', 'aal', 'aal2')::text, true);
 
 select public.admin_cancel_review(target_id => 'test-aoc-l2');
 
@@ -130,12 +130,12 @@ end $$;
 
 -- As the editor f3: start a new round of lesson two. It replaces the canceled one and isn't submitted yet.
 select set_config('request.jwt.claims',
-  json_build_object('sub', '00000000-0000-4000-8000-0000000000f3', 'role', 'authenticated')::text, true);
+  json_build_object('sub', '00000000-0000-4000-8000-0000000000f3', 'role', 'authenticated', 'aal', 'aal2')::text, true);
 
 select public.start_review(target_id => 'test-aoc-l2');
 
 select set_config('request.jwt.claims',
-  json_build_object('sub', '00000000-0000-4000-8000-0000000000f1', 'role', 'authenticated')::text, true);
+  json_build_object('sub', '00000000-0000-4000-8000-0000000000f1', 'role', 'authenticated', 'aal', 'aal2')::text, true);
 
 do $$
 declare n int;
@@ -152,12 +152,12 @@ end $$;
 -- Under review list marks "Waiting for you" (admin_reviews() rows with status submitted), not the ones still being
 -- reviewed. Now: lesson one is submitted, lesson two is being reviewed; lesson three starts being reviewed too.
 select set_config('request.jwt.claims',
-  json_build_object('sub', '00000000-0000-4000-8000-0000000000f2', 'role', 'authenticated')::text, true);
+  json_build_object('sub', '00000000-0000-4000-8000-0000000000f2', 'role', 'authenticated', 'aal', 'aal2')::text, true);
 
 select public.start_review(target_id => 'test-aoc-l3');
 
 select set_config('request.jwt.claims',
-  json_build_object('sub', '00000000-0000-4000-8000-0000000000f1', 'role', 'authenticated')::text, true);
+  json_build_object('sub', '00000000-0000-4000-8000-0000000000f1', 'role', 'authenticated', 'aal', 'aal2')::text, true);
 
 do $$
 declare
@@ -199,7 +199,7 @@ end $$;
 
 -- A teacher (not an admin) gets no rows, so no emails either.
 select set_config('request.jwt.claims',
-  json_build_object('sub', '00000000-0000-4000-8000-0000000000f4', 'role', 'authenticated')::text, true);
+  json_build_object('sub', '00000000-0000-4000-8000-0000000000f4', 'role', 'authenticated', 'aal', 'aal2')::text, true);
 
 do $$
 begin
@@ -210,7 +210,7 @@ end $$;
 
 -- Nor does an editor.
 select set_config('request.jwt.claims',
-  json_build_object('sub', '00000000-0000-4000-8000-0000000000f2', 'role', 'authenticated')::text, true);
+  json_build_object('sub', '00000000-0000-4000-8000-0000000000f2', 'role', 'authenticated', 'aal', 'aal2')::text, true);
 
 do $$
 begin

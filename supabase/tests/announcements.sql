@@ -63,7 +63,7 @@ $$;
 -- Tries a step as a user; true when it was refused (any error).
 create function pg_temp.refused(who uuid, step text) returns boolean language plpgsql as $$
 begin
-  perform set_config('request.jwt.claims', json_build_object('sub', who, 'role', 'authenticated')::text, true);
+  perform set_config('request.jwt.claims', json_build_object('sub', who, 'role', 'authenticated', 'aal', 'aal2')::text, true);
   -- The Admin log writes one row per transaction (log_admin_action's flag); in the app each step is its own.
   perform set_config('quizmatter.admin_logged', '', true);
   execute step;
@@ -77,7 +77,7 @@ $$;
 create function pg_temp.save(a jsonb, replace_current boolean default false) returns uuid language plpgsql as $$
 begin
   perform set_config('request.jwt.claims',
-    json_build_object('sub', '00000000-0000-4000-8000-0000000000f1', 'role', 'authenticated')::text, true);
+    json_build_object('sub', '00000000-0000-4000-8000-0000000000f1', 'role', 'authenticated', 'aal', 'aal2')::text, true);
   perform set_config('quizmatter.admin_logged', '', true);
   return public.save_announcement(a, replace_current);
 end;
@@ -86,7 +86,7 @@ $$;
 -- How many my_announcements rows a user gets for this announcement (0 or 1).
 create function pg_temp.mine(who uuid, target uuid) returns int language plpgsql as $$
 begin
-  perform set_config('request.jwt.claims', json_build_object('sub', who, 'role', 'authenticated')::text, true);
+  perform set_config('request.jwt.claims', json_build_object('sub', who, 'role', 'authenticated', 'aal', 'aal2')::text, true);
   return (select count(*) from public.my_announcements() m where m.id = target);
 end;
 $$;
@@ -243,7 +243,7 @@ declare
   t1 constant uuid := '00000000-0000-4000-8000-0000000000f3';
   r record;
 begin
-  perform set_config('request.jwt.claims', json_build_object('sub', t1, 'role', 'authenticated')::text, true);
+  perform set_config('request.jwt.claims', json_build_object('sub', t1, 'role', 'authenticated', 'aal', 'aal2')::text, true);
   perform public.dismiss_announcement(a, 'modal');
   if pg_temp.mine(t1, a) <> 0 or pg_temp.mine('00000000-0000-4000-8000-0000000000f4', a) <> 1 then
     raise exception 'FAIL: once: closing did not hide it for t1 only';
@@ -252,7 +252,7 @@ begin
   -- An announcement is a modal or a bar (20261228000000_announcement_one_on.sql); one of each can be on.
   bar := pg_temp.save(pg_temp.ann('{"name": "Bar", "show_modal": false, "modal_text": "", "show_bar": true, "bar_html": "<p>Bar</p>"}'));
   insert into ids values ('bar', bar);
-  perform set_config('request.jwt.claims', json_build_object('sub', t1, 'role', 'authenticated')::text, true);
+  perform set_config('request.jwt.claims', json_build_object('sub', t1, 'role', 'authenticated', 'aal', 'aal2')::text, true);
   select * into r from public.my_announcements() m where m.id = bar;
   if r.id is null or r.show_modal or not r.show_bar then
     raise exception 'FAIL: closing the modal hid the bar';
@@ -299,7 +299,7 @@ declare
   t2 constant uuid := '00000000-0000-4000-8000-0000000000f4';
 begin
   perform pg_temp.save(pg_temp.ann('{"name": "Main", "repeat": "every_visit"}') || jsonb_build_object('id', a));
-  perform set_config('request.jwt.claims', json_build_object('sub', t2, 'role', 'authenticated')::text, true);
+  perform set_config('request.jwt.claims', json_build_object('sub', t2, 'role', 'authenticated', 'aal', 'aal2')::text, true);
   perform public.dismiss_announcement(a, 'modal');
   if pg_temp.mine(t2, a) <> 1 then
     raise exception 'FAIL: every_visit: closing hid it';
@@ -367,7 +367,7 @@ begin
   ended := pg_temp.save(pg_temp.ann('{"name": "Done"}') || jsonb_build_object('ends_at', now() - interval '1 hour'));
   off := pg_temp.save(pg_temp.ann('{"name": "Off", "is_on": false}'));
 
-  perform set_config('request.jwt.claims', json_build_object('sub', a1, 'role', 'authenticated')::text, true);
+  perform set_config('request.jwt.claims', json_build_object('sub', a1, 'role', 'authenticated', 'aal', 'aal2')::text, true);
   -- Saving doesn't count (20261224000000_announcement_fast_counts.sql); the app asks for it next, like this.
   perform public.recount_announcement(main_id);
   for r in select * from public.admin_announcements() loop

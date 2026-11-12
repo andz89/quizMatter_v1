@@ -18,7 +18,7 @@ import {
   type PlacedDiagramBox,
 } from "@/lib/svgLibrary";
 import { DIAGRAM_BOX_HEIGHT, DIAGRAM_BOX_POSITION_MAX, DIAGRAM_BOX_WIDTH, DIAGRAM_TEXT_MAX } from "@/lib/constants";
-import { clamp, overflowAmount } from "@/lib/geometry";
+import { clamp, cornerDragScale, overflowAmount } from "@/lib/geometry";
 import type { SvgElement } from "@/lib/schema";
 import { CORNERS, EDGE_HANDLES, type Corner, type EdgeHandle } from "./handles";
 
@@ -144,7 +144,7 @@ function resizeBox(start: UnitBox, d: { x: number; y: number }, drag: Exclude<Bo
     ux = outX(drag.corner.sx);
     uy = outY(drag.corner.sy);
     // The size follows the pointer along the diagonal, so the handle stays under it.
-    const scale = Math.hypot(width + d.x * ux, height + d.y * uy) / Math.hypot(width, height);
+    const scale = cornerDragScale(width, height, d.x * ux, d.y * uy);
     const smallest = Math.max(DIAGRAM_BOX_WIDTH.min / width, DIAGRAM_BOX_HEIGHT.min / height);
     const biggest = Math.min(DIAGRAM_BOX_WIDTH.max / width, DIAGRAM_BOX_HEIGHT.max / height);
     const s = clamp(scale, smallest, biggest);

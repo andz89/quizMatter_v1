@@ -11,6 +11,12 @@ even if the app has a bug. The app's checks (zod, hidden buttons) are only the f
 - Functions use `set search_path = ''` and full names (`public.presentations`). Functions that must get past the
   table rules are `security definer` and check the caller themselves (`auth.uid()`, `public.is_admin()`,
   `public.is_super_admin()`, `public.is_editor()`). Give `execute` only to `authenticated` (`revoke … from public, anon`).
+- A logged-out visitor (`anon`) gets nothing by default (`20261231001400_anon_grants.sql`): new tables, sequences
+  and functions no longer open to `anon` by themselves, and `anon` keeps only SELECT on `blocked_email_domains`
+  (sign up), SELECT on `maintenance` (`id`, `is_on`) and `execute` on `maintenance_status` / `check_maintenance`
+  (the maintenance stop). A logged-out page that needs something new gets its own `grant … to anon` (and a policy).
+  A new function is still open to PUBLIC (Postgres's default), so it keeps its `revoke execute … from public, anon`:
+  `supabase/tests/anon_grants.sql` fails, naming it, when that's forgotten (or when a table opens to `anon`).
 - A trigger function (returns `trigger`) can't be called from the API: Postgres refuses to run one outside its
   trigger ("trigger functions can only be called as triggers"). A `security definer` one still gets
   `revoke execute … from public, anon, authenticated` right after creating it (triggers still run: Postgres checks
@@ -41,6 +47,10 @@ even if the app has a bug. The app's checks (zod, hidden buttons) are only the f
   throwaway email check (they read `blocked_email_domains`).
 - Then check in the Supabase dashboard (Authentication → Hooks) that the Before User Created hook is still on: the
   sign up limit and the throwaway email check run only through it.
+- `20261231001300_admin_second_factor.sql` goes **after** the app too: turn on TOTP in the dashboard
+  (Authentication → Multi-Factor), deploy the app, set up the second step in Account → Two-step login, then apply
+  it. Applied first, every admin loses the admin pages (is_admin() needs aal2) until the app that sets it up is live.
+  SQL tests that act as an admin put `'aal', 'aal2'` in their claims.
 
 ## Finding a function's newest version
 

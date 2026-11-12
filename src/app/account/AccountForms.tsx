@@ -3,6 +3,7 @@
 import { useState, type ChangeEvent, type FormEvent, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { isAuthError, isAuthRetryableFetchError } from "@supabase/supabase-js";
 import { toast } from "sonner";
 import { CopyIcon, UserIcon } from "lucide-react";
 import { ConfirmModal } from "@/components/editor/ConfirmModal";
@@ -11,6 +12,7 @@ import { Spinner } from "@/components/Spinner";
 import { birthDateRange, todayInManila } from "@/lib/age";
 import { checkPauses, pauseFeature, pausedUntilFromError, useIsPaused } from "@/lib/clickLimits";
 import { formatDate } from "@/lib/format";
+import { changePasswordSchema, PASSWORD_MAX_LENGTH, SAME_PASSWORD_MESSAGE, WRONG_CURRENT_PASSWORD_MESSAGE } from "@/lib/passwords";
 import {
   BIO_MAX_LENGTH,
   changePassword,
@@ -25,7 +27,6 @@ import {
   GENDER_LABELS,
   GENDERS,
   NAME_MAX_LENGTH,
-  PASSWORD_MIN_LENGTH,
   profileSchema,
   saveDisplayName,
   saveProfile,
@@ -374,27 +375,27 @@ export function ProfileLinks({ href }: { href: string }) {
 const smallButtonClass =
   "inline-flex items-center gap-2 rounded-dropdown border border-border-default bg-bg-surface px-2.5 py-1.5 text-[13px] font-semibold text-text-primary transition-colors hover:bg-bg-page";
 
-/** A new password, typed twice. */
+/** The current password (Supabase checks it) and a new one, typed twice. */
 export function PasswordForm() {
-  const [password, setPassword] = useState("");
-  const [confirmation, setConfirmation] = useState("");
+  const [fields, setFields] = useState(EMPTY_PASSWORDS);
   const [error, setError] = useState("");
   const [isSaving, setIsSaving] = useState(false);
 
+  const update = (name: keyof typeof EMPTY_PASSWORDS) => (e: ChangeEvent<HTMLInputElement>) =>
+    setFields((old) => ({ ...old, [name]: e.target.value }));
+
   const save = async (e: FormEvent) => {
     e.preventDefault();
-    if (password.length < PASSWORD_MIN_LENGTH) return setError(`Use at least ${PASSWORD_MIN_LENGTH} characters.`);
-    if (password !== confirmation) return setError("The two passwords don't match.");
+    const checked = changePasswordSchema.safeParse(fields);
+    if (!checked.success) return setError(checked.error.issues[0].message);
     setError("");
     setIsSaving(true);
     try {
-      await changePassword(password);
+      await changePassword(checked.data);
       toast.success("Password changed.");
-      setPassword("");
-      setConfirmation("");
+      setFields(EMPTY_PASSWORDS);
     } catch (err) {
-      // Supabase's reason (e.g. "New password should be different from the old password.") helps more than a guess.
-      toast.error(err instanceof Error && err.message ? err.message : "Couldn't change your password. Please try again.");
+      setError(changePasswordErrorMessage(err));
     }
     setIsSaving(false);
   };
@@ -402,32 +403,65 @@ export function PasswordForm() {
   return (
     <Card title="Password" onSubmit={save}>
       <div>
-        <label className={labelClass}>New password</label>
+        <label htmlFor="currentPassword" className={labelClass}>Current password</label>
         <input
+          id="currentPassword"
           type="password"
-          autoComplete="new-password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
+          maxLength={PASSWORD_MAX_LENGTH}
+          autoComplete="current-password"
+          value={fields.currentPassword}
+          onChange={update("currentPassword")}
           className={inputClass}
         />
       </div>
       <div>
-        <label className={labelClass}>Type it again</label>
+        <label htmlFor="newPassword" className={labelClass}>New password</label>
         <input
+          id="newPassword"
           type="password"
+          maxLength={PASSWORD_MAX_LENGTH}
           autoComplete="new-password"
-          value={confirmation}
-          onChange={(e) => setConfirmation(e.target.value)}
+          value={fields.password}
+          onChange={update("password")}
           className={inputClass}
         />
       </div>
+      <div>
+        <label htmlFor="confirmNewPassword" className={labelClass}>Type it again</label>
+        <input
+          id="confirmNewPassword"
+          type="password"
+          maxLength={PASSWORD_MAX_LENGTH}
+          autoComplete="new-password"
+          value={fields.confirmPassword}
+          onChange={update("confirmPassword")}
+          className={inputClass}
+        />
+        <p className="mt-1 text-xs text-text-secondary">
+          Forgot your current password? Log out, then use &quot;Forgot password?&quot; on the login page.
+        </p>
+      </div>
       {error && <p className="text-sm text-danger-strong">{error}</p>}
-      <button type="submit" disabled={isSaving || !password} className={buttonClass}>
+      <button type="submit" disabled={isSaving || !fields.currentPassword || !fields.password} className={buttonClass}>
         {isSaving && <Spinner size={14} />}
         Change password
       </button>
     </Card>
   );
+}
+
+const EMPTY_PASSWORDS = { currentPassword: "", password: "", confirmPassword: "" };
+
+// Plain-English words for what went wrong.
+function changePasswordErrorMessage(error: unknown) {
+  if (!isAuthError(error)) return "Couldn't change your password. Please try again.";
+  // Supabase's codes for a wrong or missing current password (the wrong one's name changed between its versions).
+  if (/^current_password_(invalid|mismatch|required)$/.test(error.code ?? "")) return WRONG_CURRENT_PASSWORD_MESSAGE;
+  if (error.code === "same_password") return SAME_PASSWORD_MESSAGE;
+  if (error.code === "weak_password") return "Please pick a stronger password.";
+  if (error.code === "over_request_rate_limit") return "Too many tries. Please wait a few minutes and try again.";
+  if (isAuthRetryableFetchError(error)) return "Couldn't reach the server. Check your internet and try again.";
+  return "Couldn't change your password. Please try again.";
 }
 
 function Card({ title, onSubmit, children }: { title: string; onSubmit: (e: FormEvent) => void; children: ReactNode }) {

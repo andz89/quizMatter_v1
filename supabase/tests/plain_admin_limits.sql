@@ -64,14 +64,14 @@ values ('test-pal-sub', '00000000-0000-4000-8000-0000000000b5', 'submitted', 'Ed
 -- ─── As the teacher: publish t1 and t2 (their shared copies, c1 and c2) ───────────────────────────────────────
 set local role authenticated;
 select set_config('request.jwt.claims',
-  json_build_object('sub', '00000000-0000-4000-8000-0000000000b3', 'role', 'authenticated')::text, true);
+  json_build_object('sub', '00000000-0000-4000-8000-0000000000b3', 'role', 'authenticated', 'aal', 'aal2')::text, true);
 
 select public.share_presentation(target_id => 'test-pal-t1');
 select public.share_presentation(target_id => 'test-pal-t2');
 
 -- ─── As the plain admin: someone else's presentation ──────────────────────────────────────────────────────────
 select set_config('request.jwt.claims',
-  json_build_object('sub', '00000000-0000-4000-8000-0000000000b2', 'role', 'authenticated')::text, true);
+  json_build_object('sub', '00000000-0000-4000-8000-0000000000b2', 'role', 'authenticated', 'aal', 'aal2')::text, true);
 
 do $$
 declare n int;
@@ -244,7 +244,7 @@ select p.id, '00000000-0000-4000-8000-0000000000b6', 'spam' from public.presenta
 -- ─── As the plain admin: Reports → Delete (the reported copy's original; the copy goes with it) ───────────────
 set local role authenticated;
 select set_config('request.jwt.claims',
-  json_build_object('sub', '00000000-0000-4000-8000-0000000000b2', 'role', 'authenticated')::text, true);
+  json_build_object('sub', '00000000-0000-4000-8000-0000000000b2', 'role', 'authenticated', 'aal', 'aal2')::text, true);
 
 do $$
 declare n int;
@@ -258,7 +258,7 @@ end $$;
 
 -- ─── As the super admin ───────────────────────────────────────────────────────────────────────────────────────
 select set_config('request.jwt.claims',
-  json_build_object('sub', '00000000-0000-4000-8000-0000000000b1', 'role', 'authenticated')::text, true);
+  json_build_object('sub', '00000000-0000-4000-8000-0000000000b1', 'role', 'authenticated', 'aal', 'aal2')::text, true);
 
 do $$
 declare n int;
@@ -299,7 +299,7 @@ end $$;
 
 -- ─── As the plain admin: taking the editor role away ──────────────────────────────────────────────────────────
 select set_config('request.jwt.claims',
-  json_build_object('sub', '00000000-0000-4000-8000-0000000000b2', 'role', 'authenticated')::text, true);
+  json_build_object('sub', '00000000-0000-4000-8000-0000000000b2', 'role', 'authenticated', 'aal', 'aal2')::text, true);
 
 do $$
 declare n int;
@@ -313,7 +313,7 @@ end $$;
 
 -- ─── As the former admin ──────────────────────────────────────────────────────────────────────────────────────
 select set_config('request.jwt.claims',
-  json_build_object('sub', '00000000-0000-4000-8000-0000000000b4', 'role', 'authenticated')::text, true);
+  json_build_object('sub', '00000000-0000-4000-8000-0000000000b4', 'role', 'authenticated', 'aal', 'aal2')::text, true);
 
 do $$
 declare n int;
@@ -340,7 +340,7 @@ end $$;
 
 -- ─── As the teacher: a copy of a presentation whose shared copy is hidden ─────────────────────────────────────
 select set_config('request.jwt.claims',
-  json_build_object('sub', '00000000-0000-4000-8000-0000000000b3', 'role', 'authenticated')::text, true);
+  json_build_object('sub', '00000000-0000-4000-8000-0000000000b3', 'role', 'authenticated', 'aal', 'aal2')::text, true);
 
 -- t3 = "Make a copy" of t2 (its shared copy c2 was hidden above).
 select public.save_presentation(

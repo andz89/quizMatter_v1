@@ -7,7 +7,7 @@ import { PeopleArtGate } from "@/components/PeopleArtGate";
 import { getAccount } from "@/lib/account";
 import { fetchPresentation } from "@/lib/fetchPresentation";
 import { usesPeopleArt } from "@/lib/peopleArt";
-import { presentationSchema, type ReviewerFields } from "@/lib/schema";
+import { parseSavedPresentation, type ReviewerFields } from "@/lib/schema";
 import { createClient } from "@/lib/supabase/server";
 import type { EditorReview } from "@/lib/store";
 import { PresentationEditor } from "./PresentationEditor";
@@ -58,7 +58,7 @@ export default async function PresentationPage({ params }: PageProps<"/presentat
   ]);
   if (error) throw error;
   const presentation = row.draft
-    ? presentationSchema.parse({ ...(row.draft as object), author: result.presentation.author, updatedAt: Date.parse(row.draft_updated_at!) }) // saved together with the draft
+    ? parseSavedPresentation({ ...(row.draft as object), author: result.presentation.author, updatedAt: Date.parse(row.draft_updated_at!) }) // saved together with the draft
     : result.presentation;
   // What I sent, or my account's name and email, which submit_review saves the same way (no display name = the
   // part of the email before "@"). The date is set on submit, in my own time zone.

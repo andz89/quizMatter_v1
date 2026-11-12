@@ -3,7 +3,7 @@
 import { useState, type FormEvent, type ReactNode } from "react";
 import { useEditorStore } from "@/lib/store";
 import { embedLinkSchema, type Slide } from "@/lib/schema";
-import { MAX_EMBED_URL_LENGTH, readEmbedLink, type Embed, type EmbedKind } from "@/lib/embed";
+import { MAX_EMBED_URL_LENGTH, outsidePictureHost, readEmbedLink, type Embed, type EmbedKind } from "@/lib/embed";
 import { ImageIcon, PencilIcon, PlayIcon, PresentationIcon } from "lucide-react";
 
 // The words each kind of embed slide uses.
@@ -44,7 +44,11 @@ function EmbedFrame({ dark, children }: { dark: boolean; children: ReactNode }) 
   );
 }
 
-/** The live video player or slide deck viewer. */
+/**
+ * The live video player or slide deck viewer (only YouTube, Vimeo, Google Slides or Canva: readEmbedLink). Sandboxed:
+ * the site runs as itself (allow-same-origin is its own site, never ours: it's another address) and can open links
+ * in a new tab, but can't move this tab to another page (no allow-top-navigation) or show downloads and pop-up boxes.
+ */
 function EmbedPlayer({ src }: { src: string }) {
   return (
     <iframe
@@ -53,6 +57,7 @@ function EmbedPlayer({ src }: { src: string }) {
       className="absolute inset-0 h-full w-full"
       allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
       allowFullScreen
+      sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox allow-presentation allow-forms"
       // YouTube refuses to play embedded videos when the page's address isn't sent.
       referrerPolicy="strict-origin-when-cross-origin"
     />
@@ -71,11 +76,55 @@ function EmbedPicture({ src }: { src: string }) {
   }
   return (
     // eslint-disable-next-line @next/next/no-img-element -- a picture from another site, not one of ours to optimize.
-    <img src={src} alt="" onError={() => setFailed(true)} className="absolute inset-0 h-full w-full object-contain" />
+    <img
+      src={src}
+      alt=""
+      // The picture's website doesn't need to know which page showed it.
+      referrerPolicy="no-referrer"
+      onError={() => setFailed(true)}
+      className="absolute inset-0 h-full w-full object-contain"
+    />
   );
 }
 
-/** What the slide shows once it has a link: the picture, or the live player/viewer. */
+// The pictures from other websites this tab's viewer chose to show (kept until the tab reloads).
+const shownPictures = new Set<string>();
+
+/**
+ * A picture slide outside the editor. A picture from a website a teacher typed would show that website the internet
+ * address of everyone who only looks at the presentation (home cards, the view page, presenting), so it doesn't load
+ * by itself: the slide names the website, and while presenting (`live`) "Show picture" loads it. Google Drive's
+ * pictures load at once.
+ */
+function ViewerPicture({ src, live }: { src: string; live: boolean }) {
+  const host = outsidePictureHost(src);
+  const [isShown, setIsShown] = useState(false);
+  if (!host || isShown || shownPictures.has(src)) return <EmbedPicture src={src} />;
+  return (
+    <div className="absolute inset-0 flex flex-col items-center justify-center gap-6 rounded-card border border-border-default bg-bg-page text-text-primary">
+      <span className="flex h-28 w-28 items-center justify-center rounded-full bg-bg-surface">
+        <ImageIcon size={56} />
+      </span>
+      <span className="max-w-[80%] truncate text-3xl opacity-70">Picture from {host}</span>
+      {live && (
+        <button
+          type="button"
+          // Not a click on the presenting screen (which would go to the next slide).
+          onClick={(e) => {
+            e.stopPropagation();
+            shownPictures.add(src);
+            setIsShown(true);
+          }}
+          className="h-16 rounded-button bg-accent btn-press px-8 text-2xl font-semibold text-white hover:bg-accent-hover"
+        >
+          Show picture
+        </button>
+      )}
+    </div>
+  );
+}
+
+/** What the slide shows in the editor once it has a link: the picture, or the live player/viewer. */
 function EmbedContent({ kind, embed }: { kind: EmbedKind; embed: Embed }) {
   return kind === "image" ? <EmbedPicture key={embed.src} src={embed.src} /> : <EmbedPlayer src={embed.src} />;
 }
@@ -83,14 +132,15 @@ function EmbedContent({ kind, embed }: { kind: EmbedKind; embed: Embed }) {
 /**
  * An embed slide outside the editor. `live` = the real player or deck (present mode). Otherwise a light
  * preview (the video's cover picture, or a box saying where the deck is from), so small previews
- * don't each load a player. Pictures always show as they are.
+ * don't each load a player. Pictures show as they are, but one from another website waits for a click
+ * (ViewerPicture).
  */
 export function EmbedSlideView({ slide, kind, live }: { slide: Slide; kind: EmbedKind; live: boolean }) {
   const embed = getEmbed(kind, slide.embedUrl);
   if (embed && (live || kind === "image")) {
     return (
       <EmbedFrame dark={kind !== "image"}>
-        <EmbedContent kind={kind} embed={embed} />
+        {kind === "image" ? <ViewerPicture key={embed.src} src={embed.src} live={live} /> : <EmbedPlayer src={embed.src} />}
       </EmbedFrame>
     );
   }

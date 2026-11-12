@@ -695,6 +695,9 @@ isOneToOne: false
 "admin_may_delete":
 { Args: { "target_id": string }; Returns: boolean
                            },
+"admin_membership":
+{ Args: Record<PropertyKey, never>; Returns: string
+                           },
 "admin_overview":
 { Args: { "days": number }; Returns: {
               "day": string,"series": string,"total": number
@@ -978,6 +981,9 @@ isOneToOne: false
 { Args: { "query": string }; Returns: {
               "category": string,"description": string,"file_name": string,"height": number,"source": string,"src": string,"tags": (string)[],"width": number
             }[]
+                           },
+"second_factor_ok":
+{ Args: Record<PropertyKey, never>; Returns: boolean
                            },
 "send_back_review":
 { Args: { "note": string,"target_id": string }; Returns: undefined

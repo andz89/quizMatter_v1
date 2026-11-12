@@ -4,7 +4,7 @@ import { createClient } from "./supabase/server";
 import { loadVisibleProfiles } from "./profiles";
 import { loadPublisherNames } from "./publishers";
 import { NO_REVIEW, loadReviewers, loadReviewStatus, type Reviewer, type ReviewStatus } from "./reviewStatus";
-import { presentationSchema, type Presentation } from "./schema";
+import { parseSavedPresentation, type Presentation } from "./schema";
 import type { SharedCopy } from "./sharing";
 import { loadSubmissionStatus } from "./submissions";
 
@@ -102,8 +102,8 @@ export async function loadPresentation(
   if (!data) return null;
 
   // Checked against the schema (which upgrades older shapes first), so a slide saved in a broken shape fails here
-  // instead of inside the editor. Admin → Data check finds these before a deploy.
-  const presentation = presentationSchema.parse(rowToPresentationInput(data));
+  // instead of inside the editor (one broken element is only left out). Admin → Data check finds these before a deploy.
+  const presentation = parseSavedPresentation(rowToPresentationInput(data));
   return { presentation, ownerId: data.owner_id, sharedFrom: data.shared_from, authorId: data.author_id };
 }
 

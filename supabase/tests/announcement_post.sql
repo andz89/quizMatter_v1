@@ -25,7 +25,7 @@ $$;
 create function pg_temp.save(a jsonb) returns uuid language plpgsql as $$
 begin
   perform set_config('request.jwt.claims',
-    json_build_object('sub', '00000000-0000-4000-8000-0000000000a1', 'role', 'authenticated')::text, true);
+    json_build_object('sub', '00000000-0000-4000-8000-0000000000a1', 'role', 'authenticated', 'aal', 'aal2')::text, true);
   perform set_config('quizmatter.admin_logged', '', true);
   -- One modal on at a time (20261228000000_announcement_one_on.sql): each save takes the place of the last.
   return public.save_announcement(a, true);
@@ -58,7 +58,7 @@ begin
   saved := pg_temp.save(pg_temp.ann(jsonb_build_object('modal_text', E'Line one\nLine two', 'modal_attachment', card)));
   insert into ids values ('card', saved);
   perform set_config('request.jwt.claims',
-    json_build_object('sub', '00000000-0000-4000-8000-0000000000a2', 'role', 'authenticated')::text, true);
+    json_build_object('sub', '00000000-0000-4000-8000-0000000000a2', 'role', 'authenticated', 'aal', 'aal2')::text, true);
   select * into r from public.my_announcements() m where m.id = saved;
   if r.modal_text is distinct from E'Line one\nLine two' or r.modal_attachment is distinct from card then
     raise exception 'FAIL: my_announcements gave text % and attachment %', r.modal_text, r.modal_attachment;

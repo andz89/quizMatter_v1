@@ -142,7 +142,7 @@ export function TableGrid({
           >
             {/* In the middle top to bottom, like a text box. */}
             {renderCell?.(row, column) ??
-              (cell.html && <SlideText text="" html={cell.html} fontSize={fontSize} className="flex flex-col justify-center-safe" />)}
+              (cell.html && <SlideText text="" html={cell.html} fontSize={fontSize} keepFontSize className="flex flex-col justify-center-safe" />)}
           </div>
         )),
       )}
@@ -273,7 +273,15 @@ function ElementDrawing({ assetId, color, settings = {}, onMeasure }: ElementSvg
   const [, , viewWidth, viewHeight] = viewBox.split(" ").map(Number);
 
   return (
-    <svg ref={svgRef} viewBox={(canTrim && trimmedViewBox) || viewBox} className="h-full w-full" preserveAspectRatio="xMidYMid meet">
+    <svg
+      ref={svgRef}
+      viewBox={(canTrim && trimmedViewBox) || viewBox}
+      className="h-full w-full"
+      preserveAspectRatio="xMidYMid meet"
+      // Letters and emoji are measured to trim them. A browser adjusts text to the size it's drawn at, so without this
+      // they measure a little differently at each size, and opening a presentation would change their boxes.
+      textRendering={canTrim ? "geometricPrecision" : undefined}
+    >
       {gradientStops && (
         <defs>
           {/* userSpaceOnUse spans the whole viewBox, so zero-height lines still render and

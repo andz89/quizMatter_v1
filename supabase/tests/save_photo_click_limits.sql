@@ -40,7 +40,7 @@ insert into public.folders (id, owner_id, name) values
 -- ─── 1. A script saving 30 times in a minute is paused for 10 minutes ─────────────────────────────────────────
 set local role authenticated;
 select set_config('request.jwt.claims',
-  json_build_object('sub', '00000000-0000-4000-8000-0000000000c1', 'role', 'authenticated')::text, true);
+  json_build_object('sub', '00000000-0000-4000-8000-0000000000c1', 'role', 'authenticated', 'aal', 'aal2')::text, true);
 
 -- Each save is its own request in real life: the "already counted" flag starts empty. The 30th still goes through.
 do $$
@@ -129,7 +129,7 @@ end $$;
 -- ─── 3. A banned teacher can't save at all ────────────────────────────────────────────────────────────────────
 set local role authenticated;
 select set_config('request.jwt.claims',
-  json_build_object('sub', '00000000-0000-4000-8000-0000000000c2', 'role', 'authenticated')::text, true);
+  json_build_object('sub', '00000000-0000-4000-8000-0000000000c2', 'role', 'authenticated', 'aal', 'aal2')::text, true);
 
 do $$
 begin
@@ -142,7 +142,7 @@ end $$;
 
 -- ─── 4. One save counts once, and the 100-slide limit never pauses ────────────────────────────────────────────
 select set_config('request.jwt.claims',
-  json_build_object('sub', '00000000-0000-4000-8000-0000000000c3', 'role', 'authenticated')::text, true);
+  json_build_object('sub', '00000000-0000-4000-8000-0000000000c3', 'role', 'authenticated', 'aal', 'aal2')::text, true);
 select set_config('quizmatter.write_counted', '', true);
 
 -- 100 slides in one save.
@@ -179,7 +179,7 @@ end $$;
 -- ─── 5. Uploading 30 photos in a minute pauses uploads (src/app/api/upload-image) ─────────────────────────────
 set local role authenticated;
 select set_config('request.jwt.claims',
-  json_build_object('sub', '00000000-0000-4000-8000-0000000000c4', 'role', 'authenticated')::text, true);
+  json_build_object('sub', '00000000-0000-4000-8000-0000000000c4', 'role', 'authenticated', 'aal', 'aal2')::text, true);
 
 do $$
 begin
@@ -198,7 +198,7 @@ end $$;
 
 -- ─── 6. Photos written straight to the table: 30 in a minute pauses it too ────────────────────────────────────
 select set_config('request.jwt.claims',
-  json_build_object('sub', '00000000-0000-4000-8000-0000000000c5', 'role', 'authenticated')::text, true);
+  json_build_object('sub', '00000000-0000-4000-8000-0000000000c5', 'role', 'authenticated', 'aal', 'aal2')::text, true);
 
 insert into public.photos (src, width, height)
 select 'https://images.quizmatter.com/uploads/test-spc-' || n || '.webp', 10, 10
@@ -215,7 +215,7 @@ end $$;
 
 -- ─── 7. The super admin isn't counted ─────────────────────────────────────────────────────────────────────────
 select set_config('request.jwt.claims',
-  json_build_object('sub', '00000000-0000-4000-8000-0000000000c6', 'role', 'authenticated')::text, true);
+  json_build_object('sub', '00000000-0000-4000-8000-0000000000c6', 'role', 'authenticated', 'aal', 'aal2')::text, true);
 
 do $$
 begin
@@ -251,7 +251,7 @@ insert into public.click_rate (user_id, feature, window_start, clicks) values
 
 set local role authenticated;
 select set_config('request.jwt.claims',
-  json_build_object('sub', '00000000-0000-4000-8000-0000000000c7', 'role', 'authenticated')::text, true);
+  json_build_object('sub', '00000000-0000-4000-8000-0000000000c7', 'role', 'authenticated', 'aal', 'aal2')::text, true);
 
 -- The 1,000th save and the 300th upload still go through.
 select set_config('quizmatter.write_counted', '', true);
@@ -294,7 +294,7 @@ end $$;
 -- ─── 9. Folders: 30 changes in a minute pauses them; moving many presentations at once counts once ────────────
 set local role authenticated;
 select set_config('request.jwt.claims',
-  json_build_object('sub', '00000000-0000-4000-8000-0000000000c8', 'role', 'authenticated')::text, true);
+  json_build_object('sub', '00000000-0000-4000-8000-0000000000c8', 'role', 'authenticated', 'aal', 'aal2')::text, true);
 
 -- One request: both presentations into the folder.
 select set_config('quizmatter.counted_folders', '', true);
@@ -334,7 +334,7 @@ end $$;
 
 -- ─── 10. Settings: 30 changes in a minute pauses them; the display name has its own limit ─────────────────────
 select set_config('request.jwt.claims',
-  json_build_object('sub', '00000000-0000-4000-8000-0000000000c9', 'role', 'authenticated')::text, true);
+  json_build_object('sub', '00000000-0000-4000-8000-0000000000c9', 'role', 'authenticated', 'aal', 'aal2')::text, true);
 
 -- set_display_name (a database function) is counted by the display_name limit only.
 select set_config('quizmatter.counted_settings', '', true);
@@ -381,7 +381,7 @@ insert into public.click_rate (user_id, feature, window_start, clicks) values
 
 set local role authenticated;
 select set_config('request.jwt.claims',
-  json_build_object('sub', '00000000-0000-4000-8000-0000000000ca', 'role', 'authenticated')::text, true);
+  json_build_object('sub', '00000000-0000-4000-8000-0000000000ca', 'role', 'authenticated', 'aal', 'aal2')::text, true);
 
 -- The last one of the day still goes through…
 select set_config('quizmatter.counted_folders', '', true);

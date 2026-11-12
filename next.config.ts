@@ -1,5 +1,6 @@
 import type { NextConfig } from "next";
 import { initOpenNextCloudflareForDev } from "@opennextjs/cloudflare";
+import { securityHeaders } from "./src/lib/securityHeaders";
 
 // Lets `next dev` reach the Cloudflare bindings in wrangler.jsonc (the live D1 drafts database and R2 bucket).
 // The browser tests' server (e2e/dev.mjs) sets QM_E2E=1 to use local copies instead.
@@ -9,6 +10,10 @@ initOpenNextCloudflareForDev({ remoteBindings: !e2e });
 const nextConfig: NextConfig = {
   // The browser tests' server builds in its own folder, so it can run next to `npm run dev`.
   distDir: e2e ? ".next-e2e" : ".next",
+  // The security headers (no framing, https only, …) on every response. The list is in src/lib/securityHeaders.ts.
+  async headers() {
+    return [{ source: "/:path*", headers: securityHeaders(process.env.NEXT_PUBLIC_SUPABASE_URL) }];
+  },
   // Old addresses (from before lessons were called presentations) still work, e.g. links Claude
   // already sent (/quiz/new?draft=…; the ?draft= goes along) and bookmarks.
   async redirects() {

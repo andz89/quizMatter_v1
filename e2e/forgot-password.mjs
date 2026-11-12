@@ -110,6 +110,12 @@ try {
   const visitor = await browser.newContext();
   await fakeTurnstile(visitor);
   const page = await visitor.newPage();
+  // The server sends the reset request (askForReset), never the browser, which would see Supabase's answer.
+  let browserRecoverCalls = 0;
+  await visitor.route("**/auth/v1/recover*", (route) => {
+    browserRecoverCalls++;
+    return route.continue();
+  });
   await page.goto(`${APP}/login`);
   const link = page.getByRole("link", { name: "Forgot password?" });
   check("login has a Forgot password? link", (await link.getAttribute("href").catch(() => null)) === "/forgot-password");
@@ -142,31 +148,22 @@ try {
   const nobodySent = await sendFromPage(page, nobody);
   check("an email with no account gets the same Check your email screen", nobodySent && (await page.getByText(nobody).isVisible()));
 
-  // Supabase's two email limits (local waits only 1 second between emails, so its answer is played back here, in
-  // the shape the live one sends).
-  const refusal = (msg) => (route) =>
-    route.fulfill({ status: 429, contentType: "application/json", body: JSON.stringify({ code: 429, error_code: "over_email_send_rate_limit", msg }) });
-  await visitor.route("**/auth/v1/recover*", refusal("For security purposes, you can only request this after 42 seconds."));
-  // Within a minute Supabase refuses a real account but not an unknown email: the page must show the same screen,
-  // or it would tell who has an account.
-  const againSent = await sendFromPage(page, teacher.email);
-  check("asking again within a minute shows the same Check your email screen", againSent && (await page.getByText(teacher.email).isVisible()));
-  await visitor.unroute("**/auth/v1/recover*");
-  await visitor.route("**/auth/v1/recover*", refusal("Email rate limit exceeded"));
-  // The hourly limit refuses a real account only, too.
-  const hourlySent = await sendFromPage(page, teacher.email);
-  check("the hourly email limit shows the same Check your email screen", hourlySent && (await page.getByText(teacher.email).isVisible()));
+  // The page gets one answer from the server (the action's result), the same for a real account and for no account:
+  // nothing in it says which. (Supabase's refusals are turned into words by resetErrorMessage: passwords.test.ts.)
+  const answerFor = async (email) => {
+    const answered = page.waitForResponse((res) => res.request().method() === "POST" && new URL(res.url()).pathname === "/forgot-password");
+    await sendFromPage(page, email);
+    return (await (await answered).text()).replace(/^0:.*$/m, "");
+  };
+  await new Promise((resolve) => setTimeout(resolve, 1300)); // local Supabase waits 1 second between emails
+  const realAnswer = await answerFor(teacher.email);
+  const nobodyAnswer = await answerFor(`nobody-${Date.now()}@test.local`);
+  check("the server answers the same for a real account and for no account", realAnswer === nobodyAnswer, `${realAnswer} | ${nobodyAnswer}`);
   check(
     "it says to try again later",
     await page.getByText("No email after a few minutes? Check your spam folder, or try again later.").isVisible().catch(() => false),
   );
-  await visitor.unroute("**/auth/v1/recover*");
-  // Every other refusal still shows its words.
-  await visitor.route("**/auth/v1/recover*", (route) =>
-    route.fulfill({ status: 400, contentType: "application/json", body: JSON.stringify({ code: 400, error_code: "captcha_failed", msg: "captcha protection" }) }),
-  );
-  const expiredSent = await sendFromPage(page, teacher.email);
-  check("an expired security check still says so", !expiredSent && (await page.getByText("The security check expired. Please try again.").isVisible()));
+  check("the browser itself never asks Supabase for a reset", browserRecoverCalls === 0, `${browserRecoverCalls} calls`);
   await visitor.close();
 
   // ─── Part 2: the email's link and Set a new password ─────────────────────────────────────────────────────────
@@ -403,11 +400,6 @@ try {
   const limits = await browser.newContext();
   await fakeTurnstile(limits);
   const limitsPage = await limits.newPage();
-  let recoverCalls = 0;
-  await limits.route("**/auth/v1/recover*", (route) => {
-    recoverCalls++;
-    return route.continue();
-  });
   // Cloudflare adds the address on the live site; here the test adds it to the page's request to the server.
   const askFrom = async (ip) => {
     await limits.unroute(`${APP}/forgot-password`).catch(() => {});
@@ -423,21 +415,24 @@ try {
     await sendFromPage(limitsPage, limited.email);
     await new Promise((resolve) => setTimeout(resolve, 1300)); // local Supabase waits 1 second between emails
   }
-  check("3 resets a day each send an email", (await emailsTo(limited.email)) === 3 && recoverCalls === 3, `${await emailsTo(limited.email)} emails, ${recoverCalls} calls`);
+  check("3 resets a day each send an email", (await emailsTo(limited.email)) === 3, `${await emailsTo(limited.email)} emails`);
   const fourth = await sendFromPage(limitsPage, limited.email);
   await new Promise((resolve) => setTimeout(resolve, 2000));
   check("the 4th shows the same Check your email screen", fourth && (await limitsPage.getByText(limited.email).isVisible()));
-  check("and sends no email", (await emailsTo(limited.email)) === 3 && recoverCalls === 3, `${await emailsTo(limited.email)} emails, ${recoverCalls} calls`);
+  check("and sends no email", (await emailsTo(limited.email)) === 3, `${await emailsTo(limited.email)} emails`);
 
-  // One internet address that already asked 10 times this hour: refused, also for an email with no account.
+  // One internet address that already asked 10 times this hour: the same screen and no email, also for a real account.
   psql("insert into public.password_reset_requests (ip) select '203.0.113.71' from generate_series(1, 10)");
+  const before = await emailsTo(banned.email);
   await askFrom("203.0.113.71");
-  const eleventh = await sendFromPage(limitsPage, `nobody-${Date.now()}@test.local`);
+  const eleventh = await sendFromPage(limitsPage, banned.email);
+  await new Promise((resolve) => setTimeout(resolve, 2000));
   check("the 11th request from an address shows the same screen", eleventh);
-  check("and doesn't reach Supabase", recoverCalls === 3, `${recoverCalls} calls`);
+  check("and sends no email", (await emailsTo(banned.email)) === before, `${await emailsTo(banned.email)} emails`);
   await askFrom("203.0.113.72");
-  await sendFromPage(limitsPage, `nobody-${Date.now()}@test.local`);
-  check("another address still reaches Supabase", recoverCalls === 4, `${recoverCalls} calls`);
+  await sendFromPage(limitsPage, banned.email);
+  await latestResetTokenHash(banned.email, Date.now() - 5000);
+  check("another address still gets an email", (await emailsTo(banned.email)) === before + 1, `${await emailsTo(banned.email)} emails`);
   await limits.close();
 
   // ─── Part 5: Admin → Safety → Password resets lists them for the super admin ───────────────────────────────────

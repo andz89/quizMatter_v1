@@ -28,6 +28,14 @@ export function overhangFor(containerId: string | null) {
   return containerId === null ? 0.5 : 0;
 }
 
+/**
+ * How much a corner drag scales a box: its new diagonal over its old one, with `dx` / `dy` counted outward. A side
+ * dragged past the opposite side counts as size 0, so a corner dragged far past the other one can't grow it again.
+ */
+export function cornerDragScale(width: number, height: number, dx: number, dy: number) {
+  return Math.hypot(Math.max(0, width + dx), Math.max(0, height + dy)) / Math.hypot(width, height);
+}
+
 /** Lowest and highest x (or y) for something `size` long in a box `boxSize` long, when `overhang` of it may stick out. */
 export function positionRange(size: number, boxSize: number, overhang: number) {
   return { min: -size * overhang, max: boxSize - size * (1 - overhang) };

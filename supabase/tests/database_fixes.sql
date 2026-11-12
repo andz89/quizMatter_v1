@@ -44,19 +44,19 @@ where c.name = 'Test dbf photos';
 -- As the teacher: publish the original (its shared copy is made after it).
 set local role authenticated;
 select set_config('request.jwt.claims',
-  json_build_object('sub', '00000000-0000-4000-8000-0000000000d3', 'role', 'authenticated')::text, true);
+  json_build_object('sub', '00000000-0000-4000-8000-0000000000d3', 'role', 'authenticated', 'aal', 'aal2')::text, true);
 
 select public.share_presentation(target_id => 'test-dbf-orig');
 
 -- As the plain admin: hide the shared copy.
 select set_config('request.jwt.claims',
-  json_build_object('sub', '00000000-0000-4000-8000-0000000000d2', 'role', 'authenticated')::text, true);
+  json_build_object('sub', '00000000-0000-4000-8000-0000000000d2', 'role', 'authenticated', 'aal', 'aal2')::text, true);
 
 update public.presentations set hidden_at = now() where shared_from = 'test-dbf-orig';
 
 -- As the teacher: the hidden copy still can't be deleted by them.
 select set_config('request.jwt.claims',
-  json_build_object('sub', '00000000-0000-4000-8000-0000000000d3', 'role', 'authenticated')::text, true);
+  json_build_object('sub', '00000000-0000-4000-8000-0000000000d3', 'role', 'authenticated', 'aal', 'aal2')::text, true);
 
 do $$
 declare n int;
@@ -110,13 +110,13 @@ end $$;
 -- As the teacher: publish the three (a plain admin hides only teachers' shared copies).
 set local role authenticated;
 select set_config('request.jwt.claims',
-  json_build_object('sub', '00000000-0000-4000-8000-0000000000d5', 'role', 'authenticated')::text, true);
+  json_build_object('sub', '00000000-0000-4000-8000-0000000000d5', 'role', 'authenticated', 'aal', 'aal2')::text, true);
 select public.share_presentation(target_id => id) from unnest(array['test-dbf-h1', 'test-dbf-h2', 'test-dbf-h3']) as id;
 
 -- As the plain admin: hide the three shared copies in one update.
 select set_config('quizmatter.admin_logged', '', true);
 select set_config('request.jwt.claims',
-  json_build_object('sub', '00000000-0000-4000-8000-0000000000d2', 'role', 'authenticated')::text, true);
+  json_build_object('sub', '00000000-0000-4000-8000-0000000000d2', 'role', 'authenticated', 'aal', 'aal2')::text, true);
 
 do $$
 declare n int;
@@ -194,7 +194,7 @@ end $$;
 -- ─── 3. A review draft is checked like the presentations table (D8) ───────────────────────────────────────────
 set local role authenticated;
 select set_config('request.jwt.claims',
-  json_build_object('sub', '00000000-0000-4000-8000-0000000000d4', 'role', 'authenticated')::text, true);
+  json_build_object('sub', '00000000-0000-4000-8000-0000000000d4', 'role', 'authenticated', 'aal', 'aal2')::text, true);
 
 select public.start_review(target_id => 'test-dbf-lesson');
 
@@ -246,7 +246,7 @@ end $$;
 -- ─── 4. The "From editors" category can't be renamed or deleted (D10) ─────────────────────────────────────────
 -- As the super admin (the only one the table's rules let rename or delete a category).
 select set_config('request.jwt.claims',
-  json_build_object('sub', '00000000-0000-4000-8000-0000000000d1', 'role', 'authenticated')::text, true);
+  json_build_object('sub', '00000000-0000-4000-8000-0000000000d1', 'role', 'authenticated', 'aal', 'aal2')::text, true);
 
 do $$
 declare n int;

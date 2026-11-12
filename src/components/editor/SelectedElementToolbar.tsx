@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useEditorStore, type ColorPanelTarget } from "@/lib/store";
 import {
   canCrop,
@@ -56,6 +57,33 @@ function borderSwatch(border: string | undefined, diagramColor: string): React.C
 }
 
 /**
+ * The Set date box. Typing passes through dates the calendars can't take (the year "0002", 31 February), and an
+ * empty part empties the box. Those stay in `draft`, so the typing can go on; only a real date reaches the calendar.
+ * A draft belongs to the date it was typed over, so undo or redo replaces it; leaving the box drops it.
+ */
+function DateBox({ date, onPick }: { date: CalendarDate; onPick: (date: CalendarDate) => void }) {
+  const current = toDateInput(date);
+  const [draft, setDraft] = useState<{ text: string; over: string } | null>(null);
+
+  return (
+    <input
+      type="date"
+      aria-label="Date"
+      min={toDateInput({ year: CALENDAR_YEARS.min, month: 1, day: 1 })}
+      max={toDateInput({ year: CALENDAR_YEARS.max, month: 12, day: 31 })}
+      value={draft?.over === current ? draft.text : current}
+      onChange={(e) => {
+        const picked = fromDateInput(e.target.value);
+        setDraft(picked ? null : { text: e.target.value, over: current });
+        if (picked) onPick(picked);
+      }}
+      onBlur={() => setDraft(null)}
+      className="w-full rounded-input border border-border-default bg-bg-surface px-3 py-2 text-sm text-text-primary outline-none focus:border-accent"
+    />
+  );
+}
+
+/**
  * Header container for the selected SVG element(s)' color, duplicate, and delete controls.
  * `showColor` is off next to the text toolbar, which has its own color button.
  */
@@ -84,24 +112,30 @@ export function SelectedElementToolbar({ showColor = true }: { showColor?: boole
   // 3D rotation is only offered when exactly one solid shape is selected.
   const solid = elements.length === 1 && getElementAsset(elements[0].assetId)?.is3d ? elements[0] : null;
   const rotation = solid?.rotation3d ?? DEFAULT_ROTATION_3D;
-  const setRotation = (patch: Partial<typeof rotation>) =>
-    solid && updateElement(selectedSlideId, solid.id, { rotation3d: { ...rotation, ...patch } });
+  const setRotation = (patch: Partial<typeof rotation>) => {
+    const next = { ...rotation, ...patch };
+    if (solid && (next.x !== rotation.x || next.y !== rotation.y)) updateElement(selectedSlideId, solid.id, { rotation3d: next });
+  };
 
   // Flat rotation is offered when exactly one non-solid element is selected.
   const flat = elements.length === 1 && !solid ? elements[0] : null;
-  const setAngle = (rotation: number) => flat && updateElement(selectedSlideId, flat.id, { rotation });
+  const setAngle = (rotation: number) => flat && updateElement(selectedSlideId, flat.id, { rotation: rotation || undefined });
 
   // Time controls are offered when exactly one clock is selected.
   const clock = elements.length === 1 && getElementAsset(elements[0].assetId)?.isClock ? elements[0] : null;
   const time = clock?.clockTime ?? DEFAULT_CLOCK_TIME;
-  const setTime = (patch: Partial<typeof time>) =>
-    clock && updateElement(selectedSlideId, clock.id, { clockTime: { ...time, ...patch } });
+  const setTime = (patch: Partial<typeof time>) => {
+    const next = { ...time, ...patch };
+    // Compared with what the clock shows: no saved time = 10:10, no pm = AM.
+    if (clock && (next.hours !== time.hours || next.minutes !== time.minutes || !next.pm !== !time.pm)) {
+      updateElement(selectedSlideId, clock.id, { clockTime: next });
+    }
+  };
 
   // Date controls are offered when exactly one calendar is selected.
   const calendar = elements.length === 1 && getElementAsset(elements[0].assetId)?.isCalendar ? elements[0] : null;
   const date = calendar?.calendarDate ?? DEFAULT_CALENDAR_DATE;
-  const setDate = (calendarDate: CalendarDate | null) =>
-    calendar && calendarDate && updateElement(selectedSlideId, calendar.id, { calendarDate });
+  const setDate = (calendarDate: CalendarDate) => calendar && updateElement(selectedSlideId, calendar.id, { calendarDate });
 
   // The Table menu is offered when exactly one table is selected.
   const tableElement = elements.length === 1 && elements[0].table ? elements[0] : null;
@@ -122,7 +156,7 @@ export function SelectedElementToolbar({ showColor = true }: { showColor?: boole
   const opacity = elements[0].opacity ?? 100;
   const setOpacity = (value: number) => {
     const clamped = Math.min(100, Math.max(OPACITY_MIN, value));
-    updateElements(selectedSlideId, Object.fromEntries(elements.map((el) => [el.id, { opacity: clamped }])));
+    updateElements(selectedSlideId, Object.fromEntries(elements.map((el) => [el.id, { opacity: clamped < 100 ? clamped : undefined }])));
   };
 
   // Corner radius is offered when every selected element is a square or rectangle, and applies to all of them.
@@ -386,16 +420,7 @@ export function SelectedElementToolbar({ showColor = true }: { showColor?: boole
           <PanelReadout>{formatCalendarDate(date)}</PanelReadout>
           <label className="flex flex-col gap-1.5">
             <PanelLabel>Date</PanelLabel>
-            {/* An empty or half-typed date isn't saved: the calendar keeps its last date. */}
-            <input
-              type="date"
-              aria-label="Date"
-              min={toDateInput({ year: CALENDAR_YEARS.min, month: 1, day: 1 })}
-              max={toDateInput({ year: CALENDAR_YEARS.max, month: 12, day: 31 })}
-              value={toDateInput(date)}
-              onChange={(e) => setDate(fromDateInput(e.target.value))}
-              className="w-full rounded-input border border-border-default bg-bg-surface px-3 py-2 text-sm text-text-primary outline-none focus:border-accent"
-            />
+            <DateBox date={date} onPick={setDate} />
           </label>
           <ResetButton label="Today" onClick={() => setDate(todayCalendarDate())} />
         </ToolPanelButton>

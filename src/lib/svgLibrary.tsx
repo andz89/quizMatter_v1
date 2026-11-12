@@ -17,6 +17,8 @@ import {
   FACTOR_TREE_LEVELS,
   FLOWCHART_STEPS,
   MIND_MAP_IDEAS,
+  THERMOMETER_MAX,
+  THERMOMETER_MIN,
   TREE_BRANCHES,
   TREE_LEAVES_MAX,
   type DiagramShape,
@@ -63,7 +65,7 @@ export type RenderSettings = Partial<Pick<
   fontsReady?: boolean;
 };
 
-interface ElementAsset {
+export interface ElementAsset {
   id: string;
   category: ElementCategory;
   label: string;
@@ -335,13 +337,9 @@ function renderMonthCalendar(color: string, date: CalendarDate = DEFAULT_CALENDA
 
 export type FractionSettings = NonNullable<SvgElement["fraction"]>;
 export const DEFAULT_FRACTION: FractionSettings = { parts: 4, shaded: 1 };
-// Fraction bars and circles: how many parts they can be cut into.
-export const FRACTION_PARTS = { min: 2, max: 12 };
 
 // Written fraction: `shaded` is the numerator (top), `parts` the denominator (bottom).
 export const DEFAULT_FRACTION_NUMBER: FractionSettings = { parts: 2, shaded: 1 };
-// Up to 3 digits, so the numbers still fit inside the element's square.
-export const FRACTION_NUMBER_MAX = 999;
 
 // Draws a written fraction — numerator, a bar, denominator — all in the element color.
 function renderFractionNumber(color: string, { parts, shaded }: FractionSettings = DEFAULT_FRACTION_NUMBER) {
@@ -363,8 +361,6 @@ function renderFractionNumber(color: string, { parts, shaded }: FractionSettings
 
 export type TenFrameSettings =NonNullable<SvgElement["tenFrame"]>;
 export const DEFAULT_TEN_FRAME: TenFrameSettings = { count: 5, rows: 2, columns: 5 };
-// Most rows (and most columns) a counting frame can have.
-export const TEN_FRAME_SIDE_MAX = 10;
 
 const OUTLINE = "#1F1F1F";
 
@@ -445,8 +441,6 @@ function renderTenFrame(color: string, { count, rows = 2, columns = 5 }: TenFram
 
 export type BaseTenSettings = NonNullable<SvgElement["baseTen"]>;
 export const DEFAULT_BASE_TEN: BaseTenSettings = { hundreds: 1, tens: 2, ones: 3 };
-// Most flats, rods or cubes of one kind.
-export const BASE_TEN_MAX = 9;
 
 // Base-ten block sizes, in drawing units: a cube is 4×4, a rod 1×10 cubes, a flat 10×10 cubes.
 const CUBE = 4;
@@ -501,8 +495,6 @@ function renderBaseTen(color: string, settings: BaseTenSettings = DEFAULT_BASE_T
 
 export type ThermometerSettings = NonNullable<SvgElement["thermometer"]>;
 export const DEFAULT_THERMOMETER: ThermometerSettings = { value: 25 };
-export const THERMOMETER_MIN = -20;
-export const THERMOMETER_MAX = 50;
 
 // Draws a tall thermometer in a 60×200 area; the liquid (element color) rises to the temperature.
 function renderThermometer(color: string, { value }: ThermometerSettings = DEFAULT_THERMOMETER) {
@@ -541,9 +533,14 @@ export const DEFAULT_BAR_GRAPH: BarGraphSettings = {
   ],
 };
 // The graph's scale runs 0 to BAR_GRAPH_MAX. It has 2–6 bars, each label up to 12 letters.
-export const BAR_GRAPH_MAX = 10;
 export const BAR_COUNTS = [2, 3, 4, 5, 6];
 export const BAR_LABEL_MAX = 12;
+
+// About how wide a letter is, as a part of the font size: a bold M or W is nearly square.
+function letterWidth(letter: string) {
+  if (/[MWmw]/.test(letter)) return 1;
+  return letter === letter.toLowerCase() ? 0.6 : 0.75;
+}
 
 // Draws a bar graph on a 0–10 scale in a 200×150 area, with light grid lines every 2.
 function renderBarGraph(color: string, { bars }: BarGraphSettings = DEFAULT_BAR_GRAPH) {
@@ -565,7 +562,8 @@ function renderBarGraph(color: string, { bars }: BarGraphSettings = DEFAULT_BAR_
       {bars.map((bar, i) => {
         const x = LEFT + i * slot + slot * 0.2;
         // Shrink long labels so they fit under their own bar.
-        const fontSize = Math.min(8, (slot * 0.95) / (Math.max(1, bar.label.length) * 0.6));
+        const labelWidth = [...bar.label].reduce((sum, letter) => sum + letterWidth(letter), 0);
+        const fontSize = Math.min(8, (slot * 0.95) / Math.max(0.6, labelWidth));
         return (
           <g key={i}>
             <rect x={x} y={BOTTOM - bar.value * UNIT} width={slot * 0.6} height={bar.value * UNIT} fill={color} />
@@ -778,13 +776,21 @@ export function diagramTextRoom(box: PlacedDiagramBox) {
   };
 }
 
+// The smallest size text shrinks to just to keep a word whole. A word that would need less is cut in two
+// instead, since text smaller than this is hard to read.
+const DIAGRAM_WHOLE_WORD_FONT = 8;
+
 /**
  * A box's text as drawn, like a text box: the box's size if it fits, else the biggest size (down to 1)
- * at which all of it fits inside the box, and its lines.
+ * at which all of it fits inside the box, and its lines. A word too wide for the box brings the size down
+ * first, so it isn't cut in two ("Caterpill" / "ar"), but not below DIAGRAM_WHOLE_WORD_FONT.
  */
 export function fitDiagramText(box: PlacedDiagramBox, measured: boolean) {
-  const largest = box.item.fontSize ?? DIAGRAM_FONT_SIZE.default;
   const room = diagramTextRoom(box);
+  const widestWord = box.item.text.split(/\s+/).reduce((widest, word) => Math.max(widest, textWidth(word, 100, measured)), 0);
+  // Rounded down to a 0.5 step, like the search below.
+  const wholeWordSize = widestWord ? Math.floor((room.width / widestWord) * 200) / 2 : Infinity;
+  const largest = Math.min(box.item.fontSize ?? DIAGRAM_FONT_SIZE.default, Math.max(wholeWordSize, DIAGRAM_WHOLE_WORD_FONT));
   const linesAt = (fontSize: number) => wrapLines(box.item.text, room.width, fontSize, measured);
   const fits = (lines: string[], fontSize: number) => lines.length * fontSize * DIAGRAM_LINE_HEIGHT <= room.height;
   const full = linesAt(largest);

@@ -16,7 +16,7 @@ insert into public.admins (user_id, is_super) values
 -- Tries a step as a user; true when it was refused (any error).
 create function pg_temp.refused(who uuid, step text) returns boolean language plpgsql as $$
 begin
-  perform set_config('request.jwt.claims', json_build_object('sub', who, 'role', 'authenticated')::text, true);
+  perform set_config('request.jwt.claims', json_build_object('sub', who, 'role', 'authenticated', 'aal', 'aal2')::text, true);
   -- The Admin log writes one row per transaction (log_admin_action's flag); in the app each step is its own.
   perform set_config('quizmatter.admin_logged', '', true);
   execute step;
@@ -29,7 +29,7 @@ $$;
 -- What the guard says for a role and user: 'ok' or the error's text.
 create function pg_temp.guard(who uuid) returns text language plpgsql as $$
 begin
-  perform set_config('request.jwt.claims', json_build_object('sub', who, 'role', 'authenticated')::text, true);
+  perform set_config('request.jwt.claims', json_build_object('sub', who, 'role', 'authenticated', 'aal', 'aal2')::text, true);
   perform public.check_maintenance();
   return 'ok';
 exception when others then

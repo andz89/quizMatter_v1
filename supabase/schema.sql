@@ -293,6 +293,20 @@ $$;
 ALTER FUNCTION "public"."admin_may_delete"("target_id" "text") OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."admin_membership"() RETURNS "text"
+    LANGUAGE "sql" STABLE SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+  select coalesce(
+    (select case when a.is_super then 'super' else 'admin' end
+     from public.admins a where a.user_id = (select auth.uid())),
+    'none');
+$$;
+
+
+ALTER FUNCTION "public"."admin_membership"() OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."admin_overview"("days" integer) RETURNS TABLE("series" "text", "day" "date", "total" integer)
     LANGUAGE "plpgsql" STABLE SECURITY DEFINER
     SET "search_path" TO ''
@@ -1046,10 +1060,10 @@ begin
   then
     return;
   end if;
-  -- Its own step: Postgres checks the right to call is_super_admin() even when an "or" wouldn't need it, and anon
-  -- has none.
+  -- Its own step: Postgres checks the right to call admin_membership() even when an "or" wouldn't need it, and
+  -- anon has none.
   if current_user = 'authenticated' then
-    if public.is_super_admin() then
+    if public.admin_membership() = 'super' then
       return;
     end if;
   end if;
@@ -2132,7 +2146,8 @@ CREATE OR REPLACE FUNCTION "public"."is_admin"() RETURNS boolean
     LANGUAGE "sql" STABLE SECURITY DEFINER
     SET "search_path" TO ''
     AS $$
-  select exists (select 1 from public.admins where user_id = (select auth.uid()));
+  select exists (select 1 from public.admins where user_id = (select auth.uid()))
+    and public.second_factor_ok();
 $$;
 
 
@@ -2183,7 +2198,8 @@ CREATE OR REPLACE FUNCTION "public"."is_super_admin"() RETURNS boolean
     LANGUAGE "sql" STABLE SECURITY DEFINER
     SET "search_path" TO ''
     AS $$
-  select exists (select 1 from public.admins where user_id = (select auth.uid()) and is_super);
+  select exists (select 1 from public.admins where user_id = (select auth.uid()) and is_super)
+    and public.second_factor_ok();
 $$;
 
 
@@ -3056,6 +3072,7 @@ CREATE OR REPLACE FUNCTION "public"."publisher_names"("owner_ids" "uuid"[]) RETU
     select o.id as user_id,
       case
         when a.user_id is not null and not (select public.is_admin()) then 'QuizMatter'
+        when not (select public.is_admin()) then coalesce(s.display_name, '')
         when coalesce(s.display_name, '') = '' then coalesce(u.email, '')
         else s.display_name || coalesce(' (' || u.email || ')', '')
       end as display_name
@@ -3509,6 +3526,24 @@ $$;
 
 
 ALTER FUNCTION "public"."search_shared_photos"("query" "text") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."second_factor_ok"() RETURNS boolean
+    LANGUAGE "sql" STABLE SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+  select coalesce((select auth.jwt() ->> 'aal'), '') = 'aal2'
+    or (
+      (select auth.jwt() ->> 'client_id') is not null
+      and exists (
+        select 1 from auth.mfa_factors f
+        where f.user_id = (select auth.uid()) and f.status = 'verified'
+      )
+    );
+$$;
+
+
+ALTER FUNCTION "public"."second_factor_ok"() OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."send_back_review"("target_id" "text", "note" "text") RETURNS "void"
@@ -6078,6 +6113,12 @@ GRANT ALL ON FUNCTION "public"."admin_may_delete"("target_id" "text") TO "servic
 
 
 
+REVOKE ALL ON FUNCTION "public"."admin_membership"() FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."admin_membership"() TO "authenticated";
+GRANT ALL ON FUNCTION "public"."admin_membership"() TO "service_role";
+
+
+
 REVOKE ALL ON FUNCTION "public"."admin_overview"("days" integer) FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."admin_overview"("days" integer) TO "authenticated";
 GRANT ALL ON FUNCTION "public"."admin_overview"("days" integer) TO "service_role";
@@ -6126,9 +6167,10 @@ GRANT ALL ON FUNCTION "public"."admin_used_photo_srcs"() TO "service_role";
 
 
 
-GRANT ALL ON FUNCTION "public"."age_on"("birth" "date", "today" "date") TO "anon";
+REVOKE ALL ON FUNCTION "public"."age_on"("birth" "date", "today" "date") FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."age_on"("birth" "date", "today" "date") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."age_on"("birth" "date", "today" "date") TO "service_role";
+GRANT ALL ON FUNCTION "public"."age_on"("birth" "date", "today" "date") TO "supabase_auth_admin";
 
 
 
@@ -6249,9 +6291,10 @@ GRANT ALL ON FUNCTION "public"."check_hidden_copy_delete"() TO "service_role";
 
 
 REVOKE ALL ON FUNCTION "public"."check_maintenance"() FROM PUBLIC;
-GRANT ALL ON FUNCTION "public"."check_maintenance"() TO "anon";
 GRANT ALL ON FUNCTION "public"."check_maintenance"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."check_maintenance"() TO "service_role";
+GRANT ALL ON FUNCTION "public"."check_maintenance"() TO "supabase_auth_admin";
+GRANT ALL ON FUNCTION "public"."check_maintenance"() TO "anon";
 
 
 
@@ -6277,7 +6320,6 @@ GRANT ALL ON FUNCTION "public"."check_review_draft"("target_id" "text", "review_
 
 
 
-GRANT ALL ON TABLE "public"."presentation_reviews" TO "anon";
 GRANT ALL ON TABLE "public"."presentation_reviews" TO "authenticated";
 GRANT ALL ON TABLE "public"."presentation_reviews" TO "service_role";
 
@@ -6602,16 +6644,17 @@ GRANT ALL ON FUNCTION "public"."log_unban"("target" "uuid") TO "service_role";
 
 
 REVOKE ALL ON FUNCTION "public"."maintenance_status"() FROM PUBLIC;
-GRANT ALL ON FUNCTION "public"."maintenance_status"() TO "anon";
 GRANT ALL ON FUNCTION "public"."maintenance_status"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."maintenance_status"() TO "service_role";
 GRANT ALL ON FUNCTION "public"."maintenance_status"() TO "supabase_auth_admin";
+GRANT ALL ON FUNCTION "public"."maintenance_status"() TO "anon";
 
 
 
-GRANT ALL ON FUNCTION "public"."manila_today"() TO "anon";
+REVOKE ALL ON FUNCTION "public"."manila_today"() FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."manila_today"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."manila_today"() TO "service_role";
+GRANT ALL ON FUNCTION "public"."manila_today"() TO "supabase_auth_admin";
 
 
 
@@ -6772,6 +6815,11 @@ GRANT ALL ON FUNCTION "public"."save_review_draft"("target_id" "text", "review_d
 
 REVOKE ALL ON FUNCTION "public"."search_shared_photos"("query" "text") FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."search_shared_photos"("query" "text") TO "service_role";
+
+
+
+REVOKE ALL ON FUNCTION "public"."second_factor_ok"() FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."second_factor_ok"() TO "service_role";
 
 
 
@@ -6936,13 +6984,11 @@ GRANT ALL ON FUNCTION "public"."visible_profiles"("profile_ids" "uuid"[]) TO "se
 
 
 
-GRANT ALL ON TABLE "public"."activity_events" TO "anon";
 GRANT ALL ON TABLE "public"."activity_events" TO "authenticated";
 GRANT ALL ON TABLE "public"."activity_events" TO "service_role";
 
 
 
-GRANT ALL ON SEQUENCE "public"."activity_events_id_seq" TO "anon";
 GRANT ALL ON SEQUENCE "public"."activity_events_id_seq" TO "authenticated";
 GRANT ALL ON SEQUENCE "public"."activity_events_id_seq" TO "service_role";
 
@@ -6953,13 +6999,11 @@ GRANT SELECT ON TABLE "public"."admin_actions" TO "authenticated";
 
 
 
-GRANT ALL ON SEQUENCE "public"."admin_actions_id_seq" TO "anon";
 GRANT ALL ON SEQUENCE "public"."admin_actions_id_seq" TO "authenticated";
 GRANT ALL ON SEQUENCE "public"."admin_actions_id_seq" TO "service_role";
 
 
 
-GRANT ALL ON TABLE "public"."admins" TO "anon";
 GRANT ALL ON TABLE "public"."admins" TO "authenticated";
 GRANT ALL ON TABLE "public"."admins" TO "service_role";
 
@@ -6973,56 +7017,48 @@ GRANT ALL ON TABLE "public"."announcement_photos" TO "service_role";
 
 
 
-GRANT ALL ON TABLE "public"."banned_users" TO "anon";
 GRANT ALL ON TABLE "public"."banned_users" TO "authenticated";
 GRANT ALL ON TABLE "public"."banned_users" TO "service_role";
 
 
 
 GRANT ALL ON TABLE "public"."blocked_email_domains" TO "service_role";
-GRANT SELECT ON TABLE "public"."blocked_email_domains" TO "anon";
 GRANT SELECT ON TABLE "public"."blocked_email_domains" TO "authenticated";
 GRANT SELECT ON TABLE "public"."blocked_email_domains" TO "supabase_auth_admin";
+GRANT SELECT ON TABLE "public"."blocked_email_domains" TO "anon";
 
 
 
-GRANT ALL ON TABLE "public"."click_history" TO "anon";
 GRANT ALL ON TABLE "public"."click_history" TO "authenticated";
 GRANT ALL ON TABLE "public"."click_history" TO "service_role";
 
 
 
-GRANT ALL ON SEQUENCE "public"."click_history_id_seq" TO "anon";
 GRANT ALL ON SEQUENCE "public"."click_history_id_seq" TO "authenticated";
 GRANT ALL ON SEQUENCE "public"."click_history_id_seq" TO "service_role";
 
 
 
-GRANT ALL ON TABLE "public"."click_limits" TO "anon";
 GRANT ALL ON TABLE "public"."click_limits" TO "authenticated";
 GRANT ALL ON TABLE "public"."click_limits" TO "service_role";
 
 
 
-GRANT ALL ON TABLE "public"."click_rate" TO "anon";
 GRANT ALL ON TABLE "public"."click_rate" TO "authenticated";
 GRANT ALL ON TABLE "public"."click_rate" TO "service_role";
 
 
 
-GRANT ALL ON TABLE "public"."editors" TO "anon";
 GRANT ALL ON TABLE "public"."editors" TO "authenticated";
 GRANT ALL ON TABLE "public"."editors" TO "service_role";
 
 
 
-GRANT ALL ON TABLE "public"."folder_items" TO "anon";
 GRANT ALL ON TABLE "public"."folder_items" TO "authenticated";
 GRANT ALL ON TABLE "public"."folder_items" TO "service_role";
 
 
 
-GRANT ALL ON TABLE "public"."folders" TO "anon";
 GRANT ALL ON TABLE "public"."folders" TO "authenticated";
 GRANT ALL ON TABLE "public"."folders" TO "service_role";
 
@@ -7032,15 +7068,15 @@ GRANT ALL ON TABLE "public"."maintenance" TO "service_role";
 
 
 
-GRANT SELECT("id") ON TABLE "public"."maintenance" TO "anon";
 GRANT SELECT("id") ON TABLE "public"."maintenance" TO "authenticated";
 GRANT SELECT("id") ON TABLE "public"."maintenance" TO "service_role";
+GRANT SELECT("id") ON TABLE "public"."maintenance" TO "anon";
 
 
 
-GRANT SELECT("is_on") ON TABLE "public"."maintenance" TO "anon";
 GRANT SELECT("is_on") ON TABLE "public"."maintenance" TO "authenticated";
 GRANT SELECT("is_on") ON TABLE "public"."maintenance" TO "service_role";
+GRANT SELECT("is_on") ON TABLE "public"."maintenance" TO "anon";
 
 
 
@@ -7052,37 +7088,31 @@ GRANT ALL ON TABLE "public"."password_reset_sends" TO "service_role";
 
 
 
-GRANT ALL ON TABLE "public"."photo_categories" TO "anon";
 GRANT ALL ON TABLE "public"."photo_categories" TO "authenticated";
 GRANT ALL ON TABLE "public"."photo_categories" TO "service_role";
 
 
 
-GRANT ALL ON TABLE "public"."photos" TO "anon";
 GRANT ALL ON TABLE "public"."photos" TO "authenticated";
 GRANT ALL ON TABLE "public"."photos" TO "service_role";
 
 
 
-GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE "public"."presentation_like_counts" TO "anon";
 GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE "public"."presentation_like_counts" TO "authenticated";
 GRANT ALL ON TABLE "public"."presentation_like_counts" TO "service_role";
 
 
 
-GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE "public"."presentation_likes" TO "anon";
 GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE "public"."presentation_likes" TO "authenticated";
 GRANT ALL ON TABLE "public"."presentation_likes" TO "service_role";
 
 
 
-GRANT ALL ON TABLE "public"."presentation_reports" TO "anon";
 GRANT ALL ON TABLE "public"."presentation_reports" TO "authenticated";
 GRANT ALL ON TABLE "public"."presentation_reports" TO "service_role";
 
 
 
-GRANT INSERT,REFERENCES,DELETE,TRIGGER,TRUNCATE,MAINTAIN,UPDATE ON TABLE "public"."presentation_reviewers" TO "anon";
 GRANT INSERT,REFERENCES,DELETE,TRIGGER,TRUNCATE,MAINTAIN,UPDATE ON TABLE "public"."presentation_reviewers" TO "authenticated";
 GRANT ALL ON TABLE "public"."presentation_reviewers" TO "service_role";
 
@@ -7108,13 +7138,11 @@ GRANT SELECT("reviewed_on") ON TABLE "public"."presentation_reviewers" TO "authe
 
 
 
-GRANT ALL ON TABLE "public"."presentation_submissions" TO "anon";
 GRANT ALL ON TABLE "public"."presentation_submissions" TO "authenticated";
 GRANT ALL ON TABLE "public"."presentation_submissions" TO "service_role";
 
 
 
-GRANT ALL ON TABLE "public"."presentations" TO "anon";
 GRANT ALL ON TABLE "public"."presentations" TO "authenticated";
 GRANT ALL ON TABLE "public"."presentations" TO "service_role";
 
@@ -7124,13 +7152,11 @@ GRANT ALL ON TABLE "public"."profile_photos" TO "service_role";
 
 
 
-GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN,UPDATE ON TABLE "public"."saved_presentations" TO "anon";
 GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN,UPDATE ON TABLE "public"."saved_presentations" TO "authenticated";
 GRANT ALL ON TABLE "public"."saved_presentations" TO "service_role";
 
 
 
-GRANT ALL ON TABLE "public"."shared_photos" TO "anon";
 GRANT ALL ON TABLE "public"."shared_photos" TO "authenticated";
 GRANT ALL ON TABLE "public"."shared_photos" TO "service_role";
 
@@ -7151,32 +7177,27 @@ GRANT SELECT,INSERT ON TABLE "public"."sign_up_attempts" TO "supabase_auth_admin
 
 
 
-GRANT ALL ON TABLE "public"."slide_photos" TO "anon";
 GRANT ALL ON TABLE "public"."slide_photos" TO "authenticated";
 GRANT ALL ON TABLE "public"."slide_photos" TO "service_role";
 
 
 
-GRANT ALL ON TABLE "public"."slides" TO "anon";
 GRANT ALL ON TABLE "public"."slides" TO "authenticated";
 GRANT ALL ON TABLE "public"."slides" TO "service_role";
 
 
 
-GRANT ALL ON TABLE "public"."user_settings" TO "anon";
 GRANT ALL ON TABLE "public"."user_settings" TO "authenticated";
 GRANT ALL ON TABLE "public"."user_settings" TO "service_role";
 
 
 
-GRANT ALL ON TABLE "public"."write_rate" TO "anon";
 GRANT ALL ON TABLE "public"."write_rate" TO "authenticated";
 GRANT ALL ON TABLE "public"."write_rate" TO "service_role";
 
 
 
 ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON SEQUENCES TO "postgres";
-ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON SEQUENCES TO "anon";
 ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON SEQUENCES TO "authenticated";
 ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON SEQUENCES TO "service_role";
 
@@ -7186,7 +7207,6 @@ ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON SEQ
 
 
 ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON FUNCTIONS TO "postgres";
-ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON FUNCTIONS TO "anon";
 ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON FUNCTIONS TO "authenticated";
 ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON FUNCTIONS TO "service_role";
 
@@ -7196,6 +7216,5 @@ ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON FUN
 
 
 ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON TABLES TO "postgres";
-ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON TABLES TO "anon";
 ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON TABLES TO "authenticated";
 ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON TABLES TO "service_role";
