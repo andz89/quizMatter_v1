@@ -74,3 +74,17 @@ test("readUploadBody refuses a too-big Content-Length before reading anything", 
   assert.equal(await readUploadBody(request, 500), null);
   assert.equal(request.bodyUsed, false);
 });
+
+test("readUploadBody also reads a fetched answer (a YouTube thumbnail) and stops at the limit", async () => {
+  let pulled = 0;
+  const stream = new ReadableStream<Uint8Array>({
+    pull(controller) {
+      pulled++;
+      controller.enqueue(new Uint8Array(100));
+    },
+  });
+  assert.equal(await readUploadBody(new Response(stream), 250), null);
+  assert.ok(pulled < 10, `read ${pulled} pieces`);
+  assert.equal(await readUploadBody(new Response("x", { headers: { "content-length": "999" } }), 500), null);
+  assert.equal((await readUploadBody(new Response(new Uint8Array(42)), 500))?.byteLength, 42);
+});

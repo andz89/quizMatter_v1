@@ -364,8 +364,9 @@ The super admin shows a message to chosen teachers on chosen pages (Admin → An
   (no backdrop, no Escape). It is a modal row with `modal_display = 'corner'`, so its content is in the `modal_…`
   columns (post or HTML, the same checks and photo rules) and it closes as part `modal` (the closed count counts it).
   Small or Medium only. `modal_auto_close` (0 = never, else 5–600 seconds, only for a corner box) closes it by itself,
-  which counts like the close button, so it never runs unseen: the box waits while a modal shows (`pickForPage`) and
-  its timer stops while the mouse is over it or the tab is in the background. It has its own slot in `check_one_on` (`bar` / `modal` / `corner`), so a modal,
+  which counts like the close button, so it never runs unseen: the box waits while a modal shows (`pickForPage`), its
+  timer starts only once the close button shows (never before a teacher could close it) and stops while the mouse is
+  over it or the tab is in the background. It has its own slot in `check_one_on` (`bar` / `modal` / `corner`), so a modal,
   a bar and a corner box can all be on together. `announcementType` / `TYPE_WORDS` (`src/lib/announcements.ts`) name
   the three types in the admin pages.
 - **Shows after** (`modal_show_after`, 0–600 seconds, 0 = at once; `20261231000600_announcement_show_after.sql`,
@@ -411,7 +412,8 @@ The super admin shows a message to chosen teachers on chosen pages (Admin → An
   `docs/superpowers/specs/2026-10-31-announcement-post-design.md`, test `supabase/tests/announcement_post.sql`):
   plain text (`modal_text`, padding, links clickable) and at most one attachment (`modal_attachment`, edge to edge):
   one of our photos / GIFs (`/api/announcement-image`) or a YouTube card. Pasting a YouTube link makes the card:
-  `/api/announcement-youtube` gets the title and **copies the thumbnail into R2**, so teachers never contact YouTube
+  `/api/announcement-youtube` gets the title (cut by whole characters, `cutVideoTitle`) and **copies the thumbnail
+  into R2** (read with `readUploadBody`, so it stops at 2 MB), so teachers never contact YouTube
   unless they click (it opens in a new tab), the picture can't change behind the admin's back, and no Privacy Policy
   line is needed. Every attachment `src` must be our R2 address (`announcement_attachment_ok` / `modalAttachmentSchema`);
   `used_photo_srcs` keeps them.
@@ -427,7 +429,10 @@ The super admin shows a message to chosen teachers on chosen pages (Admin → An
   pasted Facebook link is shown with **Facebook's own embedded player / post box** (a sandboxed frame; the app builds
   its address from the checked link). Only `{kind: "facebook", href, video}` is saved. Every teacher who sees one
   loads it from Facebook, so the Privacy Policy names Facebook (Meta); keep that true. The attachment check turns a
-  missing key into "no" (`coalesce(…, false)`): a check lets SQL's "unknown" through.
+  missing key into "no" (`coalesce(…, false)`): a check lets SQL's "unknown" through. Facebook's "Copy link" short
+  links (`fb.watch/…`, `facebook.com/share/…`) are refused by the app (its player shows them as an empty box); pasting
+  one tells the admin to copy the address bar instead (`isFacebookShortLink`). The database still takes `fb.watch`, so
+  an older saved one doesn't break a save of something else; teachers' pages drop it (`.catch(null)`).
 - **Safe text:** a post modal is plain text (no HTML). The bar's saved HTML is re-built through its editor's extensions
   (`toSafeAnnouncementHtml`, `src/lib/announcementText.ts`); only `http(s)://` or in-app links survive.
 - **HTML modal in a sealed box** (`modal_format` `html`, `modal_html` ≤ 100,000, `modal_height` 100–1,000 px;

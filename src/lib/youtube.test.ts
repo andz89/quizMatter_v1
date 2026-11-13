@@ -14,6 +14,11 @@ test("youTubeVideoId reads the id from each YouTube link style", () => {
     `https://www.youtube.com/shorts/${id}`,
     `https://www.youtube.com/embed/${id}`,
     `https://music.youtube.com/watch?v=${id}`,
+    `https://www.youtube.com/live/${id}`,
+    `https://www.youtube.com/live/${id}?si=abc`,
+    `https://youtu.be/${id}/`,
+    `https://www.youtube-nocookie.com/embed/${id}`,
+    `https://youtube-nocookie.com/embed/${id}`,
   ]) {
     assert.equal(youTubeVideoId(link), id, link);
   }
@@ -27,6 +32,8 @@ test("youTubeVideoId refuses other sites and bad ids", () => {
     "https://www.youtube.com/watch?v=short",
     "https://www.youtube.com/watch?v=dQw4w9WgXcQ<script>",
     "https://www.youtube.com/channel/UCabcdefghijk",
+    "https://youtu.be/dQw4w9WgXcQ/extra",
+    "https://www.youtube-nocookie.com/watch?v=dQw4w9WgXcQ",
     "javascript:alert(1)",
     "not a link",
   ]) {
@@ -38,6 +45,10 @@ test("findYouTubeVideoId finds the first YouTube link in pasted text", () => {
   assert.equal(findYouTubeVideoId("Watch this: https://youtu.be/dQw4w9WgXcQ today!"), "dQw4w9WgXcQ");
   assert.equal(findYouTubeVideoId("See https://deped.gov.ph and https://youtu.be/dQw4w9WgXcQ."), "dQw4w9WgXcQ");
   assert.equal(findYouTubeVideoId("No video here, just https://deped.gov.ph"), null);
+  // A link in brackets or < >, as some apps paste it.
+  assert.equal(findYouTubeVideoId("(https://youtu.be/dQw4w9WgXcQ)"), "dQw4w9WgXcQ");
+  assert.equal(findYouTubeVideoId("Watch <https://www.youtube.com/watch?v=dQw4w9WgXcQ>."), "dQw4w9WgXcQ");
+  assert.equal(findYouTubeVideoId("[https://youtu.be/dQw4w9WgXcQ]"), "dQw4w9WgXcQ");
 });
 
 test("youTubeWatchUrl is the plain watch page", () => {
