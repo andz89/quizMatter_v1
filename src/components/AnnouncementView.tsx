@@ -21,14 +21,30 @@ import { Modal } from "./Modal";
 // How an announcement looks (root CLAUDE.md, "Announcements"): what teachers see (AnnouncementsWatch) and the
 // admin's preview (Admin → Announcements).
 
-/** Seconds left before the close button shows; counts down from `closeAfter` once it's on screen. */
+/** True while the tab is in the background (another tab, or the window is minimized). */
+function useIsTabHidden() {
+  const [isHidden, setIsHidden] = useState(false);
+  useEffect(() => {
+    const handleChange = () => setIsHidden(document.visibilityState === "hidden");
+    handleChange();
+    document.addEventListener("visibilitychange", handleChange);
+    return () => document.removeEventListener("visibilitychange", handleChange);
+  }, []);
+  return isHidden;
+}
+
+/**
+ * Seconds left before the close button shows; counts down from `closeAfter` once it's on screen, and only while the
+ * tab is in front, so the wait really happens (a teacher who switches tabs doesn't come back to a ✕ already there).
+ */
 function useCloseCountdown(closeAfter: number) {
   const [left, setLeft] = useState(closeAfter);
+  const isTabHidden = useIsTabHidden();
   useEffect(() => {
-    if (left <= 0) return;
+    if (left <= 0 || isTabHidden) return;
     const timer = setTimeout(() => setLeft((n) => n - 1), 1000);
     return () => clearTimeout(timer);
-  }, [left]);
+  }, [left, isTabHidden]);
   return left;
 }
 
@@ -65,10 +81,11 @@ function BarText({ html, className }: { html: string; className: string }) {
     };
   }, [html]);
 
-  // An in-app link moves inside the app (no full page load), unless it's opened in a new tab (Ctrl, middle click).
+  // An in-app link moves inside the app (no full page load), unless the browser should do its own thing with it: a
+  // new tab or window (Ctrl, Cmd, Shift, middle click) or a download (Alt).
   const handleClick = (e: MouseEvent) => {
     const href = (e.target as HTMLElement).closest("a")?.getAttribute("href");
-    if (!href || !isInternalLink(href) || e.ctrlKey || e.metaKey || e.shiftKey || e.button !== 0) return;
+    if (!href || !isInternalLink(href) || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey || e.button !== 0) return;
     e.preventDefault();
     router.push(href);
   };
@@ -95,27 +112,16 @@ const FACEBOOK_POST_HEIGHT = 500;
  */
 export function AnnouncementAttachment({ attachment, width }: { attachment: ModalAttachment; width: number }) {
   if (attachment.kind === "facebook") {
-    const src = facebookEmbedUrl(attachment, width);
     return (
       <div className="bg-bg-page">
         {attachment.video ? (
-          <div className="relative aspect-video w-full bg-text-primary">
-            <iframe
-              src={src}
-              title="Facebook video"
-              sandbox={FACEBOOK_SANDBOX}
-              allow={FACEBOOK_ALLOW}
-              allowFullScreen
-              referrerPolicy="strict-origin-when-cross-origin"
-              className="absolute inset-0 h-full w-full border-0"
-            />
-          </div>
+          <FacebookVideo attachment={attachment} />
         ) : (
           // Facebook's post box is at least 350 px wide: in a narrower modal (Small, a phone) it scrolls sideways
           // instead of being cut off.
           <div className="flex overflow-x-auto">
             <iframe
-              src={src}
+              src={facebookEmbedUrl(attachment, width)}
               title="Facebook post"
               sandbox={FACEBOOK_SANDBOX}
               allow={FACEBOOK_ALLOW}
@@ -168,6 +174,38 @@ export function AnnouncementAttachment({ attachment, width }: { attachment: Moda
         </span>
       </span>
     </a>
+  );
+}
+
+/**
+ * A Facebook video, 16:9 and as wide as its box. Facebook's player is asked for the box's real width (a modal is
+ * narrower than its size on a phone), so it isn't cut off; it loads once that width is measured.
+ */
+function FacebookVideo({ attachment }: { attachment: Extract<ModalAttachment, { kind: "facebook" }> }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [boxWidth, setBoxWidth] = useState(0);
+  useEffect(() => {
+    const box = ref.current!;
+    const measure = () => setBoxWidth(Math.round(box.clientWidth));
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(box);
+    return () => observer.disconnect();
+  }, []);
+  return (
+    <div ref={ref} className="relative aspect-video w-full bg-text-primary">
+      {boxWidth > 0 && (
+        <iframe
+          src={facebookEmbedUrl(attachment, boxWidth)}
+          title="Facebook video"
+          sandbox={FACEBOOK_SANDBOX}
+          allow={FACEBOOK_ALLOW}
+          allowFullScreen
+          referrerPolicy="strict-origin-when-cross-origin"
+          className="absolute inset-0 h-full w-full border-0"
+        />
+      )}
+    </div>
   );
 }
 
@@ -335,8 +373,9 @@ export function AnnouncementModal({
  * The corner box (spec docs/superpowers/specs/2026-11-02-announcement-corner-box-design.md): a card at the
  * bottom-right, the chosen width (Small / Medium; the screen's width less 16 px a side on a phone), that doesn't
  * block the page: no backdrop, no Escape. The same content and CloseCircle as the modal. With `autoClose` seconds, a
- * violet line at the bottom shrinks to nothing, then it closes itself like the close button; the line stops while
- * the mouse is over the box or the tab is in the background. It waits while a modal shows (pickForPage), and would
+ * violet line at the bottom shrinks to nothing, then it closes itself like the close button; the line starts only
+ * once the close button shows (so it never closes before a teacher could), and stops while the mouse is over the box
+ * or the tab is in the background. It waits while a modal shows (pickForPage), and would
  * sit under a modal's backdrop anyway (z-50 < the modal's z-[60]).
  */
 export function AnnouncementCornerBox({
@@ -363,13 +402,7 @@ export function AnnouncementCornerBox({
   const left = useCloseCountdown(closeAfter);
   const width = sizeWidth(size);
   // The line also stops while the tab is in the background, so it never runs out unseen (that counts as seen).
-  const [isTabHidden, setIsTabHidden] = useState(false);
-  useEffect(() => {
-    const handleChange = () => setIsTabHidden(document.visibilityState === "hidden");
-    handleChange();
-    document.addEventListener("visibilitychange", handleChange);
-    return () => document.removeEventListener("visibilitychange", handleChange);
-  }, []);
+  const isTabHidden = useIsTabHidden();
   return (
     <div
       role="region"
@@ -383,7 +416,7 @@ export function AnnouncementCornerBox({
       <div className="min-h-0 overflow-y-auto">
         <AnnouncementContent text={text} attachment={attachment} format={format} html={html} height={height} width={width} />
       </div>
-      {autoClose > 0 && (
+      {autoClose > 0 && left <= 0 && (
         <div className="h-[3px] shrink-0 bg-accent-soft">
           <div
             onAnimationEnd={onClose}

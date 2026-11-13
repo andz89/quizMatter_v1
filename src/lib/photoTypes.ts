@@ -29,10 +29,10 @@ export function readAnnouncementImageType(body: ArrayBuffer): PhotoType | null {
 }
 
 /**
- * An upload's body, or null when it's bigger than `max` bytes. It stops reading as soon as the body passes `max`,
+ * An upload's body (or a fetched answer's, e.g. a YouTube thumbnail), or null when it's bigger than `max` bytes. It stops reading as soon as the body passes `max`,
  * so a huge upload sent without a Content-Length (in pieces) is never held in memory.
  */
-export async function readUploadBody(request: Request, max: number): Promise<ArrayBuffer | null> {
+export async function readUploadBody(request: Request | Response, max: number): Promise<ArrayBuffer | null> {
   if (Number(request.headers.get("content-length")) > max) return null;
   if (!request.body) return new ArrayBuffer(0);
   const reader = request.body.getReader();

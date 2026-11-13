@@ -181,5 +181,8 @@ Tests that delete data (the announcements ones empty the announcements table) do
   reload and comes back after 2 minutes (Playwright's `clock` jumps the time), comes back as soon as the tab is in
   front after a laptop sleep (`clock.setSystemTime`: the time jumps but no timer fires), waits while presenting,
   shows at once in a new tab, and no closed record is saved.
+- `announcements-fixes.mjs`: a corner box's auto-close line starts only once its ✕ shows (it never closes before),
+  the modal's "close in…" countdown stops while the tab is in the background, a Facebook video on a phone asks
+  Facebook for its box's real width, and Alt+click on a top bar's in-app link is left to the browser.
 - `announcements-pages.mjs`: announcements put straight in the table, checked on the home, saved, liked, search,
   account and editor pages, at desktop and phone width.

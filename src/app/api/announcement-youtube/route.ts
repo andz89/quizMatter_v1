@@ -1,7 +1,8 @@
 import { z } from "zod";
-import { modalAttachmentSchema } from "@/lib/announcements";
+import { cutVideoTitle, modalAttachmentSchema } from "@/lib/announcements";
 import { MAX_STORED_PHOTO_BYTES, PHOTO_URL_PREFIX } from "@/lib/constants";
 import { photoFileName, readPhotoType, savePhotoFile } from "@/lib/photoFiles";
+import { readUploadBody } from "@/lib/photoTypes";
 import { createClient } from "@/lib/supabase/server";
 import { youTubeVideoId, youTubeWatchUrl } from "@/lib/youtube";
 
@@ -54,25 +55,26 @@ export async function POST(request: Request) {
     }
     if (!oembed.ok) return unreachable();
     const info = z.object({ title: z.string() }).safeParse(await oembed.json());
-    title = info.success ? info.data.title.trim().slice(0, 200) : "";
+    title = info.success ? cutVideoTitle(info.data.title) : "";
   } catch {
     return unreachable();
   }
 
   // The thumbnail, stored in R2 under its own fingerprint like every photo.
   for (const thumbnail of THUMBNAILS) {
-    let file: ArrayBuffer;
+    let file: ArrayBuffer | null;
     try {
       const response = await fetch(`https://i.ytimg.com/vi/${videoId}/${thumbnail.name}.jpg`, {
         signal: AbortSignal.timeout(WAIT_MS),
       });
       if (!response.ok) continue;
-      file = await response.arrayBuffer();
+      // Stops reading at the limit, like every photo route (never the whole file first).
+      file = await readUploadBody(response, MAX_STORED_PHOTO_BYTES);
     } catch {
       continue;
     }
-    const type = readPhotoType(file);
-    if (!type || file.byteLength > MAX_STORED_PHOTO_BYTES) continue;
+    const type = file && readPhotoType(file);
+    if (!file || !type) continue;
     const fileName = await photoFileName(file, type);
     // Checked with zod before it's stored (see CLAUDE.md, "Saving Data").
     const card = modalAttachmentSchema.safeParse({

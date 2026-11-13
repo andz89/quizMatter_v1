@@ -7,6 +7,7 @@ import {
   announcementSchema,
   announcementStatus,
   announcementType,
+  cutVideoTitle,
   isInternalLink,
   isSameVisit,
   manilaDay,
@@ -150,7 +151,7 @@ test("announcementSchema takes a picture, a YouTube card or a Facebook post, wit
       },
     },
     { modal_attachment: { kind: "facebook", href: "https://www.facebook.com/DepEd/posts/1", video: false } },
-    { modal_attachment: { kind: "facebook", href: "https://fb.watch/abcDEF123/", video: true } },
+    { modal_attachment: { kind: "facebook", href: "https://www.facebook.com/reel/123", video: true } },
   ]) {
     assert.equal(announcementSchema.safeParse({ ...valid, ...change }).success, true, JSON.stringify(change));
   }
@@ -179,6 +180,7 @@ test("announcementSchema refuses bad input", () => {
     { modal_attachment: { kind: "iframe", src: `${PHOTO}a.webp` } },
     { modal_attachment: { kind: "facebook", href: "https://evil.example/facebook.com/posts/1", video: false } },
     { modal_attachment: { kind: "facebook", href: "https://www.facebook.com/DepEd", video: false } },
+    { modal_attachment: { kind: "facebook", href: "https://fb.watch/abcDEF123/", video: true } },
     { modal_attachment: { kind: "facebook", href: "https://www.facebook.com/DepEd/posts/1" } },
     { modal_attachment: { kind: "facebook", href: "https://www.facebook.com/watch/?v=1", video: true, src: `${PHOTO}a.webp` } },
     { starts_at: "2026-11-02T00:00:00Z", ends_at: "2026-11-01T00:00:00Z" },
@@ -429,4 +431,18 @@ test("stillClosed: an 'every N minutes' part comes back once N minutes have pass
   assert.deepEqual([...stillClosed(list, closed, closedAt, T + 660_000)].sort(), ["a:bar", "b:modal"]);
   // Hours later (a tab in the background): back at once, and a "once" one stays closed.
   assert.deepEqual([...stillClosed(list, closed, closedAt, T + 10 * 3_600_000)].sort(), ["a:bar", "b:modal"]);
+});
+
+test("cutVideoTitle cuts a long YouTube title by whole characters, so the card still saves", () => {
+  const long = "a".repeat(199) + "😀😀";
+  const cut = cutVideoTitle(long);
+  assert.equal(cut, "a".repeat(199));
+  assert.ok(cut.length <= 200);
+  const card = { kind: "youtube", video_id: "dQw4w9WgXcQ", src: "https://images.quizmatter.com/uploads/a.jpg" };
+  assert.ok(myAnnouncementSchema.shape.modal_attachment.parse({ ...card, title: cut }));
+  // A family emoji (several characters joined) is kept whole or left out whole.
+  const family = "👨‍👩‍👧";
+  assert.equal(cutVideoTitle("b".repeat(195) + family), "b".repeat(195));
+  assert.equal(cutVideoTitle("  Short title  "), "Short title");
+  assert.equal(cutVideoTitle("x".repeat(200)), "x".repeat(200));
 });

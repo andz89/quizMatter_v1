@@ -92,7 +92,8 @@
   `myAnnouncementSchema` (a `my_announcements` row), `pickForPage` (what shows on a page: fits `pages`, skips closed
   parts and modals / corner boxes whose `modal_show_after` the tab's clock hasn't reached, newest first, 2 bars at
   most, corner boxes only while no modal shows), `isWaiting` (one still waits: the watch's clock runs), `reopenAt` / `stillClosed` (when an "Again every N minutes"
-  part closed in the tab comes back, and which closed parts aren't back yet), `announcementType` / `TYPE_WORDS`
+  part closed in the tab comes back, and which closed parts aren't back yet), `cutVideoTitle` (a YouTube card's title cut to its limit by whole characters, so an emoji is never split),
+  `announcementType` / `TYPE_WORDS`
   (modal / bar / corner box), `announcementStatus` (the admin list's Live / Scheduled / Ended / Draft), `MODAL_DISPLAYS` / `CORNER_SIZES`, `manilaDay`, `isSameVisit` and `MODAL_SIZES` (the modal's widths; a row without one counts as large), `modalAttachmentSchema` (the modal's one
   picture, YouTube card or Facebook post / video; `src` only our R2 address, a Facebook `href` only as `facebookLink`
   gives it) (a tab's saved list is reused only for the same account and Philippine day). It repeats `EDUCATION_LEVELS` because `userSettings.ts`
@@ -102,12 +103,15 @@
   `cleanAnnouncementDoc` drops links that aren't `http(s)://` or an app path (`isAllowedLink` in `announcements.ts`;
   `isInternalLink` = opens in the same tab; no `\` or spaces, which browsers turn into another site). It loads Tiptap,
   so teachers' pages import it only when a bar shows (`BarText`). Tests: `announcementText.test.ts`.
-- `facebook.ts`: Facebook links for the modal's attachment: `facebookLink` (posts, videos, reels, watch, share and
-  fb.watch links as https; null for pages, other sites or unsafe links), `findFacebookLink` (the first one in pasted
-  text), `facebookEmbedUrl` (Facebook's own player / post box) and `facebookPostWidth` (the post box is 350–500 px).
+- `facebook.ts`: Facebook links for the modal's attachment: `facebookLink` (posts, videos, reels and watch links as
+  https; null for pages, other sites, unsafe links and "Copy link"'s short `fb.watch` / `/share/` links, which
+  Facebook's player can't show), `isFacebookShortLink` + `FACEBOOK_SHORT_LINK_MESSAGE` (the admin's paste is told
+  why), `findFacebookLink` (the first one in pasted text), `facebookEmbedUrl` (Facebook's own player / post box) and `facebookPostWidth` (the post box is 350–500 px).
   Tests: `facebook.test.ts`.
-- `youtube.ts`: YouTube links for the modal's card: `youTubeVideoId` (watch, youtu.be, shorts and embed links; null
-  for anything else), `findYouTubeVideoId` (the first one in pasted text), `youTubeWatchUrl`. Tests:
+- `youtube.ts`: YouTube links for the modal's card: `youTubeVideoId` (watch, youtu.be, shorts, live and embed
+  links, and youtube-nocookie.com's embed; null for anything else), `findYouTubeVideoId` (the first one in pasted
+  text), `linkWords` (pasted text's words without brackets, `< >` or punctuation around them; Facebook's search uses
+  it too), `youTubeWatchUrl`. Tests:
   `youtube.test.ts`. `photos.tsx`'s `fetchYouTubeCard` asks `/api/announcement-youtube` for the card, and
   `uploadAnnouncementPhoto` returns a photo attachment.
 - `reviews.ts` (reviewer's saves) / `reviewStatus.ts` (reads), `submissions.ts` (Submit to QuizMatter reads).
@@ -196,7 +200,8 @@ data. Spec: `docs/superpowers/specs/2026-10-23-stable-presentation-data-design.m
   photo in something waiting for QuizMatter can't be removed; the editor's Photos panel shows only public shared
   photos, even to admins), `photoFiles.ts` (R2 files, server), `photoTypes.ts` (what a file really is, from its first bytes:
   `readPhotoType` = WebP or JPEG for every upload, `readAnnouncementImageType` also takes a GIF, `MAX_GIF_BYTES`
-  = 1 MB; also `readUploadBody`, an upload's body that stops reading at the size limit, and `isOurPhotoFile`, our
+  = 1 MB; also `readUploadBody`, an upload's (or a fetched answer's, like a YouTube
+  thumbnail) body that stops reading at the size limit, and `isOurPhotoFile`, our
   file addresses; tests `photoTypes.test.ts`), `photoTickets.ts` (Claude's photo uploads), `cleanupPhotos.ts`
   (weekly cleanup; `isPastKeepTime` = older than 7 days, also used by Photo cleanup's Delete; tests
   `cleanupPhotos.test.ts`). `PHOTO_TYPES` (the files a teacher can pick) is in

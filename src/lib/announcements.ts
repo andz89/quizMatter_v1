@@ -178,6 +178,19 @@ export const modalAttachmentSchema = z.discriminatedUnion("kind", [
 ]);
 export type ModalAttachment = z.infer<typeof modalAttachmentSchema>;
 
+/**
+ * A YouTube title as the card keeps it: trimmed, and cut to `L.videoTitle` by whole characters (an emoji, even one
+ * joined from several, is kept whole or left out whole), so a long title never makes the card fail its check.
+ */
+export function cutVideoTitle(title: string): string {
+  let cut = "";
+  for (const { segment } of new Intl.Segmenter().segment(title.trim())) {
+    if (cut.length + segment.length > L.videoTitle) break;
+    cut += segment;
+  }
+  return cut.trimEnd();
+}
+
 // Admin → Announcements → Photos (20261229000000_announcement_photos.sql). Same limit as add_announcement_photo.
 export const ANNOUNCEMENT_PHOTOS_MAX = 500;
 

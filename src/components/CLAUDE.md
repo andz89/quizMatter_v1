@@ -56,9 +56,11 @@ notes.
   (`MODAL_SIZES`), no padding (`noPadding`); the plain text with padding (`LinkifiedText`), then
   `AnnouncementAttachment` edge to edge (our photo, or a YouTube card: our copy of the thumbnail in a 16:9 box with a
   play icon, then the title; opens YouTube in a new tab; or a Facebook post / video in Facebook's own sandboxed frame:
-  a video 16:9 edge to edge, a post 350–500 px wide and 500 px tall, centered, scrolling sideways in a narrower modal; both with an "Open on
+  a video 16:9 edge to edge (`FacebookVideo` measures its box and asks Facebook for that real width, so a phone's
+  narrower modal doesn't cut it off), a post 350–500 px wide and 500 px tall, centered, scrolling sideways in a narrower modal; both with an "Open on
   Facebook" link under the frame, for networks that block Facebook). No footer: a small ring, filled white, in the top-right corner
-  (Modal's `corner`, outside the scrolling part, over the content) shows the seconds left until its close delay ends,
+  (Modal's `corner`, outside the scrolling part, over the content) shows the seconds left until its close delay ends
+  (`useCloseCountdown`; it counts only while the tab is in front, `useIsTabHidden`),
   then becomes the close button (`XCircleIcon`); Escape and a click outside close it too. An HTML modal (`format` "html") shows instead the admin's
   HTML in the sealed box: an `<iframe sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox">` whose
   `srcDoc` is `sandboxedHtml(html)` (`src/lib/announcements.ts`: `<base target="_blank">` and our helper script; no
@@ -68,12 +70,13 @@ notes.
   the box QuizMatter's login) or `allow-top-navigation`. An html bar (`format` "html") shows `SealedBox` at its
   `height` instead of the megaphone and text, with the countdown and ✕ outside it. `AnnouncementBar`: a violet strip with a megaphone; ✕
   after the countdown; `isFloating` = a card, which the parent places at the bottom. The bar's text goes through
-  `toSafeAnnouncementHtml` in the browser; links into the app move with `router.push`, others open in a new tab.
+  `toSafeAnnouncementHtml` in the browser; links into the app move with `router.push` (not with Ctrl, Cmd, Shift, Alt or a middle click: the
+  browser's own), others open in a new tab.
   `AnnouncementCornerBox`: the corner box, a fixed card at the bottom-right (`z-50`, under an open modal's backdrop),
   Small / Medium wide (the screen less 16 px a side on a phone, at most the screen's height, its content scrolling),
   no backdrop and no Escape, so the page stays usable. The modal and the box share `CloseCircle` (the countdown ring,
   then the ✕) and `AnnouncementContent` (the post or the sealed box). With `autoClose` seconds, a violet line at the
-  bottom runs `animate-shrink` (`globals.css`; its length set inline), pauses while the mouse is over the box (named
+  bottom runs `animate-shrink`, only once the ✕ shows, (`globals.css`; its length set inline), pauses while the mouse is over the box (named
   group `group/corner`, so a YouTube card's own hover isn't touched) or the tab is in the background, and its
   end closes the box like the close button.
 - `Turnstile.tsx`: Cloudflare's "are you human" check on sign up (with its own retries).

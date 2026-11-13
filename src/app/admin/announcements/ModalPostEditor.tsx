@@ -9,7 +9,7 @@ import { Spinner } from "@/components/Spinner";
 import { ANNOUNCEMENT_LIMITS, type AnnouncementPhoto, type ModalAttachment } from "@/lib/announcements";
 import { PHOTO_TYPES } from "@/lib/constants";
 import { fetchYouTubeCard, uploadAnnouncementPhoto } from "@/lib/photos";
-import { findFacebookLink } from "@/lib/facebook";
+import { FACEBOOK_SHORT_LINK_MESSAGE, findFacebookLink, isFacebookShortLink } from "@/lib/facebook";
 import { findYouTubeVideoId, youTubeWatchUrl } from "@/lib/youtube";
 import { listAnnouncementPhotos } from "./actions";
 import { AnnouncementPhotoGrid } from "./AnnouncementPhotoGrid";
@@ -63,6 +63,7 @@ export function ModalPostEditor({
     if (videoId) return void attach("video", () => fetchYouTubeCard(youTubeWatchUrl(videoId)));
     const facebook = findFacebookLink(pasted);
     if (facebook) onAttachment({ kind: "facebook", ...facebook });
+    else if (isFacebookShortLink(pasted)) toast.error(FACEBOOK_SHORT_LINK_MESSAGE);
   };
 
   return (

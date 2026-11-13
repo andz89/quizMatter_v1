@@ -5,10 +5,12 @@
 export const YOUTUBE_ID = /^[A-Za-z0-9_-]{11}$/;
 
 const YOUTUBE_HOSTS = new Set(["youtube.com", "www.youtube.com", "m.youtube.com", "music.youtube.com"]);
+// YouTube's "privacy-enhanced" player: only its /embed/ links.
+const NOCOOKIE_HOSTS = new Set(["youtube-nocookie.com", "www.youtube-nocookie.com"]);
 
 /**
  * The video id of a YouTube link, or null for anything else: youtube.com/watch?v=…, youtu.be/…,
- * youtube.com/shorts/… and youtube.com/embed/….
+ * youtube.com/shorts/…, youtube.com/live/…, youtube.com/embed/… and youtube-nocookie.com/embed/….
  */
 export function youTubeVideoId(link: string): string | null {
   let url: URL;
@@ -20,18 +22,28 @@ export function youTubeVideoId(link: string): string | null {
   if (url.protocol !== "https:" && url.protocol !== "http:") return null;
   let id: string | null = null;
   if (url.hostname === "youtu.be") {
-    id = url.pathname.slice(1);
+    id = url.pathname.match(/^\/([^/]+)\/?$/)?.[1] ?? null;
   } else if (YOUTUBE_HOSTS.has(url.hostname)) {
     if (url.pathname === "/watch") id = url.searchParams.get("v");
-    else id = url.pathname.match(/^\/(?:shorts|embed)\/([^/]+)\/?$/)?.[1] ?? null;
+    else id = url.pathname.match(/^\/(?:shorts|embed|live)\/([^/]+)\/?$/)?.[1] ?? null;
+  } else if (NOCOOKIE_HOSTS.has(url.hostname)) {
+    id = url.pathname.match(/^\/embed\/([^/]+)\/?$/)?.[1] ?? null;
   }
   return id && YOUTUBE_ID.test(id) ? id : null;
 }
 
+/**
+ * The words of pasted text that may be links, without the brackets and punctuation around them:
+ * "(https://youtu.be/…)." and "<https://…>" give the bare link. Used for Facebook links too.
+ */
+export function linkWords(text: string): string[] {
+  return text.split(/\s+/).map((word) => word.replace(/^[(<[]+/, "").replace(/[.,;:!?)\]>]+$/, ""));
+}
+
 /** The first YouTube video linked in some text (e.g. what was pasted), or null. */
 export function findYouTubeVideoId(text: string): string | null {
-  for (const word of text.split(/\s+/)) {
-    const id = youTubeVideoId(word.replace(/[.,;:!?)\]]+$/, ""));
+  for (const word of linkWords(text)) {
+    const id = youTubeVideoId(word);
     if (id) return id;
   }
   return null;
