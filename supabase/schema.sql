@@ -3797,25 +3797,53 @@ CREATE OR REPLACE FUNCTION "public"."set_maintenance"("turn_on" boolean, "note" 
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO ''
     AS $$
+declare
+  was_on boolean;
+  hook text;
 begin
   if not public.is_super_admin() then
     raise exception 'Only the super admin can do this.' using errcode = '42501';
   end if;
+  if turn_on is null then
+    raise exception 'Say whether to turn maintenance on or off.' using errcode = '22023';
+  end if;
+
+  -- The pre-request function PostgREST runs now (null = none), set by "alter role authenticator set …".
+  select substr(c, length('pgrst.db_pre_request=') + 1) into hook
+  from pg_catalog.pg_db_role_setting s join pg_catalog.pg_roles r on r.oid = s.setrole, unnest(s.setconfig) c
+  where r.rolname = 'authenticator' and s.setdatabase = 0 and c like 'pgrst.db_pre_request=%';
+  if hook = 'public.check_maintenance' then
+    hook := null;
+  end if;
+
+  select m.is_on into was_on from public.maintenance m where m.id for update;
 
   if turn_on then
-    update public.maintenance
-    set is_on = true, message = btrim(coalesce(note, '')), started_at = now(), started_by = auth.uid(), planned_at = null
-    where id;
+    if hook is not null then
+      raise exception 'Another pre-request hook (%) is set, so the maintenance guard can''t be added. Put its check inside check_maintenance first.', hook
+        using errcode = '22023';
+    end if;
     alter role authenticator set pgrst.db_pre_request = 'public.check_maintenance';
+    if not was_on then
+      update public.maintenance
+      set is_on = true, message = btrim(coalesce(note, '')), started_at = now(), started_by = auth.uid(), planned_at = null
+      where id;
+    end if;
   else
-    update public.maintenance set is_on = false, started_at = null, started_by = null where id;
-    alter role authenticator reset pgrst.db_pre_request;
+    if hook is null then
+      alter role authenticator reset pgrst.db_pre_request;
+    end if;
+    if was_on then
+      update public.maintenance set is_on = false, started_at = null, started_by = null where id;
+    end if;
   end if;
   notify pgrst, 'reload config';
 
-  perform public.log_admin_action(
-    case when turn_on then 'maintenance_on' else 'maintenance_off' end, 'site', null, 'QuizMatter', null
-  );
+  if turn_on is distinct from was_on then
+    perform public.log_admin_action(
+      case when turn_on then 'maintenance_on' else 'maintenance_off' end, 'site', null, 'QuizMatter', null
+    );
+  end if;
 end;
 $$;
 

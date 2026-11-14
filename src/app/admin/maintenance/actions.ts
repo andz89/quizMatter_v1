@@ -18,6 +18,8 @@ export async function setMaintenance(turnOn: boolean, note: string): Promise<str
   if (!(await getAccount()).isSuperAdmin) return "Only the super admin can do this.";
 
   const { error } = await (await createClient()).rpc("set_maintenance", parsed.data);
+  // 22023: the database says why (another pre-request hook is set; maintenance_fixes migration).
+  if (error?.code === "22023") return error.message;
   if (error) return turnOn ? "Couldn't turn maintenance on. Please try again." : "Couldn't turn maintenance off. Please try again.";
   forgetMaintenanceStatus();
   refresh();
