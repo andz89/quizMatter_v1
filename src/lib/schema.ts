@@ -795,11 +795,20 @@ export const presentationSchema = z.preprocess(upgradePresentation, z.object({
 
 export const PUBLISH_NEEDS_CONTENT = "Add a title and some content before publishing.";
 
-/** True when the slide has something on it: question or answer text, an element, or a video / slides link. */
+/** True when a text box's text, without the tags, isn't blank (e.g. "<p>&nbsp;</p>" is blank). */
+function hasText(html: string): boolean {
+  return html.replace(/<[^>]*>/g, "").replaceAll("&nbsp;", " ").trim() !== "";
+}
+
+/**
+ * True when viewers would see something on the slide: it isn't hidden, and it has question or answer text, an
+ * element (a text box only with text in it), or a video / slides link.
+ */
 function hasSlideContent(slide: Slide): boolean {
+  if (slide.hidden) return false;
   return (
     slide.question.trim() !== "" ||
-    slide.elements.length > 0 ||
+    slide.elements.some((element) => element.assetId !== "text-box" || hasText(element.text?.html ?? "")) ||
     Boolean(slide.embedUrl) ||
     Boolean(slide.correctAnswer?.trim()) ||
     slide.options.some((option) => option.text.trim() !== "")

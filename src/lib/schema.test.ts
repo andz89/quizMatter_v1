@@ -11,6 +11,7 @@ import {
   parseSavedPresentation,
   parseSlide,
   presentationSchema,
+  publishableSchema,
   slideProblems,
   slideSchema,
   svgElementSchema,
@@ -337,4 +338,22 @@ test("parseSavedPresentation still upgrades an old element before checking it", 
 
 test("a save stays strict: presentationSchema refuses a broken element instead of dropping it", () => {
   assert.equal(presentationSchema.safeParse(savedPresentation([savedElement("good"), savedElement("bad", { x: "400" })])).success, false);
+});
+
+// Publish needs content viewers can see (same rule as has_publishable_content in the sharing_fixes migration).
+const textBox = (html: string) => ({
+  id: "t1", assetId: "text-box", x: 0, y: 0, width: 100, height: 40, color: DEFAULT_TEXT_COLOR, containerId: null, text: { html },
+});
+const publishable = (slide: object) => publishableSchema.safeParse({ title: "Lesson", slides: [{ ...createBlankSlide("blank"), ...slide }] }).success;
+
+test("publishableSchema: a hidden slide doesn't count as content", () => {
+  assert.equal(publishable({ question: "What is 1 + 1?" }), true);
+  assert.equal(publishable({ question: "What is 1 + 1?", hidden: true }), false);
+});
+
+test("publishableSchema: an empty text box doesn't count, one with text does", () => {
+  assert.equal(publishable({ elements: [textBox("<p> &nbsp;</p><p></p>")] }), false);
+  assert.equal(publishable({ elements: [textBox("")] }), false);
+  assert.equal(publishable({ elements: [textBox("<p>Hi</p>")] }), true);
+  assert.equal(publishable({ elements: [{ ...textBox(""), assetId: "circle", text: undefined }] }), true);
 });

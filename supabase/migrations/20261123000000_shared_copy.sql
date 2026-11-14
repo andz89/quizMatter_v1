@@ -1,3 +1,7 @@
+-- WARNING (added 2026-11-15): never paste or run this file again. It is applied already, and its first step deletes
+-- every teacher's published presentation (`delete … where not from_admin and is_published`), which today means
+-- every shared copy. Its functions were replaced by later files: copy the newest one from supabase/schema.sql.
+--
 -- Shared copy: a teacher's Publish makes a copy that other teachers see (see
 -- docs/superpowers/specs/2026-10-16-shared-copy-design.md).
 --

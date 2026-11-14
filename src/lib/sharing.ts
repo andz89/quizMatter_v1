@@ -9,12 +9,18 @@ export type SharedCopy = { id: string; sharedAt: number; isHidden: boolean };
 const idSchema = z.string().min(1).max(100);
 const sharedCopySchema = z.object({ id: z.string(), sharedAt: z.number() });
 
+// Postgres's own "not allowed" texts (a missing grant or a table rule), which aren't written for teachers.
+const POSTGRES_REFUSAL = /permission denied|row-level security/i;
+
 // A known refusal becomes its message. "Not allowed" (42501) from these functions already says why in plain words
-// (e.g. "QuizMatter hid the shared copy…"). Any other error keeps its code and details (e.g. a QMBLK pause).
+// (e.g. "QuizMatter hid the shared copy…"), unless Postgres itself refused. Any other error keeps its code and
+// details (e.g. a QMBLK pause).
 function refused(error: { code: string; message: string; details: string }): Error {
   const refusal = refusalFromCode(error.code);
   if (refusal) return refusal;
-  if (error.code === "42501") return new SaveRefusedError(error.message);
+  if (error.code === "42501") {
+    return new SaveRefusedError(POSTGRES_REFUSAL.test(error.message) ? "You can't change the sharing of this presentation." : error.message);
+  }
   return Object.assign(new Error(error.message), error);
 }
 

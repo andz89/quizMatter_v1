@@ -189,11 +189,11 @@ function Row({
       const removed = isClaudeDraft
         ? await removePresentations([], [row.id])
         : await removePresentations([row.id], []);
-      if (removed)
+      if (removed.ok)
         toast.success(
           isClaudeDraft ? "Draft discarded." : "Presentation deleted.",
         );
-      else toast.error("Couldn't delete it. Please try again.");
+      else toast.error(removed.message ?? "Couldn't delete it. Please try again.");
     });
   };
 

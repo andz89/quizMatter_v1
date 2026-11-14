@@ -1034,12 +1034,17 @@ CREATE OR REPLACE FUNCTION "public"."check_hidden_copy_delete"() RETURNS "trigge
     SET "search_path" TO ''
     AS $$
 begin
-  if auth.uid() is null or pg_trigger_depth() > 1 then
+  if auth.uid() is null or pg_trigger_depth() > 1 or public.is_admin() then
     return old;
   end if;
-  if old.shared_from is not null and old.hidden_at is not null and not public.is_admin()
+  if old.shared_from is not null and old.hidden_at is not null
     and exists (select 1 from public.presentations p where p.id = old.shared_from) then
     raise exception 'QuizMatter hid the shared copy, so it can''t be made private.' using errcode = '42501';
+  end if;
+  -- Deleting the original would delete its hidden shared copy (on delete cascade).
+  if old.shared_from is null
+    and exists (select 1 from public.presentations p where p.shared_from = old.id and p.hidden_at is not null) then
+    raise exception 'QuizMatter hid this presentation''s shared copy, so it can''t be deleted.' using errcode = 'QMHID';
   end if;
   return old;
 end;
@@ -2069,18 +2074,27 @@ CREATE OR REPLACE FUNCTION "public"."has_publishable_content"("target_id" "text"
     LANGUAGE "sql" STABLE
     SET "search_path" TO ''
     AS $$
+  -- A slide viewers can see (not hidden) with something on it. A text box counts only when its text, without the
+  -- tags, isn't blank; every other element (shape, picture, table, diagram, …) counts.
   select exists (
     select 1 from public.presentations p
     where p.id = target_id and btrim(p.title) <> ''
   ) and exists (
     select 1 from public.slides s
-    where s.presentation_id = target_id and (
-      btrim(coalesce(s.data ->> 'question', '')) <> ''
-      or jsonb_array_length(coalesce(s.data -> 'elements', '[]')) > 0
-      or coalesce(s.data ->> 'embedUrl', '') <> ''
-      or btrim(coalesce(s.data ->> 'correctAnswer', '')) <> ''
-      or exists (select 1 from jsonb_array_elements(coalesce(s.data -> 'options', '[]')) o where btrim(coalesce(o ->> 'text', '')) <> '')
-    )
+    where s.presentation_id = target_id
+      and coalesce(s.data ->> 'hidden', 'false') <> 'true'
+      and (
+        btrim(coalesce(s.data ->> 'question', '')) <> ''
+        or exists (
+          select 1 from jsonb_array_elements(coalesce(s.data -> 'elements', '[]')) e
+          where e ->> 'assetId' is distinct from 'text-box'
+            or btrim(replace(regexp_replace(coalesce(e #>> '{text,html}', ''), '<[^>]*>', '', 'g'), '&nbsp;', ' '),
+              E' \t\r\n ') <> ''
+        )
+        or coalesce(s.data ->> 'embedUrl', '') <> ''
+        or btrim(coalesce(s.data ->> 'correctAnswer', '')) <> ''
+        or exists (select 1 from jsonb_array_elements(coalesce(s.data -> 'options', '[]')) o where btrim(coalesce(o ->> 'text', '')) <> '')
+      )
   );
 $$;
 
@@ -3992,12 +4006,22 @@ begin
   if public.is_editor() then
     raise exception 'Editors send presentations to QuizMatter instead of publishing them.' using errcode = '42501';
   end if;
-  if original.hidden_at is not null then
+  if original.hidden_at is not null
+    or exists (select 1 from public.presentations p where p.shared_from = target_id and p.hidden_at is not null) then
     raise exception 'QuizMatter hid this presentation, so it can''t be shared.' using errcode = '42501';
   end if;
+  -- Every presentation it was copied from, step by step (a copy of a copy …), and their shared copies.
   if exists (
-    select 1 from public.presentations p
-    where (p.id = original.copied_from or p.shared_from = original.copied_from) and p.hidden_at is not null
+    with recursive sources (id, steps) as (
+      select original.copied_from, 1 where original.copied_from is not null
+      union all
+      select p.copied_from, s.steps + 1
+      from sources s join public.presentations p on p.id = s.id
+      where p.copied_from is not null and s.steps < 100
+    )
+    select 1 from sources s
+    join public.presentations p on p.id = s.id or p.shared_from = s.id
+    where p.hidden_at is not null
   ) then
     raise exception 'QuizMatter hid the presentation this was copied from, so it can''t be shared.' using errcode = '42501';
   end if;
@@ -4016,6 +4040,7 @@ begin
   end if;
 
   -- Lets the shared copy triggers through for these changes only (until this transaction ends).
+  -- A new presentations column goes in both the insert and the update (supabase/tests/sharing_fixes.sql checks).
   perform set_config('quizmatter.sharing', 'yes', true);
   if copy_id is null then
     copy_id := gen_random_uuid()::text;
@@ -4031,7 +4056,7 @@ begin
       target_id, now(), now(), now(), original.data_version
     );
   else
-    -- Same id, created_at and hidden_at, so links, bookmarks, reports and an admin's hiding stay.
+    -- Same id and created_at, so links, bookmarks and reports stay. (A hidden copy is refused above.)
     update public.presentations p set
       title = original.title,
       description = original.description,

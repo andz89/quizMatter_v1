@@ -285,18 +285,21 @@ export function ShareButton() {
               {sharedCopy.isHidden && (
                 <p className="flex items-center gap-2 text-[13px] text-danger-strong">
                   <EyeOffIcon size={14} className="shrink-0" />
-                  QuizMatter hid the shared copy. Other teachers can’t see it.
+                  QuizMatter hid the shared copy. Other teachers can’t see it, and it can’t be updated.
                 </p>
               )}
-              <p className="flex items-center gap-2 text-[13px] text-text-secondary">
-                {isBehind ? (
-                  <CircleAlertIcon size={14} className="shrink-0 text-highlight-strong" />
-                ) : (
-                  <CheckIcon size={14} className="shrink-0 text-success-strong" />
-                )}
-                {isBehind ? "You have changes the shared copy doesn’t have." : "The shared copy is up to date."}
-              </p>
-              {isBehind && (
+              {/* A hidden copy can't be updated (share_presentation refuses), so its status and button don't show. */}
+              {!sharedCopy.isHidden && (
+                <p className="flex items-center gap-2 text-[13px] text-text-secondary">
+                  {isBehind ? (
+                    <CircleAlertIcon size={14} className="shrink-0 text-highlight-strong" />
+                  ) : (
+                    <CheckIcon size={14} className="shrink-0 text-success-strong" />
+                  )}
+                  {isBehind ? "You have changes the shared copy doesn’t have." : "The shared copy is up to date."}
+                </p>
+              )}
+              {isBehind && !sharedCopy.isHidden && (
                 <button
                   type="button"
                   onClick={update}

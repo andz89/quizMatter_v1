@@ -72,16 +72,18 @@ teachers see. The teacher keeps editing the original in private; "Update shared 
 (`src/components/editor/ShareButton.tsx`) copies it again (same link, bookmarks and reports). Private, or deleting
 the original, removes the copy. Editors can't publish (they Submit to QuizMatter; the edit page passes `canPublish`). Move to QuizMatter removes the
 copy in the database, in the same step (`20261125000000_shared_copy_fixes.sql`). An admin's hide sticks: a hidden
-copy can't be made private, and Admin → Reports
+copy can't be made private or updated, its original can't be deleted by the teacher (`QMHID`; the delete buttons
+show `REFUSALS.QMHID`, from `removePresentations`), and Admin → Reports
 "Delete for good" on a copy deletes its original too (`20261124000000_shared_copy_moderation.sql`,
 `admin/reports/actions.ts`). A copy of a hidden presentation can't be published either: `share_presentation`
-refuses when its `copied_from` source, or that source's shared copy, is hidden
-(`20261210000100_plain_admin_limits.sql`). Only `share_presentation` / `unshare_presentation` change a copy
+refuses when any presentation up its `copied_from` chain (a copy of a copy …), or one's shared copy, is hidden
+(`20261231001500_sharing_fixes.sql`). Still possible on purpose: deleting a middle copy first, or retyping it
+(admins handle that with reports and bans). Only `share_presentation` / `unshare_presentation` change a copy
 (`20261123000000_shared_copy.sql`; app side: `src/lib/sharing.ts`, store `setPublished` / `updateSharedCopy`).
 My own lists leave copies out (`shared_from is null`) and show Published / Hidden from the copy (`mySharedCopies` in
 `(home)/cards.ts`); opening my copy's editor goes to the original. Limits (`20261103000000_share_limits.sql`,
-`20261105000000_publish_daily_reset.sql`): the `share` and `publish` click limits, and it needs a title and one slide
-with something on it (`QMPUB`, same rule as `publishableSchema`). QuizMatter (admin) presentations keep their
+`20261105000000_publish_daily_reset.sql`): the `share` and `publish` click limits, and it needs a title and one shown (not hidden)
+slide with something on it, where an empty text box doesn't count (`QMPUB`, same rule as `publishableSchema`). QuizMatter (admin) presentations keep their
 Draft / Shared switch on the presentation itself, and aren't counted.
 
 ## Account, profiles, sign up, login

@@ -5,6 +5,7 @@ import { z } from "zod";
 import { getAccount } from "@/lib/account";
 import { deleteDrafts, getDraft, type Draft } from "@/lib/drafts";
 import { fetchPresentation } from "@/lib/fetchPresentation";
+import { REFUSALS } from "@/lib/presentations";
 import { PUBLISH_NEEDS_CONTENT, type Presentation } from "@/lib/schema";
 import { createClient } from "@/lib/supabase/server";
 
@@ -14,26 +15,31 @@ const idsSchema = z.array(idSchema).max(200);
 /**
  * Deletes my saved presentations (their slides go with them — `on delete cascade`) and discards Claude's
  * drafts (only my own), then reloads the list. The "Own presentations" policy only lets the owner delete, so other
- * teachers' presentations can't be removed. Returns false if anything failed, so the page can tell the user.
+ * teachers' presentations can't be removed. `ok: false` if anything failed, so the page can tell the user; with a
+ * `message` when the database said why (QMHID: QuizMatter hid its shared copy, so nothing was deleted).
  */
-export async function removePresentations(presentationIds: string[], draftIds: string[]): Promise<boolean> {
+export async function removePresentations(
+  presentationIds: string[],
+  draftIds: string[],
+): Promise<{ ok: true } | { ok: false; message?: string }> {
   const presentations = idsSchema.safeParse(presentationIds);
   const drafts = idsSchema.safeParse(draftIds);
-  if (!presentations.success || !drafts.success) return false;
+  if (!presentations.success || !drafts.success) return { ok: false };
 
   try {
     if (presentations.data.length > 0) {
       const supabase = await createClient();
       const { error } = await supabase.from("presentations").delete().in("id", presentations.data);
+      if (error?.code === "QMHID") return { ok: false, message: REFUSALS.QMHID };
       if (error) throw error;
     }
     await deleteDrafts(drafts.data, (await getAccount()).id);
   } catch {
-    return false;
+    return { ok: false };
   } finally {
     refresh();
   }
-  return true;
+  return { ok: true };
 }
 
 /**

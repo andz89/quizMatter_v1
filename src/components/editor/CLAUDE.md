@@ -18,8 +18,9 @@ editor / view / review, and renders `Editor.tsx`, which calls `store.loadPresent
   `MathToolControls` skips a change that lands on what a tool without saved settings already shows.
 - `ShareButton.tsx` (the Share card): a teacher's Published = a shared copy (store `sharedCopy`). It says "up to
   date" or "You have changes the shared copy doesn't have" (unsaved edits, or saved after `sharedCopy.sharedAt`),
-  with "Update shared presentation". When QuizMatter hid the copy (`sharedCopy.isHidden`) it says so, and Private and
-  Copy link are off. Refusals show the database's own reason. Editors get Published greyed out (store `canPublish`) and a "Submit to QuizMatter" / "Submit again" button
+  with "Update shared presentation". When QuizMatter hid the copy (`sharedCopy.isHidden`) it says so, Private and
+  Copy link are off, and "Update shared presentation" and the up-to-date line don't show (`share_presentation`
+  refuses a hidden copy). Refusals show the database's own reason. Editors get Published greyed out (store `canPublish`) and a "Submit to QuizMatter" / "Submit again" button
   instead (store `submission`; "approved" says it's in QuizMatter). It saves unsaved edits, calls
   `submitToQuizMatter`, then opens the locked view page. QuizMatter presentations
   keep the Draft / Shared switch.
