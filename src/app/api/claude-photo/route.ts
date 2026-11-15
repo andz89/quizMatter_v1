@@ -5,7 +5,7 @@ import { photoFileName, readPhotoType, savePhotoFile } from "@/lib/photoFiles";
 import { readUploadBody } from "@/lib/photoTypes";
 import { deletePhotoTicket, getPhotoTicket } from "@/lib/photoTickets";
 import { getMaintenanceStatus, MAINTENANCE_WORDS } from "@/lib/maintenance";
-import { findOrCreateCategory } from "@/lib/photoCategories";
+import { findOrCreateCategory, removeUnusedNewCategory } from "@/lib/photoCategories";
 import { claudePhotoSchema, sharedPhotoBytesSchema, sharedPhotoSchema } from "@/lib/schema";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -108,16 +108,23 @@ export async function POST(request: Request) {
 
   let saved = false;
   if (photo.success) {
-    await savePhotoFile(fileName, body, type);
-    const row = { ...photo.data, ...info, bytes: sharedPhotoBytesSchema.parse(body.byteLength), uploaded_by: ownerId.data };
-    const { error } = existing
-      ? await supabase.from("shared_photos").update({ ...row, is_public: true }).eq("src", src)
-      : await supabase.from("shared_photos").insert(row);
-    saved = !error;
+    try {
+      // Rare (an R2 hiccup): then nothing is saved, and Claude is told to send it again with a new link.
+      await savePhotoFile(fileName, body, type);
+      const row = { ...photo.data, ...info, bytes: sharedPhotoBytesSchema.parse(body.byteLength) };
+      // An editor's waiting photo keeps its uploaded_by (the editor), like upload-image's upsert, so Admin → Editors
+      // still lists it as theirs. A new one is the ticket owner's.
+      const { error } = existing
+        ? await supabase.from("shared_photos").update({ ...row, is_public: true }).eq("src", src)
+        : await supabase.from("shared_photos").insert({ ...row, uploaded_by: ownerId.data });
+      saved = !error;
+    } catch {
+      saved = false;
+    }
   }
   if (!saved) {
-    // A category made just for this photo shouldn't stay empty. (The database won't delete one that has photos.)
-    if (found.isNew) await supabase.from("photo_categories").delete().eq("id", found.id);
+    // A category made just for this photo shouldn't stay empty.
+    await removeUnusedNewCategory(supabase, found);
     return answer(500, failed);
   }
 

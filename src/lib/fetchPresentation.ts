@@ -84,17 +84,17 @@ export async function fetchPresentation(id: string): Promise<{
 }
 
 /**
- * The presentation, its owner's id and its linked author's id, read with the given client (so the database decides
- * what that user may read), or null if there's none they can read. Also used by the MCP server, which logs in with
+ * The presentation, its owner's id, its linked author's id and whether an admin hid it, read with the given client
+ * (so the database decides what that user may read), or null if there's none they can read. Also used by the MCP server, which logs in with
  * Claude's token.
  */
 export async function loadPresentation(
   supabase: SupabaseClient<Database>,
   id: string,
-): Promise<{ presentation: Presentation; ownerId: string; sharedFrom: string | null; authorId: string | null } | null> {
+): Promise<{ presentation: Presentation; ownerId: string; sharedFrom: string | null; authorId: string | null; isHidden: boolean } | null> {
   const { data, error } = await supabase
     .from("presentations")
-    .select(PRESENTATION_COLUMNS)
+    .select(`${PRESENTATION_COLUMNS}, hidden_at`)
     .eq("id", id)
     .order("position", { referencedTable: "slides" })
     .maybeSingle();
@@ -104,7 +104,7 @@ export async function loadPresentation(
   // Checked against the schema (which upgrades older shapes first), so a slide saved in a broken shape fails here
   // instead of inside the editor (one broken element is only left out). Admin → Data check finds these before a deploy.
   const presentation = parseSavedPresentation(rowToPresentationInput(data));
-  return { presentation, ownerId: data.owner_id, sharedFrom: data.shared_from, authorId: data.author_id };
+  return { presentation, ownerId: data.owner_id, sharedFrom: data.shared_from, authorId: data.author_id, isHidden: data.hidden_at !== null };
 }
 
 /** The presentation columns (and its slides) read to open one. Order the slides by position. */

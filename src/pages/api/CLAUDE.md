@@ -11,29 +11,39 @@
    works only when it's on Claude's own sites, `claude.ai` or `claude.com` over https (`ALLOWED_REDIRECT_HOSTS` in
    `src/app/oauth/consent/allowedApps.ts`; `answerConsent` checks again). An app picks its own name, so the name
    proves nothing. `src/proxy.ts` lets `/api/mcp` through without cookies. `checkLogin` reads the token and asks the
-   database `is_admin` / `is_banned`; if it can't tell whether the user is banned, it refuses. **For now only admins
+   database `is_admin` / `is_banned` with `userClient(token)` (acts as that user); if it can't tell whether the user
+   is banned, it refuses. **For now only admins
    can use it.** During maintenance (root `CLAUDE.md`, "Maintenance") it answers 503 to everyone but the super
-   admin, checked before `checkLogin` (the database guard refuses others' login checks, which would look like
-   "log in again" to Claude).
+   admin, checked before `checkLogin` with the same client (the database guard refuses others' login checks, which
+   would look like "log in again" to Claude). On Allow and on Deny, `answerConsent` sends the browser only to
+   Claude's sites (else `NOT_CLAUDE_MESSAGE`), so the page is never an open redirect.
 2. **The tools:**
    - `get_presentation_format`: the recipe format (`getClaudeFormat()` in `src/lib/importPresentation.ts`).
    - `read_presentation`: reads a saved presentation as a reference: only the admin's own, other teachers' published
-     copies (`sharedFrom`) and QuizMatter ones (`fromAdmin`). An admin may open any presentation, but anything else
+     copies (`sharedFrom`) and QuizMatter ones (`fromAdmin`), never one an admin hid (`isHidden` from
+     `loadPresentation`). An admin may open any presentation, but anything else
      gets the "someone else's private one" answer, as the Privacy Policy promises.
    - `find_photos`: searches the shared photo library.
    - `prepare_photo_upload`: makes one-time upload links (`src/lib/photoTickets.ts`); Claude then sends each file to
-     `/api/claude-photo` (`src/app/api/claude-photo/route.ts`).
+     `/api/claude-photo` (`src/app/api/claude-photo/route.ts`). Each link counts first, as the admin, like Admin →
+     Photos' shared uploads (`count_write('photos')`: 30 a minute, `QM429`; the super admin has no limit), since the
+     upload route uses the secret key.
    - `find_photos_needing_details` + `save_photo_details`: Claude fills in shared photos' file name, description,
      tags and category (e.g. editors' waiting photos). The find tool narrows by `which` (no description / waiting /
      any) and `words` (file name, tags or category, e.g. a marker file name like "todo-frogs"), a few at a time, and
      sends each picture (a 640 px copy, `loadPicture`). Saves run as the admin, so the database rules decide: a plain
-     admin only gets and changes their own photos. Never the source or `is_public`. Categories:
-     `src/lib/photoCategories.ts` (shared with `/api/claude-photo`). Checked with `claudePhotoFillSchema`.
+     admin only gets and changes their own photos. Never the source or `is_public`. The pictures load together.
+     Categories: `src/lib/photoCategories.ts` (shared with `/api/claude-photo`): `findOrCreateCategory` looks up one
+     row by name (`ilike`, capitals don't matter, like the table's unique index), and `removeUnusedNewCategory`
+     deletes a category just made when its photo wasn't saved (with the secret key: plain admins can't delete
+     categories). Checked with `claudePhotoFillSchema`.
    - `send_presentation`: `buildSlides` turns the recipe into real slides and checks them (the recipe schema, then
      `slideProblems` in `schema.ts` runs `slideSchema` on each built slide, so a too-long text is caught now like a
      save would). Problems go back to Claude as a report to fix. If all is well, it saves a **draft** (`src/lib/drafts.ts`) and gives a link.
    - The old names (`…_lesson…`, `…_quiz…`) still work, because old chats keep the tool list they started with.
-3. **Drafts:** they live in Cloudflare D1 (`d1/migrations`), not Supabase, and last 24 hours. The link opens
+3. **Drafts:** they live in Cloudflare D1 (`d1/migrations`; `0004_indexes.sql` indexes drafts by owner and time,
+   and both tables by time, for the expiry deletes), not Supabase, and last 24 hours. A new D1 migration is applied
+   by hand: `npx wrangler d1 migrations apply quizmatter-drafts --remote`. The link opens
    `/presentation/new?draft=<id>` (`src/app/presentation/new/page.tsx`), which loads it into the editor as a new
    presentation. It is only saved for real when the admin clicks Save (or Ctrl+S). Leaving the editor doesn't save
    it: changes are kept in that browser and come back when the link is opened again, and it stays a draft (see

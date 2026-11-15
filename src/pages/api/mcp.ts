@@ -8,7 +8,7 @@ import { buildSlides, getClaudeFormat, claudeDetailsSchema } from "@/lib/importP
 import { replaceDraft, saveDraft } from "@/lib/drafts";
 import { loadPresentation } from "@/lib/fetchPresentation";
 import { PHOTO_MAX_SIDE, thumbnailUrl } from "@/lib/constants";
-import { findOrCreateCategory } from "@/lib/photoCategories";
+import { findOrCreateCategory, removeUnusedNewCategory } from "@/lib/photoCategories";
 import { contains } from "@/lib/search";
 import { createPhotoTickets } from "@/lib/photoTickets";
 import { claudePhotoFillSchema, claudePhotoSchema, type Photo, type Presentation, type Slide } from "@/lib/schema";
@@ -62,8 +62,10 @@ function createServer(appUrl: string, userId: string, supabase: SupabaseClient<D
       const result = await loadPresentation(supabase, id).catch(() => undefined);
       if (result === undefined) return { isError: true, content: [{ type: "text", text: "Couldn't read the presentation. Try again." }] };
       // The admin can read every presentation, but Claude reads only their own, other teachers' published copies and
-      // QuizMatter ones (the Privacy Policy says so). Any other gets the same answer as a missing one.
-      if (!result || (result.ownerId !== userId && !result.sharedFrom && !result.presentation.fromAdmin)) {
+      // QuizMatter ones (the Privacy Policy says so), never one an admin hid (a hidden copy isn't published anymore).
+      // Any other gets the same answer as a missing one.
+      const isOthersPublic = (result?.sharedFrom || result?.presentation.fromAdmin) && !result?.isHidden;
+      if (!result || (result.ownerId !== userId && !isOthersPublic)) {
         const text = "There's no presentation with that link, or it's someone else's private one. A link to a draft that isn't saved yet can't be read.";
         return { isError: true, content: [{ type: "text", text }] };
       }
@@ -118,6 +120,19 @@ function createServer(appUrl: string, userId: string, supabase: SupabaseClient<D
       inputSchema: { photos: z.array(claudePhotoSchema).min(1).max(20).describe("One entry per photo, in the order you'll upload them.") },
     },
     async ({ photos }) => {
+      // Counted like Admin → Photos' shared uploads (count_write 'photos': 30 a minute, the super admin no limit),
+      // here, as the admin: the upload itself (/api/claude-photo) uses the secret key, which the database can't count.
+      // One count per photo, so a link that's never used still counts.
+      for (let i = 0; i < photos.length; i++) {
+        const { error } = await supabase.rpc("count_write", { kind: "photos" });
+        if (error) {
+          const text =
+            error.code === "QM429"
+              ? `You're adding photos too fast (30 a minute at most). ${i} upload link(s) were counted but none were made. Wait a minute, then call prepare_photo_upload again.`
+              : "Couldn't make the upload links. Try again.";
+          return { isError: true, content: [{ type: "text", text }] };
+        }
+      }
       const ids = await createPhotoTickets(userId, photos);
       const text = [
         "If the photos came in a zip, unzip it first (e.g. unzip -o file.zip -d /tmp/zip) and use the photos from there.",
@@ -198,12 +213,13 @@ function createServer(appUrl: string, userId: string, supabase: SupabaseClient<D
       const content: ({ type: "text"; text: string } | { type: "image"; data: string; mimeType: string })[] = [
         { type: "text", text: header },
       ];
-      for (const photo of photos.data) {
+      // Loaded together, not one after another.
+      const pictures = await Promise.all(photos.data.map((photo) => loadPicture(photo.src)));
+      photos.data.forEach((photo, i) => {
         // Its src (to save it), what it has now, and is_public (false = still waiting for QuizMatter).
         content.push({ type: "text", text: JSON.stringify(photo) });
-        const picture = await loadPicture(photo.src);
-        content.push(picture ?? { type: "text", text: "(This picture couldn't be loaded; skip it.)" });
-      }
+        content.push(pictures[i] ?? { type: "text", text: "(This picture couldn't be loaded; skip it.)" });
+      });
       return { content };
     },
   );
@@ -230,10 +246,12 @@ function createServer(appUrl: string, userId: string, supabase: SupabaseClient<D
           .update({ ...info, category_id: found.id })
           .eq("src", src)
           .select("src");
+        const saved = !error && data.length > 0;
+        // A category made just for this photo shouldn't stay empty (plain admins can't delete it themselves).
+        const admin = saved ? null : createAdminClient();
+        if (admin) await removeUnusedNewCategory(admin, found);
         lines.push(
-          error || !data?.length
-            ? `${src}: not saved (not found, or you can't change this photo).`
-            : `${src}: saved as "${info.file_name}" in "${category}".`,
+          saved ? `${src}: saved as "${info.file_name}" in "${category}".` : `${src}: not saved (not found, or you can't change this photo).`,
         );
       }
       return { content: [{ type: "text", text: lines.join("\n") }] };
@@ -338,12 +356,10 @@ async function loadPicture(src: string): Promise<{ type: "image"; data: string; 
  * they're an admin, or null if the token is missing, wrong or expired, or the user is banned (Admin → Teachers).
  * If the database can't say whether they're banned, it's null too (refused, to be safe).
  */
-async function checkLogin(token: string): Promise<{ id: string; isAdmin: boolean; supabase: SupabaseClient<Database> } | null> {
-  // Acts as that user, so is_admin() answers for them.
-  const supabase = createClient<Database>(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
-    global: { headers: { Authorization: `Bearer ${token}` } },
-    auth: { persistSession: false },
-  });
+async function checkLogin(
+  supabase: SupabaseClient<Database>,
+  token: string,
+): Promise<{ id: string; isAdmin: boolean; supabase: SupabaseClient<Database> } | null> {
   const { data } = await supabase.auth.getClaims(token);
   if (!data) return null;
   const [{ data: isAdmin }, { data: isBanned, error: bannedError }] = await Promise.all([
@@ -354,12 +370,16 @@ async function checkLogin(token: string): Promise<{ id: string; isAdmin: boolean
   return { id: data.claims.sub, isAdmin: isAdmin === true, supabase };
 }
 
-/** Whether Claude's login token belongs to the super admin (only asked during maintenance). */
-async function isSuperAdminToken(token: string): Promise<boolean> {
-  const supabase = createClient<Database>(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
+/** A database client that acts as the user of Claude's login token, so is_admin() and the table rules answer for them. */
+function userClient(token: string): SupabaseClient<Database> {
+  return createClient<Database>(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
     global: { headers: { Authorization: `Bearer ${token}` } },
     auth: { persistSession: false },
   });
+}
+
+/** Whether the client's user is the super admin (only asked during maintenance). */
+async function isSuperAdmin(supabase: SupabaseClient<Database>): Promise<boolean> {
   const { data } = await supabase.rpc("is_super_admin");
   return data === true;
 }
@@ -448,14 +468,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const appUrl = `${host.startsWith("localhost") ? "http" : "https"}://${host}`;
 
   const token = req.headers.authorization?.match(/^Bearer (.+)$/i)?.[1];
+  const supabase = token ? userClient(token) : null;
   // Maintenance (Admin → Maintenance): closed to all but the super admin. Checked before the login, since the
   // database guard refuses the others' login checks, and that would look like "log in again" to Claude.
-  if ((await getMaintenanceStatus()).isOn && !(token && (await isSuperAdminToken(token)))) {
+  if ((await getMaintenanceStatus()).isOn && !(supabase && (await isSuperAdmin(supabase)))) {
     res.setHeader("Retry-After", "600");
     res.status(503).json({ error: MAINTENANCE_WORDS });
     return;
   }
-  const user = token ? await checkLogin(token) : null;
+  const user = token && supabase ? await checkLogin(supabase, token) : null;
   if (!user) {
     // The standard answer that makes Claude start the login (it reads where to log in from this link).
     res.setHeader("WWW-Authenticate", `Bearer resource_metadata="${appUrl}/.well-known/oauth-protected-resource"`);
