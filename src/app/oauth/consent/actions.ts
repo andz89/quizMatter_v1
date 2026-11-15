@@ -9,8 +9,9 @@ import { isAllowedRedirect, NOT_CLAUDE_MESSAGE } from "./allowedApps";
 /**
  * Allow or Deny on the consent page. Supabase records the answer and gives back the link to Claude (with a login
  * code when allowed, or an "access denied" when not), and we send the user there. Only admins can allow for now,
- * and only when the login code goes to Claude's own sites (checked again here, not only on the page).
- * Returns an error message if it failed.
+ * and only when the login code goes to Claude's own sites (checked again here, not only on the page). Deny sends the
+ * user on only to Claude's sites too: another app's address would make this an open redirect (a quizmatter.com link
+ * that lands on any site). Returns an error message if it failed.
  */
 export async function answerConsent(authorizationId: string, allow: boolean): Promise<string> {
   const id = z.string().min(1).max(200).safeParse(authorizationId);
@@ -31,5 +32,7 @@ export async function answerConsent(authorizationId: string, allow: boolean): Pr
     ? await supabase.auth.oauth.approveAuthorization(id.data, { skipBrowserRedirect: true })
     : await supabase.auth.oauth.denyAuthorization(id.data, { skipBrowserRedirect: true });
   if (error || !data) return failed;
+  // The deny was recorded; another app's address just isn't visited.
+  if (!isAllowedRedirect(data.redirect_url)) return NOT_CLAUDE_MESSAGE;
   redirect(data.redirect_url);
 }

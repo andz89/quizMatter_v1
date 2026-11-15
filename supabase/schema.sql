@@ -1034,12 +1034,17 @@ CREATE OR REPLACE FUNCTION "public"."check_hidden_copy_delete"() RETURNS "trigge
     SET "search_path" TO ''
     AS $$
 begin
-  if auth.uid() is null or pg_trigger_depth() > 1 then
+  if auth.uid() is null or pg_trigger_depth() > 1 or public.is_admin() then
     return old;
   end if;
-  if old.shared_from is not null and old.hidden_at is not null and not public.is_admin()
+  if old.shared_from is not null and old.hidden_at is not null
     and exists (select 1 from public.presentations p where p.id = old.shared_from) then
     raise exception 'QuizMatter hid the shared copy, so it can''t be made private.' using errcode = '42501';
+  end if;
+  -- Deleting the original would delete its hidden shared copy (on delete cascade).
+  if old.shared_from is null
+    and exists (select 1 from public.presentations p where p.shared_from = old.id and p.hidden_at is not null) then
+    raise exception 'QuizMatter hid this presentation''s shared copy, so it can''t be deleted.' using errcode = 'QMHID';
   end if;
   return old;
 end;
@@ -2069,18 +2074,27 @@ CREATE OR REPLACE FUNCTION "public"."has_publishable_content"("target_id" "text"
     LANGUAGE "sql" STABLE
     SET "search_path" TO ''
     AS $$
+  -- A slide viewers can see (not hidden) with something on it. A text box counts only when its text, without the
+  -- tags, isn't blank; every other element (shape, picture, table, diagram, …) counts.
   select exists (
     select 1 from public.presentations p
     where p.id = target_id and btrim(p.title) <> ''
   ) and exists (
     select 1 from public.slides s
-    where s.presentation_id = target_id and (
-      btrim(coalesce(s.data ->> 'question', '')) <> ''
-      or jsonb_array_length(coalesce(s.data -> 'elements', '[]')) > 0
-      or coalesce(s.data ->> 'embedUrl', '') <> ''
-      or btrim(coalesce(s.data ->> 'correctAnswer', '')) <> ''
-      or exists (select 1 from jsonb_array_elements(coalesce(s.data -> 'options', '[]')) o where btrim(coalesce(o ->> 'text', '')) <> '')
-    )
+    where s.presentation_id = target_id
+      and coalesce(s.data ->> 'hidden', 'false') <> 'true'
+      and (
+        btrim(coalesce(s.data ->> 'question', '')) <> ''
+        or exists (
+          select 1 from jsonb_array_elements(coalesce(s.data -> 'elements', '[]')) e
+          where e ->> 'assetId' is distinct from 'text-box'
+            or btrim(replace(regexp_replace(coalesce(e #>> '{text,html}', ''), '<[^>]*>', '', 'g'), '&nbsp;', ' '),
+              E' \t\r\n ') <> ''
+        )
+        or coalesce(s.data ->> 'embedUrl', '') <> ''
+        or btrim(coalesce(s.data ->> 'correctAnswer', '')) <> ''
+        or exists (select 1 from jsonb_array_elements(coalesce(s.data -> 'options', '[]')) o where btrim(coalesce(o ->> 'text', '')) <> '')
+      )
   );
 $$;
 
@@ -3783,25 +3797,53 @@ CREATE OR REPLACE FUNCTION "public"."set_maintenance"("turn_on" boolean, "note" 
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO ''
     AS $$
+declare
+  was_on boolean;
+  hook text;
 begin
   if not public.is_super_admin() then
     raise exception 'Only the super admin can do this.' using errcode = '42501';
   end if;
+  if turn_on is null then
+    raise exception 'Say whether to turn maintenance on or off.' using errcode = '22023';
+  end if;
+
+  -- The pre-request function PostgREST runs now (null = none), set by "alter role authenticator set …".
+  select substr(c, length('pgrst.db_pre_request=') + 1) into hook
+  from pg_catalog.pg_db_role_setting s join pg_catalog.pg_roles r on r.oid = s.setrole, unnest(s.setconfig) c
+  where r.rolname = 'authenticator' and s.setdatabase = 0 and c like 'pgrst.db_pre_request=%';
+  if hook = 'public.check_maintenance' then
+    hook := null;
+  end if;
+
+  select m.is_on into was_on from public.maintenance m where m.id for update;
 
   if turn_on then
-    update public.maintenance
-    set is_on = true, message = btrim(coalesce(note, '')), started_at = now(), started_by = auth.uid(), planned_at = null
-    where id;
+    if hook is not null then
+      raise exception 'Another pre-request hook (%) is set, so the maintenance guard can''t be added. Put its check inside check_maintenance first.', hook
+        using errcode = '22023';
+    end if;
     alter role authenticator set pgrst.db_pre_request = 'public.check_maintenance';
+    if not was_on then
+      update public.maintenance
+      set is_on = true, message = btrim(coalesce(note, '')), started_at = now(), started_by = auth.uid(), planned_at = null
+      where id;
+    end if;
   else
-    update public.maintenance set is_on = false, started_at = null, started_by = null where id;
-    alter role authenticator reset pgrst.db_pre_request;
+    if hook is null then
+      alter role authenticator reset pgrst.db_pre_request;
+    end if;
+    if was_on then
+      update public.maintenance set is_on = false, started_at = null, started_by = null where id;
+    end if;
   end if;
   notify pgrst, 'reload config';
 
-  perform public.log_admin_action(
-    case when turn_on then 'maintenance_on' else 'maintenance_off' end, 'site', null, 'QuizMatter', null
-  );
+  if turn_on is distinct from was_on then
+    perform public.log_admin_action(
+      case when turn_on then 'maintenance_on' else 'maintenance_off' end, 'site', null, 'QuizMatter', null
+    );
+  end if;
 end;
 $$;
 
@@ -3992,12 +4034,22 @@ begin
   if public.is_editor() then
     raise exception 'Editors send presentations to QuizMatter instead of publishing them.' using errcode = '42501';
   end if;
-  if original.hidden_at is not null then
+  if original.hidden_at is not null
+    or exists (select 1 from public.presentations p where p.shared_from = target_id and p.hidden_at is not null) then
     raise exception 'QuizMatter hid this presentation, so it can''t be shared.' using errcode = '42501';
   end if;
+  -- Every presentation it was copied from, step by step (a copy of a copy …), and their shared copies.
   if exists (
-    select 1 from public.presentations p
-    where (p.id = original.copied_from or p.shared_from = original.copied_from) and p.hidden_at is not null
+    with recursive sources (id, steps) as (
+      select original.copied_from, 1 where original.copied_from is not null
+      union all
+      select p.copied_from, s.steps + 1
+      from sources s join public.presentations p on p.id = s.id
+      where p.copied_from is not null and s.steps < 100
+    )
+    select 1 from sources s
+    join public.presentations p on p.id = s.id or p.shared_from = s.id
+    where p.hidden_at is not null
   ) then
     raise exception 'QuizMatter hid the presentation this was copied from, so it can''t be shared.' using errcode = '42501';
   end if;
@@ -4016,6 +4068,7 @@ begin
   end if;
 
   -- Lets the shared copy triggers through for these changes only (until this transaction ends).
+  -- A new presentations column goes in both the insert and the update (supabase/tests/sharing_fixes.sql checks).
   perform set_config('quizmatter.sharing', 'yes', true);
   if copy_id is null then
     copy_id := gen_random_uuid()::text;
@@ -4031,7 +4084,7 @@ begin
       target_id, now(), now(), now(), original.data_version
     );
   else
-    -- Same id, created_at and hidden_at, so links, bookmarks, reports and an admin's hiding stay.
+    -- Same id and created_at, so links, bookmarks and reports stay. (A hidden copy is refused above.)
     update public.presentations p set
       title = original.title,
       description = original.description,

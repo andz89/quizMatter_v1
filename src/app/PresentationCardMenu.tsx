@@ -83,10 +83,10 @@ export function PresentationCardMenu({
     setConfirming(null);
     setIsBusy(true);
     // On success the page reloads its list and this card goes away.
-    const ok = await removePresentations(isDraft ? [] : [card.id], isDraft ? [card.id] : []);
+    const result = await removePresentations(isDraft ? [] : [card.id], isDraft ? [card.id] : []);
     setIsBusy(false);
-    if (ok) toast.success("Presentation deleted.");
-    else toast.error("Couldn't delete the presentation. Please try again.");
+    if (result.ok) toast.success("Presentation deleted.");
+    else toast.error(result.message ?? "Couldn't delete the presentation. Please try again.");
   };
 
   const moveToAdminList = async () => {

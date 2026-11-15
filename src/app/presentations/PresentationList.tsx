@@ -41,7 +41,7 @@ type Filter = "all" | "saved" | "draft";
 // Checkbox, title, folder, status, slides, updated, trash. On phones: checkbox, title, then the rest in one cell.
 const COLUMNS = "grid-cols-[16px_minmax(0,1fr)_auto] sm:grid-cols-[16px_minmax(0,1fr)_120px_96px_64px_112px_36px]";
 
-/** Deletes saved presentations and discards drafts in one call. False if anything failed. */
+/** Deletes saved presentations and discards drafts in one call. `ok: false` if anything failed (see removePresentations). */
 function removeRows(rows: PresentationRow[]) {
   return removePresentations(
     rows.filter((row) => row.status === "saved").map((row) => row.id),
@@ -92,10 +92,11 @@ export function PresentationList({ rows, folders }: { rows: PresentationRow[]; f
   const deleteChecked = () => {
     setIsConfirming(false);
     startDeleting(async () => {
-      if (await removeRows(checked)) {
+      const result = await removeRows(checked);
+      if (result.ok) {
         setCheckedIds(new Set());
         toast.success(checked.length === 1 ? "Presentation deleted." : "Presentations deleted.");
-      } else toast.error("Couldn't delete some presentations. Please try again.");
+      } else toast.error(result.message ?? "Couldn't delete some presentations. Please try again.");
     });
   };
 
@@ -251,8 +252,9 @@ function PresentationListRow({
   const remove = () => {
     setIsConfirmingRemove(false);
     startRemoving(async () => {
-      if (await removeRows([row])) toast.success("Presentation deleted.");
-      else toast.error("Couldn't delete the presentation. Please try again.");
+      const result = await removeRows([row]);
+      if (result.ok) toast.success("Presentation deleted.");
+      else toast.error(result.message ?? "Couldn't delete the presentation. Please try again.");
     });
   };
 

@@ -50,6 +50,8 @@ export const REFUSALS: Record<string, string> = {
   QMSUB: "This presentation is already waiting for QuizMatter, or already in QuizMatter.",
   // Publishing an empty presentation (see the share_limits migration).
   QMPUB: PUBLISH_NEEDS_CONTENT,
+  // Deleting an original whose shared copy QuizMatter hid (see the sharing_fixes migration).
+  QMHID: `QuizMatter hid this presentation's shared copy, so it can't be deleted. If you think this is a mistake, email ${SUPPORT_EMAIL}.`,
 };
 
 /** What to tell the user when a save failed, e.g. saveErrorMessage(error, "make a copy"). */

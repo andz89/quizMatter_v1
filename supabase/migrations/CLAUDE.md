@@ -68,7 +68,8 @@ A refusal raises an error with its own code. The app turns the code into a messa
 - `QM429`: an admin adding shared photos too fast (saving presentations is a click limit now: `QMBLK`). `QMMAX`: too
   many presentations. `QMBAN`: banned account.
 - `QMREV`: locked by a review or a submission (`is_review_locked`). `QMRVW`: review step not allowed.
-  `QMSUB`: submission not allowed. `QMPUB`: publishing an empty presentation. `QMPHL`: removing a photo that is
+  `QMSUB`: submission not allowed. `QMPUB`: publishing an empty presentation. `QMHID`: deleting an original whose
+  shared copy QuizMatter hid. `QMPHL`: removing a photo that is
   in a presentation or review waiting for QuizMatter (`photo_waiting_for_approval`).
 - `42501`: not allowed (wrong person). `22023`: bad input that should never get past zod.
 - `QMOLD`: the save came from older app code (`app_version`) than the presentation's `data_version` (or the review
@@ -160,7 +161,15 @@ A refusal raises an error with its own code. The app turns the code into a messa
   its `copied_from` source, or that source's shared copy, is hidden). `20261210000200_database_fixes.sql`: the
   hidden-copy check (`check_hidden_copy_delete`) only stops a logged-in person deleting the copy itself; it skips
   when there's no logged-in user or another trigger or a cascade removes it (`pg_trigger_depth() > 1`), so deleting
-  an account can't get stuck on it.
+  an account can't get stuck on it. `20261231001500_sharing_fixes.sql` (test `supabase/tests/sharing_fixes.sql`;
+  spec `docs/superpowers/specs/2026-11-15-sharing-review-fixes-design.md`): newest `check_hidden_copy_delete` (a
+  teacher can't delete an original whose shared copy is hidden, `QMHID`; admins can), `share_presentation` (refuses
+  while the copy is hidden, and follows the whole `copied_from` chain, at most 100 steps) and
+  `has_publishable_content` (skips hidden slides and text boxes without text, same as `hasSlideContent`). The test
+  also fails when a new `presentations` column isn't copied by `share_presentation` (its insert and its update) or
+  listed there as different on purpose. `shared_copy_change` stays "any change but `hidden_at` is refused" on
+  purpose: a list of forbidden columns would let a forgotten new one through. Never run `20261123000000_shared_copy.sql`
+  again: its first step deletes every shared copy.
 - This week's lessons, suggestions and editor profile lists: `20261129000000_lesson_week.sql` (`lesson_editor`,
   `lesson_week`, `editor_presentations`) and `20261130000000_lesson_extras.sql` (`lesson_extras`: the week list and
   the suggestions in one call, the only one the view page makes; `editor_presentations` checks the profile once).

@@ -292,7 +292,9 @@ Keep these rules:
 
 The super admin turns it on in Admin → Maintenance (`src/app/admin/maintenance`) while fixing things. Everyone else
 (teachers, editors, plain admins, logged out visitors) is stopped. Migration: `20261219000000_maintenance.sql`;
-test: `supabase/tests/maintenance.sql`. Keep these rules:
+test: `supabase/tests/maintenance.sql`. Newest `set_maintenance`: `20261231001600_maintenance_fixes.sql` (test
+`supabase/tests/maintenance_fixes.sql`, spec `docs/superpowers/specs/2026-11-15-maintenance-review-fixes-design.md`).
+Keep these rules:
 
 - **The database is the real stop.** The browser talks to Supabase directly, so the proxy alone can't stop saves.
   `set_maintenance(true, note)` sets PostgREST's `pgrst.db_pre_request` to `check_maintenance` (and `notify pgrst,
@@ -300,7 +302,14 @@ test: `supabase/tests/maintenance.sql`. Keep these rules:
   secret-key client (`service_role`), or the `maintenance_status` call. Turning it off removes the setting, so on
   normal days nothing extra runs. `check_maintenance` also reads the `maintenance` row, so a leftover setting with
   maintenance off lets everyone through. If the guard ever gets stuck, run as postgres:
-  `alter role authenticator reset pgrst.db_pre_request; notify pgrst, 'reload config';`.
+  `alter role authenticator reset pgrst.db_pre_request; notify pgrst, 'reload config';`. Turning it off again also
+  clears it. The setting holds one function: if it ever names another one, turning on is refused (`22023`, naming
+  it; the admin page shows the words) and turning off leaves it, so someone else's hook is never overwritten or
+  wiped. A new pre-request hook goes inside `check_maintenance` instead. On while already on (two tabs) changes
+  nothing and logs nothing; `turn_on` null is refused.
+- **Not stopped (known limit):** Supabase Auth's own endpoints: a direct call can still log in (the app logs them
+  out again), refresh a token, change the account's own password or email, or ask for a reset email. None reaches
+  app data. Stopping them would need a Custom Access Token hook, whose bug would stop every login.
 - **One row** in `maintenance` (on/off, the note, started at / by, the announced time). Read it only through
   `maintenance_status()` (open to all); change it only through `set_maintenance` / `announce_maintenance` (super
   admin; logged in the Admin log as `maintenance_on` / `maintenance_off` / `maintenance_announced`).
