@@ -41,7 +41,13 @@
   `SaveRefusedError` carries them. Saving too fast is the `presentation_save` click limit (`QMBLK`, not in
   `REFUSALS`): `saveErrorMessage` says it's paused, the store's save calls `checkPauses`, and the Save button greys
   out. A new refusal code goes in `REFUSALS`. `refusalFromCode(code)` gives the
-  `SaveRefusedError` for a known code (or null); `reviews.ts` and `sharing.ts` use it too.
+  `SaveRefusedError` for a known code (or null); `reviews.ts` and `sharing.ts` use it too. `saveRefusal(error)` adds
+  the limits a teacher can reach in the database: the slide count (`22023`) and a slide over 2 MB (`23514`,
+  `slides_data_is_small_object`; zod checks each text, not a whole slide). The editor doesn't stop typing at zod's
+  text limits (question, answer choice, text box, table cell), so a slide zod refuses becomes a `SaveRefusedError`
+  naming the slide by its place in the list ("The 3rd slide has too much text in its question. Shorten it, then
+  click Save."), not zod's own words: the store then shows it even during auto save and stops auto save until a
+  save works, instead of failing quietly every 12 seconds.
 - `fetchPresentation.ts`: loads a presentation + who owns it + its review and submission status (server), whether I
   saved it, its likes (`likeCount`, `isLiked`; 0 and not liked if those reads fail), and `sharedCopy` (my original's
   shared copy) / `sharedFrom` (set when this is a copy), and `authorId` (the editor the Author is linked to, or null;
@@ -57,7 +63,8 @@
   security"), which become "You can't change the sharing of this presentation." `publishableSchema` (`schema.ts`)
   is Publish's content rule: a shown slide with something on it; an empty text box doesn't count.
 - `autoSave.ts`: the editor's auto save timing (`AUTO_SAVE_MS`) and its daily cap (`AUTO_SAVES_PER_DAY`, counted in
-  this browser under `qm-auto-saves`, so it never uses up the `presentation_save_daily` limit; change them together).
+  this browser under `qm-auto-saves`, so one browser never uses up the `presentation_save_daily` limit; two browsers
+  editing hard on the same day can, 600 + 600 > 1,000; change them together).
   How the editor uses it: `src/components/editor/CLAUDE.md`, "Auto save". Tests: `autoSave.test.ts`.
 - `keptWork.ts`: unsaved work kept in this browser (`qm-unsaved:<id>`) when a save is refused with `QMOLD`, or while
   the editor is left (`saveBeforeLeaving` in `store.ts` keeps it before it saves, and a save that works forgets it;
