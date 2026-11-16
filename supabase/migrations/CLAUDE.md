@@ -85,7 +85,13 @@ A refusal raises an error with its own code. The app turns the code into a messa
 
 ## Where the big features live
 
-- Presentations and saving: `save_presentation` (one step: details + slides, removes deleted slides).
+- Presentations and saving: `save_presentation` (one step: details + slides, removes deleted slides; began in
+  `20261001000000_safer_presentation_saves.sql`, newest in `20261210000000_data_version_cap.sql`). `QM409`: the
+  `base_updated_at` sent isn't the row's `updated_at` (another tab or device saved since), or none was sent for a
+  presentation that exists; `QM422`: a slide in `slide_ids` is neither sent nor saved (nothing is saved, the app
+  sends every slide again). Test: `supabase/tests/save_presentation.sql` (both codes, the slide delete and
+  reorder, the 22023 input checks, a teacher can't save as published or QuizMatter's, another teacher can't save
+  it).
 - Data version: `20261209000000_data_version.sql`. `presentations.data_version` and
   `presentation_reviews.draft_version` keep the highest app `DATA_VERSION` that saved them. `save_presentation`,
   `save_review_draft` and `submit_review` take `app_version` (default 0) and refuse a lower one (`QMOLD`, checked
