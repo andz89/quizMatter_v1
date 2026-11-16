@@ -91,8 +91,12 @@ export function isSafeColor(value: string): boolean {
 }
 
 const colorSchema = z.string().max(100).refine(isSafeColor, "This isn't a color the app can show.");
-const plainTextSchema = z.string().max(5_000);
-const htmlSchema = z.string().max(50_000);
+// The most characters a slide's plain text (question, answer choice, slide name) and styled HTML (question, answer
+// choice, text box, table cell) can have. The editor stops typing at them too (`TextLimit`, textLimit.ts).
+export const PLAIN_TEXT_MAX = 5_000;
+export const HTML_MAX = 50_000;
+const plainTextSchema = z.string().max(PLAIN_TEXT_MAX);
+const htmlSchema = z.string().max(HTML_MAX);
 const svgSchema = z.string().max(200_000);
 
 export const optionSchema = z.object({

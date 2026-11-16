@@ -212,7 +212,9 @@ focus, and Ctrl+Z / Ctrl+Y / Ctrl+Shift+Z leave a plain input or textarea to the
 text on a slide, sliders and date boxes keep the store's undo; `isTextFieldOrDialog` in `dom.ts`; while a box
 (`Modal`, `ConfirmModal`: `role="dialog"` with `aria-modal`) is open, only Ctrl+S works, so no key changes the slides
 behind it, test `e2e/editor-edges.mjs`), `useMarqueeSelection` (drag a rectangle to select), `useElementDropTarget` (drop from a
-panel or the computer), `useCanvasTextEditor` + `richText.ts` (text typing, with tiptap), `useAutoFitText` (text
+panel or the computer), `useCanvasTextEditor` + `richText.ts` (text typing, with tiptap; it stops at the save limits with `TextLimit`,
+`src/lib/textLimit.ts`: the question and answer choices at 5,000 characters, every text at 50,000 as HTML; the slide
+name box has `maxLength` 5,000), `useAutoFitText` (text
 shrinks to fit), `useFormatTexts` (which texts the format toolbar changes), `geometry.ts` / `crop.ts` (math),
 `svgLibrary.tsx` (every drawing in the Elements panel, and the diagram layouts).
 

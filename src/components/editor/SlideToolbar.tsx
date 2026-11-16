@@ -3,7 +3,7 @@
 import { useState, type ReactNode } from "react";
 import type { useSortable } from "@dnd-kit/sortable";
 import { useEditorStore } from "@/lib/store";
-import { MAX_ITEM_COUNT, MAX_SLIDES, TOO_MANY_SLIDES_MESSAGE, type Slide } from "@/lib/schema";
+import { MAX_ITEM_COUNT, MAX_SLIDES, PLAIN_TEXT_MAX, TOO_MANY_SLIDES_MESSAGE, type Slide } from "@/lib/schema";
 import { ANSWER_CONTAINER_ID, canHaveAnswer, getItemCount, hasAnswerContent, hasOptions, hasReveal, isDiscussionSlide } from "@/lib/constants";
 import { ToolPanelButton, PanelLabel } from "./PanelControls";
 import { AddSlideMenu } from "./AddSlideMenu";
@@ -73,6 +73,7 @@ export function SlideToolbar({ slide, slideNumber, isFirst, isLast, canDelete, o
               autoFocus
               defaultValue={slide.name ?? ""}
               placeholder={defaultName}
+              maxLength={PLAIN_TEXT_MAX}
               onBlur={(e) => {
                 if (e.target.value.trim() !== (slide.name ?? "")) renameSlide(slide.id, e.target.value);
                 setIsRenaming(false);

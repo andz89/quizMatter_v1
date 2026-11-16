@@ -43,9 +43,9 @@
   out. A new refusal code goes in `REFUSALS`. `refusalFromCode(code)` gives the
   `SaveRefusedError` for a known code (or null); `reviews.ts` and `sharing.ts` use it too. `saveRefusal(error)` adds
   the limits a teacher can reach in the database: the slide count (`22023`) and a slide over 2 MB (`23514`,
-  `slides_data_is_small_object`; zod checks each text, not a whole slide). The editor doesn't stop typing at zod's
-  text limits (question, answer choice, text box, table cell), so a slide zod refuses becomes a `SaveRefusedError`
-  naming the slide by its place in the list ("The 3rd slide has too much text in its question. Shorten it, then
+  `slides_data_is_small_object`; zod checks each text, not a whole slide). The editor stops typing at zod's
+  text limits (`TextLimit`, below), but a slide zod still refuses (text saved before, or a whole slide over a limit)
+  becomes a `SaveRefusedError` naming the slide by its place in the list ("The 3rd slide has too much text in its question. Shorten it, then
   click Save."), not zod's own words: the store then shows it even during auto save and stops auto save until a
   save works, instead of failing quietly every 12 seconds.
 - `fetchPresentation.ts`: loads a presentation + who owns it + its review and submission status (server), whether I
@@ -232,6 +232,13 @@ data. Spec: `docs/superpowers/specs/2026-10-23-stable-presentation-data-design.m
 - `support.ts`: `SUPPORT_EMAIL` and `FACEBOOK_URL`, the one place each is written (the support address is an alias
   of the admin's Google Workspace inbox). Used by `src/components/SupportEmail.tsx`, `src/components/Footer.tsx` and
   the "blocked" messages (`QMBAN`, the login page).
+- `textLimit.ts`: `TextLimit`, the Tiptap extension `useCanvasTextEditor` adds to every text on the canvas. It
+  refuses a change (typing, paste, a format button) that would push the text past `PLAIN_TEXT_MAX` (5,000; the
+  question and answer choices) or `HTML_MAX` (50,000; every text, measured as `getHTML()` saves it), both from
+  `schema.ts`, with one toast (`TEXT_LIMIT_MESSAGE`, id `text-limit`). Only a change that makes an over-limit text
+  longer is refused, so deleting always works, and an outside change (`setContent` without an update: undo, Clear
+  text) always goes through. Test: `e2e/text-limits.mjs`. Spec:
+  `docs/superpowers/specs/2026-11-17-text-limits-while-typing-design.md`.
 - Editor hooks: `useEditorShortcuts`, `useMarqueeSelection`, `useElementDropTarget`, `useCanvasTextEditor`,
   `useAutoFitText`, `useFormatTexts`.
 

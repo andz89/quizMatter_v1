@@ -87,6 +87,9 @@ Tests that delete data (the announcements ones empty the announcements table) do
 - `table-element.mjs`: add a table, type, Tab, the text bar, both "+", the Table menu, undo taking away a picked or
   typed-in row, Delete on a picked cell, duplicate, dragging column and row lines, save, reload, the slide's edge, present, a table in a question
   slide's box, long text and a very long word wrapping at the table's text size (never shrinking).
+- `text-limits.mjs`: pasting past the limit into the question, an answer choice (5,000 characters) and a text box
+  (50,000 as HTML, so 10,000 "&" is refused) leaves the text as it was with one toast; up to the limit goes in;
+  typing at the limit is refused, deleting works; Ctrl+S saves; the slide name box's `maxlength`.
 - `table-date-time.mjs`: a table, the Clock, the Digital Clock, the Calendar Page and the Month Calendar together on
   one slide, each added from the Elements panel and dragged to its own spot: typing and Tab, Set time (the hands' real
   angles, AM/PM, Reset, Undo, Redo and Ctrl+Z with the box staying open; a slide already holding an impossible time
