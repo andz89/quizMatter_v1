@@ -164,9 +164,9 @@ export function Editor({
   }, []);
 
   // Closing or reloading the tab with unsaved changes makes the browser ask "Leave page?" first (a save can't finish
-  // while the tab closes). Not after an app update refused a save, or when maintenance sends the tab away
-  // (MaintenanceWatch sends MAINTENANCE_EVENT first): the work is kept once more right here (with edits made since),
-  // and opening the presentation again gives it back. It asks only if that fails.
+  // while the tab closes). Not after an app update or another tab's save refused a save (isOutdated, isConflict), or
+  // when maintenance sends the tab away (MaintenanceWatch sends MAINTENANCE_EVENT first): the work is kept once more
+  // right here (with edits made since), and opening the presentation again gives it back. It asks only if that fails.
   const isLeavingForMaintenanceRef = useRef(false);
   useEffect(() => {
     const onMaintenance = () => {
@@ -178,8 +178,8 @@ export function Editor({
   useEffect(() => {
     if (!hasUnsavedChanges) return;
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      const { isOutdated, keepWorkNow } = useEditorStore.getState();
-      if (!(isOutdated || isLeavingForMaintenanceRef.current) || !keepWorkNow()) e.preventDefault();
+      const { isOutdated, isConflict, keepWorkNow } = useEditorStore.getState();
+      if (!(isOutdated || isConflict || isLeavingForMaintenanceRef.current) || !keepWorkNow()) e.preventDefault();
     };
     window.addEventListener("beforeunload", handleBeforeUnload);
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);

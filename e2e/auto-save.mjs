@@ -59,12 +59,16 @@ async function within(test, ms = TICK) {
 const browser = await chromium.launch();
 const saves = [];
 const errors = [];
+const dialogs = [];
 
 async function newPage(person) {
   const page = await (await loggedIn(browser, person, { width: 1600, height: 1000 })).newPage();
   page.setDefaultTimeout(60_000);
   page.on("pageerror", (e) => errors.push(e.message));
-  page.on("dialog", (d) => d.accept());
+  page.on("dialog", (d) => {
+    dialogs.push(d.type());
+    d.accept();
+  });
   page.on("request", (r) => {
     if (r.method() === "POST" && /\/rpc\/save_(presentation|review_draft)/.test(r.url())) saves.push(r.url());
   });
@@ -126,6 +130,26 @@ try {
   await teacherPage.waitForTimeout(TICK);
   check("conflict: no more tries, even after another edit", saves.length === 1, `${saves.length} saves`);
   check("conflict: still one toast", (await toasts(teacherPage, "saved in another tab").count()) === 1);
+
+  // ─── After a conflict, the reload the toast asks for keeps this tab's edits ───────────────────────────────
+  const reloaded = await makePresentation(teacher.id);
+  await open(teacherPage, `/presentation/${reloaded}/edit`);
+  psql(`update public.presentations set updated_at = updated_at + interval '1 minute' where id = '${reloaded}'`);
+  await hideButton(teacherPage).click();
+  check(
+    "conflict: the toast says the changes are kept",
+    await within(() => toasts(teacherPage, "your changes here are kept").count().then((n) => n === 1)),
+  );
+  dialogs.length = 0;
+  await teacherPage.reload({ timeout: 120_000 });
+  check('conflict: the reload asks no "Leave page?"', dialogs.length === 0, dialogs.join(", "));
+  check(
+    "conflict: after the reload the edit is back",
+    await within(() => toasts(teacherPage, "Your unsaved changes are back").count().then((n) => n === 1), 30_000),
+  );
+  check("conflict: the slide is hidden again in the editor", await showButton(teacherPage).isVisible());
+  await teacherPage.keyboard.press("Control+s");
+  check("conflict: Ctrl+S saves it over the newest copy", await within(() => isHiddenInDb(reloaded), 5000));
 
   // ─── A lost connection retries ────────────────────────────────────────────────────────────────────────────
   const offline = await makePresentation(teacher.id);

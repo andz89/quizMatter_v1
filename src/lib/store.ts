@@ -302,6 +302,9 @@ interface EditorState {
   // in the browser (keptWork.ts; if it could be, see keptInBrowser) and the editor asks for a reload.
   isOutdated: boolean;
   setOutdated: (isOutdated: boolean) => void;
+  // True after a save was refused because another tab or device saved since (QM409) and the unsaved work was kept in
+  // the browser: the reload the toast asks for gives it back on top of the newest copy, without "Leave page?".
+  isConflict: boolean;
   // Whether the last keepWorkNow worked (or had nothing to keep). False: the browser couldn't store the work, so the
   // "QuizMatter was updated" box says so and "Leave page?" still asks.
   keptInBrowser: boolean;
@@ -655,6 +658,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         claudeDraft: null,
         review: null,
         isOutdated: false,
+        isConflict: false,
         // Editor sets it right after, from the page.
         sharedCopy: null,
         past: [],
@@ -680,6 +684,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   submission: null,
   isOutdated: false,
   setOutdated: (isOutdated) => set({ isOutdated }),
+  isConflict: false,
   keptInBrowser: false,
   keepWorkNow: () => {
     const { presentation, savedPresentation, review } = get();
@@ -778,9 +783,16 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       // Saving, sharing or publishing too often: the database paused one. They give the same refusal, so ask which;
       // the notice at the bottom shows it, and the Save button or the Share card greys out.
       if (pausedUntilFromError(error as { code?: string; details?: string })) await checkPauses();
+      // Another tab or device saved since: the work is kept in this browser, so the reload the toast asks for gives it
+      // back on top of the newest copy (restoreKeptWork, with Save or Throw away) instead of losing it.
+      const isKeptConflict = error instanceof SaveRefusedError && error.isConflict && isStillOpen() && get().keepWorkNow();
+      if (isKeptConflict) set({ isConflict: true });
       // A refused save is shown even when quiet: it says why, and a conflict stays until the user reloads.
       if (error instanceof SaveRefusedError || !quiet) {
-        toast.error(saveErrorMessage(error, "save"), {
+        const message = isKeptConflict
+          ? "This presentation was saved in another tab or device. Reload the page: your changes here are kept and come back on top of the newest copy."
+          : saveErrorMessage(error, "save");
+        toast.error(message, {
           // A conflict, or a lock because a review just started, stays until closed: these edits can't be saved.
           duration: error instanceof SaveRefusedError && (error.isConflict || error.message === REFUSALS.QMREV) ? Infinity : undefined,
         });

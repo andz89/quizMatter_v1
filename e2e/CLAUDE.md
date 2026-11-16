@@ -71,6 +71,8 @@ Tests that delete data (the announcements ones empty the announcements table) do
 - `auto-save.mjs`: an edit saves itself within 12 seconds with no toast, and nothing is sent without a change. It
   holds back when the day's auto saves are used up (Ctrl+S still saves), after a refused save, for restored work, on
   a Claude draft and on a live QuizMatter lesson; it retries after a lost connection; a review saves its own draft.
+  After a conflict (another save since), the reload the toast asks for asks no "Leave page?", the edit comes back,
+  and Ctrl+S saves it over the newest copy.
 - `save-button-width.mjs`: at 1280 px with a text box picked, the Save button never runs into the toolbar in the
   middle of the bar (saved, unsaved, saving, couldn't save), and keeps its size while it saves.
 - `hidden-slides.mjs`: hide a slide, save, present (→ / ← skip it), the all-slides grid, show it again.

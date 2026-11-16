@@ -110,6 +110,14 @@ editor / view / review, and renders `Editor.tsx`, which calls `store.loadPresent
   has "Throw away"). The old save time would always conflict, and that conflict's reload would lose the work. The
   kept copy stays in storage until a save or submit of that presentation works, or Stop review throws the work away
   (`forgetKeptWork`).
+- **Kept work after a conflict:** when a save is refused because another tab or device saved since (`QM409`,
+  `SaveRefusedError.isConflict`), the store keeps the work the same way (`keepWorkNow`) and sets `isConflict`; its
+  toast says "Reload the page: your changes here are kept and come back on top of the newest copy." Reloading or
+  closing the tab then keeps it once more without "Leave page?" (the same `beforeunload` handler), and after the
+  reload `restoreKeptWork` merges it over the newest copy with "Saving them replaces what was saved since" and Throw
+  away. Before this, the reload the toast asked for threw this tab's edits away (only leaving with the ← arrow kept
+  them). If the browser can't store it, the toast keeps the plain `QM409` words and "Leave page?" still asks.
+  Review Submit's own conflict doesn't keep anything (`REFUSALS.QM409` is unchanged).
 - **Leaving the editor saves first:** moving away inside the app with unsaved changes (browser Back/Forward, any
   link, the ← arrow) runs the store's `saveBeforeLeaving`: a normal `savePresentation` with its toast (a review saves
   its draft). `Editor` runs it when it closes; the ← arrow (`BackToPresentationsLink`, no "Leave without saving?"
