@@ -59,7 +59,7 @@ select set_config('request.jwt.claims',
 select public.start_review(target_id => 'test-cap-lesson');
 select public.save_review_draft(
   target_id => 'test-cap-lesson',
-  review_draft => '{"id": "test-cap-lesson", "title": "Cap lesson", "slides": [{"id": "s1", "type": "blank"}]}'::jsonb,
+  review_draft => '{"id": "test-cap-lesson", "title": "Cap lesson", "description": "", "subject": "", "curriculum": "", "learningCompetency": "", "slides": [{"id": "s1", "type": "blank"}]}'::jsonb,
   base_updated_at => null::bigint,
   app_version => 99
 );

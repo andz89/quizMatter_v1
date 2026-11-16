@@ -1195,6 +1195,16 @@ begin
   ) <> slide_count then
     raise exception 'Every slide needs its own id and must be at most 2 MB.' using errcode = '22023';
   end if;
+  -- publish_review writes these into the presentations row, where none may be empty (null). Term, week, day,
+  -- links, tags and the slide effect get a default there, so they may be missing.
+  if (review_draft ->> 'title') is null
+    or (review_draft ->> 'description') is null
+    or (review_draft ->> 'subject') is null
+    or (review_draft ->> 'curriculum') is null
+    or (review_draft ->> 'learningCompetency') is null then
+    raise exception 'The draft is missing a detail (title, description, subject, curriculum or learning competency).'
+      using errcode = '22023';
+  end if;
   if not coalesce(
     char_length(review_draft ->> 'title') <= 120
       and char_length(review_draft ->> 'description') <= 1000

@@ -137,9 +137,14 @@ A refusal raises an error with its own code. The app turns the code into a messa
   the account only empties `user_id` (`on delete set null`), so the record of who reached a limit stays. Test: in
   `supabase/tests/account_delete.sql`.
 - Reviews: `20261019000000_presentation_reviews.sql` and the review files after it (listed in the root `CLAUDE.md`).
-  Newest `check_review_draft` (run by `save_review_draft` and `submit_review`): `20261210000200_database_fixes.sql`,
-  which also checks what the presentations table checks (at most 10 tags and 14 grades, a known slide effect, speed
-  1–5), so a bad draft is refused when saved, not when an admin publishes it.
+  Newest `check_review_draft` (run by `save_review_draft` and `submit_review`): `20261231001700_review_draft_details.sql`
+  (a draft must have its title, description, subject, curriculum and learning competency, since `publish_review`
+  writes them into the presentations row where none may be empty; test `supabase/tests/review_draft_details.sql`),
+  before that `20261210000200_database_fixes.sql`, which checks what the presentations table checks (at most 10
+  tags and 14 grades, a known slide effect, speed 1–5), so a bad draft is refused when saved, not when an admin
+  publishes it. The locks and flags that run on every save (the review and submission locks on slides and
+  details, hiding gets through, `publish_review`'s flag doesn't leak, a teacher can't fake a shared copy,
+  `keep_copied_from`) are checked together in `supabase/tests/save_triggers.sql`.
 - Submissions: `20261119000000_quizmatter_submissions.sql`, `20261120000000_submission_fixes.sql`,
   `20261121000000_submission_receipts.sql`.
 - Super admin: `20261122000000_super_admin.sql` (on a fresh, empty database with no users it only gives a notice
