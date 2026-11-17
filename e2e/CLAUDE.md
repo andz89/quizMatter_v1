@@ -195,3 +195,9 @@ Tests that delete data (the announcements ones empty the announcements table) do
   Facebook for its box's real width, and Alt+click on a top bar's in-app link is left to the browser.
 - `announcements-pages.mjs`: announcements put straight in the table, checked on the home, saved, liked, search,
   account and editor pages, at desktop and phone width.
+- `slide-drag.mjs`: the editor's Presentations panel. Another teacher's shared copy (made with `psql` and the
+  `quizmatter.sharing` setting, since its slides change only through sharing); its slides dragged onto my slide (after
+  it), the top half of slide 1 (before it), an answer box, the gap under the last slide (end), a question just typed
+  in, and back onto the panel (nothing); a click adds after the active slide; one undo takes it out. A drop from newer
+  app code or one that isn't a slide is refused with words. Saved: the order shown, new ids, a picture still in its
+  own answer box, the source untouched.

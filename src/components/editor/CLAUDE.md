@@ -50,6 +50,16 @@ editor / view / review, and renders `Editor.tsx`, which calls `store.loadPresent
 - Side panels (all use the `side-panel` class, sideways rows use `ScrollRow`): `ElementsPanel`, `PhotosPanel`,
   `ColorPanel`, `BackgroundPanel`, `EffectsPanel`, `PresentationsPanel`. They stay open after you add something
   (don't auto-close them).
+- **Slides from other presentations** (`PresentationsPanel`): published presentations (not this one or its shared
+  copy) in a row per subject, plus a Saved tab. Opening one refuses a presentation saved by newer app code
+  (`isNewerThanApp`, the `QMOLD` words) and leaves out a slide that doesn't parse. A click on a slide adds a copy right
+  after the active slide; a drag carries `slideDragData` (the slide and this tab's `DATA_VERSION`, `src/lib/slideDrag.ts`)
+  under `SLIDE_DRAG_MIME`. `Workspace` drops it right after the slide under the pointer (or the nearest one in a gap),
+  or before slide 1 on its top half, and shows the line where it will go (`dropTarget`). The drop reads it with
+  `readSlideDrag` (zod): from newer app code (another tab) → the `QMOLD` toast, not a copy missing fields; not a slide
+  → a toast. Both ways end in the store's `insertSlides` (new ids for the slide, options and elements via
+  `duplicateSlide`, so a picture stays in its answer box; one undo step; refused past `MAX_SLIDES`). Test:
+  `e2e/slide-drag.mjs`.
 - Teachers' own photo uploads are **for editors and admins only, for now** (`checkCanUpload` in
   `src/lib/photos.tsx`, which asks `is_editor` / `is_admin` once). Other teachers' "My Photos" tab shows "This will
   be available soon." with Upload greyed out, and a file dropped on a slide only shows a toast

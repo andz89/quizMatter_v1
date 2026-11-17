@@ -167,6 +167,9 @@
   a cell's place in px, and cell rectangles (`cellRange`, `withCellsFill`, `withCellsEmptied`, `tableRangeBox`) for
   the editor's multi-cell selection and background colors. Each makes new arrays, so a changed slide is saved. How
   the editor uses it: `src/components/editor/CLAUDE.md`, "Tables". Tests: `table.test.ts`.
+- `slideDrag.ts`: what a slide dragged from the editor's Presentations panel carries (`slideDragData`: the slide and
+  `DATA_VERSION`) and how a drop reads it (`readSlideDrag`: the slide, or "newer" / "broken"). How the editor uses it:
+  `src/components/editor/CLAUDE.md`, "Slides from other presentations". Tests: `slideDrag.test.ts`.
 - `age.ts`: the birthday rules (`MIN_AGE` 18, `MAX_AGE` 100), `ageOn` (the age in whole years on a date),
   `isAllowedBirthDate`, `birthDateRange` (the date picker's limits) and `todayInManila`. The database does the same
   math (`age_on`, `manila_today`, `20261220000000_age_gender_address.sql`): change both together. No imports, so

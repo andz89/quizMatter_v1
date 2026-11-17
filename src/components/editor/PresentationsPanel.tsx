@@ -11,6 +11,7 @@ import { loadPublisherNames } from "@/lib/publishers";
 import { MAX_SLIDES, SUBJECTS, isNewerThanApp, TOO_MANY_SLIDES_MESSAGE, gradesTitle, parseSlide, type Slide } from "@/lib/schema";
 import { toast } from "sonner";
 import { REFUSALS } from "@/lib/presentations";
+import { slideDragData } from "@/lib/slideDrag";
 import { Spinner } from "@/components/Spinner";
 import { FluidSlidePreview } from "@/components/presentation/FluidSlidePreview";
 import { SaveCardButton } from "@/app/SaveCardButton";
@@ -218,7 +219,7 @@ export function PresentationsPanel() {
   };
 
   const handleDragStart = (e: React.DragEvent, slide: Slide) => {
-    e.dataTransfer.setData(SLIDE_DRAG_MIME, JSON.stringify(slide));
+    e.dataTransfer.setData(SLIDE_DRAG_MIME, slideDragData(slide));
     e.dataTransfer.effectAllowed = "copy";
     setDraggingSlideId(slide.id);
 
