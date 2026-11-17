@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { getSlideNumbers, presentStartIndex, stepPresentation } from "./constants";
+import { getSlideNumbers, presentStartIndex, shownSlides, stepPresentation } from "./constants";
 import type { Slide } from "./schema";
 
 const slide = (id: string, extra: Partial<Slide> = {}) => ({ id, type: "choice", ...extra }) as Slide;
@@ -41,4 +41,14 @@ test("presentStartIndex moves off a hidden slide: forward first, else back", () 
 
 test("presentStartIndex keeps the slide when every slide is hidden", () => {
   assert.equal(presentStartIndex([slide("a", { hidden: true }), slide("b", { hidden: true })], 1), 1);
+});
+
+test("shownSlides leaves out hidden slides, in order", () => {
+  const slides = [slide("a"), slide("b", { hidden: true }), slide("c"), slide("d", { hidden: true })];
+  assert.deepEqual(shownSlides(slides).map((s) => s.id), ["a", "c"]);
+});
+
+test("shownSlides keeps every slide when every slide is hidden (like presenting)", () => {
+  const slides = [slide("a", { hidden: true }), slide("b", { hidden: true })];
+  assert.deepEqual(shownSlides(slides).map((s) => s.id), ["a", "b"]);
 });

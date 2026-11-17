@@ -75,7 +75,9 @@ Tests that delete data (the announcements ones empty the announcements table) do
   and Ctrl+S saves it over the newest copy.
 - `save-button-width.mjs`: at 1280 px with a text box picked, the Save button never runs into the toolbar in the
   middle of the bar (saved, unsaved, saving, couldn't save), and keeps its size while it saves.
-- `hidden-slides.mjs`: hide a slide, save, present (→ / ← skip it), the all-slides grid, show it again.
+- `hidden-slides.mjs`: hide a slide, save, present (→ / ← skip it), the all-slides grid, then publish it: on the view
+  page another teacher's Prev/Next skip it (counter "2 / 2", details still "3 slides"), the owner and an admin see it
+  faded; show it again.
 - `add-slide-menu.mjs`: the slide's + and the workspace's Add slide have no "Embed image" (the other 8 types stay),
   and an image slide saved before still opens with its picture. Outside the editor that picture (from another
   website) isn't asked for: the view page names the website, and presenting loads it only after "Show picture".
