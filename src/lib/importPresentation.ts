@@ -222,8 +222,15 @@ const claudeFactorNode: z.ZodType<ClaudeFactorNode> = z.lazy(() =>
 const fontSize = whole(FONT_SIZE_RANGE.min, FONT_SIZE_RANGE.max);
 const fontSizeNote = "Largest font size in px; long text still shrinks to fit. Leave out unless the user asks for bigger or smaller text.";
 
-// A table's cell: its words, or its words with their own look.
-const tableCell = z.union([z.string(), z.object({ text: z.string(), style: textStyle.optional() })]);
+// A table's cell: its words, or its words with their own look and background.
+const tableCell = z.union([
+  z.string(),
+  z.object({
+    text: z.string(),
+    style: textStyle.optional(),
+    fill: elementColor.optional().describe('The cell\'s background, e.g. a soft tint for a header row. Leave out for white.'),
+  }),
+]);
 
 const elementRecipe = z.object({
   asset: elementAssetId.describe('Which picture. "photo" = a real photo: then give "photo" too.'),
@@ -367,7 +374,7 @@ const elementRecipe = z.object({
         .array(z.array(tableCell).min(TABLE_COLUMNS.min).max(TABLE_COLUMNS.max))
         .min(TABLE_ROWS.min)
         .max(TABLE_ROWS.max)
-        .describe('Top to bottom, each row\'s cells left to right, e.g. [["**Animal**", "**Legs**"], ["Cat", "4"]]. A cell is its words (**word** bold, *word* italic, \\n a new line), or { "text", "style" } for its own look.'),
+        .describe('Top to bottom, each row\'s cells left to right, e.g. [["**Animal**", "**Legs**"], ["Cat", "4"]]. A cell is its words (**word** bold, *word* italic, \\n a new line), or { "text", "style", "fill" } for its own look and background.'),
       fontSize: fontSize.optional().describe("Text size of the whole table, in px. It never shrinks. Leave out for 24."),
       style: textStyle.optional().describe("Look of every cell."),
       columnSizes: z.array(z.number().positive()).max(TABLE_COLUMNS.max).optional().describe("How big each column is compared with the others, e.g. [1, 3]. Leave out for equal columns."),
@@ -868,11 +875,12 @@ Real photos:
 - For a picture from a link the user gave you, upload it with prepare_photo_upload, then put it on a blank slide as a photo (a large one, or "position" covering the slide, to fill it).
 
 Tables ("asset": "table" in "elements") — rows and columns the teacher can type in: a times table, a comparison, words and meanings, a schedule.
-- { "asset": "table", "table": { "rows": [["**Animal**", "**Legs**"], ["Cat", "4"], ["Bird", "2"]] } }. 1–15 rows and columns, and every row has the same number of cells. There's no header style: make the first row **bold**, or give its cells their own color with { "text", "style" }.
+- { "asset": "table", "table": { "rows": [["**Animal**", "**Legs**"], ["Cat", "4"], ["Bird", "2"]] } }. 1–15 rows and columns, and every row has the same number of cells. There's no header style: make the first row **bold**, or give its cells their own look with { "text", "style" }.
+- A cell can have its own background: { "text": "**Animal**", "fill": "#FFF9DB" } (a color "#RRGGBB" or "gradient:#A,#B"). Use soft tints so the dark text stays easy to read, e.g. to mark the header row, a column, or the right answers. Left out, the cell is white.
 - The app sizes a table to its text and places it ("size" does nothing on a table). Give "position" to choose. Give "columnSizes" when one column has longer text, e.g. [1, 3]. Left out, columns are equal and each row fits its text.
 - "color" is the lines. "in", "position", "rotation", "opacity", "group" and "callouts" work. "flipX", "flipY" and "crop" don't. On a question slide it goes in a box, like a picture.
 - A cell's text never shrinks: what doesn't fit is cut off, and the layout report names those rows. Then make the table bigger, shorten the words or lower "fontSize".
-- read_presentation gives a table's cells as { "html": their words }. To change a table, send the words back as plain strings.
+- read_presentation gives a table's cells as { "html": their words } and, when a cell has a background, its "fill". To change a table, send the words back as plain strings, and keep each "fill" as { "text", "fill" } so its colors stay.
 
 Placing them yourself:
 - The app places, centers and sizes pictures itself. To choose the spot yourself, give "position": { x, y, width, height } in px (x, y = top-left corner). Only with count 1.
@@ -1961,11 +1969,11 @@ function buildSettings(el: ElementRecipe, asset: Asset): Partial<SvgElement> | s
     if (!asset.isTable) return '"table" only works with "asset": "table".';
     if (el.flipX || el.flipY) return "a table can't be flipped.";
     const { rows, fontSize, style, columnSizes, rowSizes } = el.table;
-    const cellHtml = (cell: z.infer<typeof tableCell>) => {
-      const { text, style: own } = typeof cell === "string" ? { text: cell, style: undefined } : cell;
-      return text.trim() === "" ? "" : markupToHtml(text, { ...style, ...own });
+    const toCell = (cell: z.infer<typeof tableCell>) => {
+      const { text, style: own, fill } = typeof cell === "string" ? { text: cell, style: undefined, fill: undefined } : cell;
+      return { html: text.trim() === "" ? "" : markupToHtml(text, { ...style, ...own }), ...(fill && { fill }) };
     };
-    settings.table = { rows: rows.map((cells) => cells.map((cell) => ({ html: cellHtml(cell) }))), fontSize, columnSizes, rowSizes };
+    settings.table = { rows: rows.map((cells) => cells.map(toCell)), fontSize, columnSizes, rowSizes };
   } else if (asset.isTable) {
     return '"asset": "table" needs "table": its rows.';
   }
