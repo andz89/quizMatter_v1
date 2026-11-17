@@ -138,7 +138,8 @@ export function TableGrid({
             data-table-row={row}
             data-table-column={column}
             className="min-h-0 min-w-0 overflow-hidden px-2 py-1"
-            style={{ color: DEFAULT_TEXT_COLOR }}
+            // The cell's own background color; missing = the table's plain white. Unsafe values draw nothing.
+            style={{ color: DEFAULT_TEXT_COLOR, background: cell.fill ? toCssBackground(cell.fill) : undefined }}
           >
             {/* In the middle top to bottom, like a text box. */}
             {renderCell?.(row, column) ??

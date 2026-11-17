@@ -184,6 +184,18 @@ The "Table" tile in the Elements panel. Design: `docs/superpowers/specs/2026-11-
   The first click selects the table, a click on a cell picks it, a double-click types. A cell is found with
   `tableCellAt` (by screen position, since a dragged element's events all point at it). While typing, a press on
   another cell only stops the typing (the old cell blurs); the click that follows moves it there (`wasTypingOnPress`).
+- **Selecting many cells, like Excel:** with a cell picked (not typing), dragging across the cells selects the
+  rectangle between them (`pickedTableCell.end`, the far corner; missing = one cell; never set while typing), and
+  Shift+click stretches the selection to the clicked cell. The drag is `cellDrag` in `SvgElementItem`, so it
+  doesn't move the table; to move a table with a picked cell, Escape first (lets go), then drag — the same order
+  as diagrams. The selection shows as one outline over the rectangle (`tableRangeBox`), with a soft accent tint
+  when it's more than one cell. Delete empties every selected cell in one undo step (`withCellsEmptied`); undo or
+  a delete that takes away a cell the selection touches drops the pick.
+- **Cell background color** (`fill` on a cell, DATA_VERSION 4; `colorSchema`, so an unsafe saved value is cleaned
+  out by `upgradeSlide` like other colors): the table's toolbar gets a "Cell background" swatch that opens the
+  Color panel on `cellFill`; it colors the selected cells, or every cell when none is picked (the diagram rule),
+  through one `withCellsFill` per click = one undo step. "None" = back to plain white. `TableGrid` draws each
+  cell's fill, so the editor, thumbnails, the view page and presenting all show it.
 - **Keys while typing** are handled in `TableContent` before the text editor sees them: Tab / Shift+Tab move between
   cells (they stay put at the first and last cell), Escape stops typing. With a cell picked and not typing,
   `useEditorShortcuts` makes Delete empty the cell (not delete the table) and Escape let go of it.
