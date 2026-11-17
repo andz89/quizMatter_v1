@@ -56,7 +56,11 @@
 - Claude can make every element in the Elements panel: pictures, math tools, diagrams and tables through `elements`,
   text boxes through `title`, `text` and `textBoxes` (on question slides too, in the box named by `in`).
 - A table is `"asset": "table"` with `table` (rows of words; `src/lib/importTable.ts` sizes it). A cell's text never
-  shrinks, so the rows are shared out by their text and the layout report names any row still cut off.
+  shrinks, so the rows are shared out by their text and the layout report names any row still cut off. A cell
+  written as `{ "text", "style", "fill" }` gets its own background (`fill`: `#RRGGBB` or `gradient:#A,#B`, the
+  element-color rule, so it always passes `isSafeColor`); anything else is refused at the cell.
+  `read_presentation` (`shrinkPresentation`) gives each cell's `fill` back with its words, and the format asks
+  Claude to send it again, so editing a table keeps the teacher's cell colors. Test: `e2e/claude-table-fill.mjs`.
 - An element's `color` can be a gradient (`gradient:#A,#B`), except on text.
 - Diagrams use the automatic layout: each box is its `text` and, if wanted, its look (`fill`, `border`, `borderWidth`,
   `textColor`, `fontSize`, `shape`), the fields the editor saves. Never a box's place or size.

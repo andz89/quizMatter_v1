@@ -87,6 +87,10 @@ Tests that delete data (the announcements ones empty the announcements table) do
 - `table-element.mjs`: add a table, type, Tab, the text bar, both "+", the Table menu, undo taking away a picked or
   typed-in row, Delete on a picked cell, duplicate, dragging column and row lines, save, reload, the slide's edge, present, a table in a question
   slide's box, long text and a very long word wrapping at the table's text size (never shrinking).
+- `claude-table-fill.mjs`: Claude's connector (`/api/mcp`, called as an admin with an aal2 login token) and table
+  cell colors: the format names a cell's `fill`, `send_presentation` refuses one that isn't a color and builds
+  solid and gradient ones, the draft opens in the editor with the colored cells, and `read_presentation` gives a
+  saved cell's `fill` back (none for a plain cell).
 - `text-limits.mjs`: pasting past the limit into the question, an answer choice (5,000 characters) and a text box
   (50,000 as HTML, so 10,000 "&" is refused) leaves the text as it was with one toast; up to the limit goes in;
   typing at the limit is refused, deleting works; Ctrl+S saves; the slide name box's `maxlength`.

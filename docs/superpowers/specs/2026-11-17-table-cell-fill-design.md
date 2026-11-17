@@ -114,7 +114,9 @@ highlight answers.
 
 ### Out of scope / untouched
 
-- Claude's import and `read_presentation` (tables from Claude have no fills; reading ignores them).
+- ~~Claude's import and `read_presentation`~~ — added later the same day at the user's request: Claude's recipe
+  takes `{ "text", "style", "fill" }` cells and `read_presentation` returns each cell's `fill` (see
+  `src/pages/api/CLAUDE.md`).
 - The database stores slides as data; no new checks there beyond the version bump.
 - Privacy Policy: nothing new is collected.
 

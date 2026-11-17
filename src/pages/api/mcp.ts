@@ -403,7 +403,10 @@ function shrinkPresentation({ slides, ...details }: Presentation) {
         ...element,
         ...(element.text && { text: { ...element.text, html: htmlToText(element.text.html) } }),
         ...(element.table && {
-          table: { ...element.table, rows: element.table.rows.map((cells) => cells.map((cell) => ({ html: htmlToText(cell.html) }))) },
+          table: {
+            ...element.table,
+            rows: element.table.rows.map((cells) => cells.map((cell) => ({ html: htmlToText(cell.html), ...(cell.fill && { fill: cell.fill }) }))),
+          },
         }),
         ...(element.svg && { svg: svgNote(element.svg) }),
       })),
