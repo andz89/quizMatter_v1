@@ -437,6 +437,133 @@ try {
   await page3.screenshot({ path: SHOTS + "table-element-wrap.png" });
   await page3.close({ runBeforeUnload: false });
 
+  // Cell backgrounds: drag-select, Shift+click, the Color panel, Delete over the range, save, reload.
+  const fillId = randomUUID();
+  await api("/rest/v1/presentations", {
+    method: "POST",
+    body: JSON.stringify({ id: fillId, owner_id: teacher.id, title: "Table cell fills", data_version: 1 }),
+  });
+  await api("/rest/v1/slides", {
+    method: "POST",
+    body: JSON.stringify([{ presentation_id: fillId, id: "s1", position: 0, data: blankSlide([]) }]),
+  });
+  const page4 = await page.context().newPage();
+  page4.on("pageerror", (e) => errors.push(e.message));
+  page4.setDefaultTimeout(60_000);
+  await page4.goto(`${APP}/presentation/${fillId}/edit`, { timeout: 120_000 });
+  const fillSlide = page4.locator('[data-slide-id="s1"]');
+  await fillSlide.waitFor();
+  await page4.locator('button[title="Elements"]').click();
+  await page4.getByRole("button", { name: "Table", exact: true }).first().click();
+  const fCell = (row, column) => fillSlide.locator(`[data-table-row="${row}"][data-table-column="${column}"]`);
+  await fCell(0, 0).waitFor();
+  const cellColor = (row, column) => fCell(row, column).evaluate((el) => getComputedStyle(el).backgroundColor);
+  const fillTable = () => fillSlide.locator("[data-element-id]").first();
+  const fillEditable = fillSlide.locator('[contenteditable="true"]');
+  const RED = "rgb(224, 49, 49)";
+
+  // Text in two cells, for the Delete check later.
+  await fCell(0, 0).dblclick();
+  await fillEditable.waitFor();
+  await page4.keyboard.type("A");
+  await page4.keyboard.press("Tab");
+  await page4.keyboard.type("B");
+  await page4.keyboard.press("Escape");
+  await page4.waitForFunction(() => !document.querySelector('[contenteditable="true"]'));
+
+  // Dragging across cells (a cell is picked after Escape) selects them instead of moving the table.
+  const tableAt = await fillTable().boundingBox();
+  const dragFrom = await fCell(0, 0).boundingBox();
+  const dragTo = await fCell(1, 2).boundingBox();
+  await page4.mouse.move(dragFrom.x + dragFrom.width / 2, dragFrom.y + dragFrom.height / 2);
+  await page4.mouse.down();
+  await page4.mouse.move(dragTo.x + dragTo.width / 2, dragTo.y + dragTo.height / 2, { steps: 4 });
+  await page4.mouse.up();
+  const tableStill = await fillTable().boundingBox();
+  check("dragging across cells doesn't move the table", tableAt.x === tableStill.x && tableAt.y === tableStill.y, JSON.stringify({ tableAt, tableStill }));
+
+  // The toolbar's cell swatch opens the panel on "Cell background"; a color paints every selected cell.
+  await page4.locator('[data-element-toolbar] button[title="Cell background"]').click();
+  await page4.getByRole("heading", { name: "Cell background" }).waitFor();
+  await page4.locator('button[title="#E03131"]').click();
+  check("the dragged cells are colored in one click", (await cellColor(0, 0)) === RED && (await cellColor(1, 2)) === RED);
+  check("cells outside the selection stay plain", (await cellColor(2, 0)) !== RED, await cellColor(2, 0));
+
+  // Shift+click selects a whole row, so one click colors it.
+  await fCell(2, 0).click();
+  await fCell(2, 2).click({ modifiers: ["Shift"] });
+  await page4.locator('button[title="#F08C00"]').click();
+  check("Shift+click colors the whole row", (await cellColor(2, 0)) === "rgb(240, 140, 0)" && (await cellColor(2, 2)) === "rgb(240, 140, 0)");
+
+  await page4.screenshot({ path: SHOTS + "table-element-fills.png" });
+  await page4.keyboard.press("Control+s");
+  const savedFills = async () => {
+    const rows = await api(`/rest/v1/slides?presentation_id=eq.${fillId}&id=eq.s1&select=data`);
+    const t = (rows[0]?.data?.elements ?? []).find((el) => el.assetId === "table");
+    return t?.table.rows.map((cells) => cells.map((c) => c.fill ?? ""));
+  };
+  let fills;
+  for (let i = 0; i < 40 && !(fills = await savedFills())?.[0]?.[0]; i++) await new Promise((r) => setTimeout(r, 250));
+  check(
+    "saved: the cell fills",
+    JSON.stringify(fills) ===
+      JSON.stringify([
+        ["#E03131", "#E03131", "#E03131"],
+        ["#E03131", "#E03131", "#E03131"],
+        ["#F08C00", "#F08C00", "#F08C00"],
+      ]),
+    JSON.stringify(fills),
+  );
+
+  await page4.reload();
+  await fCell(0, 0).waitFor();
+  check("after reload the fills are still there", (await cellColor(0, 0)) === RED && (await cellColor(2, 2)) === "rgb(240, 140, 0)");
+
+  // Delete empties every cell of the selection, and keeps their colors. (The first click only selects the
+  // table; a second on another cell picks it — two quick clicks on one cell would count as a double-click.)
+  await fCell(1, 1).click();
+  await fCell(0, 0).click();
+  const delFrom = await fCell(0, 0).boundingBox();
+  const delTo = await fCell(0, 1).boundingBox();
+  await page4.mouse.move(delFrom.x + delFrom.width / 2, delFrom.y + delFrom.height / 2);
+  await page4.mouse.down();
+  await page4.mouse.move(delTo.x + delTo.width / 2, delTo.y + delTo.height / 2, { steps: 4 });
+  await page4.mouse.up();
+  await page4.keyboard.press("Delete");
+  check(
+    "Delete empties both selected cells",
+    (await fCell(0, 0).innerText()).trim() === "" && (await fCell(0, 1).innerText()).trim() === "",
+  );
+  check("Delete keeps the cells' colors", (await cellColor(0, 0)) === RED);
+
+  // "None" puts the selection back to plain white; the rest keeps its color.
+  await page4.locator('[data-element-toolbar] button[title="Cell background"]').click();
+  await page4.locator('button[title="None"]').click();
+  check("None clears the selected cells", (await cellColor(0, 0)) !== RED && (await cellColor(1, 0)) === RED);
+
+  // With no cell picked, the panel colors every cell.
+  await page4.keyboard.press("Escape");
+  await page4.keyboard.press("Escape");
+  await page4.locator('[data-element-toolbar] button[title="Cell background"]').click();
+  await page4.locator('button[title="#FFF9DB"]').click();
+  check("with no cell picked every cell is colored", (await cellColor(0, 0)) === "rgb(255, 249, 219)" && (await cellColor(2, 2)) === "rgb(255, 249, 219)");
+
+  // Undo taking away the row the selection ends in: the pick is dropped and nothing breaks.
+  await page4.locator('button[title="Add a row"]').click();
+  await page4.waitForFunction(() => document.querySelectorAll('[data-table-row]').length === 12);
+  await fCell(0, 0).click();
+  const goneFrom = await fCell(0, 0).boundingBox();
+  const goneTo = await fCell(3, 0).boundingBox();
+  await page4.mouse.move(goneFrom.x + goneFrom.width / 2, goneFrom.y + goneFrom.height / 2);
+  await page4.mouse.down();
+  await page4.mouse.move(goneTo.x + goneTo.width / 2, goneTo.y + goneTo.height / 2, { steps: 4 });
+  await page4.mouse.up();
+  await page4.waitForTimeout(UNDO_STEP_MS);
+  await page4.keyboard.press("Control+z");
+  await page4.waitForFunction(() => document.querySelectorAll('[data-table-row]').length === 9);
+  check("undo of the selection's last row drops the pick and nothing breaks", (await page4.locator('button[title="Add a row"]').count()) === 1);
+  await page4.close({ runBeforeUnload: false });
+
   check("no page errors", errors.length === 0, errors.join(" | "));
 } catch (error) {
   check("run finished without an exception", false, String(error).split("\n").slice(0, 4).join(" "));

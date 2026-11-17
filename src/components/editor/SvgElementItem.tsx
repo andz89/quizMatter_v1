@@ -8,6 +8,7 @@ import { TextBoxContent } from "./TextBoxContent";
 import { DiagramBoxEditor, findDiagramBoxAt } from "./DiagramBoxEditor";
 import { DiagramBoxButtons } from "./DiagramBoxButtons";
 import { TableButtons, TableContent, TableLines, tableCellAt } from "./TableContent";
+import type { TableCellSpot } from "@/lib/table";
 import { CORNERS, EDGE_HANDLES, type Corner, type EdgeHandle } from "./handles";
 import {
   clamp,
@@ -170,6 +171,8 @@ export const SvgElementItem = memo(function SvgElementItem({ slideId, element, i
   const isTypingInTable = useEditorStore((s) => s.pickedTableCell?.elementId === element.id && !!s.pickedTableCell.typingAt);
   // Set when a press on a table happened while typing in one of its cells (see the click).
   const wasTypingOnPress = useRef(false);
+  // A drag across the cells of a table with a picked cell selects a rectangle of cells instead of moving the table.
+  const cellDrag = useRef<{ anchor: TableCellSpot } | null>(null);
 
   // A picked table cell is let go once this isn't the one selected element anymore.
   useEffect(() => {
@@ -208,6 +211,27 @@ export const SvgElementItem = memo(function SvgElementItem({ slideId, element, i
       return;
     }
 
+    // A table with a picked cell: dragging selects a rectangle of cells (like Excel), Shift+click stretches the
+    // selection to the pressed cell. Moving the table again: Escape first (lets go of the cell), then drag.
+    if (asset?.isTable && isTableCellPicked) {
+      const cell = tableCellAt(e.clientX, e.clientY);
+      if (e.shiftKey) {
+        const pick = useEditorStore.getState().pickedTableCell;
+        if (pick && cell) {
+          const anchor = { row: pick.row, column: pick.column };
+          setPickedTableCell({ elementId: element.id, ...anchor, end: cell.row === anchor.row && cell.column === anchor.column ? undefined : cell });
+        }
+        return;
+      }
+      // A press outside the cells (the outer line) still moves the table.
+      if (cell) {
+        cellDrag.current = { anchor: cell };
+        setPickedTableCell({ elementId: element.id, ...cell });
+        e.currentTarget.setPointerCapture(e.pointerId);
+        return;
+      }
+    }
+
     if (e.shiftKey) {
       selectElement(slideId, element.id, true);
       return;
@@ -243,6 +267,18 @@ export const SvgElementItem = memo(function SvgElementItem({ slideId, element, i
   };
 
   const handleBodyPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (cellDrag.current) {
+      const { anchor } = cellDrag.current;
+      const cell = tableCellAt(e.clientX, e.clientY);
+      // Outside the table the selection keeps its last cell (the pointer is captured).
+      if (!cell) return;
+      const pick = useEditorStore.getState().pickedTableCell;
+      const end = cell.row === anchor.row && cell.column === anchor.column ? undefined : cell;
+      if (pick?.end?.row !== end?.row || pick?.end?.column !== end?.column) {
+        setPickedTableCell({ elementId: element.id, ...anchor, end });
+      }
+      return;
+    }
     if (cropState.current) {
       handleCropPointerMove(e);
       return;
@@ -341,6 +377,7 @@ export const SvgElementItem = memo(function SvgElementItem({ slideId, element, i
   };
 
   const stopDrag = (e: React.PointerEvent<HTMLDivElement>) => {
+    cellDrag.current = null;
     cropState.current = null;
     const state = dragState.current;
     dragState.current = null;

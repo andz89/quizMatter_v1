@@ -118,8 +118,9 @@ export function withGroupMembers(elements: SvgElement[], ids: string[]): string[
 export type LayerMove = "forward" | "backward" | "front" | "back";
 
 // Which part the Color panel paints: an element's fill (or a shape box's), a border (shape box or
-// squares/rectangles), or a diagram box's background, border or text (the picked box, or every box).
-export type ColorPanelTarget = "fill" | "border" | "boxFill" | "boxBorder" | "boxText";
+// squares/rectangles), a diagram box's background, border or text (the picked box, or every box), or a
+// table's cell backgrounds (the picked cells, or every cell).
+export type ColorPanelTarget = "fill" | "border" | "boxFill" | "boxBorder" | "boxText" | "cellFill";
 
 /**
  * Changes which elements draw on top. Later in the list = drawn on top, and only elements in the same
@@ -437,7 +438,8 @@ interface EditorState {
   setEditingDiagramBox: (edit: { elementId: string; path: DiagramBoxPath } | null) => void;
   // One cell picked in the selected table (a violet outline), or null. `typingAt` is set while typing in it: where
   // the double-click was, on the screen. Only while that table is the one selected element.
-  pickedTableCell: (TableCellSpot & { elementId: string; typingAt?: { x: number; y: number } }) | null;
+  // `end` is the far corner of a selected rectangle of cells (missing = one cell); never set while typing.
+  pickedTableCell: (TableCellSpot & { elementId: string; typingAt?: { x: number; y: number }; end?: TableCellSpot }) | null;
   setPickedTableCell: (pick: EditorState["pickedTableCell"]) => void;
   // Group needs 2+ selected elements in the same box. Both act on the current slide's selection.
   groupSelectedElements: () => void;

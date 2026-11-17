@@ -31,6 +31,7 @@ import { ArrangePanel } from "./ArrangePanel";
 import { MathToolControls } from "./MathToolPanels";
 import { FONT_SIZES, FontSizePicker } from "./TextFormatToolbar";
 import { TablePanel } from "./TableContent";
+import { cellRange } from "@/lib/table";
 import { PanelLabel, PanelReadout, PanelSlider, ResetButton, ToggleChip, ToolPanelButton } from "./PanelControls";
 import {
   CALENDAR_YEARS,
@@ -105,6 +106,7 @@ export function SelectedElementToolbar({ showColor = true }: { showColor?: boole
   const croppingElementId = useEditorStore((s) => s.croppingElementId);
   const setCroppingElementId = useEditorStore((s) => s.setCroppingElementId);
   const pickedDiagramBox = useEditorStore((s) => s.pickedDiagramBox);
+  const pickedTableCell = useEditorStore((s) => s.pickedTableCell);
 
   const elements = slide?.elements.filter((el) => selectedElementIds.includes(el.id)) ?? [];
   if (elements.length === 0) return null;
@@ -137,8 +139,21 @@ export function SelectedElementToolbar({ showColor = true }: { showColor?: boole
   const date = calendar?.calendarDate ?? DEFAULT_CALENDAR_DATE;
   const setDate = (calendarDate: CalendarDate) => calendar && updateElement(selectedSlideId, calendar.id, { calendarDate });
 
-  // The Table menu is offered when exactly one table is selected.
+  // The Table menu is offered when exactly one table is selected. Its cell swatch shows the shared background of
+  // the picked cells (or every cell when none is picked): "none" for plain white, the mixed wheel when they differ.
   const tableElement = elements.length === 1 && elements[0].table ? elements[0] : null;
+  const tablePick = tableElement && pickedTableCell?.elementId === tableElement.id ? pickedTableCell : null;
+  const tableSpan = tableElement?.table
+    ? tablePick
+      ? cellRange(tablePick, tablePick.end ?? tablePick)
+      : cellRange({ row: 0, column: 0 }, { row: tableElement.table.rows.length - 1, column: tableElement.table.rows[0].length - 1 })
+    : null;
+  const tableCells =
+    tableSpan && tableElement?.table
+      ? tableElement.table.rows.slice(tableSpan.from.row, tableSpan.to.row + 1).flatMap((cells) => cells.slice(tableSpan.from.column, tableSpan.to.column + 1))
+      : [];
+  const sharedCellFill =
+    tableCells.length > 0 && tableCells.every((cell) => cell.fill === tableCells[0].fill) ? { fill: tableCells[0].fill } : null;
 
   // Box style is offered when exactly one diagram is selected: for its picked box, or every box.
   const diagramElement = elements.length === 1 ? elements[0] : null;
@@ -367,6 +382,18 @@ export function SelectedElementToolbar({ showColor = true }: { showColor?: boole
             table={tableElement.table}
             bounds={getContainerBounds(tableElement.containerId, slide)}
           />
+          {showColor && (
+            <button
+              type="button"
+              title="Cell background"
+              onClick={() => openColorPanelOn("cellFill")}
+              className="h-6 w-6 shrink-0 rounded-full border border-border-default"
+              style={{
+                background: sharedCellFill ? (sharedCellFill.fill ? toCssBackground(sharedCellFill.fill) : NONE_SWATCH) : MIXED_COLOR_SWATCH,
+                ...outline("cellFill"),
+              }}
+            />
+          )}
           {showColor && (
             <FontSizePicker
               size={tableElement.table.fontSize ?? TABLE_FONT_SIZE}

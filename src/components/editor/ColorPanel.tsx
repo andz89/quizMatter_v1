@@ -6,6 +6,7 @@ import { useEditorStore } from "@/lib/store";
 import { useFormatTexts } from "@/lib/useFormatTexts";
 import { formatChain } from "@/lib/richText";
 import { diagramStyleTargets, getDiagramBoxes, getElementAsset, withDiagramBoxStyle } from "@/lib/svgLibrary";
+import { cellRange, withCellsFill } from "@/lib/table";
 import { toCssBackground } from "./ElementSvg";
 import {
   BORDER_WIDTH_DEFAULT,
@@ -90,6 +91,7 @@ export function ColorPanel() {
   const updateElements = useEditorStore((s) => s.updateElements);
   const updateElement = useEditorStore((s) => s.updateElement);
   const pickedDiagramBox = useEditorStore((s) => s.pickedDiagramBox);
+  const pickedTableCell = useEditorStore((s) => s.pickedTableCell);
   const selectedContainerId = useEditorStore((s) => s.selectedContainerId);
   const colorPanelTarget = useEditorStore((s) => s.colorPanelTarget);
   const setShapeBoxColors = useEditorStore((s) => s.setShapeBoxColors);
@@ -107,10 +109,10 @@ export function ColorPanel() {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
       closeColorPanel();
-      // One Escape does one thing: with a diagram box picked (not typing), it only closes the panel.
-      // Otherwise the editor's Escape would also let go of the box, and the next change would go to every box.
-      const { pickedDiagramBox, editingDiagramBox } = useEditorStore.getState();
-      if (pickedDiagramBox && !editingDiagramBox) e.stopPropagation();
+      // One Escape does one thing: with a diagram box or table cell picked (not typing), it only closes the panel.
+      // Otherwise the editor's Escape would also let go of it, and the next change would go to every box or cell.
+      const { pickedDiagramBox, editingDiagramBox, pickedTableCell } = useEditorStore.getState();
+      if ((pickedDiagramBox && !editingDiagramBox) || (pickedTableCell && !pickedTableCell.typingAt)) e.stopPropagation();
     };
     // Capture, so this runs before the editor's own Escape shortcut.
     window.addEventListener("keydown", handleKeyDown, true);
@@ -136,6 +138,21 @@ export function ColorPanel() {
       ? diagramStyleTargets(diagram, pickedDiagramBox?.elementId === diagramElement.id ? pickedDiagramBox.path : undefined)
       : [];
   const boxStyleColor = boxStyle ? styleTargets[0]?.item[boxStyle.key] : undefined;
+  // One table selected and the panel opened on its cell swatch: it paints the picked cells, or every cell.
+  const tableElement = !textEditor && elements.length === 1 && elements[0].table ? elements[0] : null;
+  const isCellFill = !!tableElement && colorPanelTarget === "cellFill";
+  const tablePick = tableElement && pickedTableCell?.elementId === tableElement.id ? pickedTableCell : null;
+  const cellSpan =
+    isCellFill && tableElement.table
+      ? tablePick
+        ? cellRange(tablePick, tablePick.end ?? tablePick)
+        : cellRange({ row: 0, column: 0 }, { row: tableElement.table.rows.length - 1, column: tableElement.table.rows[0].length - 1 })
+      : null;
+  const targetCells =
+    cellSpan && tableElement?.table
+      ? tableElement.table.rows.slice(cellSpan.from.row, cellSpan.to.row + 1).flatMap((cells) => cells.slice(cellSpan.from.column, cellSpan.to.column + 1))
+      : [];
+  const cellFill = targetCells.every((cell) => cell.fill === targetCells[0]?.fill) ? targetCells[0]?.fill : null;
   // Opened on "border" with only squares/rectangles selected, the panel paints their border.
   const isShapeBorder =
     !textEditor &&
@@ -144,12 +161,14 @@ export function ColorPanel() {
     elements.every((el) => getElementAsset(el.assetId)?.roundCorners);
   const shapeBorderColor = elements.every((el) => el.borderColor === elements[0]?.borderColor) ? elements[0]?.borderColor : null;
   // Box text has no "none": text always needs a color.
-  const hasNone = !!boxTarget || isShapeBorder || (!!boxStyle && boxStyle.key !== "textColor");
+  const hasNone = !!boxTarget || isShapeBorder || isCellFill || (!!boxStyle && boxStyle.key !== "textColor");
   const noneSelected = boxStyle
     ? boxStyleColor === DIAGRAM_NONE
-    : isShapeBorder
-      ? shapeBorderColor === undefined
-      : boxColor === undefined;
+    : isCellFill
+      ? targetCells.every((cell) => cell.fill === undefined)
+      : isShapeBorder
+        ? shapeBorderColor === undefined
+        : boxColor === undefined;
 
   const commonColor = textEditor
     ? (textColor ?? DEFAULT_TEXT_COLOR).toUpperCase()
@@ -157,7 +176,9 @@ export function ColorPanel() {
       ? boxStyleColor && boxStyleColor !== DIAGRAM_NONE
         ? boxStyleColor
         : null
-      : boxTarget
+      : isCellFill
+        ? (cellFill ?? null)
+        : boxTarget
       ? (boxColor ?? null)
       : isShapeBorder
         ? (shapeBorderColor ?? null)
@@ -165,11 +186,13 @@ export function ColorPanel() {
           ? elements[0].color
           : null;
 
-  // undefined = none (shape box and shape borders only).
+  // undefined = none (shape box, shape borders and cell backgrounds only).
   const handleColor = (color: string | undefined) => {
     if (textEditor) texts.forEach(({ editor }) => formatChain(editor).setColor(color ?? DEFAULT_TEXT_COLOR).run());
     else if (boxStyle && diagram && diagramElement)
       updateElement(selectedSlideId, diagramElement.id, withDiagramBoxStyle(diagram, styleTargets, { [boxStyle.key]: color ?? DIAGRAM_NONE }));
+    else if (isCellFill && tableElement?.table && cellSpan)
+      updateElement(selectedSlideId, tableElement.id, { table: withCellsFill(tableElement.table, cellSpan.from, cellSpan.to, color) });
     else if (boxTarget === "fill") setShapeBoxColors(selectedSlideId, { shapeBoxFill: color });
     else if (boxTarget === "border") setShapeBoxColors(selectedSlideId, { shapeBoxBorder: color });
     else if (isShapeBorder) updateElements(selectedSlideId, Object.fromEntries(elements.map((el) => [el.id, { borderColor: color }])));
@@ -197,7 +220,17 @@ export function ColorPanel() {
     >
       <div className="mb-4 flex items-center justify-between">
         <h2 className="text-[15px] font-extrabold text-text-primary">
-          {boxStyle ? boxStyle.title : boxTarget === "fill" ? "Box fill" : boxTarget === "border" ? "Box border" : isShapeBorder ? "Border" : "Color"}
+          {boxStyle
+            ? boxStyle.title
+            : isCellFill
+              ? "Cell background"
+              : boxTarget === "fill"
+                ? "Box fill"
+                : boxTarget === "border"
+                  ? "Box border"
+                  : isShapeBorder
+                    ? "Border"
+                    : "Color"}
         </h2>
         <button
           type="button"

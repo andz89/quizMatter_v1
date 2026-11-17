@@ -396,7 +396,8 @@ export const svgElementSchema = z.object({
   table: z
     .object({
       rows: z
-        .array(z.array(z.object({ html: htmlSchema })).min(TABLE_COLUMNS.min).max(TABLE_COLUMNS.max))
+        // fill is the cell's background color; missing = plain white. Added in DATA_VERSION 4.
+        .array(z.array(z.object({ html: htmlSchema, fill: colorSchema.optional() })).min(TABLE_COLUMNS.min).max(TABLE_COLUMNS.max))
         .min(TABLE_ROWS.min)
         .max(TABLE_ROWS.max),
       fontSize: fontSizeSchema.optional(),
@@ -457,7 +458,7 @@ export function embedLinkSchema(kind: EmbedKind) {
 // a save from a lower version than the one that last saved that presentation (QMOLD), so an editor tab running
 // older code can't drop fields it doesn't know. Bump it whenever the saved shape changes: see "Changing the saved
 // shape" in src/lib/CLAUDE.md.
-export const DATA_VERSION = 3;
+export const DATA_VERSION = 4;
 
 // True when a presentation was saved by newer app code than this tab runs. Copying it here would drop fields this tab
 // doesn't know, so copy paths check this first (the database refuses it too, with QMOLD).
@@ -503,6 +504,24 @@ function cleanElement(element: unknown): unknown {
   // make, and that one element would stop the whole presentation from opening. It's left out (= its starting look).
   for (const [field, schema] of [...Object.entries(DIAGRAM_SCHEMAS), ...Object.entries(MATH_TOOL_SCHEMAS)]) {
     if (cleaned[field] !== undefined && !isValidSetting(schema, cleaned[field])) delete cleaned[field];
+  }
+  // The database doesn't check a table cell's fill color, so an unsafe one (like a hidden url(…)) is left out
+  // (= plain white) and the slide still opens, like the slide's own colors above.
+  const table = cleaned.table as { rows?: unknown[] } | undefined;
+  if (table && Array.isArray(table.rows)) {
+    cleaned.table = {
+      ...table,
+      rows: table.rows.map((cells) =>
+        Array.isArray(cells)
+          ? cells.map((cell) => {
+              if (typeof cell !== "object" || cell === null || !isUnsafeColor((cell as Record<string, unknown>).fill)) return cell;
+              const rest = { ...(cell as Record<string, unknown>) };
+              delete rest.fill;
+              return rest;
+            })
+          : cells,
+      ),
+    };
   }
   // A written fraction can reach 999, but a bar or circle is drawn in FRACTION_PARTS pieces at most.
   const { assetId, fraction } = cleaned as { assetId?: unknown; fraction?: { parts: number } };

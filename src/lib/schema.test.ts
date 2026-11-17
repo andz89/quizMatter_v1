@@ -289,6 +289,19 @@ test("an element keeps a table and refuses one with the wrong shape", () => {
   assert.equal(fits({ rows: [[]] }), false, "no columns");
 });
 
+test("a table cell keeps a safe background color, and an unsafe one is left out so the slide still opens", () => {
+  const element = { id: "e1", assetId: "table", x: 0, y: 0, width: 100, height: 100, color: "#191A2C", containerId: null };
+  const table = { rows: [[{ html: "<p>Hi</p>", fill: "#FF5A5F" }, { html: "<p>Yo</p>", fill: "url(https://evil.example)" }]] };
+  const slide = slideSchema.parse({ ...blankSlide, elements: [{ ...element, table }] });
+  const cells = slide.elements[0].table?.rows[0];
+  assert.deepEqual(cells?.[0], { html: "<p>Hi</p>", fill: "#FF5A5F" });
+  assert.deepEqual(cells?.[1], { html: "<p>Yo</p>" });
+});
+
+test("the saved shape is version 4 (table cell fills)", () => {
+  assert.equal(DATA_VERSION, 4);
+});
+
 test("a table keeps its column and row sizes and refuses ones that don't match", () => {
   const element = { id: "e1", assetId: "table", x: 0, y: 0, width: 100, height: 100, color: "#191A2C", containerId: null };
   const rows = [[{ html: "" }, { html: "" }]];
