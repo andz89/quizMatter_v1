@@ -118,8 +118,9 @@ export function withGroupMembers(elements: SvgElement[], ids: string[]): string[
 export type LayerMove = "forward" | "backward" | "front" | "back";
 
 // Which part the Color panel paints: an element's fill (or a shape box's), a border (shape box or
-// squares/rectangles), or a diagram box's background, border or text (the picked box, or every box).
-export type ColorPanelTarget = "fill" | "border" | "boxFill" | "boxBorder" | "boxText";
+// squares/rectangles), a diagram box's background, border or text (the picked box, or every box), or a
+// table's cell backgrounds (the picked cells, or every cell).
+export type ColorPanelTarget = "fill" | "border" | "boxFill" | "boxBorder" | "boxText" | "cellFill";
 
 /**
  * Changes which elements draw on top. Later in the list = drawn on top, and only elements in the same
