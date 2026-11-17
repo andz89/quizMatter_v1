@@ -3,7 +3,7 @@ import { useEditorStore } from "./store";
 import { isTextFieldOrDialog, isTypingTarget } from "./dom";
 import { getContainerBounds } from "./constants";
 import { overhangFor, positionRange } from "./geometry";
-import { withCellHtml } from "./table";
+import { withCellsEmptied } from "./table";
 import { boxRemovalPatch } from "@/components/editor/DiagramBoxButtons";
 
 // How far (px) an arrow key moves the selected element(s); Shift moves further.
@@ -140,7 +140,7 @@ export function useEditorShortcuts() {
         const pick = state.pickedTableCell;
         if (e.key === "Escape") return state.setPickedTableCell(null);
         const table = state.presentation.slides.find((sl) => sl.id === selectedSlideId)?.elements.find((el) => el.id === pick.elementId)?.table;
-        if (table) state.updateElement(selectedSlideId, pick.elementId, { table: withCellHtml(table, pick, "") });
+        if (table) state.updateElement(selectedSlideId, pick.elementId, { table: withCellsEmptied(table, pick, pick.end ?? pick) });
       } else if (selectedElementIds.length > 0 && e.key === "Delete") {
         // Only the Delete key, not Backspace, so a stray Backspace can't remove elements.
         e.preventDefault();

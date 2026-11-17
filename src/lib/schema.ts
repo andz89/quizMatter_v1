@@ -515,7 +515,8 @@ function cleanElement(element: unknown): unknown {
         Array.isArray(cells)
           ? cells.map((cell) => {
               if (typeof cell !== "object" || cell === null || !isUnsafeColor((cell as Record<string, unknown>).fill)) return cell;
-              const { fill: _, ...rest } = cell as Record<string, unknown>;
+              const rest = { ...(cell as Record<string, unknown>) };
+              delete rest.fill;
               return rest;
             })
           : cells,

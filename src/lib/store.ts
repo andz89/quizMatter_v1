@@ -437,7 +437,8 @@ interface EditorState {
   setEditingDiagramBox: (edit: { elementId: string; path: DiagramBoxPath } | null) => void;
   // One cell picked in the selected table (a violet outline), or null. `typingAt` is set while typing in it: where
   // the double-click was, on the screen. Only while that table is the one selected element.
-  pickedTableCell: (TableCellSpot & { elementId: string; typingAt?: { x: number; y: number } }) | null;
+  // `end` is the far corner of a selected rectangle of cells (missing = one cell); never set while typing.
+  pickedTableCell: (TableCellSpot & { elementId: string; typingAt?: { x: number; y: number }; end?: TableCellSpot }) | null;
   setPickedTableCell: (pick: EditorState["pickedTableCell"]) => void;
   // Group needs 2+ selected elements in the same box. Both act on the current slide's selection.
   groupSelectedElements: () => void;

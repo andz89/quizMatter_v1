@@ -12,8 +12,8 @@ import {
   removeTableColumn,
   removeTableRow,
   resizeTableLine,
-  tableCellBox,
   tableLinePositions,
+  tableRangeBox,
   withCellHtml,
   type TableCellSpot,
   type TableElement,
@@ -57,8 +57,8 @@ export function TableContent({ slideId, element, table }: TableProps) {
   const pick = useEditorStore((s) => (s.pickedTableCell?.elementId === element.id ? s.pickedTableCell : null));
   const setPick = useEditorStore((s) => s.setPickedTableCell);
 
-  // The picked cell can be gone (e.g. undo took away its row).
-  const isGone = !!pick && !table.rows[pick.row]?.[pick.column];
+  // The picked cell, or the selection's far corner, can be gone (e.g. undo took away its row).
+  const isGone = !!pick && (!table.rows[pick.row]?.[pick.column] || (!!pick.end && !table.rows[pick.end.row]?.[pick.end.column]));
   useEffect(() => {
     if (isGone) setPick(null);
   }, [isGone, setPick]);
@@ -206,13 +206,22 @@ export function TableButtons({ slideId, element, table, bounds }: TableProps & {
   const placed = { ...element, table };
   const rows = table.rows.length;
   const columns = table.rows[0].length;
-  const isPickThere = !!pick && !!table.rows[pick.row]?.[pick.column];
+  const isPickThere = !!pick && !!table.rows[pick.row]?.[pick.column] && (!pick.end || !!table.rows[pick.end.row]?.[pick.end.column]);
 
   return (
     <>
       {isPickThere && (
-        // Inside the cell: on the table's lines it would be hard to see.
-        <div className="pointer-events-none absolute" style={{ ...tableCellBox(placed, pick), outline: "2px solid var(--accent)", outlineOffset: -2 }} />
+        // Inside the cells: on the table's lines it would be hard to see. A rectangle of cells also gets a soft
+        // tint, so a multi-cell selection reads like Excel's.
+        <div
+          className="pointer-events-none absolute"
+          style={{
+            ...tableRangeBox(placed, pick, pick.end ?? pick),
+            outline: "2px solid var(--accent)",
+            outlineOffset: -2,
+            background: pick.end ? "color-mix(in srgb, var(--accent) 12%, transparent)" : undefined,
+          }}
+        />
       )}
       {!pick?.typingAt && rows < TABLE_ROWS.max && (
         <PlusButton

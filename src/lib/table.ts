@@ -146,7 +146,11 @@ function withCells(table: TableSettings, a: TableCellSpot, b: TableCellSpot, cha
 
 /** Every cell between `a` and `b` gets this background color (undefined = back to plain white). */
 export function withCellsFill(table: TableSettings, a: TableCellSpot, b: TableCellSpot, fill: string | undefined): TableSettings {
-  return withCells(table, a, b, ({ fill: _, ...cell }) => (fill === undefined ? cell : { ...cell, fill }));
+  return withCells(table, a, b, (cell) => {
+    const next = { ...cell, fill };
+    if (fill === undefined) delete next.fill;
+    return next;
+  });
 }
 
 /** Every cell between `a` and `b` loses its text (the Delete key on a selection). Fills stay. */
