@@ -41,6 +41,7 @@ export function EditableText({
     fontSize: chosenFontSize,
     isSelected,
     editorClass: "h-full",
+    hasTextLimit: true,
     onUpdate: (editor) => {
       if (editor.isEmpty) onChange("", "");
       else onChange(editor.getText({ blockSeparator: "\n" }), editor.getHTML());

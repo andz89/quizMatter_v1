@@ -64,10 +64,63 @@ export function saveErrorMessage(error: unknown, action: string): string {
   return `Couldn't ${action}. Please check your internet and try again.`;
 }
 
+/**
+ * The SaveRefusedError for a database error that says why a save can't work (a refusal code, or a limit a teacher
+ * can reach), else null: the error is then most likely the connection or a bug.
+ */
+export function saveRefusal(error: { code: string; message: string }): SaveRefusedError | null {
+  const refusal = refusalFromCode(error.code);
+  if (refusal) return refusal;
+  // The database's slide-count check (same limit as slideIdsSchema). Its code, 22023, is shared with checks that
+  // only fail on a bug, so the message tells them apart.
+  if (error.code === "22023" && error.message.startsWith("A presentation needs")) {
+    return new SaveRefusedError(TOO_MANY_SLIDES_MESSAGE);
+  }
+  // A slide over the database's 2 MB (slides_data_is_small_object). zod checks each text, not a whole slide, so
+  // many big drawings or long texts on one slide get here.
+  if (error.code === "23514" && error.message.includes("slides_data_is_small_object")) {
+    return new SaveRefusedError("A slide you changed is too big to save. Remove some drawings or long text from it, then click Save.");
+  }
+  return null;
+}
+
 const slideIdsSchema = z
   .array(z.string().max(100))
   .min(1)
   .max(MAX_SLIDES, TOO_MANY_SLIDES_MESSAGE);
+
+// Where on a slide a text is too long, by the first part of zod's path inside the slide.
+const TEXT_PLACES: Record<string, string> = {
+  question: "its question",
+  questionHtml: "its question",
+  options: "an answer choice",
+  correctAnswer: "its answer",
+  name: "its name",
+  elements: "a text box or table",
+};
+
+const ORDINAL_ENDINGS: Partial<Record<Intl.LDMLPluralRule, string>> = { one: "st", two: "nd", few: "rd" };
+
+/** 1st, 2nd, 3rd, 4th, 11th, 21st, … */
+function ordinal(n: number): string {
+  return `${n}${ORDINAL_ENDINGS[new Intl.PluralRules("en", { type: "ordinal" }).select(n)] ?? "th"}`;
+}
+
+/**
+ * zod's refusal of a slide as a SaveRefusedError naming the slide (its place in the slide list) and, for a text
+ * that's too long, the box: the editor doesn't stop typing at the limits, so a teacher can reach them. Null when the
+ * problem isn't on a slide. `sent` is the slides that were checked (only the changed ones).
+ */
+function slideRefusal(error: z.ZodError, presentation: Presentation, sent: Slide[]): SaveRefusedError | null {
+  const issue = error.issues[0];
+  const [field, index, part] = issue.path;
+  if (field !== "slides" || typeof index !== "number") return null;
+  const slide = `The ${ordinal(presentation.slides.indexOf(sent[index]) + 1)} slide`;
+  if (issue.code === "too_big" && issue.origin === "string") {
+    return new SaveRefusedError(`${slide} has too much text in ${TEXT_PLACES[String(part)] ?? "one box"}. Shorten it, then click Save.`);
+  }
+  return new SaveRefusedError(`${slide} can't be saved (${issue.message}). Fix it, then click Save.`);
+}
 
 /**
  * Saves the presentation (details + slides, in order) in one step. The `save_presentation` database function also
@@ -79,8 +132,8 @@ const slideIdsSchema = z
  *   sent; the editor never changes a slide in place, so the same object means the same content. Leave it out
  *   to send every slide.
  *
- * Throws if it fails: a SaveRefusedError (too many presentations or saves, or a conflict), a ZodError if the data
- * isn't valid, or the database's error.
+ * Throws if it fails: a SaveRefusedError (too many presentations or saves, a conflict, or a slide over a limit), a
+ * ZodError if other data isn't valid, or the database's error.
  */
 export async function savePresentationToDb(
   presentation: Presentation,
@@ -103,23 +156,18 @@ export async function savePresentationToDb(
   // Checked with zod first (see CLAUDE.md, "Saving Data"): bad data throws here and is never saved. The slide
   // count is checked first, on every slide (only changed slides are in `slides`).
   const slideIds = slideIdsSchema.parse(presentation.slides.map((slide) => slide.id));
+  const checked = presentationSchema.safeParse({ ...presentation, referenceLinks, slides });
+  if (!checked.success) throw slideRefusal(checked.error, presentation, slides) ?? checked.error;
+  const source = copiedFrom && idSchema.parse(copiedFrom);
   const { data, error } = await createClient().rpc("save_presentation", {
-    presentation: {
-      ...presentationSchema.parse({ ...presentation, referenceLinks, slides }),
-      copiedFrom: copiedFrom && idSchema.parse(copiedFrom),
-    },
+    presentation: { ...checked.data, copiedFrom: source },
     slide_ids: slideIds,
     // null = a new presentation; the generated types can't say an argument may be null.
     base_updated_at: baseUpdatedAt as number,
     app_version: DATA_VERSION,
   });
-  const refusal = error && refusalFromCode(error.code);
+  const refusal = error && saveRefusal(error);
   if (refusal) throw refusal;
-  // The database's slide-count check (same limit as slideIdsSchema). Its code, 22023, is shared with checks that
-  // only fail on a bug, so the message tells them apart.
-  if (error?.code === "22023" && error.message.startsWith("A presentation needs")) {
-    throw new SaveRefusedError(TOO_MANY_SLIDES_MESSAGE);
-  }
   // A slide thought to be saved isn't in the database: save again with every slide.
   if (error?.code === "QM422" && savedSlides) return savePresentationToDb(presentation, { baseUpdatedAt, copiedFrom });
   if (error) throw error;

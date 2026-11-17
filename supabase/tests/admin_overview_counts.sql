@@ -52,7 +52,7 @@ select set_config('request.jwt.claims',
 select public.start_review(target_id => 'test-aoc-l1');
 select public.submit_review(
   target_id => 'test-aoc-l1',
-  review_draft => '{"id": "test-aoc-l1", "title": "Lesson one", "slides": [{"id": "s1", "type": "blank"}]}',
+  review_draft => '{"id": "test-aoc-l1", "title": "Lesson one", "description": "", "subject": "", "curriculum": "", "learningCompetency": "", "slides": [{"id": "s1", "type": "blank"}]}',
   reviewed_on => current_date,
   base_updated_at => null::bigint
 );
@@ -79,7 +79,7 @@ select set_config('request.jwt.claims',
 
 select public.submit_review(
   target_id => 'test-aoc-l1',
-  review_draft => '{"id": "test-aoc-l1", "title": "Lesson one, fixed", "slides": [{"id": "s1", "type": "blank"}]}',
+  review_draft => '{"id": "test-aoc-l1", "title": "Lesson one, fixed", "description": "", "subject": "", "curriculum": "", "learningCompetency": "", "slides": [{"id": "s1", "type": "blank"}]}',
   reviewed_on => current_date,
   base_updated_at => (
     select floor(extract(epoch from r.draft_updated_at) * 1000)::bigint
@@ -108,7 +108,7 @@ select set_config('request.jwt.claims',
 select public.start_review(target_id => 'test-aoc-l2');
 select public.submit_review(
   target_id => 'test-aoc-l2',
-  review_draft => '{"id": "test-aoc-l2", "title": "Lesson two", "slides": [{"id": "s1", "type": "blank"}]}',
+  review_draft => '{"id": "test-aoc-l2", "title": "Lesson two", "description": "", "subject": "", "curriculum": "", "learningCompetency": "", "slides": [{"id": "s1", "type": "blank"}]}',
   reviewed_on => current_date,
   base_updated_at => null::bigint
 );

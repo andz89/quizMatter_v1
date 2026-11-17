@@ -1,10 +1,21 @@
 import { useEffect, useMemo, useRef } from "react";
 import { useEditor, type Editor } from "@tiptap/react";
 import type { EditorView } from "@tiptap/pm/view";
+import { toast } from "sonner";
 import { useEditorStore, type TextTarget } from "@/lib/store";
 import { useAutoFitText } from "@/lib/useAutoFitText";
 import { TEXT_EXTENSIONS } from "@/lib/richText";
 import { autoFitRange } from "@/lib/constants";
+import { HTML_MAX, PLAIN_TEXT_MAX } from "@/lib/schema";
+import { TEXT_LIMIT_MESSAGE, TextLimit } from "@/lib/textLimit";
+
+// One id, so a teacher holding a key at the limit sees one toast, not a stack.
+const showLimitToast = () => toast.error(TEXT_LIMIT_MESSAGE, { id: "text-limit" });
+
+// Fixed lists (never new objects), so the editor is never rebuilt. The question and answer choices also save their
+// plain text, which has its own limit; text boxes and table cells save only HTML.
+const WITH_TEXT_LIMIT = [...TEXT_EXTENSIONS, TextLimit.configure({ maxText: PLAIN_TEXT_MAX, maxHtml: HTML_MAX, onRefused: showLimitToast })];
+const HTML_LIMIT_ONLY = [...TEXT_EXTENSIONS, TextLimit.configure({ maxText: null, maxHtml: HTML_MAX, onRefused: showLimitToast })];
 
 const TEXT_DOM_EVENTS = {
   // Paste as plain text only, so colors and fonts from other sites don't come along.
@@ -36,14 +47,17 @@ interface CanvasTextEditorOptions {
   isSelected?: boolean;
   // Extra classes on the editable area itself.
   editorClass?: string;
+  // Also stop the plain text at PLAIN_TEXT_MAX (the question and answer choices save it). The HTML always stops at
+  // HTML_MAX.
+  hasTextLimit?: boolean;
   onUpdate: (editor: Editor) => void;
   onStopEditing: () => void;
 }
 
 /**
  * The typing setup shared by every text on the canvas (question, options, text boxes): read-only
- * until double-clicked, plain-text paste, Escape to stop, the header's format toolbar, and text
- * that shrinks to fit its box.
+ * until double-clicked, plain-text paste, Escape to stop, the header's format toolbar, text
+ * that shrinks to fit its box, and the save limits (a change past them is refused with a toast).
  */
 export function useCanvasTextEditor({
   content,
@@ -53,6 +67,7 @@ export function useCanvasTextEditor({
   keepFontSize = false,
   isSelected = false,
   editorClass = "",
+  hasTextLimit = false,
   onUpdate,
   onStopEditing,
 }: CanvasTextEditorOptions) {
@@ -73,7 +88,7 @@ export function useCanvasTextEditor({
   );
 
   const editor = useEditor({
-    extensions: TEXT_EXTENSIONS,
+    extensions: hasTextLimit ? WITH_TEXT_LIMIT : HTML_LIMIT_ONLY,
     content,
     editable: false,
     // Next.js renders this on the server first; the editor can only be built in the browser.

@@ -1195,6 +1195,16 @@ begin
   ) <> slide_count then
     raise exception 'Every slide needs its own id and must be at most 2 MB.' using errcode = '22023';
   end if;
+  -- publish_review writes these into the presentations row, where none may be empty (null). Term, week, day,
+  -- links, tags and the slide effect get a default there, so they may be missing.
+  if (review_draft ->> 'title') is null
+    or (review_draft ->> 'description') is null
+    or (review_draft ->> 'subject') is null
+    or (review_draft ->> 'curriculum') is null
+    or (review_draft ->> 'learningCompetency') is null then
+    raise exception 'The draft is missing a detail (title, description, subject, curriculum or learning competency).'
+      using errcode = '22023';
+  end if;
   if not coalesce(
     char_length(review_draft ->> 'title') <= 120
       and char_length(review_draft ->> 'description') <= 1000
@@ -1218,6 +1228,14 @@ begin
     or coalesce(review_draft ->> 'transitionSpeed', '3') not in ('1', '2', '3', '4', '5') then
     raise exception 'The draft has too many tags or grades, or a slide effect that doesn''t exist.'
       using errcode = '22023';
+  end if;
+  -- New: each one's length, the same as presentations_item_lengths (and zod).
+  if not (
+    public.texts_fit(array(select jsonb_array_elements_text(coalesce(review_draft -> 'tags', '[]'))), 30)
+    and public.texts_fit(array(select jsonb_array_elements_text(coalesce(review_draft -> 'referenceLinks', '[]'))), 500)
+    and public.texts_fit(public.grades_from(review_draft), 40)
+  ) then
+    raise exception 'A tag, reference or grade of the draft is too long.' using errcode = '22023';
   end if;
 end;
 $$;
@@ -4423,6 +4441,17 @@ $$;
 ALTER FUNCTION "public"."teacher_shared_presentations"("slug" "text") OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."texts_fit"("items" "text"[], "max_length" integer) RETURNS boolean
+    LANGUAGE "sql" IMMUTABLE
+    SET "search_path" TO ''
+    AS $$
+  select coalesce(bool_and(char_length(item) <= max_length), true) from unnest(items) as item;
+$$;
+
+
+ALTER FUNCTION "public"."texts_fit"("items" "text"[], "max_length" integer) OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."unshare_presentation"("target_id" "text") RETURNS "void"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO ''
@@ -5159,6 +5188,11 @@ ALTER TABLE ONLY "public"."presentation_submissions"
 
 ALTER TABLE "public"."presentations"
     ADD CONSTRAINT "presentations_details_size" CHECK ((("char_length"("id") <= 100) AND ("char_length"("title") <= 120) AND ("char_length"("description") <= 1000) AND ("char_length"("subject") <= 80) AND ("char_length"("curriculum") <= 80) AND ("char_length"("learning_competency") <= 1000) AND ("char_length"("author") <= 120) AND (COALESCE("cardinality"("reference_links"), 0) <= 20))) NOT VALID;
+
+
+
+ALTER TABLE "public"."presentations"
+    ADD CONSTRAINT "presentations_item_lengths" CHECK (("public"."texts_fit"("tags", 30) AND "public"."texts_fit"("reference_links", 500) AND "public"."texts_fit"("grades", 40))) NOT VALID;
 
 
 
@@ -7017,6 +7051,12 @@ GRANT ALL ON FUNCTION "public"."teacher_profile"("slug" "text") TO "service_role
 REVOKE ALL ON FUNCTION "public"."teacher_shared_presentations"("slug" "text") FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."teacher_shared_presentations"("slug" "text") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."teacher_shared_presentations"("slug" "text") TO "service_role";
+
+
+
+REVOKE ALL ON FUNCTION "public"."texts_fit"("items" "text"[], "max_length" integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."texts_fit"("items" "text"[], "max_length" integer) TO "authenticated";
+GRANT ALL ON FUNCTION "public"."texts_fit"("items" "text"[], "max_length" integer) TO "service_role";
 
 
 

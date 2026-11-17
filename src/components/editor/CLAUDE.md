@@ -110,6 +110,14 @@ editor / view / review, and renders `Editor.tsx`, which calls `store.loadPresent
   has "Throw away"). The old save time would always conflict, and that conflict's reload would lose the work. The
   kept copy stays in storage until a save or submit of that presentation works, or Stop review throws the work away
   (`forgetKeptWork`).
+- **Kept work after a conflict:** when a save is refused because another tab or device saved since (`QM409`,
+  `SaveRefusedError.isConflict`), the store keeps the work the same way (`keepWorkNow`) and sets `isConflict`; its
+  toast says "Reload the page: your changes here are kept and come back on top of the newest copy." Reloading or
+  closing the tab then keeps it once more without "Leave page?" (the same `beforeunload` handler), and after the
+  reload `restoreKeptWork` merges it over the newest copy with "Saving them replaces what was saved since" and Throw
+  away. Before this, the reload the toast asked for threw this tab's edits away (only leaving with the ← arrow kept
+  them). If the browser can't store it, the toast keeps the plain `QM409` words and "Leave page?" still asks.
+  Review Submit's own conflict doesn't keep anything (`REFUSALS.QM409` is unchanged).
 - **Leaving the editor saves first:** moving away inside the app with unsaved changes (browser Back/Forward, any
   link, the ← arrow) runs the store's `saveBeforeLeaving`: a normal `savePresentation` with its toast (a review saves
   its draft). `Editor` runs it when it closes; the ← arrow (`BackToPresentationsLink`, no "Leave without saving?"
@@ -204,7 +212,9 @@ focus, and Ctrl+Z / Ctrl+Y / Ctrl+Shift+Z leave a plain input or textarea to the
 text on a slide, sliders and date boxes keep the store's undo; `isTextFieldOrDialog` in `dom.ts`; while a box
 (`Modal`, `ConfirmModal`: `role="dialog"` with `aria-modal`) is open, only Ctrl+S works, so no key changes the slides
 behind it, test `e2e/editor-edges.mjs`), `useMarqueeSelection` (drag a rectangle to select), `useElementDropTarget` (drop from a
-panel or the computer), `useCanvasTextEditor` + `richText.ts` (text typing, with tiptap), `useAutoFitText` (text
+panel or the computer), `useCanvasTextEditor` + `richText.ts` (text typing, with tiptap; it stops at the save limits with `TextLimit`,
+`src/lib/textLimit.ts`: the question and answer choices at 5,000 characters, every text at 50,000 as HTML; the slide
+name box has `maxLength` 5,000), `useAutoFitText` (text
 shrinks to fit), `useFormatTexts` (which texts the format toolbar changes), `geometry.ts` / `crop.ts` (math),
 `svgLibrary.tsx` (every drawing in the Elements panel, and the diagram layouts).
 

@@ -201,7 +201,7 @@ select public.start_review(target_id => 'test-dbf-lesson');
 -- 11 tags, 15 grades, an unknown slide effect, speeds outside 1–5: each refused when saved.
 do $$
 declare
-  base jsonb := '{"id": "test-dbf-lesson", "title": "Live lesson", "slides": [{"id": "s1", "type": "blank"}]}';
+  base jsonb := '{"id": "test-dbf-lesson", "title": "Live lesson", "description": "", "subject": "", "curriculum": "", "learningCompetency": "", "slides": [{"id": "s1", "type": "blank"}]}';
   bad jsonb;
 begin
   foreach bad in array array[
@@ -227,7 +227,7 @@ end $$;
 select public.save_review_draft(
   target_id => 'test-dbf-lesson',
   review_draft => jsonb_build_object(
-    'id', 'test-dbf-lesson', 'title', 'Live lesson', 'transition', 'fade', 'transitionSpeed', 5,
+    'id', 'test-dbf-lesson', 'title', 'Live lesson', 'description', '', 'subject', '', 'curriculum', '', 'learningCompetency', '', 'transition', 'fade', 'transitionSpeed', 5,
     'tags', (select jsonb_agg('tag' || n) from generate_series(1, 10) as n),
     'grades', (select jsonb_agg('Grade ' || n) from generate_series(1, 14) as n),
     'slides', '[{"id": "s1", "type": "blank"}]'::jsonb

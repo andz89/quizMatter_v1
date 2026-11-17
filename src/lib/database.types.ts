@@ -1048,6 +1048,9 @@ isOneToOne: false
               "id": string
             }[]
                            },
+"texts_fit":
+{ Args: { "items": (string)[],"max_length": number }; Returns: boolean
+                           },
 "unshare_presentation":
 { Args: { "target_id": string }; Returns: undefined
                            },
