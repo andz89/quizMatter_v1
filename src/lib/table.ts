@@ -123,6 +123,45 @@ export function resizeTableLine(element: TableElement & { rotation?: number }, a
   };
 }
 
+/** The rectangle between two cells, whichever way it was dragged: `from` top-left, `to` bottom-right. */
+export function cellRange(a: TableCellSpot, b: TableCellSpot): { from: TableCellSpot; to: TableCellSpot } {
+  return {
+    from: { row: Math.min(a.row, b.row), column: Math.min(a.column, b.column) },
+    to: { row: Math.max(a.row, b.row), column: Math.max(a.column, b.column) },
+  };
+}
+
+type TableCell = TableSettings["rows"][number][number];
+
+// The table with every cell between `a` and `b` changed. Untouched rows stay the same objects.
+function withCells(table: TableSettings, a: TableCellSpot, b: TableCellSpot, change: (cell: TableCell) => TableCell): TableSettings {
+  const { from, to } = cellRange(a, b);
+  return {
+    ...table,
+    rows: table.rows.map((cells, row) =>
+      row < from.row || row > to.row ? cells : cells.map((cell, column) => (column < from.column || column > to.column ? cell : change(cell))),
+    ),
+  };
+}
+
+/** Every cell between `a` and `b` gets this background color (undefined = back to plain white). */
+export function withCellsFill(table: TableSettings, a: TableCellSpot, b: TableCellSpot, fill: string | undefined): TableSettings {
+  return withCells(table, a, b, ({ fill: _, ...cell }) => (fill === undefined ? cell : { ...cell, fill }));
+}
+
+/** Every cell between `a` and `b` loses its text (the Delete key on a selection). Fills stay. */
+export function withCellsEmptied(table: TableSettings, a: TableCellSpot, b: TableCellSpot): TableSettings {
+  return withCells(table, a, b, (cell) => ({ ...cell, html: "" }));
+}
+
+/** The box around every cell between `a` and `b`, in px inside the table (the selection outline). */
+export function tableRangeBox(element: TableElement, a: TableCellSpot, b: TableCellSpot) {
+  const { from, to } = cellRange(a, b);
+  const first = tableCellBox(element, from);
+  const last = tableCellBox(element, to);
+  return { left: first.left, top: first.top, width: last.left + last.width - first.left, height: last.top + last.height - first.top };
+}
+
 export function withCellHtml(table: TableSettings, { row, column }: TableCellSpot, html: string): TableSettings {
   return {
     ...table,

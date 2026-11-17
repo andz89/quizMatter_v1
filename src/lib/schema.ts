@@ -396,7 +396,8 @@ export const svgElementSchema = z.object({
   table: z
     .object({
       rows: z
-        .array(z.array(z.object({ html: htmlSchema })).min(TABLE_COLUMNS.min).max(TABLE_COLUMNS.max))
+        // fill is the cell's background color; missing = plain white. Added in DATA_VERSION 4.
+        .array(z.array(z.object({ html: htmlSchema, fill: colorSchema.optional() })).min(TABLE_COLUMNS.min).max(TABLE_COLUMNS.max))
         .min(TABLE_ROWS.min)
         .max(TABLE_ROWS.max),
       fontSize: fontSizeSchema.optional(),

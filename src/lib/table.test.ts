@@ -3,6 +3,7 @@ import { test } from "node:test";
 import {
   addTableColumn,
   addTableRow,
+  cellRange,
   newTable,
   nextTableCell,
   pickAfterDelete,
@@ -12,7 +13,10 @@ import {
   tableCellBox,
   tableColumnSizes,
   tableLinePositions,
+  tableRangeBox,
   withCellHtml,
+  withCellsEmptied,
+  withCellsFill,
   type TableElement,
   type TableSettings,
 } from "./table";
@@ -250,4 +254,51 @@ test("the line positions run down the middle of each line, around and between th
 test("the line positions follow dragged sizes", () => {
   const table = { ...namedTable(1, 2), columnSizes: [150, 50] };
   assert.deepEqual(tableLinePositions(placed(table, { width: 206, height: 52 })).columns, [1, 153, 205]);
+});
+
+test("a range between two cells is normalized top-left to bottom-right", () => {
+  assert.deepEqual(cellRange({ row: 1, column: 2 }, { row: 0, column: 0 }), { from: { row: 0, column: 0 }, to: { row: 1, column: 2 } });
+});
+
+test("filling a range colors only its cells, with new touched rows", () => {
+  const table = namedTable(3, 3);
+  const next = withCellsFill(table, { row: 0, column: 0 }, { row: 1, column: 1 }, "#FF5A5F");
+  assert.deepEqual(
+    next.rows.map((cells) => cells.map((cell) => cell.fill)),
+    [
+      ["#FF5A5F", "#FF5A5F", undefined],
+      ["#FF5A5F", "#FF5A5F", undefined],
+      [undefined, undefined, undefined],
+    ],
+  );
+  assert.equal(next.rows[0][0].html, "0:0");
+  assert.notEqual(next, table);
+  assert.notEqual(next.rows[0], table.rows[0]);
+  assert.equal(next.rows[2], table.rows[2]);
+});
+
+test("filling with no color removes the fill key", () => {
+  const filled = withCellsFill(namedTable(2, 2), { row: 0, column: 0 }, { row: 1, column: 1 }, "#FF5A5F");
+  const cleared = withCellsFill(filled, { row: 0, column: 0 }, { row: 0, column: 1 }, undefined);
+  assert.ok(cleared.rows[0].every((cell) => !("fill" in cell)));
+  assert.equal(cleared.rows[1][0].fill, "#FF5A5F");
+});
+
+test("emptying a range clears its text and keeps its fills", () => {
+  const filled = withCellsFill(namedTable(2, 2), { row: 0, column: 0 }, { row: 0, column: 0 }, "#FF5A5F");
+  const next = withCellsEmptied(filled, { row: 1, column: 1 }, { row: 0, column: 0 });
+  assert.ok(next.rows.every((cells) => cells.every((cell) => cell.html === "")));
+  assert.equal(next.rows[0][0].fill, "#FF5A5F");
+});
+
+test("a range's box runs from the first cell's corner to the last cell's corner", () => {
+  const element = even();
+  const from = tableCellBox(element, { row: 0, column: 1 });
+  const to = tableCellBox(element, { row: 2, column: 2 });
+  assert.deepEqual(tableRangeBox(element, { row: 2, column: 2 }, { row: 0, column: 1 }), {
+    left: from.left,
+    top: from.top,
+    width: to.left + to.width - from.left,
+    height: to.top + to.height - from.top,
+  });
 });
