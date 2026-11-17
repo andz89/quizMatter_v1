@@ -7,7 +7,10 @@ import { restrictToVerticalAxis } from "@dnd-kit/modifiers";
 import { useShallow } from "zustand/react/shallow";
 import { useEditorStore, MIN_ZOOM, type SlideInsertTarget } from "@/lib/store";
 import { CANVAS_WIDTH, CANVAS_HEIGHT, SLIDE_DRAG_MIME, getSlideNumbers, canHaveAnswer } from "@/lib/constants";
-import { MAX_SLIDES, TOO_MANY_SLIDES_MESSAGE, slideSchema } from "@/lib/schema";
+import { MAX_SLIDES, TOO_MANY_SLIDES_MESSAGE } from "@/lib/schema";
+import { readSlideDrag } from "@/lib/slideDrag";
+import { REFUSALS } from "@/lib/presentations";
+import { toast } from "sonner";
 import { SlideWorkspaceItem } from "./SlideWorkspaceItem";
 import { AnswerArea } from "./AnswerArea";
 import { ToolPanelButton } from "./PanelControls";
@@ -267,12 +270,10 @@ export function Workspace() {
       if (!isSlideDrag(e)) return;
       e.preventDefault();
       setDropTarget(null);
-      try {
-        const slide = slideSchema.parse(JSON.parse(e.dataTransfer.getData(SLIDE_DRAG_MIME)));
-        insertSlides([slide], dropTarget ?? findDropTarget(e) ?? undefined);
-      } catch {
-        // Not a slide we can read — nothing is added.
-      }
+      const dropped = readSlideDrag(e.dataTransfer.getData(SLIDE_DRAG_MIME));
+      if ("slide" in dropped) insertSlides([dropped.slide], dropTarget ?? findDropTarget(e) ?? undefined);
+      else if (dropped.problem === "newer") toast.error(REFUSALS.QMOLD);
+      else toast.error("This slide couldn't be added. Reload the page, then try again.");
     },
   };
 
