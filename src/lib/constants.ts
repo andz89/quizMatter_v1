@@ -261,6 +261,12 @@ export function stepPresentation(slides: Pick<Slide, "hidden">[], index: number,
   return index;
 }
 
+/** The slides presenting steps through: the ones not hidden, or all of them when every slide is hidden. */
+export function shownSlides<T extends Pick<Slide, "hidden">>(slides: T[]): T[] {
+  const shown = slides.filter((slide) => !slide.hidden);
+  return shown.length > 0 ? shown : slides;
+}
+
 /** Presenting starts at `index`, or the nearest shown slide after it (else before it) when that one is hidden. */
 export function presentStartIndex(slides: Pick<Slide, "hidden">[], index: number): number {
   if (!slides[index]?.hidden || slides.every((slide) => slide.hidden)) return index;

@@ -25,7 +25,8 @@
 - `store.ts`: the editor's state and every edit action (zustand). Notes in `src/components/editor/CLAUDE.md`.
 - `constants.ts`: canvas size, box ids (`QUESTION_CONTAINER_ID`, …), photo URLs, slide effect speeds, diagram limits,
   the default text color (`DEFAULT_TEXT_COLOR`). Slide numbers (`getSlideNumbers`, hidden slides take none) and
-  presenting's steps past hidden slides (`stepPresentation`, `presentStartIndex`); tests `constants.test.ts`.
+  presenting's steps past hidden slides (`stepPresentation`, `presentStartIndex`), and `shownSlides` (the slides
+  presenting goes through, for the view page's Prev/Next); tests `constants.test.ts`.
 - `factories.ts`: new blank slides and presentations, `duplicateSlide`.
 - `svgLibrary.tsx` (very big): every drawing in the Elements panel and the diagram layouts. Before changing diagram
   code here, read the Diagrams rules in `src/components/editor/CLAUDE.md`.

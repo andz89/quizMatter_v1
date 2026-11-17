@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { BookmarkIcon, ChevronLeftIcon, ChevronRightIcon, ClipboardCheckIcon, EyeIcon } from "lucide-react";
-import { CANVAS_WIDTH, CANVAS_HEIGHT, getSlideNumbers } from "@/lib/constants";
+import { CANVAS_WIDTH, CANVAS_HEIGHT, getSlideNumbers, shownSlides } from "@/lib/constants";
 import { createId } from "@/lib/id";
 import { creditLines, detailsLabel, formatDay, joinParts, slideCountLabel } from "@/lib/format";
 import { REFUSALS, SaveRefusedError, saveErrorMessage, savePresentationToDb } from "@/lib/presentations";
@@ -41,10 +41,13 @@ import { SAVE_ERRORS } from "../../SaveCardButton";
  * While my presentation waits for QuizMatter (see the quizmatter_submissions migration), it has no Edit.
  * A live QuizMatter presentation also gets its editor's lessons for that week and "You may also like" (see the
  * lesson_week migration).
+ * Prev/Next skip hidden slides, like presenting, unless `showHidden` (the owner, and admins checking reports), who
+ * see them faded with the eye-off mark. "Make a copy" still copies every slide.
  */
 export function PresentationPreview({
   presentation,
   isMine,
+  showHidden,
   ownerId,
   profileSlugs,
   publisherName,
@@ -60,6 +63,7 @@ export function PresentationPreview({
 }: {
   presentation: Presentation;
   isMine: boolean;
+  showHidden: boolean;
   ownerId: string;
   profileSlugs: Record<string, string>;
   publisherName: string;
@@ -81,7 +85,9 @@ export function PresentationPreview({
   const [isSaving, setIsSaving] = useState(false);
   const [isStartingReview, setIsStartingReview] = useState(false);
   const [slideIndex, setSlideIndex] = useState(0);
-  const slideCount = presentation.slides.length;
+  // The slides Prev/Next go through (the details line still counts them all).
+  const slides = showHidden ? presentation.slides : shownSlides(presentation.slides);
+  const slideCount = slides.length;
   // Saving is paused for clicking too fast (the notice at the bottom says until when).
   const isSavePaused = useIsPaused("saved");
   // A copy is a new presentation: too many in a day pauses it until midnight (the "create" click limit).
@@ -195,7 +201,7 @@ export function PresentationPreview({
     { label: "Learning competency", value: presentation.learningCompetency },
   ].filter((detail) => detail.value);
   const slideNumbers = getSlideNumbers(presentation.slides);
-  const slide = presentation.slides[slideIndex];
+  const slide = slides[slideIndex];
 
   return (
     <main className="mx-auto w-full max-w-6xl px-4 py-10 sm:py-14">
@@ -343,7 +349,7 @@ export function PresentationPreview({
         <header className="mt-6 mb-6">
           <h1 className="text-base font-extrabold text-text-primary">{presentation.title || "Untitled presentation"}</h1>
           <p title={gradesTitle(presentation.grades)} className="mt-0.5 text-sm text-text-secondary">
-            {joinParts([detailsLabel(presentation), slideCountLabel(slideCount)])}
+            {joinParts([detailsLabel(presentation), slideCountLabel(presentation.slides.length)])}
           </p>
           {/* Author and Publisher rows; each reviewer gets their own row below, with their email and date. The
               publisher's and reviewers' names open their profile pages ("QuizMatter" and the typed Author don't). */}

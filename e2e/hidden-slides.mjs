@@ -1,10 +1,13 @@
-// Hidden slides: hide one in the editor, save, present (→ / ← skip it), the "Show all slides" grid, show it again.
+// Hidden slides: hide one in the editor, save, present (→ / ← skip it), the "Show all slides" grid, the view page
+// (another teacher's Prev/Next skip it; the owner and an admin still see it), show it again.
 import { randomUUID } from "node:crypto";
 import { chromium } from "playwright";
-import { APP, SHOTS, api, check, deleteTeacher, finish, loggedIn, makeTeacher } from "./lib.mjs";
+import { APP, SHOTS, api, check, deleteTeacher, finish, loggedIn, makeTeacher, rpc } from "./lib.mjs";
 
-// A teacher and a presentation with 3 question slides (Alpha, Beta, Gamma).
+// A teacher and a presentation with 3 question slides (Alpha, Beta, Gamma); another teacher and an admin to view it.
 const teacher = await makeTeacher({ first: "Hidden" });
+const viewer = await makeTeacher({ first: "Viewer" });
+const admin = await makeTeacher({ first: "Checker", admin: true });
 const presentationId = randomUUID();
 await api("/rest/v1/presentations", {
   method: "POST",
@@ -115,6 +118,41 @@ try {
   await page.keyboard.press("Escape");
   await slideBox("s2").waitFor();
 
+  // The view page. Publish (a shared copy with hidden Beta), then open it as each person.
+  const shared = await rpc(teacher, "share_presentation", { target_id: presentationId });
+  check("published: the shared copy is made", shared.ok, JSON.stringify(shared.body));
+  /** Opens a view page and returns its counter ("1 / 2"), and what each Next shows, with whether it's faded. */
+  async function walkViewPage(person, id) {
+    const context = person === teacher ? page.context() : await loggedIn(browser, person, { width: 1600, height: 1000 });
+    const view = await context.newPage();
+    view.on("pageerror", (e) => errors.push(e.message));
+    await view.goto(`${APP}/presentation/${id}`, { timeout: 120_000 });
+    const counter = view.getByText(/^\d+ \/ \d+$/);
+    await counter.waitFor();
+    const preview = view.locator("main section > div").first();
+    // The slide is drawn once its box is measured.
+    await preview.getByText(/Alpha|Beta|Gamma/).first().waitFor();
+    const seen = [];
+    for (;;) {
+      const text = await preview.textContent();
+      seen.push(`${["Alpha", "Beta", "Gamma"].find((q) => text.includes(q))}${(await preview.locator(".grayscale").count()) > 0 ? " (faded)" : ""}`);
+      const next = view.locator('button[title="Next slide"]');
+      if (await next.isDisabled()) break;
+      await next.click();
+    }
+    const result = { counter: await counter.textContent(), seen: seen.join(", "), details: await view.locator("main header p").first().textContent() };
+    await view.close();
+    return result;
+  }
+  const asViewer = await walkViewPage(viewer, shared.body.id);
+  check("view page, another teacher: the counter counts 2 slides", asViewer.counter === "2 / 2", asViewer.counter);
+  check("view page, another teacher: Next skips hidden Beta", asViewer.seen === "Alpha, Gamma", asViewer.seen);
+  check("view page, another teacher: the details still say 3 slides", asViewer.details.includes("3 slides"), asViewer.details);
+  const asOwner = await walkViewPage(teacher, presentationId);
+  check("view page, the owner: Beta shows, faded", asOwner.seen === "Alpha, Beta (faded), Gamma", asOwner.seen);
+  const asAdmin = await walkViewPage(admin, shared.body.id);
+  check("view page, an admin: Beta shows, faded", asAdmin.seen === "Alpha, Beta (faded), Gamma", asAdmin.seen);
+
   // Show Beta again: editable and numbered again.
   await slideBox("s2").locator('button[title="Show slide"]').click();
   await page.waitForTimeout(500);
@@ -131,6 +169,8 @@ try {
 } finally {
   await browser.close();
   await deleteTeacher(teacher);
+  await deleteTeacher(viewer);
+  await deleteTeacher(admin);
 }
 
 finish();

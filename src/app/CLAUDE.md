@@ -48,6 +48,9 @@ modal grey out.
 - `[id]/page.tsx`: the view page (mostly other teachers' published ones): `PresentationPreview.tsx` with Prev/Next,
   "Make a copy" (saves a private copy and opens it, remembering `copied_from`; an editor's copy gets them as
   Author), Save (bookmark), and `ReportButton.tsx` (goes to Admin → Reports). Actions in `[id]/actions.ts`.
+  Prev/Next skip hidden slides, like presenting (`shownSlides`; all of them when every slide is hidden), and the
+  counter counts only those; the details line still counts every slide, and a copy gets them all. The owner and
+  admins (who open it from Reports) see hidden slides too, faded with the eye-off mark (`showHidden`).
 - Likes: `[id]/LikeButton.tsx` on a published presentation's view page. Teachers and editors like someone else's
   (`setPresentationLiked` → `set_liked`, zod first; the `like` click limit); admins and the owner only see the
   count. Who liked what is private (people read only their own likes); everyone sees the count. Database:

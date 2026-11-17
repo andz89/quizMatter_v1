@@ -40,6 +40,8 @@ export default async function PresentationPage({ params }: PageProps<"/presentat
         <PresentationPreview
           presentation={result.presentation}
           isMine={result.isMine}
+          // Admins open this page from Reports, so they see hidden slides too (a reported one may hide something).
+          showHidden={result.isMine || account.isAdmin}
           ownerId={result.ownerId}
           profileSlugs={result.profileSlugs}
           publisherName={result.publisherName}
