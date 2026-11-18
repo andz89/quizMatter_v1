@@ -5,6 +5,7 @@ import {
   DETAIL_MAX_LENGTH,
   MAX_ELEMENTS,
   MAX_SLIDES,
+  OPTION_ROW_SIZE_MAX,
   TOO_MANY_SLIDES_MESSAGE,
   isNewerThanApp,
   isSafeColor,
@@ -299,8 +300,37 @@ test("a table cell keeps a safe background color, and an unsafe one is left out 
   assert.deepEqual(cells?.[1], { html: "<p>Yo</p>" });
 });
 
-test("the saved shape is version 5 (a mixed fraction's whole number)", () => {
-  assert.equal(DATA_VERSION, 5);
+test("the saved shape is version 6 (option row heights)", () => {
+  assert.equal(DATA_VERSION, 6);
+});
+
+// A choice slide in the shape the editor makes, for the row height tests.
+function choiceSlide() {
+  return { ...createBlankSlide(), type: "choice" as const };
+}
+
+test("option rowSize and gridRowSizes are kept", () => {
+  const base = choiceSlide();
+  const options = base.options.map((o, i) => ({ ...o, rowSize: [2.5, 1, 1, 1][i] }));
+  const slide = slideSchema.parse({ ...base, options, gridRowSizes: [1, 2] });
+  assert.deepEqual(slide.options.map((o) => o.rowSize), [2.5, 1, 1, 1]);
+  assert.deepEqual(slide.gridRowSizes, [1, 2]);
+});
+
+test("a bad option rowSize or gridRowSizes is refused", () => {
+  const base = choiceSlide();
+  for (const rowSize of [0, -1, Infinity, OPTION_ROW_SIZE_MAX + 1]) {
+    const options = base.options.map((o, i) => (i === 0 ? { ...o, rowSize } : o));
+    assert.equal(slideSchema.safeParse({ ...base, options }).success, false, `rowSize ${rowSize}`);
+  }
+  assert.equal(slideSchema.safeParse({ ...base, gridRowSizes: [1] }).success, false);
+});
+
+test("a slide without row sizes parses unchanged", () => {
+  const base = choiceSlide();
+  const slide = slideSchema.parse(base);
+  assert.equal(slide.gridRowSizes, undefined);
+  assert.ok(slide.options.every((o) => o.rowSize === undefined));
 });
 
 test("a mixed fraction keeps its whole number", () => {
