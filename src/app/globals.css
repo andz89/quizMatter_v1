@@ -134,13 +134,6 @@ body {
   }
 }
 
-/* Slide text in the editor: words never break in the middle (Tiptap's own style breaks them), so a word
-   too long for its box makes the text shrink to fit instead. */
-.no-word-break .ProseMirror {
-  overflow-wrap: normal;
-  word-wrap: normal;
-}
-
 /* The editor's side panels (Elements, Photos, Presentations, …): all the same width, a thin scrollbar, and less
    padding on the right, where the scrollbar's space (always kept, so nothing shifts) makes up the rest.
    ScrollRow stretches over these paddings, so change both together. */

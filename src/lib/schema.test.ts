@@ -309,6 +309,14 @@ test("a mixed fraction keeps its whole number", () => {
   assert.deepEqual(kept.fraction, { whole: 2, shaded: 3, parts: 4 });
 });
 
+test("only a mixed fraction keeps a whole number; on other fractions it's left out", () => {
+  for (const assetId of ["fraction-number", "fraction-bar", "fraction-circle"]) {
+    const element = { id: "f", assetId, x: 0, y: 0, width: 100, height: 100, color: "#191A2C", containerId: null };
+    const slide = slideSchema.parse({ ...blankSlide, elements: [{ ...element, fraction: { whole: 2, shaded: 1, parts: 4 } }] });
+    assert.deepEqual(slide.elements[0].fraction, { shaded: 1, parts: 4 }, assetId);
+  }
+});
+
 test("a table keeps its column and row sizes and refuses ones that don't match", () => {
   const element = { id: "e1", assetId: "table", x: 0, y: 0, width: 100, height: 100, color: "#191A2C", containerId: null };
   const rows = [[{ html: "" }, { html: "" }]];

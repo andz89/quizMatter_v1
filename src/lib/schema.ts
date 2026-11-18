@@ -530,9 +530,15 @@ function cleanElement(element: unknown): unknown {
     };
   }
   // A written fraction can reach 999, but a bar or circle is drawn in FRACTION_PARTS pieces at most.
-  const { assetId, fraction } = cleaned as { assetId?: unknown; fraction?: { parts: number } };
+  const { assetId, fraction } = cleaned as { assetId?: unknown; fraction?: { parts: number; whole?: number } };
   if ((assetId === "fraction-bar" || assetId === "fraction-circle") && fraction) {
     if (fraction.parts < FRACTION_PARTS.min || fraction.parts > FRACTION_PARTS.max) delete cleaned.fraction;
+  }
+  // Only the mixed fraction draws a whole number: on any other fraction it's left out, so it isn't kept unseen.
+  if (assetId !== "mixed-fraction" && cleaned.fraction && fraction?.whole !== undefined) {
+    const rest = { ...fraction };
+    delete rest.whole;
+    cleaned.fraction = rest;
   }
   return cleaned;
 }

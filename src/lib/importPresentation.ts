@@ -191,8 +191,8 @@ const groupName = z
     'Give the same name to the pieces that belong together (e.g. a ribbon and its words: "banner"), so the teacher moves them as one. Only within one slide, and all in the same box.',
   );
 
-// One box of a diagram: its text ("\n" = a new line) and, if wanted, its own look (the same fields the editor saves). Like
-// a text box, long text shrinks to fit the box. Claude always uses the automatic layout; teachers can move and resize
+// One box of a diagram: its text ("\n" = a new line) and, if wanted, its own look (the same fields the editor saves). Long
+// text shrinks to fit the box (unlike other slide text). Claude always uses the automatic layout; teachers can move and resize
 // boxes in the editor.
 const diagramBoxColor = z.union([hexColor, z.literal(DIAGRAM_NONE)]);
 const diagramBox = z
@@ -218,9 +218,9 @@ const claudeFactorNode: z.ZodType<ClaudeFactorNode> = z.lazy(() =>
   }),
 );
 
-// A text's font size (px). The text still shrinks to fit its box, so this is the largest it gets.
+// A text's font size (px). The text never shrinks: what doesn't fit its box is cut off.
 const fontSize = whole(FONT_SIZE_RANGE.min, FONT_SIZE_RANGE.max);
-const fontSizeNote = "Largest font size in px; long text still shrinks to fit. Leave out unless the user asks for bigger or smaller text.";
+const fontSizeNote = "Font size in px; text never shrinks, so what doesn't fit its box is cut off. Leave out unless the user asks for bigger or smaller text, or the text needs it to fit.";
 
 // A table's cell: its words, or its words with their own look and background.
 const tableCell = z.union([
@@ -823,7 +823,7 @@ The question box never holds pictures. Pictures always go in a picture box or an
 - Styled words: inside any text, **word** makes it bold and *word* makes it italic. Write × for times, not *.
 - Style for a whole text ("questionStyle", "optionStyle", "titleStyle", "textStyle", a text box's "style"): "color", "align" (left, center, right), "bold", "italic", "underline". Any color works — e.g. a title in the topic's color, or white words on a dark shape — as long as it's easy to read on what's behind it: the layout report checks that for blank, title and custom slides.
 - "\\n" starts a new line (a new paragraph).
-- Font sizes: every text shrinks to fit its box, so the font size is the largest a text gets. Defaults: question ${QUESTION_FONT_SIZE}px, options ${OPTION_FONT_SIZE}px, blank slide title and text ${TEXT_BOX_FONT_SIZE}px. You can set ${FONT_SIZE_RANGE.min}–${FONT_SIZE_RANGE.max}px, e.g. bigger text for young learners.
+- Font sizes: text never shrinks to fit its box: long text goes onto new lines, and what's past the box's bottom is cut off (the layout report warns). Then lower the font size, shorten the text or give it more room. Defaults: question ${QUESTION_FONT_SIZE}px, options ${OPTION_FONT_SIZE}px, blank slide title and text ${TEXT_BOX_FONT_SIZE}px. You can set ${FONT_SIZE_RANGE.min}–${FONT_SIZE_RANGE.max}px, e.g. bigger text for young learners.
 
 === Box sizes (question slides) ===
 
@@ -920,7 +920,7 @@ Arrows that point at part of a picture ("callouts", blank, title and custom slid
 
 === Checking before the final version (the layout report) ===
 
-- send_presentation replies with a layout report: every box's size, and where each text and picture landed, in the same px as "position". Lines starting with "!" point out things to check: pictures that wrapped to more rows or shrank a lot, pictures on top of text, text that will probably shrink, text that's hard to read on what's behind it.
+- send_presentation replies with a layout report: every box's size, and where each text and picture landed, in the same px as "position". Lines starting with "!" point out things to check: pictures that wrapped to more rows or shrank a lot, pictures on top of text, text that will probably be cut off, text that's hard to read on what's behind it.
 - Send the presentation first with "final": false. The user sees it as "Checking…" and can't open it yet. Check the report against what you meant, and fix anything that's off (e.g. give "position" with the numbers you want). You can check again the same way.
 - Then send it with "final": true and the "draftId" you got. That turns the checking version into the finished presentation and gives you the link for the user.
 
@@ -1160,7 +1160,7 @@ function buildSlide(
     texts.push({ label: `text box ${i + 1}`, box: element, words: stripMarkup(box.text), bold: box.style?.bold, color: box.style?.color });
     // Free canvas slides report on their text in describeSlide.
     if (!isCanvas && tooLong(stripMarkup(box.text), element, box.fontSize ?? TEXT_BOX_FONT_SIZE, box.style?.bold)) {
-      notes.push(`text box ${i + 1} is probably too long for its box, so it will shrink.`);
+      notes.push(`text box ${i + 1} is probably too long for its box, so it will be cut off.`);
     }
     if (box.group) groupNames.set(element.id, box.group);
     return [element];
@@ -1378,10 +1378,10 @@ function boxLabel(containerId: string | null, slide: Slide): string {
 const formatSize = ({ width, height }: Size) => `${Math.round(width)}×${Math.round(height)}`;
 const formatRect = (rect: Rect) => `${Math.round(rect.x)},${Math.round(rect.y)} ${formatSize(rect)}`;
 
-/** Whether text probably needs more room than the box has at this font size (then it shrinks). A guess: the browser does the real fitting. */
+/** Whether text probably needs more room than the box has at this font size (then it's cut off). A guess: the browser does the real wrapping. */
 function tooLong(words: string, box: Size, fontSize: number, bold = false): boolean {
   if (words.trim() === "") return false;
-  // Words never break in the middle, so a word longer than a line makes the text shrink.
+  // A word longer than a line breaks in the middle, which is hard to read: count it as too long.
   const longestWord = Math.max(...words.split(/\s+/).map((word) => word.length));
   if (longestWord > charsPerLineFor(Math.max(1, box.width), fontSize, bold)) return true;
   // One line always counts as fitting: a short option in a short list row is fine.
@@ -1399,7 +1399,7 @@ function describeSlide(slide: Slide, texts: BlankText[], pictures: SvgElement[],
     if (texts.length) lines.push(`Text: ${texts.map(({ label, box }) => `${label} ${formatRect(box)}`).join(" · ")}`);
     for (const { label, box, words, bold, color = DEFAULT_TEXT_COLOR } of texts) {
       const fontSize = box.text?.fontSize ?? TEXT_BOX_FONT_SIZE;
-      if (tooLong(words, box, fontSize, bold)) warnings.push(`the ${label} is probably too long for its box at ${fontSize}px, so it will shrink.`);
+      if (tooLong(words, box, fontSize, bold)) warnings.push(`the ${label} is probably too long for its box at ${fontSize}px, so it will be cut off.`);
       // Checked at a few points across the text, as a shape may sit behind only part of it. The worst one counts.
       const ratios = CONTRAST_POINTS.flatMap((share) => {
         const behind = colorBehind(box.x + box.width * share, box.y + box.height / 2, slide);
@@ -1439,7 +1439,7 @@ function describeSlide(slide: Slide, texts: BlankText[], pictures: SvgElement[],
     }
     lines.push(`Boxes: ${boxes.join(" · ")}`);
     if (tooLong(slide.question, questionRoom, questionFont)) {
-      warnings.push(`the question is probably too long for its box at ${questionFont}px, so it will shrink.`);
+      warnings.push(`the question is probably too long for its box at ${questionFont}px, so it will be cut off.`);
     }
     if (hasOptions(slide)) {
       getShownOptions(slide).forEach((option, i) => {
@@ -1450,7 +1450,7 @@ function describeSlide(slide: Slide, texts: BlankText[], pictures: SvgElement[],
         const fontSize = option.fontSize ?? OPTION_FONT_SIZE;
         if (tooLong(option.text, room, fontSize)) {
           const where = hasPictures ? "the left half of its box" : "its box";
-          warnings.push(`option ${OPTION_LABELS[i]} is probably too long for ${where} at ${fontSize}px, so it will shrink.`);
+          warnings.push(`option ${OPTION_LABELS[i]} is probably too long for ${where} at ${fontSize}px, so it will be cut off.`);
         }
       });
     }

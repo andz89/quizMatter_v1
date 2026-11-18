@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { useEditorStore } from "@/lib/store";
+import { sameValue } from "@/lib/sameValue";
 import {
   getElementAsset,
   getNumberLineValue,
@@ -108,7 +109,7 @@ export function MathToolControls({ element, slideId, box }: MathToolControlsProp
             : DEFAULT_FRACTION,
       ...element,
     };
-    if (Object.entries(patch).some(([field, value]) => JSON.stringify(value) !== JSON.stringify(shown[field]))) {
+    if (Object.entries(patch).some(([field, value]) => !sameValue(value, shown[field]))) {
       updateElement(slideId, element.id, patch);
     }
   };

@@ -93,6 +93,9 @@ Tests that delete data (the announcements ones empty the announcements table) do
   cell colors: the format names a cell's `fill`, `send_presentation` refuses one that isn't a color and builds
   solid and gradient ones, the draft opens in the editor with the colored cells, and `read_presentation` gives a
   saved cell's `fill` back (none for a plain cell).
+- `hidden-text-mark.mjs`: the "+…" mark on cut-off text: shown on a long question, answer choice, text box and
+  table cell, not on text that fits or outside the editable slides; typing past the bottom shows it, undo and making
+  the box taller take it away.
 - `text-limits.mjs`: pasting past the limit into the question, an answer choice (5,000 characters) and a text box
   (50,000 as HTML, so 10,000 "&" is refused) leaves the text as it was with one toast; up to the limit goes in;
   typing at the limit is refused, deleting works; Ctrl+S saves; the slide name box's `maxlength`.
@@ -126,7 +129,8 @@ Tests that delete data (the announcements ones empty the announcements table) do
   bad saved values and numbers no panel can make. `ONLY="bar graph|undo"` runs just the scenarios that match.
 - `all-elements.mjs`: every tile in the Elements panel added, drawn, saved and opened again (the categories are read
   from the panel), then pictures, photo crops, squares, lines, 3D solids, text boxes, custom drawings, layers, align,
-  groups, moving into and between boxes (Alt keeps a free picture on the slide), a photo that never answers, letters
+  groups, the text size box (Escape keeps the old size, + drops a typed size, a typed size stays with its own box
+when another is picked), moving into and between boxes (Alt keeps a free picture on the slide), a photo that never answers, letters
   keeping their size when opened again, a slide at 1,000 elements, present, the view page, and about 30 kinds of bad
   saved data. Each scenario has its own presentation and page. `ONLY="crop|layers"` runs just the scenarios that
   match; to run tiles add `lists its categories|every tile$` (for example `ONLY="lists its categories|every tile$|every tile: Emoji"`).

@@ -15,7 +15,8 @@ editor / view / review, and renders `Editor.tsx`, which calls `store.loadPresent
   only a real date reaches the calendar; leaving the box shows the calendar's date again). Both calendars share it,
   like both clocks share the time. A button that changes nothing (Reset, Today) isn't an edit: `updateElements` skips
   a patch with the values the element already has, the toolbar's setters write "no value" for a default, and
-  `MathToolControls` skips a change that lands on what a tool without saved settings already shows.
+  `MathToolControls` skips a change that lands on what a tool already shows, saved or not, in any key order
+  (`sameValue`: a saved setting comes back from the database with its keys re-sorted).
 - `ShareButton.tsx` (the Share card): a teacher's Published = a shared copy (store `sharedCopy`). It says "up to
   date" or "You have changes the shared copy doesn't have" (unsaved edits, or saved after `sharedCopy.sharedAt`),
   with "Update shared presentation". When QuizMatter hid the copy (`sharedCopy.isHidden`) it says so, Private and
@@ -179,6 +180,33 @@ A slide can be hidden from presenting (the slide's `hidden` field, `DATA_VERSION
   in `FluidSlidePreview` and `SlideThumbnailPreview` (grids, view page, cards).
 - Copies (Make a copy, shared copies, QuizMatter approvals) carry `hidden` along, since it's part of the slide's data.
 
+## Slide text size
+
+Text on a slide (question, answer choices, text boxes, table cells) always shows at its chosen size: it never
+shrinks to fit (removed 2026-11-18). Text that reaches the box's edge goes onto a new line, a word too long for the
+box breaks in the middle, and lines past the box's bottom are cut off until the box is made bigger or the size
+smaller. The editor (`EditableText`, `TextBoxContent`) and the read-only `SlideText` (thumbnails, presenting) wrap
+the same way. Diagram boxes are different: their text still shrinks (see "Diagrams").
+
+So a teacher doesn't miss cut-off text, the editor shows a Sunny "+…" (24 px) hanging over the bottom-right corner (a third outside; flush inside a table cell, which cuts off what is outside it) of any text
+whose end is past its box's bottom (`HiddenTextMark.tsx`, hover says why): the question, answer choices and text boxes
+(`useCanvasTextEditor` returns `hasHiddenText`), the cell being typed in, and the other table cells (`TableGrid`'s
+`markHiddenText`, which `TableContent` turns on, passed to `SlideText`). `useHasHiddenText` (`src/lib`) watches the
+box's size and everything inside it (and checks again once the fonts have loaded), so typing, undo, a size change
+or resizing the box updates it at once. The mark takes the mouse, so its tip shows; a press on it still reaches the
+box (select, drag, double-click to type), and it keeps the focus (`preventDefault` on mousedown), so pressing it while
+typing doesn't stop the typing. Typing near the bottom scrolls the box to the cursor (hidden overflow can still
+scroll), so `useCanvasTextEditor` scrolls it back to the top when typing stops: the text's start always shows. It is
+editor only: thumbnails, the view page and presenting never show it. Test: `e2e/hidden-text-mark.mjs`.
+
+The size control is `FontSizePicker` (`TextFormatToolbar.tsx`; also tables and diagram boxes): − / the size box / +.
+− and + step by 1; the box takes any whole number (Enter or leaving the box uses it, clamped to the `range` it's
+given: `FONT_SIZE_RANGE` 12–96 for text, `DIAGRAM_FONT_SIZE` for diagrams; Escape puts the old one back; ↑ / ↓ step
+by 1); clicking it opens the list of common sizes. A typed size goes to the text(s) picked when the box got the
+focus, even when the click that leaves the box picks another one first; − / + or a list pick drops a typed size that
+wasn't used yet. What blur does is kept in refs, since `blur()` runs it before React redraws. The box stops mousedown from reaching the text toolbar (which
+keeps focus in the text), so clicking it while typing ends the typing.
+
 ## Tables
 
 The "Table" tile in the Elements panel. Design: `docs/superpowers/specs/2026-11-08-table-element-design.md`; math:
@@ -218,10 +246,7 @@ The "Table" tile in the Elements panel. Design: `docs/superpowers/specs/2026-11-
   as `columnSizes` / `rowSizes`, numbers that only count compared with each other (missing = all the same, until a
   line is first dragged), so resizing the whole table keeps its proportions. A new column or row copies the size of
   the one before it. `tableCellBox` and `TableGrid` both read them.
-- **A cell keeps its size and its text keeps the table's text size:** unlike text boxes, it never shrinks
-  (`keepFontSize` on `SlideText` and `TextBoxContent`). Text that reaches the cell's edge goes onto a new line, and a
-  word too long for the cell breaks in the middle. Lines past the cell's bottom are cut off until the row is made
-  taller.
+- **A cell keeps its size and its text keeps the table's text size,** like all slide text (see "Slide text size").
 - **Text size is the whole table's** (`table.fontSize`; `TextTarget` kind `table`), from the toolbar or the text
   format bar while typing. The other text styles are each cell's own, in its HTML.
 - **Limits:** `TABLE_ROWS` and `TABLE_COLUMNS` (`constants.ts`), checked by the `table` zod schema. Never flipped or
@@ -235,10 +260,9 @@ focus, and Ctrl+Z / Ctrl+Y / Ctrl+Shift+Z leave a plain input or textarea to the
 text on a slide, sliders and date boxes keep the store's undo; `isTextFieldOrDialog` in `dom.ts`; while a box
 (`Modal`, `ConfirmModal`: `role="dialog"` with `aria-modal`) is open, only Ctrl+S works, so no key changes the slides
 behind it, test `e2e/editor-edges.mjs`), `useMarqueeSelection` (drag a rectangle to select), `useElementDropTarget` (drop from a
-panel or the computer), `useCanvasTextEditor` + `richText.ts` (text typing, with tiptap; it stops at the save limits with `TextLimit`,
+panel or the computer), `useHasHiddenText` (the "+…" on cut-off text), `useCanvasTextEditor` + `richText.ts` (text typing, with tiptap; it stops at the save limits with `TextLimit`,
 `src/lib/textLimit.ts`: the question and answer choices at 5,000 characters, every text at 50,000 as HTML; the slide
-name box has `maxLength` 5,000), `useAutoFitText` (text
-shrinks to fit), `useFormatTexts` (which texts the format toolbar changes), `geometry.ts` / `crop.ts` (math),
+name box has `maxLength` 5,000), `useFormatTexts` (which texts the format toolbar changes), `geometry.ts` / `crop.ts` (math),
 `svgLibrary.tsx` (every drawing in the Elements panel, and the diagram layouts).
 
 ## Diagrams (Flowchart, Cycle, Mind Map, Tree)

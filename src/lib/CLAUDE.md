@@ -32,8 +32,8 @@
   code here, read the Diagrams rules in `src/components/editor/CLAUDE.md`. The two written fractions share an
   element's `fraction`: the Written Fraction (`shaded` over `parts`) and the Mixed Fraction (the same, plus `whole`
   in front, 1–999, missing = 1; DATA_VERSION 5, `20261231002000_mixed_fraction.sql`, spec
-  `docs/superpowers/specs/2026-11-18-mixed-fraction-design.md`). Only the mixed one reads `whole`, and Claude's
-  import refuses it on anything else. Their panels are in `src/components/editor/MathToolPanels.tsx`.
+  `docs/superpowers/specs/2026-11-18-mixed-fraction-design.md`). Only the mixed one reads `whole`: Claude's
+  import refuses it on anything else, and `cleanElement` leaves it out of any other element's `fraction`. Their panels are in `src/components/editor/MathToolPanels.tsx`.
 - `importPresentation.ts` (very big): turns Claude's simple "recipe" JSON into real slides, working out every
   element's size and place. `getClaudeFormat()` is the format text Claude reads.
 - `importTable.ts`: how big Claude's tables are: the start size and the rows shared out by their text, naming the rows
@@ -239,6 +239,8 @@ data. Spec: `docs/superpowers/specs/2026-10-23-stable-presentation-data-design.m
 - Drawings: `svgLibrary.tsx`, `flags.tsx`, `kids.tsx`, `solids.tsx`, and the big people drawings `schoolBoy.tsx` /
   `clipartKids.tsx`, which load only when needed (`peopleArt.ts`).
 - Text: `richText.ts` (tiptap setup, safe HTML), `format.ts` (dates, labels).
+- `sameValue.ts`: whether two settings hold the same values in any key order (the database re-sorts saved keys, e.g.
+  a fraction comes back as `{parts, whole, shaded}`); `MathToolControls` uses it. Tests: `sameValue.test.ts`.
 - `support.ts`: `SUPPORT_EMAIL` and `FACEBOOK_URL`, the one place each is written (the support address is an alias
   of the admin's Google Workspace inbox). Used by `src/components/SupportEmail.tsx`, `src/components/Footer.tsx` and
   the "blocked" messages (`QMBAN`, the login page).
@@ -250,7 +252,7 @@ data. Spec: `docs/superpowers/specs/2026-10-23-stable-presentation-data-design.m
   text) always goes through. Test: `e2e/text-limits.mjs`. Spec:
   `docs/superpowers/specs/2026-11-17-text-limits-while-typing-design.md`.
 - Editor hooks: `useEditorShortcuts`, `useMarqueeSelection`, `useElementDropTarget`, `useCanvasTextEditor`,
-  `useAutoFitText`, `useFormatTexts`.
+  `useFormatTexts`, `useHasHiddenText` (whether a slide text is cut off at its box's bottom, for the "+…" mark).
 
 ## Picture Shapes (for Claude's import)
 

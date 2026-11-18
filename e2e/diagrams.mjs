@@ -414,7 +414,7 @@ try {
   check('styles: nothing picked = "All boxes"', true);
   await toolbar.locator('button[title="Bigger text"]').click();
   await page.waitForTimeout(100);
-  check("styles: the text size goes to every box", (await boxes(flow)).every((b) => b.size === 14), (await boxes(flow)).map((b) => b.size).join());
+  check("styles: the text size goes to every box", (await boxes(flow)).every((b) => b.size === 13), (await boxes(flow)).map((b) => b.size).join());
 
   await pickBox(flow, "Next");
   await toolbar.getByText("This box", { exact: true }).waitFor();
@@ -422,7 +422,7 @@ try {
   await toolbar.locator('button[title="Bigger text"]').click();
   await page.waitForTimeout(100);
   const sizes = (await boxes(flow)).map((b) => b.size);
-  check("styles: the text size goes only to the picked box", same(sizes, [14, 16, 14]), sizes.join());
+  check("styles: the text size goes only to the picked box", same(sizes, [13, 14, 13]), sizes.join());
 
   const ellipses = () => element(flow).locator("svg ellipse").count();
   await toolbar.locator('button[title^="Box shape"]').click();
@@ -438,8 +438,8 @@ try {
   check("styles: + lets go of the picked box", (await outline.count()) === 0);
   // The drawn size can be smaller (text shrinks to fit), so the toolbar says what the box is set to.
   await pickBox(flow, "Step 3");
-  const setSize = (await toolbar.locator('button[title^="Text size"]').innerText()).trim();
-  check("styles: a new box copies the text size of the one beside it", setSize === "16", setSize);
+  const setSize = await toolbar.locator('input[aria-label="Text size"]').inputValue();
+  check("styles: a new box copies the text size of the one beside it", setSize === "14", setSize);
   check("styles: a new box copies the shape of the one beside it", await toolbar.locator('button[title^="Box shape: circle"]').count() === 1);
   await inPanel("Edit flowchart", () => panelButton("Reset").click());
   await waitForBoxes(flow, 3);
@@ -680,7 +680,7 @@ try {
     "saved: the flowchart's text, size and own place",
     await waitForSaved(async () => {
       const steps = (await flowSaved())?.flowchart?.steps;
-      return steps?.[1].text === "Flow mark" && steps?.[1].fontSize === 14 && ["x", "y", "width", "height"].every((k) => typeof steps?.[2][k] === "number");
+      return steps?.[1].text === "Flow mark" && steps?.[1].fontSize === 13 && ["x", "y", "width", "height"].every((k) => typeof steps?.[2][k] === "number");
     }),
     JSON.stringify((await flowSaved())?.flowchart?.steps),
   );

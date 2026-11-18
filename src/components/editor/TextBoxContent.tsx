@@ -4,13 +4,14 @@ import { EditorContent } from "@tiptap/react";
 import { useCanvasTextEditor } from "@/lib/useCanvasTextEditor";
 import { TEXT_BOX_FONT_SIZE } from "@/lib/constants";
 import type { TextTarget } from "@/lib/store";
+import { HiddenTextMark } from "./HiddenTextMark";
 
 interface TextBoxContentProps {
   html: string;
-  // Chosen font size (the largest it gets; it shrinks to fit). Missing = the default.
+  // Chosen font size, always kept (long text goes onto new lines). Missing = the default.
   fontSize: number | undefined;
-  // Never shrink: long text goes onto new lines, even in the middle of a word too long for the box (a table's cells).
-  keepFontSize?: boolean;
+  // A table's cell: the "+…" mark goes to the cell's corner, past its padding.
+  inTableCell?: boolean;
   target: TextTarget;
   // Text color for words that don't have their own color.
   color: string;
@@ -23,28 +24,30 @@ interface TextBoxContentProps {
 }
 
 /** The text inside a text box element on the canvas. Read-only until double-clicked, then typeable. */
-export function TextBoxContent({ html, fontSize: chosenFontSize = TEXT_BOX_FONT_SIZE, keepFontSize = false, target, color, editStart, isSelected, onChange, onStopEditing }: TextBoxContentProps) {
-  const { editor, ref, fontSize } = useCanvasTextEditor({
+export function TextBoxContent({ html, fontSize: chosenFontSize = TEXT_BOX_FONT_SIZE, inTableCell = false, target, color, editStart, isSelected, onChange, onStopEditing }: TextBoxContentProps) {
+  const { editor, ref, fontSize, hasHiddenText } = useCanvasTextEditor({
     content: html,
     editStart,
     isSelected,
     target,
     fontSize: chosenFontSize,
-    keepFontSize,
     onUpdate: (editor) => onChange(editor.isEmpty ? "" : editor.getHTML()),
     onStopEditing,
   });
 
   return (
-    <div
-      ref={ref}
-      // Not typing: no text highlighting, so dragging moves the box instead. The text sits in the middle
-      // (top to bottom); "safe" puts it back at the top when it's too long, so shrink-to-fit still sees it overflow.
-      // no-word-break: a word too long for the box makes the text shrink instead of breaking in the middle.
-      className={`${keepFontSize ? "" : "no-word-break"} flex h-full w-full flex-col justify-center-safe overflow-hidden ${editStart ? "" : "select-none"}`}
-      style={{ fontSize, lineHeight: 1.25, color }}
-    >
-      <EditorContent editor={editor} />
+    // relative: holds the "+…" mark in its corner.
+    <div className="relative h-full w-full">
+      <div
+        ref={ref}
+        // Not typing: no text highlighting, so dragging moves the box instead. The text sits in the middle
+        // (top to bottom); "safe" puts it back at the top when it's too long, so its start is never cut off.
+        className={`flex h-full w-full flex-col justify-center-safe overflow-hidden ${editStart ? "" : "select-none"}`}
+        style={{ fontSize, lineHeight: 1.25, color }}
+      >
+        <EditorContent editor={editor} />
+      </div>
+      {hasHiddenText && <HiddenTextMark inTableCell={inTableCell} />}
     </div>
   );
 }

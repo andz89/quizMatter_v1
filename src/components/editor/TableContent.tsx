@@ -92,7 +92,7 @@ export function TableContent({ slideId, element, table }: TableProps) {
         <TextBoxContent
           html={table.rows[row][column].html}
           fontSize={table.fontSize ?? TABLE_FONT_SIZE}
-          keepFontSize
+          inTableCell
           target={{ kind: "table", slideId, elementId: element.id }}
           color={DEFAULT_TEXT_COLOR}
           editStart={pick.typingAt}
@@ -104,7 +104,7 @@ export function TableContent({ slideId, element, table }: TableProps) {
     );
   };
 
-  return <TableGrid table={table} color={element.color} width={element.width} height={element.height} renderCell={renderCell} />;
+  return <TableGrid table={table} color={element.color} width={element.width} height={element.height} renderCell={renderCell} markHiddenText />;
 }
 
 /**

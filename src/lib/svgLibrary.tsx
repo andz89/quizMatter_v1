@@ -371,7 +371,8 @@ function renderFractionNumber(color: string, fraction: FractionSettings = DEFAUL
   return drawFraction(color, 50, fraction, fractionHalfBar(fraction));
 }
 
-// Draws a mixed fraction in a 170×100 area: the whole number, big, ending at x 72, then the fraction just after it.
+// Draws a mixed fraction in a 170×100 area: the whole number, big, ending at x 72, then the fraction just after it
+// (its widest bar, 3 digits, with its round ends, ends at 167.5).
 // The whole number shrinks so up to 3 digits fit in the 70 units before it (a bold digit is about 0.6× its size wide).
 function renderMixedFraction(color: string, fraction: FractionSettings = DEFAULT_MIXED_FRACTION) {
   const whole = fraction.whole ?? 1;
@@ -382,7 +383,7 @@ function renderMixedFraction(color: string, fraction: FractionSettings = DEFAULT
       <text x="72" y="50" textAnchor="end" dominantBaseline="central" fontSize={fontSize} fontWeight="700" fill={color}>
         {whole}
       </text>
-      {drawFraction(color, 80 + halfBar, fraction, halfBar)}
+      {drawFraction(color, 77 + halfBar, fraction, halfBar)}
     </>
   );
 }

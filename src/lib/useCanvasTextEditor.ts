@@ -3,9 +3,8 @@ import { useEditor, type Editor } from "@tiptap/react";
 import type { EditorView } from "@tiptap/pm/view";
 import { toast } from "sonner";
 import { useEditorStore, type TextTarget } from "@/lib/store";
-import { useAutoFitText } from "@/lib/useAutoFitText";
 import { TEXT_EXTENSIONS } from "@/lib/richText";
-import { autoFitRange } from "@/lib/constants";
+import { useHasHiddenText } from "@/lib/useHasHiddenText";
 import { HTML_MAX, PLAIN_TEXT_MAX } from "@/lib/schema";
 import { TEXT_LIMIT_MESSAGE, TextLimit } from "@/lib/textLimit";
 
@@ -39,10 +38,8 @@ interface CanvasTextEditorOptions {
   editStart: { x: number; y: number } | null;
   // Which text this is, so the format toolbar can change its font size.
   target: TextTarget;
-  // The largest the text gets; it shrinks when it's too long for its box.
+  // Always shown at this size: long text goes onto new lines, and what's past the box's bottom is cut off.
   fontSize: number;
-  // Never shrink: long text only goes onto new lines (a table's cells).
-  keepFontSize?: boolean;
   // Selected with one click (not typing): the header's format toolbar changes all of this text.
   isSelected?: boolean;
   // Extra classes on the editable area itself.
@@ -56,15 +53,14 @@ interface CanvasTextEditorOptions {
 
 /**
  * The typing setup shared by every text on the canvas (question, options, text boxes): read-only
- * until double-clicked, plain-text paste, Escape to stop, the header's format toolbar, text
- * that shrinks to fit its box, and the save limits (a change past them is refused with a toast).
+ * until double-clicked, plain-text paste, Escape to stop, the header's format toolbar, and
+ * the save limits (a change past them is refused with a toast), and whether some text is cut off.
  */
 export function useCanvasTextEditor({
   content,
   editStart,
   target,
   fontSize,
-  keepFontSize = false,
   isSelected = false,
   editorClass = "",
   hasTextLimit = false,
@@ -72,8 +68,7 @@ export function useCanvasTextEditor({
   onStopEditing,
 }: CanvasTextEditorOptions) {
   const setActiveTextEditor = useEditorStore((s) => s.setActiveTextEditor);
-  // Re-measures by itself when the font size or the box's size changes.
-  const { ref, fontSize: fittedFontSize, remeasure } = useAutoFitText<HTMLDivElement>({ ...autoFitRange(fontSize), keepFontSize });
+  const ref = useRef<HTMLDivElement>(null);
   // Read when the editor gets focus; kept in a ref so that handler always sees the latest one.
   const targetRef = useRef(target);
   useEffect(() => {
@@ -96,7 +91,6 @@ export function useCanvasTextEditor({
     editorProps,
     onUpdate: ({ editor }) => {
       onUpdate(editor);
-      remeasure();
     },
     // The header shows the format toolbar for whichever text has focus.
     onFocus: ({ editor }) => setActiveTextEditor(editor, targetRef.current),
@@ -112,6 +106,9 @@ export function useCanvasTextEditor({
   useEffect(() => {
     if (!editor) return;
     editor.setEditable(editStart !== null, false);
+    // Typing near the bottom scrolls the box to the cursor (its overflow is hidden, not unscrollable). When typing
+    // stops, go back to the top, so the text's start shows and only its end is cut off (where "+…" points).
+    if (!editStart && ref.current) ref.current.scrollTop = 0;
     if (editStart) {
       const pos = editor.view.posAtCoords({ left: editStart.x, top: editStart.y })?.pos;
       editor.commands.focus(pos ?? "end");
@@ -149,8 +146,10 @@ export function useCanvasTextEditor({
       // put the cursor back at the end.
       if (editor.isFocused) editor.commands.focus("end");
     }
-    remeasure();
-  }, [editor, content, remeasure]);
+  }, [editor, content]);
 
-  return { editor, ref, fontSize: fittedFontSize };
+  // Text past the box's bottom is cut off: the component shows "+…" (HiddenTextMark) so the teacher sees it.
+  const hasHiddenText = useHasHiddenText(ref);
+
+  return { editor, ref, fontSize, hasHiddenText };
 }

@@ -376,6 +376,7 @@ try {
     await t.numberBox("Numerator").fill("999");
     await t.numberBox("Denominator").fill("999");
     t.ok("999 999/999 fits in the drawing", await t.element("m").evaluate((el) => [...el.querySelectorAll("svg text")].every((x) => { const b = x.getBBox(); return b.x >= 0 && b.x + b.width <= 170; })));
+    t.ok("the bar's round end fits in the drawing", await t.element("m").evaluate((el) => { const l = el.querySelector("svg line"); return Number(l.getAttribute("x2")) + Number(l.getAttribute("stroke-width")) / 2 <= 170; }));
     t.ok("the whole number doesn't run into the fraction", await t.element("m").evaluate((el) => { const [w, top] = [...el.querySelectorAll("svg text")].map((x) => x.getBBox()); return w.x + w.width <= top.x; }));
     await whole.fill("12");
     await t.numberBox("Numerator").fill("5");
@@ -576,6 +577,8 @@ try {
   await unchanged("the Step already on", numberLine("n", 40, 40), "Edit numbers", (t) => t.chip(t.section("Edit numbers", "Step"), "1").click());
   await unchanged("the frame size already on", frame("f", 40, 260), "Edit count", (t) => t.chip(t.panel("Edit count"), "10").click());
   await unchanged("the bar count already on", graph("g", 800, 260), "Edit graph", (t) => t.chip(t.panel("Edit graph"), "3").click());
+  // Saved settings come back from the database with their keys re-sorted ({parts, whole, shaded}).
+  await unchanged("Reset on a saved 1 1/2", mixed("m", 40, 40, { fraction: { whole: 1, shaded: 1, parts: 2 } }), "Edit fraction", reset);
 
   await scenario("undo with the panel open", [blank("s", [numberLine("n", 40, 40), written("w", 700, 40), frame("f", 40, 300), graph("g", 700, 300)])], async (t) => {
     await t.open("n", "Edit numbers");

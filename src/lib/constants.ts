@@ -53,23 +53,13 @@ export const PHOTO_DRAG_MIME = "application/x-quizbuilder-photo";
 // dataTransfer type used to drag a slide (as JSON) from the Presentations panel onto the workspace.
 export const SLIDE_DRAG_MIME = "application/x-quizbuilder-slide";
 
-// The font size (px) each kind of text shows at when the user hasn't chosen one. It's the largest
-// the text gets: too-long text shrinks to fit its box. Text boxes match the question box.
+// The font size (px) each kind of text shows at when the user hasn't chosen one. Text never shrinks: too-long
+// text goes onto new lines and what's past the box's bottom is cut off. Text boxes match the question box.
 export const QUESTION_FONT_SIZE = 48;
 export const OPTION_FONT_SIZE = 56;
 export const TEXT_BOX_FONT_SIZE = 48;
 // Text color when none is set.
 export const DEFAULT_TEXT_COLOR = "#1F1F1F";
-// How small text shrinks before going below it only as a last resort (see useAutoFitText).
-const AUTO_FIT_MIN_FONT_SIZE = 22;
-
-/**
- * The auto-fit limits for a text of this size: it's the largest the text gets, and the smallest
- * drops along with a small size, so picking 16 shrinks from 16 instead of jumping to 22.
- */
-export function autoFitRange(fontSize: number) {
-  return { minFontSize: Math.min(AUTO_FIT_MIN_FONT_SIZE, fontSize), maxFontSize: fontSize };
-}
 
 // Gradients are stored in the same color string as "gradient:#from,#to", so the schema stays a plain string.
 export const GRADIENT_PREFIX = "gradient:";
@@ -101,7 +91,7 @@ export const DIAGRAM_BOX_POSITION_MAX = 2000;
 // A diagram box's own text size (drawing units): the biggest its text gets; like a text box, it still
 // shrinks to fit. `default` is the size of a box with none chosen.
 export const DIAGRAM_FONT_SIZE = { min: 6, max: 36, default: 12 };
-// Sizes offered in the diagram's size list; − and + step between them.
+// Sizes offered in the diagram's size list (− and + step by 1, within DIAGRAM_FONT_SIZE).
 export const DIAGRAM_FONT_SIZES = [6, 8, 10, 12, 14, 16, 18, 20, 24, 28, 32, 36];
 // The table element (src/lib/table.ts): how many rows and columns it can have, the thickness of its lines, the
 // biggest text size when none is chosen (each cell's text still shrinks to fit), and its cells' background.
