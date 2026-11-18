@@ -86,3 +86,12 @@ export function lineTop(heights: number[], index: number, gap: number): string {
   const gaps = gap * (heights.length - 1);
   return `calc((100% - ${gaps}px) * ${above / total} + ${gap * index + gap / 2}px)`;
 }
+
+/**
+ * The biggest whole text size from `from` down to `min` for which `fits` says the text shows whole; `min` when none
+ * does. Only for the teacher's own click on an option's "+…" mark: nothing calls it by itself.
+ */
+export function largestFittingSize(from: number, min: number, fits: (size: number) => boolean): number {
+  for (let size = Math.floor(from); size > min; size--) if (fits(size)) return size;
+  return min;
+}

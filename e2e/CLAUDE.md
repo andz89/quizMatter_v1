@@ -97,12 +97,13 @@ Tests that delete data (the announcements ones empty the announcements table) do
   sized by their text; Claude's own 90 px options under its own 160 px strip and a question too long for its
   `questionHeight` are reported as cut off; with the size left out, the options keep 56 px, the strip makes room, and
   the draft opens with no "+…".
-- `option-rows.mjs`: option row heights. Fit rows to text gives a long option a taller row and changes no text size;
-  a line between list rows trades room (one undo puts it back); Shuffle keeps a list row with its option; text far
-  too big stays inside the options area with "+…" and its size; a grid's columns end together after Fit and Shuffles,
-  with no lines; a picture's row is never shorter than the picture, a line stops at a picture and sits in the middle
-  of the gap, ↑ / ↓ on a line never move a selected picture, a line never covers a "+…" mark, an option's text stays
-  full width with its picture on top; save, reload and presenting draw the same rows.
+- `option-rows.mjs`: option row heights. No slide has a Fit rows to text button; a line between list rows trades room
+  and changes no text size (one undo puts it back); Shuffle keeps a list row with its option; text far too big stays
+  inside the options area with "+…" and its size; a grid's columns end together after Shuffles (sizes unchanged), with
+  no lines; a picture's row is never shorter than the picture, a line stops at a picture and sits in the middle of the
+  gap, ↑ / ↓ on a line never move a selected picture, a line never covers a "+…" mark, an option's text stays full
+  width with its picture on top; a click on a cut-off option's "+…" makes only its text smaller until all of it shows
+  (one undo puts the size back); save, reload and presenting draw the same rows.
 - `hidden-text-mark.mjs`: the "+…" mark on cut-off text: shown on a long question, answer choice, text box and
   table cell, not on text that fits or outside the editable slides; typing past the bottom shows it, undo and making
   the box taller take it away.

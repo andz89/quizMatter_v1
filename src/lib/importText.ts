@@ -65,7 +65,7 @@ export function tooLong(words: string, box: { width: number; height: number }, f
 
 /**
  * About how tall an option row must be for `text` at `fontSize` in a box `width` wide: its lines plus the card's
- * edges. The import sizes option rows with it (like the editor's Fit rows to text); it never changes a text size.
+ * edges. The import sizes option rows with it (like the editor's grid re-fit); it never changes a text size.
  */
 export function optionNeedFor(text: string, width: number, fontSize: number): number {
   // The same careful count as tooLong, so a row sized by it is never reported as cut off.

@@ -210,19 +210,20 @@ keeps focus in the text), so clicking it while typing ends the typing.
 ## Option row heights
 
 The option rows share the options area by their text (spec: `docs/superpowers/specs/2026-11-18-option-row-heights-design.md`;
-math: `src/lib/optionRows.ts`; test: `e2e/option-rows.mjs`). **Nothing here ever changes a text size**: every option
-keeps its own, only the teacher changes it.
+math: `src/lib/optionRows.ts`; test: `e2e/option-rows.mjs`). **Nothing here changes a text size by itself**: every option
+keeps its own until the teacher changes it (the size box, or a click on its "+…" mark, below).
 
 - **Saved as shares**, numbers that only count compared with each other: each option's `rowSize` in the list layouts
   (it moves with the option on Shuffle and reorder), the slide's `gridRowSizes` in a grid (by place). Missing = equal
   rows. `getOptionRowHeights` (`constants.ts`) turns them into heights for `getContainerBounds`, and
   `getOptionsGridStyle` into the options grid's rows (as `minmax(0, Nfr)`, so they always fill the real area and never
   pass its bottom) in `SlideCanvas` and `SlideStaticView` alike.
-- **Fit rows to text** (`SlideToolbar`, next to Shuffle; grid slides only, the user's choice: the lists have their
-  lines; not on a true-or-false grid, which has one row): the store's
-  `fitOptionRows` measures each shown option in the browser (`measureOptionNeeds`, `src/lib/measureOptions.ts`: its
-  text at its own size and width, like `SlideText`; at least its lowest picture's bottom), gives each row what it
-  needs and shares the spare room out (`shareOut`). Too little room: shared by need, and "+…" shows.
+- **A click on an option's "+…" mark makes its text fit** (the only size change here, and only on the teacher's
+  click; there's no Fit button: removed 2026-11-18, the user's choice). `HiddenTextMark`'s `onFit` (passed by
+  `OptionCard` through `EditableText`'s `onFitText`; the question, text boxes and table cells keep the plain mark) calls
+  the store's `fitOptionText`: `fittingOptionFontSize` (`measureOptions.ts`) tries sizes from the option's own down
+  to `FONT_SIZE_RANGE.min` (`largestFittingSize`) and keeps the biggest at which its text fits the row (2 px spare).
+  Only that option, one undo step; the row's height stays.
 - **Lines between list rows** (`OptionRowLines.tsx`, in the 12 px gap, the `ResizeHandle` look): dragging one makes one
   row taller and its neighbor shorter, each down to one line of its own text or its lowest picture, whichever is
   taller (`moveRowLine`, `rowMin`), so a drag never squeezes a picture; ↑ / ↓ move it by 6. Each line is placed with
@@ -230,13 +231,14 @@ keeps its own, only the teacher changes it.
   editor's arrow keys would also move a selected picture), and it sits under an option's "+…" mark (`z-[5]` vs
   `z-10`), which hangs into the gap. The store's `setOptionRowHeights`. Undo takes back a drag (the history joins changes less than
   half a second apart, so a drag that pauses longer takes more than one undo).
-- **Grid:** no lines. Its rows are fitted again after Shuffle and reorder (`refitGridRows`), each as tall as its taller
-  option, so a column never runs off the slide. Not while typing: "+…" tells the teacher.
+- **Grid:** no lines. Its rows are fitted again after Shuffle and reorder (`refitGridRows`, rows only: it measures
+  each option with `measureOptionNeeds`, its text at its own size and full width plus its lowest picture), each as tall
+  as its taller option, so a column never runs off the slide. Not while typing: "+…" tells the teacher.
 - **Pictures in an option sit on top of its text, like the question box's:** the text always spans the whole option
   (`OptionCard`, `SlideStaticView`), and the element layer is drawn over it. (Before 2026-11-18 the text kept to the
   left half when the option had a picture.)
 - Pictures in an option stay as they are while they fit their row and only shrink when it gets too short for them
-  (`fitIntoRow`, never grown), so Fit twice changes nothing and a grid's Shuffle doesn't keep resizing them. Their
+  (`fitIntoRow`, never grown), so a grid's Shuffle doesn't keep resizing them. Their
   room counts the card's border (`OPTION_BORDER`).
 - The lines and the question box / picture strip's resize bar (`ResizeHandle`) share one look: a violet bar, solid on
   hover (the lines add a faint dashed line across the gap).

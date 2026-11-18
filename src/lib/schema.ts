@@ -603,7 +603,7 @@ export const slideSchema = z.preprocess(upgradeSlide, z.object({
   background: colorSchema.optional(),
   options: z.tuple([optionSchema, optionSchema, optionSchema, optionSchema]),
   // Grid only: the two rows' shares of the options area, by place (top, bottom), compared with each other. Fitted
-  // again after Shuffle, reorder and Fit rows to text. Missing = equal rows. (Added in DATA_VERSION 6.)
+  // again after Shuffle and reorder. Missing = equal rows. (Added in DATA_VERSION 6.)
   gridRowSizes: z.tuple([rowSizeSchema, rowSizeSchema]).optional(),
   correctOptionId: idSchema.nullable(),
   // Short-answer, custom and blank slides only: the answer the teacher expects. (Their options stay empty and aren't shown.)

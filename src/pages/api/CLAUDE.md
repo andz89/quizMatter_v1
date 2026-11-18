@@ -62,7 +62,7 @@
   `read_presentation` (`shrinkPresentation`) gives each cell's `fill` back with its words, and the format asks
   Claude to send it again, so editing a table keeps the teacher's cell colors. Test: `e2e/claude-table-fill.mjs`.
 - Option rows are sized by their text (`optionNeedFor`, `src/lib/importText.ts`; saved as each option's `rowSize`,
-  or a grid's `gridRowSizes`, like the editor's Fit rows to text). Option text keeps the size Claude gives, or the
+  or a grid's `gridRowSizes`, like the editor's grid re-fit). Option text keeps the size Claude gives, or the
   default: the import never changes it. When a picture strip Claude left at its own height leaves the options too
   little room, the strip gets shorter (not below `MIN_SHAPE_STRIP_HEIGHT`). An option holding pictures or text boxes
   keeps at least an equal row, for them. Like the question box, an option's text spans the whole box and its pictures

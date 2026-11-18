@@ -1114,7 +1114,7 @@ function buildSlide(
       // Short options don't need much room, so a strip with pictures takes what the options can spare.
       slide.shapeStripHeight = stripHeight ?? Math.max(DEFAULT_SHAPE_STRIP_HEIGHT, Math.min(MAX_IMPORT_STRIP_HEIGHT, maxStrip));
     }
-    // Option rows are sized by their text, like the editor's Fit rows to text; option text keeps the size Claude gave
+    // Option rows are sized by their text, like the editor's grid re-fit; option text keeps the size Claude gave
     // (or the default), never shrunk. An option with pictures keeps at least an equal row, so its pictures have room.
     if (recipe.type === "choice" || recipe.type === "true-false") {
       const equal = getContainerBounds(slide.options[0].id, slide).height;

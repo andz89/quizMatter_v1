@@ -111,7 +111,10 @@ Teachers need the room to go where the text is.
 
 ## Changes after the first build (2026-11-18, after the user tried it)
 
-- **Fit rows to text is on grid slides only.** List slides use the drag lines.
+- **No Fit rows to text button** (first grid only, then removed): list slides use the drag lines, a grid fits its rows
+  again after each Shuffle / reorder, and **a click on an option's "+…" mark makes that option's text smaller**, just
+  enough for all of it to show (the biggest size from its own down that fits its row; one undo step). That click is
+  the teacher's own choice, the one place this feature changes a size; nothing resizes text by itself.
 - **The lines and the question box / picture strip resize bar** share one look: a violet bar, solid on hover; the
   lines add a faint dashed violet line across the gap.
 - **An option's pictures sit on top of its text, like the question box's:** the text always spans the whole option

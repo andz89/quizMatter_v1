@@ -19,6 +19,8 @@ interface EditableTextProps {
   // Selected with one click: the header shows the format toolbar for all of this text.
   isSelected?: boolean;
   className?: string;
+  // Answer choices: a click on the "+…" mark makes the text smaller so all of it shows.
+  onFitText?: () => void;
 }
 
 export function EditableText({
@@ -30,6 +32,7 @@ export function EditableText({
   fontSize: chosenFontSize,
   isSelected = false,
   className,
+  onFitText,
 }: EditableTextProps) {
   // Where the user double-clicked to start typing (screen coordinates); null = not editing.
   // Read-only until then, so a drag on the box draws the selection rectangle instead of selecting words.
@@ -69,7 +72,7 @@ export function EditableText({
       >
         <EditorContent editor={editor} className="h-full" />
       </div>
-      {hasHiddenText && <HiddenTextMark />}
+      {hasHiddenText && <HiddenTextMark onFit={onFitText} />}
     </div>
   );
 }

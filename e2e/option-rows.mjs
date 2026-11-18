@@ -1,7 +1,7 @@
-// Option row heights (spec: docs/superpowers/specs/2026-11-18-option-row-heights-design.md): "Fit rows to text" sizes
-// each row by its text at its own size (never changing a size), the lines between list rows share room, Shuffle
-// keeps a list row with its option and fits a grid's rows again, rows never pass the options area's bottom, an option
-// with a picture keeps room for it, and presenting draws the same rows.
+// Option row heights (spec: docs/superpowers/specs/2026-11-18-option-row-heights-design.md): the lines between list
+// rows share room, Shuffle keeps a list row with its option and fits a grid's rows again (never changing a size),
+// rows never pass the options area's bottom, an option with a picture keeps room for it, a click on an option's "+…"
+// makes its text just small enough to show, and presenting draws the same rows.
 import { randomUUID } from "node:crypto";
 import { chromium } from "playwright";
 import { APP, SHOTS, api, check, deleteTeacher, finish, loggedIn, makeTeacher } from "./lib.mjs";
@@ -46,6 +46,8 @@ await api("/rest/v1/slides", {
     slide("s4", 3, "grid", [{ text: "Star" }, { text: "Moon" }, { text: LONG_A, fontSize: 30 }, { text: "D" }], {
       elements: [{ id: "pic", assetId: "star", x: 300, y: 4, width: 100, height: 100, color: "#FFC233", containerId: "s4-a" }],
     }),
+    // A list option whose text is cut off at the default size: a click on its "+…" makes it fit.
+    slide("s6", 5, "list", [{ text: LONG_A + " " + LONG_A }, { text: "B" }, { text: "C" }, { text: "D" }]),
     // A list option with a tall picture: a drag line stops at it.
     slide("s5", 4, "list", [{ text: "Sun" }, { text: "B" }, { text: "C" }, { text: "D" }], {
       elements: [{ id: "pic5", assetId: "star", x: 300, y: 4, width: 90, height: 90, color: "#FFC233", containerId: "s5-a" }],
@@ -68,17 +70,17 @@ try {
   const box = async (id) => (await option(id).boundingBox()) ?? { x: 0, y: 0, width: 0, height: 0 };
   const fontSize = (id) => option(id).locator('[style*="font-size"]').first().evaluate((el) => getComputedStyle(el).fontSize);
   const grid = (id) => item(id).locator('[style*="grid-template-rows"]').first();
-  const fit = async (id) => {
+  const shuffle = async (id) => {
     await item(id).scrollIntoViewIfNeeded();
-    await item(id).getByTitle("Fit rows to text").click();
-    await page.waitForTimeout(300);
+    await item(id).getByTitle("Shuffle options").click();
+    await page.waitForTimeout(400);
   };
   await item("s1").waitFor();
   await page.waitForTimeout(800);
 
   // ─── List: no Fit button (grid only), the lines show ─────────────────────────────────────────────────────
   await item("s1").scrollIntoViewIfNeeded();
-  check("a list slide has no Fit rows to text button", (await item("s1").getByTitle("Fit rows to text").count()) === 0);
+  check("no slide has a Fit rows to text button", (await page.getByTitle("Fit rows to text").count()) === 0);
   check("a list slide shows a line between each pair of rows", (await item("s1").getByRole("separator").count()) === 3);
   const sizesBefore = await Promise.all(["s1-a", "s1-b", "s1-c", "s1-d"].map(fontSize));
 
@@ -125,9 +127,9 @@ try {
 
   // ─── Grid: rows fitted again after Shuffle, both columns end together ──────────────────────────────────
   const gridSizesBefore = await Promise.all(["s3-a", "s3-b", "s3-c", "s3-d"].map(fontSize));
-  await fit("s3");
+  await shuffle("s3");
   const gridSizesAfter = await Promise.all(["s3-a", "s3-b", "s3-c", "s3-d"].map(fontSize));
-  check("grid Fit changes no text size", JSON.stringify(gridSizesBefore) === JSON.stringify(gridSizesAfter), `${gridSizesBefore} → ${gridSizesAfter}`);
+  check("a grid's re-fit after Shuffle changes no text size", JSON.stringify(gridSizesBefore) === JSON.stringify(gridSizesAfter), `${gridSizesBefore} → ${gridSizesAfter}`);
   const sameEnd = async () => {
     const ids = ["s3-a", "s3-b", "s3-c", "s3-d"];
     const boxes = await Promise.all(ids.map(box));
@@ -137,7 +139,7 @@ try {
     return { ok: near(end(left), end(right), 1), detail: `${end(left)} vs ${end(right)}` };
   };
   let ends = await sameEnd();
-  check("grid: both columns end together after Fit", ends.ok, ends.detail);
+  check("grid: both columns end together after a Shuffle", ends.ok, ends.detail);
   for (let i = 0; i < 3; i++) {
     await item("s3").getByTitle("Shuffle options").click();
     await page.waitForTimeout(300);
@@ -150,14 +152,29 @@ try {
   check("grid has no drag lines", (await item("s3").getByRole("separator").count()) === 0);
 
   // ─── An option with a picture keeps room for it ────────────────────────────────────────────────────────
-  await fit("s4");
+  await shuffle("s4");
   const row = await box("s4-a");
   const pic = await item("s4").locator('[data-element-id="pic"]').boundingBox();
   check("a picture's row is never shorter than its picture", pic && pic.y + pic.height <= row.y + row.height + 1, pic && `${pic.y + pic.height} vs ${row.y + row.height}`);
-  const rowsOnce = await grid("s4").getAttribute("style");
-  await fit("s4");
-  const picAgain = await item("s4").locator('[data-element-id="pic"]').boundingBox();
-  check("Fit twice changes nothing (rows and picture)", (await grid("s4").getAttribute("style")) === rowsOnce && near(picAgain.height, pic.height, 0.5), `${pic.height} → ${picAgain.height}`);
+
+  // ─── A click on an option's "+…" makes its text just small enough to show ────────────────────────────────
+  await item("s6").scrollIntoViewIfNeeded();
+  await page.waitForTimeout(300);
+  const mark6 = option("s6-a").locator(MARK);
+  check("a cut-off option shows +…", (await mark6.count()) === 1);
+  check("its +… says a click makes the text fit", ((await mark6.getAttribute("title")) ?? "").includes("Click to make the text smaller"));
+  const others6 = await Promise.all(["s6-b", "s6-c", "s6-d"].map(fontSize));
+  await mark6.click();
+  await page.waitForTimeout(400);
+  const fitted = Number.parseFloat(await fontSize("s6-a"));
+  check("the click makes that option's text smaller", fitted < 56, String(fitted));
+  check("then all of it shows (no +…)", (await option("s6-a").locator(MARK).count()) === 0);
+  check("only that option changed", JSON.stringify(await Promise.all(["s6-b", "s6-c", "s6-d"].map(fontSize))) === JSON.stringify(others6));
+  await page.waitForTimeout(1200);
+  await page.keyboard.press("Control+z");
+  await page.waitForTimeout(400);
+  check("one undo puts the size back", (await fontSize("s6-a")) === "56px", await fontSize("s6-a"));
+
   await page.screenshot({ path: `${SHOTS}/option-rows-editor.png` });
 
   // ─── A drag line stops at a picture, and sits in the middle of the real gap ────────────────────────────
