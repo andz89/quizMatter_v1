@@ -265,8 +265,9 @@ data. Spec: `docs/superpowers/specs/2026-10-23-stable-presentation-data-design.m
   text) always goes through. Test: `e2e/text-limits.mjs`. Spec:
   `docs/superpowers/specs/2026-11-17-text-limits-while-typing-design.md`.
 - Editor hooks: `useEditorShortcuts`, `useMarqueeSelection`, `useElementDropTarget`, `useCanvasTextEditor`,
-  `useFormatTexts`, `useHasHiddenText` / `useTextRoom` (whether a slide text is cut off at its box's bottom, for the "+…" mark, and,
-  when asked, whether the next size up fits, for the grow mark), `textFit.ts` (browser only: `measureRoom` and
+  `useFormatTexts`, `useTextRoom` (the question, answer choices and text boxes: whether the text is cut off, for the "+…" mark, and,
+  when asked, whether the next size up fits, for the grow mark), `useHasHiddenText` (table cells only, untouched by the
+  text fit feature: the box's scroll height past its height), `textFit.ts` (browser only: `measureRoom` and
   `fittingSize`, both on a hidden, unrotated copy of the text at the box's real width; the click's biggest size that
   fits), `textRoom.ts` (no imports, tested: `isCutOff`, cutting the empty room under a last line with no g, y, p…
   doesn't count; `largestFittingSize`, the size search that halves the range).

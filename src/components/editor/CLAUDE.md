@@ -192,8 +192,10 @@ So a teacher doesn't miss cut-off text, the editor shows a Sunny "+…" (24 px) 
 whose letters are cut at its box's bottom (`HiddenTextMark.tsx`, hover says why; on the question, answer choices and
 text boxes a click on it fits the text, see "Option row heights"): the question, answer choices and text boxes
 (`useCanvasTextEditor` returns `hasHiddenText`), the cell being typed in, and the other table cells (`TableGrid`'s
-`markHiddenText`, which `TableContent` turns on, passed to `SlideText`). `useHasHiddenText` / `useTextRoom` (`src/lib`)
-call `measureRoom` (`src/lib/textFit.ts`): a hidden, unrotated copy of the text at the box's real width (so a turned or
+`markHiddenText`, which `TableContent` turns on, passed to `SlideText`). **Tables are left out of the text fit feature
+(the user's rule):** a cell's "+…" keeps its original check, the box's scroll height past its height
+(`useHasHiddenText`, `isTableCell` in `useCanvasTextEditor`), with no click and no grow mark. The question, answer
+choices and text boxes use `useTextRoom` (`src/lib`), which calls `measureRoom` (`src/lib/textFit.ts`): a hidden, unrotated copy of the text at the box's real width (so a turned or
 zoomed box, or one scrolled while typing, measures the same) and its last line's letters. Lexend keeps the bottom
 fifth of a line for letters that hang down (g, y, p, a comma), so cutting only that room off a last line without such
 letters doesn't count (`isCutOff`, `src/lib/textRoom.ts`; a "uniform." whose empty room is cut shows whole). It watches the

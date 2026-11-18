@@ -1,5 +1,5 @@
 /**
- * Whether slide text is cut off at its box's bottom (the "+…" mark, useHasHiddenText), and the size search for the
+ * Whether slide text is cut off at its box's bottom (the "+…" mark on the question, answer choices and text boxes, useTextRoom), and the size search for the
  * teacher's click on "+…" or the grow mark (textFit.ts).
  * No imports, so `npm test` loads it (`textRoom.test.ts`).
  *

@@ -36,6 +36,7 @@ export function TextBoxContent({ html, fontSize: chosenFontSize = TEXT_BOX_FONT_
     fontSize: chosenFontSize,
     // A text box's grow mark shows only while it's selected, never while typing; table cells have none.
     checkSpareRoom: !inTableCell && isSelected && !editStart,
+    isTableCell: inTableCell,
     onUpdate: (editor) => onChange(editor.isEmpty ? "" : editor.getHTML()),
     onStopEditing,
   });
