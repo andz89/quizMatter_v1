@@ -40,7 +40,8 @@ Teachers need the room to go where the text is.
   like a table's `rowSizes`: each row's height = its `rowSize` / the sum of the shown options' `rowSize`s × the room.
   Missing on a shown option = equal rows (today's look). Because it lives on the option, Shuffle and reorder carry it
   along: a long option keeps its tall row.
-- **Fit rows to text** (a button shown when an option box is picked; builder's call where exactly): each row gets what
+- **Fit rows to text** (the slide toolbar, next to Shuffle; **grid slides only**, the user's call after trying it: the
+  lists use the lines; the store and Claude's import still fit list rows the same way): each row gets what
   its text needs **at the option's own text size**, and the spare room is shared out equally. Text sizes don't change.
   If the text needs more than the room, the rows share the room by what they need and "+…" shows on what's cut off;
   the teacher then lowers a size or shortens the text. One undo step.
