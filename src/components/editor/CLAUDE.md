@@ -218,16 +218,22 @@ keeps its own, only the teacher changes it.
   rows. `getOptionRowHeights` (`constants.ts`) turns them into heights for `getContainerBounds`, and
   `getOptionsGridStyle` into the options grid's rows (as `minmax(0, Nfr)`, so they always fill the real area and never
   pass its bottom) in `SlideCanvas` and `SlideStaticView` alike.
-- **Fit rows to text** (`SlideToolbar`, next to Shuffle; not on a true-or-false grid, which has one row): the store's
+- **Fit rows to text** (`SlideToolbar`, next to Shuffle; grid slides only, the user's choice: the lists have their
+  lines; not on a true-or-false grid, which has one row): the store's
   `fitOptionRows` measures each shown option in the browser (`measureOptionNeeds`, `src/lib/measureOptions.ts`: its
   text at its own size and width, like `SlideText`; at least its lowest picture's bottom), gives each row what it
   needs and shares the spare room out (`shareOut`). Too little room: shared by need, and "+…" shows.
 - **Lines between list rows** (`OptionRowLines.tsx`, in the 12 px gap, the `ResizeHandle` look): dragging one makes one
   row taller and its neighbor shorter, each down to one line of its own text (`moveRowLine`, `oneLineHeight`); ↑ / ↓
-  move it by 6. The store's `setOptionRowHeights`. A drag is one undo step (the history groups the burst).
+  move it by 6. The store's `setOptionRowHeights`. Undo takes back a drag (the history joins changes less than
+  half a second apart, so a drag that pauses longer takes more than one undo).
 - **Grid:** no lines. Its rows are fitted again after Shuffle and reorder (`refitGridRows`), each as tall as its taller
   option, so a column never runs off the slide. Not while typing: "+…" tells the teacher.
-- Pictures in an option scale with its row (`scaleElementsToBoxes`, as for the question box).
+- Pictures in an option stay as they are while they fit their row and only shrink when it gets too short for them
+  (`fitIntoRow`, never grown), so Fit twice changes nothing and a grid's Shuffle doesn't keep resizing them. Their
+  room counts the card's border (`OPTION_BORDER`).
+- The lines and the question box / picture strip's resize bar (`ResizeHandle`) share one look: a violet bar, solid on
+  hover (the lines add a faint dashed line across the gap).
 
 ## Tables
 

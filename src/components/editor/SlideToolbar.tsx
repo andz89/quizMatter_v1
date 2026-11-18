@@ -206,8 +206,8 @@ export function SlideToolbar({ slide, slideNumber, isFirst, isLast, canDelete, o
                   <ShuffleIcon size={18} />
                 </button>
               )}
-              {/* A true-or-false grid has one row: nothing to fit. */}
-              {!(slide.type === "true-false" && slide.layout === "grid") && (
+              {/* Grid only (the lists have lines between their rows); a true-or-false grid has one row: nothing to fit. */}
+              {slide.layout === "grid" && slide.type !== "true-false" && (
                 <button
                   type="button"
                   onClick={() => fitOptionRows(slide.id)}

@@ -39,9 +39,10 @@ export function ResizeHandle({ height, onResize }: ResizeHandleProps) {
       onPointerLeave={stopResize}
       onClick={(e) => e.stopPropagation()}
       title="Drag to resize"
-      className="group absolute -bottom-1.5 left-1/2 z-20 flex h-3 w-16 -translate-x-1/2 cursor-ns-resize items-center justify-center"
+      // The same look as the lines between option rows (OptionRowLines): a violet bar, solid on hover.
+      className="group absolute -bottom-[7px] left-1/2 z-20 flex h-3.5 w-16 -translate-x-1/2 cursor-ns-resize items-center justify-center"
     >
-      <div className="h-1 w-10 rounded-full bg-border-default transition-colors group-hover:bg-accent" />
+      <div className="h-2 w-11 rounded-full bg-accent opacity-60 transition-opacity group-hover:opacity-100" />
     </div>
   );
 }

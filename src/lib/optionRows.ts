@@ -52,3 +52,21 @@ export function moveRowLine(heights: number[], index: number, dy: number, mins: 
 export function oneLineHeight(fontSize: number): number {
   return fontSize * LINE_HEIGHT + OPTION_BOX_EDGES;
 }
+
+// An option card's border, top + bottom (1.5px each, rounded up): its pictures sit inside it.
+export const OPTION_BORDER = 3;
+
+/**
+ * A picture in an option row after the row's height changed: left as it is while it still fits (so Fit and a grid's
+ * Shuffle never grow it, and Fit twice changes nothing); made just small enough to fit (same shape) when it doesn't.
+ * Always kept inside the row's width.
+ */
+export function fitIntoRow<R extends { x: number; y: number; width: number; height: number }>(
+  rect: R,
+  box: { width: number; height: number },
+): R {
+  const bottom = rect.y + rect.height;
+  const scale = bottom > box.height && bottom > 0 ? box.height / bottom : 1;
+  const width = rect.width * scale;
+  return { ...rect, y: rect.y * scale, width, height: rect.height * scale, x: Math.min(rect.x, Math.max(0, box.width - width)) };
+}

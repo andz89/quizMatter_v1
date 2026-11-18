@@ -4,7 +4,7 @@
  * Used by the store's Fit rows to text and the grid's re-fit after Shuffle / reorder. Never changes a text size.
  */
 import { OPTION_FONT_SIZE, getContainerBounds, getShownOptions } from "./constants";
-import { OPTION_BOX_EDGES } from "./optionRows";
+import { OPTION_BORDER, OPTION_BOX_EDGES } from "./optionRows";
 import { textToHtml, toSafeHtml } from "./richText";
 import type { Slide } from "./schema";
 
@@ -40,7 +40,8 @@ export function measureOptionNeeds(slide: Slide): number[] {
     box.style.fontSize = `${option.fontSize ?? OPTION_FONT_SIZE}px`;
     box.innerHTML = (option.html ? toSafeHtml(option.html) : textToHtml(option.text)).replace(/<p([^>]*)><\/p>/g, "<p$1><br></p>");
     const textNeed = box.scrollHeight + OPTION_BOX_EDGES;
-    const pictureNeed = Math.max(0, ...pictures.map((el) => el.y + el.height));
+    // Pictures sit inside the card's border, so the row needs the border too.
+    const pictureNeed = Math.max(0, ...pictures.map((el) => el.y + el.height + OPTION_BORDER));
     return Math.max(textNeed, pictureNeed);
   });
 }

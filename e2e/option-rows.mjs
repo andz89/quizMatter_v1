@@ -43,8 +43,8 @@ await api("/rest/v1/slides", {
     // Grid with the two long options in the left column.
     slide("s3", 2, "grid", [{ text: LONG_C, fontSize: 30 }, { text: "Murals", fontSize: 30 }, { text: LONG_C, fontSize: 30 }, { text: "Sculptures", fontSize: 30 }]),
     // A short option with a tall picture.
-    slide("s4", 3, "list", [{ text: "Star" }, { text: LONG_A, fontSize: 30 }, { text: "C" }, { text: "D" }], {
-      elements: [{ id: "pic", assetId: "star", x: 600, y: 4, width: 100, height: 100, color: "#FFC233", containerId: "s4-a" }],
+    slide("s4", 3, "grid", [{ text: "Star" }, { text: "Moon" }, { text: LONG_A, fontSize: 30 }, { text: "D" }], {
+      elements: [{ id: "pic", assetId: "star", x: 300, y: 4, width: 100, height: 100, color: "#FFC233", containerId: "s4-a" }],
     }),
   ]),
 });
@@ -72,17 +72,11 @@ try {
   await item("s1").waitFor();
   await page.waitForTimeout(800);
 
-  // ─── List: Fit rows to text ─────────────────────────────────────────────────────────────────────────────
+  // ─── List: no Fit button (grid only), the lines show ─────────────────────────────────────────────────────
+  await item("s1").scrollIntoViewIfNeeded();
+  check("a list slide has no Fit rows to text button", (await item("s1").getByTitle("Fit rows to text").count()) === 0);
+  check("a list slide shows a line between each pair of rows", (await item("s1").getByRole("separator").count()) === 3);
   const sizesBefore = await Promise.all(["s1-a", "s1-b", "s1-c", "s1-d"].map(fontSize));
-  const equalBefore = (await box("s1-a")).height;
-  check("before Fit, the rows are equal", near(equalBefore, (await box("s1-c")).height, 1));
-  await fit("s1");
-  const a = await box("s1-a");
-  const c = await box("s1-c");
-  check("Fit gives the long option a taller row than a short one", a.height > c.height + 20, `${a.height} vs ${c.height}`);
-  const sizesAfter = await Promise.all(["s1-a", "s1-b", "s1-c", "s1-d"].map(fontSize));
-  check("Fit changes no text size", JSON.stringify(sizesBefore) === JSON.stringify(sizesAfter), `${sizesBefore} → ${sizesAfter}`);
-  check("A's text fits after Fit (no +…)", (await option("s1-a").locator(MARK).count()) === 0);
 
   // ─── List: a drag line ──────────────────────────────────────────────────────────────────────────────────
   const line = item("s1").getByRole("separator").first();
@@ -97,6 +91,8 @@ try {
   const aGrew = (await box("s1-a")).height - aBefore;
   const bShrank = bBefore - (await box("s1-b")).height;
   check("dragging the line grows A and shrinks B by the same amount", aGrew > 5 && near(aGrew, bShrank, 1), `${aGrew} / ${bShrank}`);
+  const sizesAfter = await Promise.all(["s1-a", "s1-b", "s1-c", "s1-d"].map(fontSize));
+  check("dragging changes no text size", JSON.stringify(sizesBefore) === JSON.stringify(sizesAfter), `${sizesBefore} → ${sizesAfter}`);
   await page.waitForTimeout(1200);
   await page.keyboard.press("Control+z");
   await page.waitForTimeout(300);
@@ -109,7 +105,7 @@ try {
   check("after Shuffle, A keeps its tall row", near((await box("s1-a")).height, aHeight, 1), `${(await box("s1-a")).height} vs ${aHeight}`);
 
   // ─── Text too big: rows stay inside, +… shows, sizes untouched ─────────────────────────────────────────
-  await fit("s2");
+  await item("s2").scrollIntoViewIfNeeded();
   const area = await grid("s2").boundingBox();
   const last = await box("s2-d");
   check("too-big text: the rows end inside the options area", last.y + last.height <= area.y + area.height + 1, `${last.y + last.height} vs ${area.y + area.height}`);
@@ -117,7 +113,10 @@ try {
   check("too-big text: the size stays 60 px", (await fontSize("s2-a")) === "60px", await fontSize("s2-a"));
 
   // ─── Grid: rows fitted again after Shuffle, both columns end together ──────────────────────────────────
+  const gridSizesBefore = await Promise.all(["s3-a", "s3-b", "s3-c", "s3-d"].map(fontSize));
   await fit("s3");
+  const gridSizesAfter = await Promise.all(["s3-a", "s3-b", "s3-c", "s3-d"].map(fontSize));
+  check("grid Fit changes no text size", JSON.stringify(gridSizesBefore) === JSON.stringify(gridSizesAfter), `${gridSizesBefore} → ${gridSizesAfter}`);
   const sameEnd = async () => {
     const ids = ["s3-a", "s3-b", "s3-c", "s3-d"];
     const boxes = await Promise.all(ids.map(box));
@@ -144,6 +143,10 @@ try {
   const row = await box("s4-a");
   const pic = await item("s4").locator('[data-element-id="pic"]').boundingBox();
   check("a picture's row is never shorter than its picture", pic && pic.y + pic.height <= row.y + row.height + 1, pic && `${pic.y + pic.height} vs ${row.y + row.height}`);
+  const rowsOnce = await grid("s4").getAttribute("style");
+  await fit("s4");
+  const picAgain = await item("s4").locator('[data-element-id="pic"]').boundingBox();
+  check("Fit twice changes nothing (rows and picture)", (await grid("s4").getAttribute("style")) === rowsOnce && near(picAgain.height, pic.height, 0.5), `${pic.height} → ${picAgain.height}`);
   await page.screenshot({ path: `${SHOTS}/option-rows-editor.png` });
 
   // ─── Save, reload, present: the same rows ──────────────────────────────────────────────────────────────

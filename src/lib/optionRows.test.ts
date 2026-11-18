@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { gridRowNeeds, heightsFromShares, moveRowLine, oneLineHeight, shareOut } from "./optionRows";
+import { fitIntoRow, gridRowNeeds, heightsFromShares, moveRowLine, oneLineHeight, shareOut } from "./optionRows";
 
 test("shareOut gives the spare out equally", () => {
   assert.deepEqual(shareOut([50, 100, 50, 100], 400), [75, 125, 75, 125]);
@@ -38,4 +38,15 @@ test("moveRowLine never makes a row already under its smallest size smaller", ()
 
 test("oneLineHeight is one line of text plus the card's edges", () => {
   assert.equal(oneLineHeight(40), 63);
+});
+
+test("fitIntoRow leaves a picture that fits alone, so Fit twice changes nothing", () => {
+  const pic = { x: 600, y: 10, width: 100, height: 100 };
+  assert.deepEqual(fitIntoRow(pic, { width: 1000, height: 300 }), pic);
+  assert.deepEqual(fitIntoRow(pic, { width: 1000, height: 110 }), pic);
+});
+
+test("fitIntoRow shrinks a picture that no longer fits, just enough, and keeps it inside", () => {
+  assert.deepEqual(fitIntoRow({ x: 600, y: 20, width: 100, height: 100 }, { width: 1000, height: 60 }), { x: 600, y: 10, width: 50, height: 50 });
+  assert.deepEqual(fitIntoRow({ x: 990, y: 0, width: 100, height: 100 }, { width: 1000, height: 200 }), { x: 900, y: 0, width: 100, height: 100 });
 });

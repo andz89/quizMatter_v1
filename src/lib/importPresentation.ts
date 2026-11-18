@@ -28,6 +28,7 @@ import {
   getMaxShapeStripHeight,
   getShownOptions,
   getOptionRoom,
+  hasShapeStrip,
   hasOptions,
   hasShapeBox,
   moveShortAnswerPicturesToSlide,
@@ -1128,7 +1129,7 @@ function buildSlide(
       // the strip gives some back (never below its smallest size). The report warns about what still doesn't fit.
       const wants = slide.layout === "grid" ? gridRowNeeds(needs) : needs;
       const short = wants.reduce((a, b) => a + b, 0) - getOptionRoom(slide);
-      if (short > 0 && slide.hasShapeBox && stripHeight === undefined) {
+      if (short > 0 && hasShapeStrip(slide) && stripHeight === undefined) {
         slide.shapeStripHeight = Math.max(MIN_SHAPE_STRIP_HEIGHT, (slide.shapeStripHeight ?? DEFAULT_SHAPE_STRIP_HEIGHT) - short);
       }
       const roomNow = getOptionRoom(slide);

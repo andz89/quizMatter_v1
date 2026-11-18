@@ -48,7 +48,7 @@ import { finishDraft } from "@/app/actions";
 import { isEmbedSlide } from "./embed";
 import { todayCalendarDate } from "./calendarDate";
 import { newTable, type TableCellSpot } from "./table";
-import { gridRowNeeds, shareOut } from "./optionRows";
+import { fitIntoRow, gridRowNeeds, shareOut } from "./optionRows";
 import { measureOptionNeeds } from "./measureOptions";
 import type { Photo, PresentationDetails, Presentation, ReviewerFields, Slide, SlideType, SvgElement } from "./schema";
 import { MAX_ITEM_COUNT, MAX_SLIDES, TOO_MANY_SLIDES_MESSAGE } from "./schema";
@@ -266,11 +266,10 @@ function scaleElementsToBoxes(elements: SvgElement[], from: BoxLayout, to: BoxLa
 }
 
 /**
- * `next` (the slide after a change, e.g. its options moved) with its option rows set to `heights` (slide px: one per
- * shown option in the lists, one per row in a grid), saved as shares, and the options' pictures scaled from how they
- * were in `from`. Text sizes never change.
+ * `next` (a slide, e.g. with its options just moved) with its option rows set to `heights` (slide px: one per
+ * shown option in the lists, one per row in a grid), saved as shares. Text sizes never change.
  */
-function withRowHeights(from: Slide, next: Slide, heights: number[]): Slide {
+function withRowHeights(next: Slide, heights: number[]): Slide {
   // Two decimals are plenty for a share and keep the saved data short.
   const shares = heights.map((h) => Math.max(0.01, Math.round(h * 100) / 100));
   let resized: Slide;
@@ -283,22 +282,29 @@ function withRowHeights(from: Slide, next: Slide, heights: number[]): Slide {
     const sizes = new Map(shown.map((o, i) => [o.id, shares[i]]));
     resized = { ...next, options: next.options.map((o) => (sizes.has(o.id) ? { ...o, rowSize: sizes.get(o.id) } : o)) as Slide["options"] };
   }
-  return { ...resized, elements: scaleElementsToBoxes(next.elements, from, resized) };
+  // Pictures in the options only shrink when they no longer fit (never grow), so Fit twice changes nothing.
+  const optionIds = new Set(getShownOptions(resized).map((o) => o.id));
+  const elements = next.elements.map((el) => {
+    if (el.containerId === null || !optionIds.has(el.containerId)) return el;
+    const box = getContainerBounds(el.containerId, resized);
+    return getElementAsset(el.assetId)?.isTextBox ? keepTextBoxInside(el, box) : fitIntoRow(el, box);
+  });
+  return { ...resized, elements };
 }
 
-/** Fit rows to text (see fitOptionRows), measured in the browser. `from` is the slide before the change. */
-function fitRows(from: Slide, next: Slide): Slide {
+/** Fit rows to text (see fitOptionRows), measured in the browser. */
+function fitRows(next: Slide): Slide {
   if (!hasOptions(next)) return next;
   const needs = measureOptionNeeds(next);
   const room = getOptionRoom(next);
-  if (next.layout !== "grid") return withRowHeights(from, next, shareOut(needs, room));
+  if (next.layout !== "grid") return withRowHeights(next, shareOut(needs, room));
   const rows = gridRowNeeds(needs);
-  return rows.length === 2 ? withRowHeights(from, next, shareOut(rows, room)) : next;
+  return rows.length === 2 ? withRowHeights(next, shareOut(rows, room)) : next;
 }
 
 /** After Shuffle or reorder: a grid's rows are fitted again; the lists need nothing (sizes move with options). */
-function refitGridRows(from: Slide, next: Slide): Slide {
-  return next.layout === "grid" ? fitRows(from, next) : next;
+function refitGridRows(next: Slide): Slide {
+  return next.layout === "grid" ? fitRows(next) : next;
 }
 
 /**
@@ -1269,7 +1275,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         const options = [...s.options];
         const [moved] = options.splice(fromIndex, 1);
         options.splice(toIndex, 0, moved);
-        return refitGridRows(s, { ...s, options: options as typeof s.options });
+        return refitGridRows({ ...s, options: options as typeof s.options });
       }),
     });
   },
@@ -1286,18 +1292,18 @@ export const useEditorStore = create<EditorState>((set, get) => ({
             [options[i], options[j]] = [options[j], options[i]];
           }
         } while (options.every((o, i) => o.id === s.options[i].id));
-        return refitGridRows(s, { ...s, options: options as typeof s.options });
+        return refitGridRows({ ...s, options: options as typeof s.options });
       }),
     });
   },
 
   fitOptionRows: (slideId) => {
-    set((state) => ({ presentation: updateSlide(state.presentation, slideId, (s) => fitRows(s, s)) }));
+    set((state) => ({ presentation: updateSlide(state.presentation, slideId, (s) => fitRows(s)) }));
   },
 
   setOptionRowHeights: (slideId, heights) => {
     set((state) => ({
-      presentation: updateSlide(state.presentation, slideId, (s) => (s.layout === "grid" ? s : withRowHeights(s, s, heights))),
+      presentation: updateSlide(state.presentation, slideId, (s) => (s.layout === "grid" ? s : withRowHeights(s, heights))),
     }));
   },
 

@@ -52,10 +52,12 @@ export function OptionRowLines({ slide }: { slide: Slide }) {
           e.preventDefault();
           move(index, e.key === "ArrowUp" ? -6 : 6, heights);
         }}
-        className="group absolute left-1/2 z-20 flex h-3 w-16 -translate-x-1/2 -translate-y-1/2 cursor-row-resize items-center justify-center rounded-full"
+        // The whole gap's width, so the line is easy to find; the bar in the middle is what to grab.
+        className="group absolute inset-x-0 z-20 flex h-3.5 -translate-y-1/2 cursor-row-resize items-center justify-center outline-none"
         style={{ top }}
       >
-        <div className="h-1 w-10 rounded-full bg-border-default transition-colors group-hover:bg-accent group-focus-visible:bg-accent" />
+        <div className="absolute inset-x-0 top-1/2 border-t border-dashed border-accent opacity-30 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100" />
+        <div className="relative h-2 w-11 rounded-full bg-accent opacity-60 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100" />
       </div>
     );
   });
