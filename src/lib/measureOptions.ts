@@ -46,11 +46,14 @@ function optionTextHeight(slide: Slide, option: Option, fontSize: number): numbe
 
 /** Per shown option, in order: the height its row needs (px, in slide pixels). */
 export function measureOptionNeeds(slide: Slide): number[] {
-  return getShownOptions(slide).map((option) => {
+  const needs = getShownOptions(slide).map((option) => {
     const pictures = slide.elements.filter((el) => el.containerId === option.id);
     const textNeed = optionTextHeight(slide, option, option.fontSize ?? OPTION_FONT_SIZE) + OPTION_BOX_EDGES;
     // Pictures sit inside the card's border, so the row needs the border too.
     const pictureNeed = Math.max(0, ...pictures.map((el) => el.y + el.height + OPTION_BORDER));
     return Math.max(textNeed, pictureNeed);
   });
+  // Never leave a copy of the text behind in the page.
+  getProbe().textContent = "";
+  return needs;
 }

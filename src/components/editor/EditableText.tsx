@@ -50,6 +50,8 @@ export function EditableText({
     isSelected,
     editorClass: "h-full",
     hasTextLimit: true,
+    // The grow mark shows on hover or selection, never while typing.
+    checkSpareRoom: canFit && !editStart,
     onUpdate: (editor) => {
       if (editor.isEmpty) onChange("", "");
       else onChange(editor.getText({ blockSeparator: "\n" }), editor.getHTML());

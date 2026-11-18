@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { fitIntoRow, gridRowNeeds, heightsFromShares, largestFittingSize, lineTop, moveRowLine, oneLineHeight, rowMin, shareOut } from "./optionRows";
+import { fitIntoRow, gridRowNeeds, heightsFromShares, lineTop, moveRowLine, oneLineHeight, rowMin, shareOut } from "./optionRows";
 
 test("shareOut gives the spare out equally", () => {
   assert.deepEqual(shareOut([50, 100, 50, 100], 400), [75, 125, 75, 125]);
@@ -40,7 +40,7 @@ test("oneLineHeight is one line of text plus the card's edges", () => {
   assert.equal(oneLineHeight(40), 63);
 });
 
-test("fitIntoRow leaves a picture that fits alone, so Fit twice changes nothing", () => {
+test("fitIntoRow leaves a picture that fits alone, so a re-fit never grows it", () => {
   const pic = { x: 600, y: 10, width: 100, height: 100 };
   assert.deepEqual(fitIntoRow(pic, { width: 1000, height: 300 }), pic);
   assert.deepEqual(fitIntoRow(pic, { width: 1000, height: 110 }), pic);
@@ -60,13 +60,4 @@ test("rowMin is one line of text, or the lowest picture plus the border when tha
 test("lineTop puts a line in the middle of the real gap, from the rows' shares", () => {
   // Rows 100 and 300 of 400 share the room left after one 12 px gap.
   assert.equal(lineTop([100, 300], 0, 12), "calc((100% - 12px) * 0.25 + 6px)");
-});
-
-test("largestFittingSize picks the biggest size that fits, from the current one down", () => {
-  assert.equal(largestFittingSize(56, 12, (size) => size <= 30), 30);
-  assert.equal(largestFittingSize(56, 12, () => true), 56);
-});
-
-test("largestFittingSize stops at the smallest size when nothing fits", () => {
-  assert.equal(largestFittingSize(56, 12, () => false), 12);
 });

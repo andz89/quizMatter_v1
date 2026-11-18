@@ -58,7 +58,7 @@ export const OPTION_BORDER = 3;
 
 /**
  * A picture in an option row after the row's height changed: left as it is while it still fits (so Fit and a grid's
- * Shuffle never grow it, and Fit twice changes nothing); made just small enough to fit (same shape) when it doesn't.
+ * Shuffle never grows it, and a second re-fit changes nothing); made just small enough to fit (same shape) when it doesn't.
  * Always kept inside the row's width.
  */
 export function fitIntoRow<R extends { x: number; y: number; width: number; height: number }>(
@@ -85,13 +85,4 @@ export function lineTop(heights: number[], index: number, gap: number): string {
   const above = heights.slice(0, index + 1).reduce((a, b) => a + b, 0);
   const gaps = gap * (heights.length - 1);
   return `calc((100% - ${gaps}px) * ${above / total} + ${gap * index + gap / 2}px)`;
-}
-
-/**
- * The biggest whole text size from `from` down to `min` for which `fits` says the text shows whole; `min` when none
- * does. Only for the teacher's own click on an option's "+…" mark: nothing calls it by itself.
- */
-export function largestFittingSize(from: number, min: number, fits: (size: number) => boolean): number {
-  for (let size = Math.floor(from); size > min; size--) if (fits(size)) return size;
-  return min;
 }

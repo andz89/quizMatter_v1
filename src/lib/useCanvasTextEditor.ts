@@ -47,6 +47,8 @@ interface CanvasTextEditorOptions {
   // Also stop the plain text at PLAIN_TEXT_MAX (the question and answer choices save it). The HTML always stops at
   // HTML_MAX.
   hasTextLimit?: boolean;
+  // Also check whether the next text size up fits (the grow mark); only while that mark can show.
+  checkSpareRoom?: boolean;
   onUpdate: (editor: Editor) => void;
   onStopEditing: () => void;
 }
@@ -64,6 +66,7 @@ export function useCanvasTextEditor({
   isSelected = false,
   editorClass = "",
   hasTextLimit = false,
+  checkSpareRoom = false,
   onUpdate,
   onStopEditing,
 }: CanvasTextEditorOptions) {
@@ -148,9 +151,10 @@ export function useCanvasTextEditor({
     }
   }, [editor, content]);
 
-  // Text past the box's bottom is cut off: the component shows "+…" (HiddenTextMark) so the teacher sees it. Room
-  // under the text (`hasSpareRoom`): the question and answer choices offer to make it bigger (GrowTextMark).
-  const room = useTextRoom(ref);
+  // Text past the box's bottom is cut off: the component shows "+…" (HiddenTextMark) so the teacher sees it. Room for
+  // a bigger size (`hasSpareRoom`, only with `checkSpareRoom`): the question, answer choices and text boxes offer to
+  // make it bigger (GrowTextMark).
+  const room = useTextRoom(ref, true, checkSpareRoom);
 
   return { editor, ref, fontSize, hasHiddenText: room.hidden, hasSpareRoom: room.spare };
 }

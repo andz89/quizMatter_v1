@@ -282,7 +282,7 @@ function withRowHeights(next: Slide, heights: number[]): Slide {
     const sizes = new Map(shown.map((o, i) => [o.id, shares[i]]));
     resized = { ...next, options: next.options.map((o) => (sizes.has(o.id) ? { ...o, rowSize: sizes.get(o.id) } : o)) as Slide["options"] };
   }
-  // Pictures in the options only shrink when they no longer fit (never grow), so Fit twice changes nothing.
+  // Pictures in the options only shrink when they no longer fit (never grow), so a re-fit never keeps resizing them.
   const optionIds = new Set(getShownOptions(resized).map((o) => o.id));
   const elements = next.elements.map((el) => {
     if (el.containerId === null || !optionIds.has(el.containerId)) return el;
@@ -294,11 +294,9 @@ function withRowHeights(next: Slide, heights: number[]): Slide {
 
 /** A grid's rows fitted to their options' text (rows only, never a text size), measured in the browser. */
 function fitRows(next: Slide): Slide {
-  if (!hasOptions(next)) return next;
-  const needs = measureOptionNeeds(next);
+  if (!hasOptions(next) || next.layout !== "grid") return next;
   const room = getOptionRoom(next);
-  if (next.layout !== "grid") return withRowHeights(next, shareOut(needs, room));
-  const rows = gridRowNeeds(needs);
+  const rows = gridRowNeeds(measureOptionNeeds(next));
   return rows.length === 2 ? withRowHeights(next, shareOut(rows, room)) : next;
 }
 

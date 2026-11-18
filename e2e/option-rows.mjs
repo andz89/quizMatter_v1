@@ -77,9 +77,15 @@ await api("/rest/v1/slides", {
         elements: [
           { id: "tb-long", assetId: "text-box", x: 100, y: 100, width: 400, height: 90, color: "#1B1530", containerId: null, text: { html: `<p>${LONG_C}</p>`, fontSize: 40 } },
           { id: "tb-short", assetId: "text-box", x: 700, y: 100, width: 400, height: 200, color: "#1B1530", containerId: null, text: { html: "<p>Sun</p>", fontSize: 24 } },
+          // Turned upside down: its hidden lines are drawn above it on screen, yet it's still cut off.
+          { id: "tb-turned", assetId: "text-box", x: 100, y: 400, width: 400, height: 90, rotation: 180, color: "#1B1530", containerId: null, text: { html: `<p>${LONG_C}</p>`, fontSize: 40 } },
+          // Already at the biggest size, with room: no grow mark (its click could give nothing).
+          { id: "tb-max", assetId: "text-box", x: 700, y: 380, width: 500, height: 300, color: "#1B1530", containerId: null, text: { html: "<p>Hi</p>", fontSize: 96 } },
         ],
       },
     },
+    // Empty options (a new slide): no grow mark on the placeholder.
+    slide("empty", 31, "list", [{ text: "" }, { text: "" }, { text: "" }, { text: "" }]),
     // A list option with a tall picture: a drag line stops at it.
     slide("s5", 4, "list", [{ text: "Sun" }, { text: "B" }, { text: "C" }, { text: "D" }], {
       elements: [{ id: "pic5", assetId: "star", x: 300, y: 4, width: 90, height: 90, color: "#FFC233", containerId: "s5-a" }],
@@ -312,6 +318,15 @@ try {
   const tbGrown = Number.parseFloat(await tbSize(tbShort));
   check("a click on it makes the text box's text bigger, still whole", tbGrown > 24 && (await tbShort.locator(MARK).count()) === 0, String(tbGrown));
   await page.keyboard.press("Escape");
+  check("a turned text box that's cut off still shows +…", (await item("tb").locator('[data-element-id="tb-turned"]').locator(MARK).count()) === 1);
+  await item("tb").locator('[data-element-id="tb-max"]').click();
+  await page.waitForTimeout(300);
+  check("a text box already at 96 px shows no grow mark", (await item("tb").locator('[data-element-id="tb-max"] [data-grow-text-mark]').count()) === 0);
+  await page.keyboard.press("Escape");
+  await item("empty").scrollIntoViewIfNeeded();
+  await option("empty-a").hover();
+  await page.waitForTimeout(300);
+  check("an empty option shows no grow mark", (await option("empty-a").locator("[data-grow-text-mark]").count()) === 0);
 
   await page.screenshot({ path: `${SHOTS}/option-rows-editor.png` });
 

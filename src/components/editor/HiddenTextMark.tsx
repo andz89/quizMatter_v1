@@ -2,7 +2,7 @@
  * "+…" in the bottom-right corner of a text on the canvas whose end is cut off, so a teacher doesn't miss it. Only in
  * the editor (never presenting or thumbnails). Its parent must be `relative`. It hangs over the box's corner,
  * a third of it outside. `inTableCell`: a cell cuts off anything outside it, so the mark sits flush in the cell's own
- * corner, past its padding (`px-2 py-1` in `TableGrid`). `onFit` (the question and answer choices): a click makes the text smaller,
+ * corner, past its padding (`px-2 py-1` in `TableGrid`). `onFit` (the question, answer choices and text boxes): a click makes the text smaller,
  * just enough for all of it to show (the teacher's own click, never by itself).
  */
 export function HiddenTextMark({ inTableCell = false, onFit }: { inTableCell?: boolean; onFit?: () => void }) {
@@ -20,7 +20,8 @@ export function HiddenTextMark({ inTableCell = false, onFit }: { inTableCell?: b
           onFit();
         })
       }
-      // Hoverable, so the tip shows; a press still reaches the box (select, drag, double-click to type), but
+      // Hoverable, so the tip shows. Without `onFit` (table cells) a press still reaches the box (select, drag,
+      // double-click to type); with it, the press and click stay on the mark (they fit the text). Either way it
       // keeps the focus, so pressing it while typing doesn't stop the typing.
       onMouseDown={(e) => e.preventDefault()}
       // Sizes are slide pixels: the canvas is zoomed to fit the screen.
