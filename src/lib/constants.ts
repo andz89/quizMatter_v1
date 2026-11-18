@@ -426,9 +426,13 @@ export function getOptionRowHeights(box: BoxLayout): number[] {
   return heightsFromShares(shares, room);
 }
 
-/** The options grid's rows, for the canvas, thumbnails and presenting (one style, so they can't drift apart). */
+/**
+ * The options grid's rows, for the canvas, thumbnails and presenting (one style, so they can't drift apart). As
+ * shares (fr) of the real room, not px: the browser's options area can be a pixel or two off the math above, and px
+ * rows would then poke past its bottom. minmax(0, …) keeps long text from stretching a row.
+ */
 export function getOptionsGridStyle(box: BoxLayout): { gridTemplateRows: string } {
-  return { gridTemplateRows: getOptionRowHeights(box).map((h) => `${h}px`).join(" ") };
+  return { gridTemplateRows: getOptionRowHeights(box).map((h) => `minmax(0, ${h}fr)`).join(" ") };
 }
 
 /**

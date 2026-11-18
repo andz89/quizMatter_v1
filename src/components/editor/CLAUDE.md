@@ -207,6 +207,28 @@ focus, even when the click that leaves the box picks another one first; − / + 
 wasn't used yet. What blur does is kept in refs, since `blur()` runs it before React redraws. The box stops mousedown from reaching the text toolbar (which
 keeps focus in the text), so clicking it while typing ends the typing.
 
+## Option row heights
+
+The option rows share the options area by their text (spec: `docs/superpowers/specs/2026-11-18-option-row-heights-design.md`;
+math: `src/lib/optionRows.ts`; test: `e2e/option-rows.mjs`). **Nothing here ever changes a text size**: every option
+keeps its own, only the teacher changes it.
+
+- **Saved as shares**, numbers that only count compared with each other: each option's `rowSize` in the list layouts
+  (it moves with the option on Shuffle and reorder), the slide's `gridRowSizes` in a grid (by place). Missing = equal
+  rows. `getOptionRowHeights` (`constants.ts`) turns them into heights for `getContainerBounds`, and
+  `getOptionsGridStyle` into the options grid's rows (as `minmax(0, Nfr)`, so they always fill the real area and never
+  pass its bottom) in `SlideCanvas` and `SlideStaticView` alike.
+- **Fit rows to text** (`SlideToolbar`, next to Shuffle; not on a true-or-false grid, which has one row): the store's
+  `fitOptionRows` measures each shown option in the browser (`measureOptionNeeds`, `src/lib/measureOptions.ts`: its
+  text at its own size and width, like `SlideText`; at least its lowest picture's bottom), gives each row what it
+  needs and shares the spare room out (`shareOut`). Too little room: shared by need, and "+…" shows.
+- **Lines between list rows** (`OptionRowLines.tsx`, in the 12 px gap, the `ResizeHandle` look): dragging one makes one
+  row taller and its neighbor shorter, each down to one line of its own text (`moveRowLine`, `oneLineHeight`); ↑ / ↓
+  move it by 6. The store's `setOptionRowHeights`. A drag is one undo step (the history groups the burst).
+- **Grid:** no lines. Its rows are fitted again after Shuffle and reorder (`refitGridRows`), each as tall as its taller
+  option, so a column never runs off the slide. Not while typing: "+…" tells the teacher.
+- Pictures in an option scale with its row (`scaleElementsToBoxes`, as for the question box).
+
 ## Tables
 
 The "Table" tile in the Elements panel. Design: `docs/superpowers/specs/2026-11-08-table-element-design.md`; math:

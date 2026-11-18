@@ -96,6 +96,10 @@ Tests that delete data (the announcements ones empty the announcements table) do
 - `claude-text-fit.mjs`: Claude's connector and text that never shrinks: the format says so; Claude's own 56 px
   options in short "list" rows under a strip and a question too long for its `questionHeight` are reported as cut
   off; left out, the options get a size that fits and the draft opens with no "+…".
+- `option-rows.mjs`: option row heights. Fit rows to text gives a long option a taller row and changes no text size;
+  a line between list rows trades room (one undo puts it back); Shuffle keeps a list row with its option; text far
+  too big stays inside the options area with "+…" and its size; a grid's columns end together after Fit and Shuffles,
+  with no lines; a picture's row is never shorter than the picture; save, reload and presenting draw the same rows.
 - `hidden-text-mark.mjs`: the "+…" mark on cut-off text: shown on a long question, answer choice, text box and
   table cell, not on text that fits or outside the editable slides; typing past the bottom shows it, undo and making
   the box taller take it away.

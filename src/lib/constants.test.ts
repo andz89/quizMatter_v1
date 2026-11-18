@@ -112,8 +112,8 @@ test("grid uses gridRowSizes, list uses rowSize", () => {
   near(getOptionRowHeights(list)[0], getOptionRowHeights(list)[1] * 5);
 });
 
-test("getOptionsGridStyle lists the row heights", () => {
+test("getOptionsGridStyle shares the real room by the row heights, so rows never pass its bottom", () => {
   const slide = choice({ options: withRowSizes([1, 3, 1, 1]) });
   const heights = getOptionRowHeights(slide);
-  assert.equal(getOptionsGridStyle(slide).gridTemplateRows, heights.map((h) => `${h}px`).join(" "));
+  assert.equal(getOptionsGridStyle(slide).gridTemplateRows, heights.map((h) => `minmax(0, ${h}fr)`).join(" "));
 });
