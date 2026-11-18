@@ -93,9 +93,10 @@ Tests that delete data (the announcements ones empty the announcements table) do
   cell colors: the format names a cell's `fill`, `send_presentation` refuses one that isn't a color and builds
   solid and gradient ones, the draft opens in the editor with the colored cells, and `read_presentation` gives a
   saved cell's `fill` back (none for a plain cell).
-- `claude-text-fit.mjs`: Claude's connector and text that never shrinks: the format says so; Claude's own 56 px
-  options in short "list" rows under a strip and a question too long for its `questionHeight` are reported as cut
-  off; left out, the options get a size that fits and the draft opens with no "+…".
+- `claude-text-fit.mjs`: Claude's connector and text that never shrinks: the format says so and that option rows are
+  sized by their text; Claude's own 90 px options under its own 160 px strip and a question too long for its
+  `questionHeight` are reported as cut off; with the size left out, the options keep 56 px, the strip makes room, and
+  the draft opens with no "+…".
 - `option-rows.mjs`: option row heights. Fit rows to text gives a long option a taller row and changes no text size;
   a line between list rows trades room (one undo puts it back); Shuffle keeps a list row with its option; text far
   too big stays inside the options area with "+…" and its size; a grid's columns end together after Fit and Shuffles,

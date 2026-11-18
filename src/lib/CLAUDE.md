@@ -41,8 +41,8 @@
 - `importText.ts`: the import's guesses of how much room text takes (slide text never shrinks, so they are what warns
   Claude): `tooLong` (the layout report's "will be cut off"; counts the room lost where lines end at a whole word, and
   a single line taller than its box), `questionHeightFor` (the question box: its text plus half a line, up to the
-  default), `optionFontSizeFor` (options Claude left at the default get a smaller size when a row is too short for one
-  line, e.g. "list" rows under a picture strip), `textHeightFor` (also sizes tables). Tests: `importText.test.ts`,
+  default), `optionNeedFor` (an option row's height for its text, with the same careful count as `tooLong`; the import
+  sizes option rows with it and never changes an option's text size), `textHeightFor` (also sizes tables). Tests: `importText.test.ts`,
   `e2e/claude-text-fit.mjs`.
 
 ## Saving and loading

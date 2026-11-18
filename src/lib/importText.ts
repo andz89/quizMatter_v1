@@ -4,7 +4,6 @@
  * real wrapping. Kept apart (only `.ts` imports) so `npm test` can check them: `importText.test.ts`.
  */
 import { DEFAULT_QUESTION_HEIGHT, QUESTION_CONTAINER_WIDTH, QUESTION_FONT_SIZE, QUESTION_NUMBER_INDENT } from "./constants";
-import { FONT_SIZE_RANGE } from "./schema";
 
 // For each px of font size, a character is about this wide and a line this tall (px).
 export const CHAR_WIDTH_PER_PX = 0.525;
@@ -65,10 +64,10 @@ export function tooLong(words: string, box: { width: number; height: number }, f
 }
 
 /**
- * The options' font size when Claude left it out: the default, or smaller when an option row is too short for one
- * line of it (a list row under a picture strip), so a one-line option isn't cut off. undefined = the default.
+ * About how tall an option row must be for `text` at `fontSize` in a box `width` wide: its lines plus the card's
+ * edges. The import sizes option rows with it (like the editor's Fit rows to text); it never changes a text size.
  */
-export function optionFontSizeFor(rowHeight: number, defaultSize: number): number | undefined {
-  const fits = Math.floor((rowHeight - OPTION_TEXT_PADDING) / LINE_HEIGHT_PER_PX);
-  return fits < defaultSize ? Math.max(FONT_SIZE_RANGE.min, fits) : undefined;
+export function optionNeedFor(text: string, width: number, fontSize: number): number {
+  // The same careful count as tooLong, so a row sized by it is never reported as cut off.
+  return wrappedHeightFor(text, Math.max(1, width - OPTION_TEXT_PADDING), fontSize) + OPTION_TEXT_PADDING;
 }

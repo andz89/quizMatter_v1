@@ -1,6 +1,7 @@
-// Claude's connector and text that never shrinks (src/lib/importText.ts): a "list" slide with a picture strip gets
-// options small enough for its short rows (no "+…" in the editor), and the layout report warns when Claude's own
-// option size or a long question won't fit.
+// Claude's connector and text that never shrinks (src/lib/importText.ts): option rows are sized by their text and
+// option text keeps its size (a "list" slide with a picture strip gives the options room from the strip, so the
+// default size fits with no "+…" in the editor), and the layout report warns when Claude's own option size or a long
+// question won't fit.
 import { chromium } from "playwright";
 import { APP, SHOTS, check, deleteTeacher, finish, loggedIn, loginSession, makeTeacher } from "./lib.mjs";
 
@@ -34,11 +35,12 @@ const browser = await chromium.launch();
 try {
   const format = await callTool("get_presentation_format", {});
   check("the format says text never shrinks", format.text.includes("text never shrinks to fit its box"));
-  check("the format says short option rows get smaller text", format.text.includes("too short for one line"));
+  check("the format says option rows are sized by their text", format.text.includes("Option rows are sized by their text"));
+  check("the format no longer says options get smaller text", !format.text.includes("too short for one line"));
 
-  // Claude's own option size too big for the short rows: the report says so.
-  const big = await callTool("send_presentation", { details: { title: "Too big" }, slides: [stripSlide({ optionFontSize: 56 })], final: false });
-  check("Claude's 56px options in short rows are reported", !big.isError && /option A is probably too long .* cut off/.test(big.text), big.text.slice(0, 600));
+  // Claude's own option size too big for the rows under a strip it sized itself: the report says so.
+  const big = await callTool("send_presentation", { details: { title: "Too big" }, slides: [stripSlide({ optionFontSize: 90, stripHeight: 160 })], final: false });
+  check("Claude's 90px options under its own 160px strip are reported", !big.isError && /option A is probably too long .* cut off/.test(big.text), big.text.slice(0, 600));
 
   // A long question at its own height: reported.
   const long = await callTool("send_presentation", {
@@ -48,7 +50,7 @@ try {
   });
   check("a question too long for its height is reported", /the question is probably too long .* cut off/.test(long.text), long.text.slice(0, 600));
 
-  // Left out: the options get a size that fits, and the report is quiet about them.
+  // Left out: the options keep the default size, their rows make room, and the report is quiet about them.
   const sent = await callTool("send_presentation", { details: { title: "Fits" }, slides: [stripSlide()], final: true });
   check("the fitting slide is built", !sent.isError, sent.text.slice(0, 300));
   check("its options aren't reported", !/option [A-D] is probably too long/.test(sent.text), sent.text.slice(0, 600));
@@ -61,6 +63,9 @@ try {
     await page.waitForTimeout(1000);
     const marks = await page.locator("[data-hidden-text-mark]").count();
     check("the draft shows no cut-off text", marks === 0, `${marks} marks`);
+    const size = await page.locator("[data-container-id]").filter({ hasText: "Moon" }).locator('[style*="font-size"]').first()
+      .evaluate((el) => getComputedStyle(el).fontSize);
+    check("the options keep the default size (56 px)", size === "56px", size);
     await page.screenshot({ path: SHOTS + "claude-text-fit.png" });
   } else {
     check("send_presentation gives a draft link", false, sent.text.slice(0, 200));

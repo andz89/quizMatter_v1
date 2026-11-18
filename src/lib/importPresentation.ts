@@ -6,12 +6,13 @@ import {
   OPTION_TEXT_PADDING,
   QUESTION_PADDING,
   QUESTION_TEXT_WIDTH,
-  optionFontSizeFor,
+  optionNeedFor,
   questionHeightFor,
   textBoxHeightFor,
   textHeightFor,
   tooLong,
 } from "./importText";
+import { gridRowNeeds, shareOut } from "./optionRows";
 import { createBlankSlide, TITLE_SLIDE_DESCRIPTION, TITLE_SLIDE_TITLE } from "./factories";
 import type { EmbedKind } from "./embed";
 import {
@@ -26,6 +27,7 @@ import {
   getMaxQuestionHeight,
   getMaxShapeStripHeight,
   getShownOptions,
+  getOptionRoom,
   hasOptions,
   hasShapeBox,
   moveShortAnswerPicturesToSlide,
@@ -830,7 +832,7 @@ The question box never holds pictures. Pictures always go in a picture box or an
 - Styled words: inside any text, **word** makes it bold and *word* makes it italic. Write × for times, not *.
 - Style for a whole text ("questionStyle", "optionStyle", "titleStyle", "textStyle", a text box's "style"): "color", "align" (left, center, right), "bold", "italic", "underline". Any color works — e.g. a title in the topic's color, or white words on a dark shape — as long as it's easy to read on what's behind it: the layout report checks that for blank, title and custom slides.
 - "\\n" starts a new line (a new paragraph).
-- Font sizes: text never shrinks to fit its box: long text goes onto new lines, and what's past the box's bottom is cut off (the layout report warns). Then lower the font size, shorten the text or give it more room. Defaults: question ${QUESTION_FONT_SIZE}px, options ${OPTION_FONT_SIZE}px (smaller when an option row is too short for one line of it, e.g. "list" rows under a picture strip), blank slide title and text ${TEXT_BOX_FONT_SIZE}px. You can set ${FONT_SIZE_RANGE.min}–${FONT_SIZE_RANGE.max}px, e.g. bigger text for young learners.
+- Font sizes: text never shrinks to fit its box: long text goes onto new lines, and what's past the box's bottom is cut off (the layout report warns). Then lower the font size, shorten the text or give it more room. Defaults: question ${QUESTION_FONT_SIZE}px, options ${OPTION_FONT_SIZE}px, blank slide title and text ${TEXT_BOX_FONT_SIZE}px. You can set ${FONT_SIZE_RANGE.min}–${FONT_SIZE_RANGE.max}px, e.g. bigger text for young learners. Option rows are sized by their text: a long option gets a taller row and a short one a shorter row, and option text keeps the size you give (or the default). If the report says an option will be cut off, shorten it or give a smaller "optionFontSize".
 
 === Box sizes (question slides) ===
 
@@ -1111,11 +1113,35 @@ function buildSlide(
       // Short options don't need much room, so a strip with pictures takes what the options can spare.
       slide.shapeStripHeight = stripHeight ?? Math.max(DEFAULT_SHAPE_STRIP_HEIGHT, Math.min(MAX_IMPORT_STRIP_HEIGHT, maxStrip));
     }
-    // Text never shrinks: when Claude left the options' size out and a row is too short for one line of the default
-    // (a list row under a picture strip), they get the largest size that fits.
-    if ((recipe.type === "choice" || recipe.type === "true-false") && recipe.optionFontSize === undefined) {
-      const fontSize = optionFontSizeFor(getContainerBounds(slide.options[0].id, slide).height, OPTION_FONT_SIZE);
-      if (fontSize !== undefined) slide.options = slide.options.map((option) => ({ ...option, fontSize })) as Slide["options"];
+    // Option rows are sized by their text, like the editor's Fit rows to text; option text keeps the size Claude gave
+    // (or the default), never shrunk. An option with pictures keeps at least an equal row, so its pictures have room.
+    if (recipe.type === "choice" || recipe.type === "true-false") {
+      const equal = getContainerBounds(slide.options[0].id, slide).height;
+      const needs = getShownOptions(slide).map((option, i) => {
+        const width = getContainerBounds(option.id, slide).width;
+        const hasPictures = recipe.elements.some((el) => el.in === OPTION_LABELS[i]);
+        const need = optionNeedFor(option.text, hasPictures ? width / 2 : width, option.fontSize ?? OPTION_FONT_SIZE);
+        return hasPictures ? Math.max(need, equal) : need;
+      });
+      const round = (h: number) => Math.max(0.01, Math.round(h * 100) / 100);
+      // Text never shrinks, so when a picture strip Claude left at its own height leaves the options too little room,
+      // the strip gives some back (never below its smallest size). The report warns about what still doesn't fit.
+      const wants = slide.layout === "grid" ? gridRowNeeds(needs) : needs;
+      const short = wants.reduce((a, b) => a + b, 0) - getOptionRoom(slide);
+      if (short > 0 && slide.hasShapeBox && stripHeight === undefined) {
+        slide.shapeStripHeight = Math.max(MIN_SHAPE_STRIP_HEIGHT, (slide.shapeStripHeight ?? DEFAULT_SHAPE_STRIP_HEIGHT) - short);
+      }
+      const roomNow = getOptionRoom(slide);
+      if (slide.layout === "grid") {
+        const rows = gridRowNeeds(needs);
+        if (rows.length === 2) {
+          const [top, bottom] = shareOut(rows, roomNow).map(round);
+          slide.gridRowSizes = [top, bottom];
+        }
+      } else {
+        const sizes = shareOut(needs, roomNow).map(round);
+        slide.options = slide.options.map((option, i) => (i < sizes.length ? { ...option, rowSize: sizes[i] } : option)) as Slide["options"];
+      }
     }
   }
 
@@ -1432,9 +1458,9 @@ function describeSlide(slide: Slide, texts: BlankText[], pictures: SvgElement[],
     const boxes = [`question ${formatSize(getContainerBounds(QUESTION_CONTAINER_ID, slide))}`];
     // Short-answer slides have no box there, but their "side" pictures are placed in the room under the question.
     if (hasShapeBox(slide) || slide.type === "short-answer") boxes.push(`side ${formatSize(getContainerBounds(SIDE_CONTAINER_ID, slide))}`);
+    // Each option row has its own height (sized by its text), so each is listed.
     if (hasOptions(slide)) {
-      const letters = slide.type === "true-false" ? "A–B" : "A–D";
-      boxes.push(`${letters} ${formatSize(getContainerBounds(slide.options[0].id, slide))} each`);
+      getShownOptions(slide).forEach((option, i) => boxes.push(`${OPTION_LABELS[i]} ${formatSize(getContainerBounds(option.id, slide))}`));
     }
     lines.push(`Boxes: ${boxes.join(" · ")}`);
     if (tooLong(slide.question, questionRoom, questionFont)) {

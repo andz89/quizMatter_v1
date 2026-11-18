@@ -61,6 +61,11 @@
   element-color rule, so it always passes `isSafeColor`); anything else is refused at the cell.
   `read_presentation` (`shrinkPresentation`) gives each cell's `fill` back with its words, and the format asks
   Claude to send it again, so editing a table keeps the teacher's cell colors. Test: `e2e/claude-table-fill.mjs`.
+- Option rows are sized by their text (`optionNeedFor`, `src/lib/importText.ts`; saved as each option's `rowSize`,
+  or a grid's `gridRowSizes`, like the editor's Fit rows to text). Option text keeps the size Claude gives, or the
+  default: the import never changes it. When a picture strip Claude left at its own height leaves the options too
+  little room, the strip gets shorter (not below `MIN_SHAPE_STRIP_HEIGHT`). The layout report lists each option's
+  box and names any still cut off. Test: `e2e/claude-text-fit.mjs`.
 - An element's `color` can be a gradient (`gradient:#A,#B`), except on text.
 - Diagrams use the automatic layout: each box is its `text` and, if wanted, its look (`fill`, `border`, `borderWidth`,
   `textColor`, `fontSize`, `shape`), the fields the editor saves. Never a box's place or size.

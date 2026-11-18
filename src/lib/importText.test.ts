@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { getContainerBounds, DEFAULT_QUESTION_HEIGHT, OPTION_FONT_SIZE } from "@/lib/constants";
-import { LINE_HEIGHT_PER_PX, OPTION_TEXT_PADDING, QUESTION_PADDING, optionFontSizeFor, questionHeightFor, tooLong } from "./importText";
+import { LINE_HEIGHT_PER_PX, OPTION_TEXT_PADDING, QUESTION_PADDING, optionNeedFor, questionHeightFor, tooLong } from "./importText";
 
 // A "list" slide with a picture strip: its option rows are the shortest the app makes (76 px).
 const shortRow = getContainerBounds("o1", { type: "multiple-choice", layout: "list", hasShapeBox: true, questionHeight: DEFAULT_QUESTION_HEIGHT } as never);
@@ -19,12 +19,17 @@ test("text that only fits if every line is filled to the last letter counts as t
   assert.equal(tooLong("aaaa bbbb cccc", box, 48), false);
 });
 
-test("options get a size that fits a short row, and the default where it fits", () => {
-  const size = optionFontSizeFor(shortRow.height, OPTION_FONT_SIZE);
-  assert.ok(size !== undefined && size < OPTION_FONT_SIZE);
-  assert.ok(size * LINE_HEIGHT_PER_PX <= shortRow.height - OPTION_TEXT_PADDING);
-  assert.equal(optionFontSizeFor(214, OPTION_FONT_SIZE), undefined);
-  assert.equal(optionFontSizeFor(20, OPTION_FONT_SIZE), 12);
+test("an option row needs its text's lines plus the card's edges", () => {
+  const line = 40 * LINE_HEIGHT_PER_PX;
+  assert.equal(optionNeedFor("Paris", 1000, 40), line + OPTION_TEXT_PADDING);
+  // About 46 letters fit a line at 40 px in a 1000 px box, counted as 39 (lines end at whole words): 120 take four.
+  assert.equal(optionNeedFor("x".repeat(120), 1000, 40), 4 * line + OPTION_TEXT_PADDING);
+});
+
+test("a row sized by optionNeedFor is never reported as cut off", () => {
+  const text = "Dance provides active bodily immersion and emotional connection through rhythm";
+  const need = optionNeedFor(text, 600, 40);
+  assert.equal(tooLong(text, { width: 600 - OPTION_TEXT_PADDING, height: need - OPTION_TEXT_PADDING }, 40), false);
 });
 
 test("a question box has room for its text and half a line more, up to the default", () => {
