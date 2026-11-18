@@ -10,6 +10,8 @@ export function HiddenTextMark({ inTableCell = false, onFit }: { inTableCell?: b
     <span
       data-hidden-text-mark
       title={onFit ? "Some text is hidden. Click to make the text smaller so all of it shows." : "Some text is hidden. Make the box bigger or the text smaller."}
+      // A text box takes the pointer on press (to drag it), which would swallow the click: keep the press here.
+      onPointerDown={onFit && ((e) => e.stopPropagation())}
       onClick={
         onFit &&
         ((e) => {

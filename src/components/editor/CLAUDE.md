@@ -189,9 +189,13 @@ smaller. The editor (`EditableText`, `TextBoxContent`) and the read-only `SlideT
 the same way. Diagram boxes are different: their text still shrinks (see "Diagrams").
 
 So a teacher doesn't miss cut-off text, the editor shows a Sunny "+…" (24 px) hanging over the bottom-right corner (a third outside; flush inside a table cell, which cuts off what is outside it) of any text
-whose end is past its box's bottom (`HiddenTextMark.tsx`, hover says why): the question, answer choices and text boxes
+whose letters are cut at its box's bottom (`HiddenTextMark.tsx`, hover says why; on the question and answer
+choices a click on it fits the text, see "Option row heights"): the question, answer choices and text boxes
 (`useCanvasTextEditor` returns `hasHiddenText`), the cell being typed in, and the other table cells (`TableGrid`'s
-`markHiddenText`, which `TableContent` turns on, passed to `SlideText`). `useHasHiddenText` (`src/lib`) watches the
+`markHiddenText`, which `TableContent` turns on, passed to `SlideText`). `useHasHiddenText` / `useTextRoom` (`src/lib`)
+measure where the text's own lines end (not the box's scroll height) and read its last line: Lexend keeps the bottom
+fifth of a line for letters that hang down (g, y, p, a comma), so cutting only that room off a last line without such
+letters doesn't count (`isCutOff`, `src/lib/textRoom.ts`; a "uniform." whose empty room is cut shows whole). It watches the
 box's size and everything inside it (and checks again once the fonts have loaded), so typing, undo, a size change
 or resizing the box updates it at once. The mark takes the mouse, so its tip shows; a press on it still reaches the
 box (select, drag, double-click to type), and it keeps the focus (`preventDefault` on mousedown), so pressing it while
@@ -218,12 +222,18 @@ keeps its own until the teacher changes it (the size box, or a click on its "+�
   rows. `getOptionRowHeights` (`constants.ts`) turns them into heights for `getContainerBounds`, and
   `getOptionsGridStyle` into the options grid's rows (as `minmax(0, Nfr)`, so they always fill the real area and never
   pass its bottom) in `SlideCanvas` and `SlideStaticView` alike.
-- **A click on an option's or the question's "+…" mark makes its text fit** (the only size change here, and only on the teacher's
-  click; there's no Fit button: removed 2026-11-18, the user's choice). `HiddenTextMark`'s `onFit` (passed by
-  `OptionCard` and `QuestionContainer` through `EditableText`'s `onFitText`; text boxes and table cells keep the plain
-  mark) calls the store's `fitOptionText` / `fitQuestionText`: `fittingOptionFontSize` / `fittingQuestionFontSize`
-  (`measureOptions.ts`) try sizes from the text's own down to `FONT_SIZE_RANGE.min` (`largestFittingSize`) and keep
-  the biggest at which it fits its row or box (2 px spare). Only that text, one undo step; the box's height stays.
+- **Fit the text on a click** (the only size change here, and only the teacher's click; there's no Fit button:
+  removed 2026-11-18, the user's choice). On the question and answer choices (`canFit` on `EditableText`, from
+  `QuestionContainer` and `OptionCard`) and text boxes (`TextBoxContent`; their grow mark shows only while selected, inside
+  the corner, clear of the resize handle; table cells keep the plain mark, a table's size being the whole table's): a click on "+…" (cut off)
+  makes the text smaller, and a click on the grow mark (`GrowTextMark.tsx`, an `ALargeSmallIcon` in the same corner,
+  shown while the box is hovered or selected and only when the next size up really fits) makes it bigger. Both call
+  `fittingSize` (`src/lib/textFit.ts`) on the real text box: a hidden copy of its text at its real width, sizes from
+  `FONT_SIZE_RANGE.max` down (`largestFittingSize`), keeping the biggest that is no taller than the box and breaks no
+  word; then `setTextFontSizes` (one undo step). The grow mark's own check uses the same measure (`fitsAt`), so it
+  never offers a size the click can't give. The box's height stays. Both marks keep their press (`stopPropagation` on
+  pointerdown), or a text box's drag would take the pointer and swallow the click. `fitsAt`'s hidden copy drops
+  `contenteditable` and ids and is emptied after each measure (a copy of the typing editor broke "is anyone typing").
 - **Lines between list rows** (`OptionRowLines.tsx`, in the 12 px gap, the `ResizeHandle` look): dragging one makes one
   row taller and its neighbor shorter, each down to one line of its own text or its lowest picture, whichever is
   taller (`moveRowLine`, `rowMin`), so a drag never squeezes a picture; ↑ / ↓ move it by 6. Each line is placed with

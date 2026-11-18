@@ -50,7 +50,6 @@ export function QuestionContainer({
 }) {
   const updateQuestion = useEditorStore((s) => s.updateQuestion);
   const setQuestionHeight = useEditorStore((s) => s.setQuestionHeight);
-  const fitQuestionText = useEditorStore((s) => s.fitQuestionText);
   const setQuestionBox = useEditorStore((s) => s.setQuestionBox);
   const zoom = useEditorStore((s) => s.zoom);
   const selectedElementIds = useEditorStore(selectedIdsOn(slide.id));
@@ -210,7 +209,7 @@ export function QuestionContainer({
           fontSize={slide.questionFontSize ?? QUESTION_FONT_SIZE}
           isSelected={isContainerSelected}
           className="font-normal text-text-primary"
-          onFitText={() => fitQuestionText(slide.id)}
+          canFit
         />
 
         <div

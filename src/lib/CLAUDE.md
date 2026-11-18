@@ -176,7 +176,8 @@
   `heightsFromShares`, `gridRowNeeds`, `moveRowLine`, `oneLineHeight`, `rowMin`, `lineTop`, `fitIntoRow`,
   `OPTION_BOX_EDGES`, `OPTION_BORDER`. Saved as an option's
   `rowSize` and a slide's `gridRowSizes` (shares; DATA_VERSION 6, `20261231002100_option_row_heights.sql`).
-  `measureOptions.ts` (browser only) measures what each option's row needs. Never changes a text size. How the editor
+  `measureOptions.ts` (browser only) measures what each option's row needs (a grid's re-fit). Never changes a text
+  size. How the editor
   uses them: `src/components/editor/CLAUDE.md`, "Option row heights".
 - `table.ts`: the table element's math (an element's `table`, DATA_VERSION 3, `20261231001100_table_element.sql`;
   cell fills DATA_VERSION 4, `20261231001900_table_cell_fill.sql`):
@@ -264,7 +265,10 @@ data. Spec: `docs/superpowers/specs/2026-10-23-stable-presentation-data-design.m
   text) always goes through. Test: `e2e/text-limits.mjs`. Spec:
   `docs/superpowers/specs/2026-11-17-text-limits-while-typing-design.md`.
 - Editor hooks: `useEditorShortcuts`, `useMarqueeSelection`, `useElementDropTarget`, `useCanvasTextEditor`,
-  `useFormatTexts`, `useHasHiddenText` (whether a slide text is cut off at its box's bottom, for the "+…" mark).
+  `useFormatTexts`, `useHasHiddenText` / `useTextRoom` (whether a slide text is cut off at its box's bottom, for the "+…" mark, by
+  `isCutOff` in `textRoom.ts`: cutting the empty room under a last line with no g, y, p… doesn't count; and whether the
+  next size up fits, for the grow mark), `textFit.ts` (`fitsAt` / `fittingSize`: the biggest size at which a text
+  shows whole in its real box, for the teacher's click on "+…" or the grow mark; browser only).
 
 ## Picture Shapes (for Claude's import)
 

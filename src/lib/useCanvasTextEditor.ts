@@ -4,7 +4,7 @@ import type { EditorView } from "@tiptap/pm/view";
 import { toast } from "sonner";
 import { useEditorStore, type TextTarget } from "@/lib/store";
 import { TEXT_EXTENSIONS } from "@/lib/richText";
-import { useHasHiddenText } from "@/lib/useHasHiddenText";
+import { useTextRoom } from "@/lib/useHasHiddenText";
 import { HTML_MAX, PLAIN_TEXT_MAX } from "@/lib/schema";
 import { TEXT_LIMIT_MESSAGE, TextLimit } from "@/lib/textLimit";
 
@@ -148,8 +148,9 @@ export function useCanvasTextEditor({
     }
   }, [editor, content]);
 
-  // Text past the box's bottom is cut off: the component shows "+…" (HiddenTextMark) so the teacher sees it.
-  const hasHiddenText = useHasHiddenText(ref);
+  // Text past the box's bottom is cut off: the component shows "+…" (HiddenTextMark) so the teacher sees it. Room
+  // under the text (`hasSpareRoom`): the question and answer choices offer to make it bigger (GrowTextMark).
+  const room = useTextRoom(ref);
 
-  return { editor, ref, fontSize, hasHiddenText };
+  return { editor, ref, fontSize, hasHiddenText: room.hidden, hasSpareRoom: room.spare };
 }

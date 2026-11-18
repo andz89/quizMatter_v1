@@ -24,7 +24,6 @@ interface OptionCardProps {
 export function OptionCard({ slideId, option, index, isCorrect, elements, box }: OptionCardProps) {
   const updateOption = useEditorStore((s) => s.updateOption);
   const setCorrectOption = useEditorStore((s) => s.setCorrectOption);
-  const fitOptionText = useEditorStore((s) => s.fitOptionText);
   const zoom = useEditorStore((s) => s.zoom);
   // Only this box's own yes/no, so a click on another box doesn't redraw this one.
   const isContainerSelected = useEditorStore((s) => s.selectedContainerIds.includes(option.id));
@@ -113,7 +112,7 @@ export function OptionCard({ slideId, option, index, isCorrect, elements, box }:
           fontSize={option.fontSize ?? OPTION_FONT_SIZE}
           isSelected={isContainerSelected}
           className="text-text-primary"
-          onFitText={() => fitOptionText(slideId, option.id)}
+          canFit
         />
       </div>
 

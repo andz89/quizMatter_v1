@@ -50,6 +50,36 @@ await api("/rest/v1/slides", {
     slide("s6", 5, "list", [{ text: LONG_A + " " + LONG_A }, { text: "B" }, { text: "C" }, { text: "D" }]),
     // A question cut off at its own size: a click on its "+…" makes it fit.
     slide("s7", 6, "list", [{ text: "A" }, { text: "B" }, { text: "C" }, { text: "D" }], { question: LONG_A + " " + LONG_C, questionFontSize: 44 }),
+    // "+…" only when letters are cut, and the grow mark on room to spare.
+    slide("s8", 7, "list", [
+      { text: "It removes visual variety, making all craft items look uniform.", fontSize: 40 },
+      { text: "Sun", fontSize: 30 },
+      { text: "C", fontSize: 40 },
+      { text: "D", fontSize: 40 },
+    ]),
+    // The user's long question at several sizes: wherever the grow mark shows, its click must make the text bigger.
+    ...[22, 24, 26, 28, 30].map((size, i) =>
+      slide(`q${size}`, 20 + i, "list", [{ text: "A" }, { text: "B" }, { text: "C" }, { text: "D" }], {
+        question:
+          "A festival contingent in Surigao decides to replace their traditional bamboo percussion and brass gongs with pre-recorded modern electronic synthesizer music. Evaluating this choice in terms of preserving authentic Surigaonon cultural soundscapes, which critique is most valid?",
+        questionFontSize: size,
+        questionHeight: 160,
+      }),
+    ),
+    // Text boxes: one cut off, one with room.
+    {
+      presentation_id: presentationId,
+      id: "tb",
+      position: 30,
+      data: {
+        id: "tb", type: "blank", question: "", layout: "grid", correctOptionId: null, questionHeight: 100,
+        options: ["a", "b", "c", "d"].map((o) => ({ id: `tb-${o}`, text: "" })),
+        elements: [
+          { id: "tb-long", assetId: "text-box", x: 100, y: 100, width: 400, height: 90, color: "#1B1530", containerId: null, text: { html: `<p>${LONG_C}</p>`, fontSize: 40 } },
+          { id: "tb-short", assetId: "text-box", x: 700, y: 100, width: 400, height: 200, color: "#1B1530", containerId: null, text: { html: "<p>Sun</p>", fontSize: 24 } },
+        ],
+      },
+    },
     // A list option with a tall picture: a drag line stops at it.
     slide("s5", 4, "list", [{ text: "Sun" }, { text: "B" }, { text: "C" }, { text: "D" }], {
       elements: [{ id: "pic5", assetId: "star", x: 300, y: 4, width: 90, height: 90, color: "#FFC233", containerId: "s5-a" }],
@@ -195,6 +225,93 @@ try {
   await page.keyboard.press("Control+z");
   await page.waitForTimeout(400);
   check("one undo puts the question's size back", (await questionSize()) === "44px", await questionSize());
+
+  // ─── "+…" only when letters are cut; the grow mark where there's room ────────────────────────────────────
+  await item("s8").scrollIntoViewIfNeeded();
+  await page.waitForTimeout(300);
+  const textA = option("s8-a").locator('[style*="font-size"]').first();
+  const cutOf = () => textA.evaluate((el) => el.scrollHeight - el.clientHeight);
+  const line8 = item("s8").getByRole("separator").first();
+  // Squeeze A's row 1 px at a time (zoom-free: the line's own keys move 6 slide px), until only the empty room under
+  // "uniform." (no g, y, p…) is cut, then on into the letters.
+  let sawEmptyCut = false;
+  let sawLetterCut = false;
+  await line8.focus();
+  for (let i = 0; i < 25 && !sawLetterCut; i++) {
+    await page.keyboard.press("ArrowUp");
+    await page.waitForTimeout(150);
+    const cut = await cutOf();
+    const marks = await option("s8-a").locator(MARK).count();
+    if (cut >= 2 && cut <= 7 && !sawEmptyCut) {
+      sawEmptyCut = true;
+      check(`cutting only the room under "uniform." shows no +… (${cut} px)`, marks === 0);
+    }
+    if (cut >= 12) {
+      sawLetterCut = true;
+      check(`cutting into the letters shows +… (${cut} px)`, marks === 1);
+    }
+  }
+  check("the squeeze reached both cases", sawEmptyCut && sawLetterCut);
+  // The grow mark: shown on hover where there's room, makes the text as big as still fits.
+  const grow = option("s8-b").locator("[data-grow-text-mark]");
+  await option("s8-b").hover();
+  await page.waitForTimeout(200);
+  check("a short option with room shows the grow mark on hover", (await grow.count()) === 1 && (await grow.evaluate((el) => getComputedStyle(el).opacity)) === "1");
+  await grow.click();
+  await page.waitForTimeout(400);
+  const grown = Number.parseFloat(await fontSize("s8-b"));
+  check("a click on it makes the text bigger", grown > 30, String(grown));
+  check("and all of it still shows (no +…)", (await option("s8-b").locator(MARK).count()) === 0);
+  const unbroken = await option("s8-b").locator('[style*="font-size"]').first().evaluate((el) => {
+    const r = document.createRange();
+    r.selectNodeContents(el);
+    return [...r.getClientRects()].filter((x) => x.width > 0).length <= 2;
+  });
+  check("its word isn't broken onto two lines", unbroken);
+  check("the other options' sizes didn't change", (await fontSize("s8-c")) === "40px" && (await fontSize("s8-d")) === "40px");
+  await page.waitForTimeout(1200);
+  await page.keyboard.press("Control+z");
+  await page.waitForTimeout(400);
+  check("one undo puts it back to 30 px", (await fontSize("s8-b")) === "30px", await fontSize("s8-b"));
+
+  // ─── The grow mark never offers a size its click can't give ──────────────────────────────────────────────
+  let offered = 0;
+  for (const size of [22, 24, 26, 28, 30]) {
+    const q = item(`q${size}`).locator('[data-container-id="question"]');
+    await item(`q${size}`).scrollIntoViewIfNeeded();
+    await q.hover();
+    await page.waitForTimeout(250);
+    const growMark = q.locator("[data-grow-text-mark]");
+    if ((await growMark.count()) === 0) continue;
+    offered++;
+    await growMark.click();
+    await page.waitForTimeout(400);
+    const after = Number.parseFloat(await q.locator('[style*="font-size"]').first().evaluate((el) => getComputedStyle(el).fontSize));
+    check(`question at ${size} px: the grow mark's click makes it bigger and it still fits`, after > size && (await q.locator(MARK).count()) === 0, `${size} → ${after}`);
+  }
+  check("the grow mark showed on at least one of them", offered > 0, String(offered));
+
+  // ─── Text boxes too ──────────────────────────────────────────────────────────────────────────────────────
+  await item("tb").scrollIntoViewIfNeeded();
+  await page.waitForTimeout(300);
+  const tbLong = item("tb").locator('[data-element-id="tb-long"]');
+  const tbShort = item("tb").locator('[data-element-id="tb-short"]');
+  const tbSize = (loc) => loc.locator('[style*="font-size"]').first().evaluate((el) => getComputedStyle(el).fontSize);
+  check("a cut-off text box shows +…", (await tbLong.locator(MARK).count()) === 1);
+  await tbLong.locator(MARK).click();
+  await page.waitForTimeout(400);
+  const tbFitted = Number.parseFloat(await tbSize(tbLong));
+  check("a click on it makes the text box's text smaller, and all of it shows", tbFitted < 40 && (await tbLong.locator(MARK).count()) === 0, String(tbFitted));
+  check("a text box with room shows no grow mark until it's selected", (await tbShort.locator("[data-grow-text-mark]").count()) === 0);
+  await tbShort.click();
+  await page.waitForTimeout(300);
+  const tbGrow = tbShort.locator("[data-grow-text-mark]");
+  check("selected, it shows the grow mark", (await tbGrow.count()) === 1);
+  await tbGrow.click();
+  await page.waitForTimeout(400);
+  const tbGrown = Number.parseFloat(await tbSize(tbShort));
+  check("a click on it makes the text box's text bigger, still whole", tbGrown > 24 && (await tbShort.locator(MARK).count()) === 0, String(tbGrown));
+  await page.keyboard.press("Escape");
 
   await page.screenshot({ path: `${SHOTS}/option-rows-editor.png` });
 

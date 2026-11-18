@@ -3,8 +3,10 @@
 import { EditorContent } from "@tiptap/react";
 import { useCanvasTextEditor } from "@/lib/useCanvasTextEditor";
 import { TEXT_BOX_FONT_SIZE } from "@/lib/constants";
-import type { TextTarget } from "@/lib/store";
+import { useEditorStore, type TextTarget } from "@/lib/store";
+import { fittingSize } from "@/lib/textFit";
 import { HiddenTextMark } from "./HiddenTextMark";
+import { GrowTextMark } from "./GrowTextMark";
 
 interface TextBoxContentProps {
   html: string;
@@ -25,7 +27,8 @@ interface TextBoxContentProps {
 
 /** The text inside a text box element on the canvas. Read-only until double-clicked, then typeable. */
 export function TextBoxContent({ html, fontSize: chosenFontSize = TEXT_BOX_FONT_SIZE, inTableCell = false, target, color, editStart, isSelected, onChange, onStopEditing }: TextBoxContentProps) {
-  const { editor, ref, fontSize, hasHiddenText } = useCanvasTextEditor({
+  const setTextFontSizes = useEditorStore((s) => s.setTextFontSizes);
+  const { editor, ref, fontSize, hasHiddenText, hasSpareRoom } = useCanvasTextEditor({
     content: html,
     editStart,
     isSelected,
@@ -34,6 +37,14 @@ export function TextBoxContent({ html, fontSize: chosenFontSize = TEXT_BOX_FONT_
     onUpdate: (editor) => onChange(editor.isEmpty ? "" : editor.getHTML()),
     onStopEditing,
   });
+
+  // The teacher's click on "+…" or the grow mark (text boxes; a table's text size is the whole table's): the biggest
+  // size at which this text shows whole in its box (textFit.ts).
+  const fit = () => {
+    if (!ref.current) return;
+    const size = fittingSize(ref.current);
+    if (size !== fontSize) setTextFontSizes([target], size);
+  };
 
   return (
     // relative: holds the "+…" mark in its corner.
@@ -47,7 +58,8 @@ export function TextBoxContent({ html, fontSize: chosenFontSize = TEXT_BOX_FONT_
       >
         <EditorContent editor={editor} />
       </div>
-      {hasHiddenText && <HiddenTextMark inTableCell={inTableCell} />}
+      {hasHiddenText && <HiddenTextMark inTableCell={inTableCell} onFit={inTableCell ? undefined : fit} />}
+      {!inTableCell && !hasHiddenText && hasSpareRoom && !editStart && <GrowTextMark onFit={fit} isSelected={isSelected} inTextBox />}
     </div>
   );
 }

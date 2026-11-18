@@ -24,8 +24,6 @@ import {
   hasOptions,
   getShownOptions,
   getOptionRoom,
-  OPTION_FONT_SIZE,
-  QUESTION_FONT_SIZE,
   type BoxLayout,
   MIN_QUESTION_HEIGHT,
   MIN_SHAPE_STRIP_HEIGHT,
@@ -51,7 +49,7 @@ import { isEmbedSlide } from "./embed";
 import { todayCalendarDate } from "./calendarDate";
 import { newTable, type TableCellSpot } from "./table";
 import { fitIntoRow, gridRowNeeds, shareOut } from "./optionRows";
-import { fittingOptionFontSize, fittingQuestionFontSize, measureOptionNeeds } from "./measureOptions";
+import { measureOptionNeeds } from "./measureOptions";
 import type { Photo, PresentationDetails, Presentation, ReviewerFields, Slide, SlideType, SvgElement } from "./schema";
 import { MAX_ITEM_COUNT, MAX_SLIDES, TOO_MANY_SLIDES_MESSAGE } from "./schema";
 
@@ -425,11 +423,6 @@ interface EditorState {
   // with its option.
   reorderOptions: (slideId: string, fromOptionId: string, toOptionId: string) => void;
   shuffleOptions: (slideId: string) => void;
-  // The teacher clicked the "+…" mark on an option's cut-off text: its text size goes down to the biggest one at
-  // which all of it shows (spec: 2026-11-18-option-row-heights-design.md). Only that option; one undo step.
-  fitOptionText: (slideId: string, optionId: string) => void;
-  // The same for the question's "+…" mark: the question's text size goes down until all of it shows.
-  fitQuestionText: (slideId: string) => void;
   // List layouts: the option rows' new heights (a drag line between two rows), in slide px, one per shown option.
   setOptionRowHeights: (slideId: string, heights: number[]) => void;
   // Empties the question, every option's text and all slide elements; keeps the answer (text and canvas) and layout.
@@ -1299,27 +1292,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         return refitGridRows({ ...s, options: options as typeof s.options });
       }),
     });
-  },
-
-  fitOptionText: (slideId, optionId) => {
-    set((state) => ({
-      presentation: updateSlide(state.presentation, slideId, (s) => {
-        const option = s.options.find((o) => o.id === optionId);
-        if (!option) return s;
-        const fontSize = fittingOptionFontSize(s, option);
-        if (fontSize === (option.fontSize ?? OPTION_FONT_SIZE)) return s;
-        return { ...s, options: s.options.map((o) => (o.id === optionId ? { ...o, fontSize } : o)) as Slide["options"] };
-      }),
-    }));
-  },
-
-  fitQuestionText: (slideId) => {
-    set((state) => ({
-      presentation: updateSlide(state.presentation, slideId, (s) => {
-        const questionFontSize = fittingQuestionFontSize(s);
-        return questionFontSize === (s.questionFontSize ?? QUESTION_FONT_SIZE) ? s : { ...s, questionFontSize };
-      }),
-    }));
   },
 
   setOptionRowHeights: (slideId, heights) => {

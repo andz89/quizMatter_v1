@@ -127,3 +127,7 @@ Teachers need the room to go where the text is.
   (never the text); an option holding pictures or text boxes keeps at least an equal row.
 - **Known limit:** Claude can't read or set row sizes, so its edit of a saved presentation sizes dragged rows by
   their text again (text sizes stay).
+- **A grow mark** (room to spare) on the question and options, hovered or selected: a click makes the text as big as
+  still fits. It and "+…" both measure the real box (`textFit.ts`), so the mark never offers a size the click can't
+  give. **"+…" counts only cut letters:** cutting the empty room under a last line with no g, y, p… doesn't show it.
+- **Text boxes too** (both marks; the grow mark only while selected). Table cells keep the plain "+…".
