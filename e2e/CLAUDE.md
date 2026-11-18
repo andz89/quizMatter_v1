@@ -93,6 +93,9 @@ Tests that delete data (the announcements ones empty the announcements table) do
   cell colors: the format names a cell's `fill`, `send_presentation` refuses one that isn't a color and builds
   solid and gradient ones, the draft opens in the editor with the colored cells, and `read_presentation` gives a
   saved cell's `fill` back (none for a plain cell).
+- `claude-text-fit.mjs`: Claude's connector and text that never shrinks: the format says so; Claude's own 56 px
+  options in short "list" rows under a strip and a question too long for its `questionHeight` are reported as cut
+  off; left out, the options get a size that fits and the draft opens with no "+…".
 - `hidden-text-mark.mjs`: the "+…" mark on cut-off text: shown on a long question, answer choice, text box and
   table cell, not on text that fits or outside the editable slides; typing past the bottom shows it, undo and making
   the box taller take it away.
