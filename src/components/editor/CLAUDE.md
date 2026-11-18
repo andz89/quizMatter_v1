@@ -218,12 +218,12 @@ keeps its own until the teacher changes it (the size box, or a click on its "+�
   rows. `getOptionRowHeights` (`constants.ts`) turns them into heights for `getContainerBounds`, and
   `getOptionsGridStyle` into the options grid's rows (as `minmax(0, Nfr)`, so they always fill the real area and never
   pass its bottom) in `SlideCanvas` and `SlideStaticView` alike.
-- **A click on an option's "+…" mark makes its text fit** (the only size change here, and only on the teacher's
+- **A click on an option's or the question's "+…" mark makes its text fit** (the only size change here, and only on the teacher's
   click; there's no Fit button: removed 2026-11-18, the user's choice). `HiddenTextMark`'s `onFit` (passed by
-  `OptionCard` through `EditableText`'s `onFitText`; the question, text boxes and table cells keep the plain mark) calls
-  the store's `fitOptionText`: `fittingOptionFontSize` (`measureOptions.ts`) tries sizes from the option's own down
-  to `FONT_SIZE_RANGE.min` (`largestFittingSize`) and keeps the biggest at which its text fits the row (2 px spare).
-  Only that option, one undo step; the row's height stays.
+  `OptionCard` and `QuestionContainer` through `EditableText`'s `onFitText`; text boxes and table cells keep the plain
+  mark) calls the store's `fitOptionText` / `fitQuestionText`: `fittingOptionFontSize` / `fittingQuestionFontSize`
+  (`measureOptions.ts`) try sizes from the text's own down to `FONT_SIZE_RANGE.min` (`largestFittingSize`) and keep
+  the biggest at which it fits its row or box (2 px spare). Only that text, one undo step; the box's height stays.
 - **Lines between list rows** (`OptionRowLines.tsx`, in the 12 px gap, the `ResizeHandle` look): dragging one makes one
   row taller and its neighbor shorter, each down to one line of its own text or its lowest picture, whichever is
   taller (`moveRowLine`, `rowMin`), so a drag never squeezes a picture; ↑ / ↓ move it by 6. Each line is placed with

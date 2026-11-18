@@ -48,6 +48,8 @@ await api("/rest/v1/slides", {
     }),
     // A list option whose text is cut off at the default size: a click on its "+…" makes it fit.
     slide("s6", 5, "list", [{ text: LONG_A + " " + LONG_A }, { text: "B" }, { text: "C" }, { text: "D" }]),
+    // A question cut off at its own size: a click on its "+…" makes it fit.
+    slide("s7", 6, "list", [{ text: "A" }, { text: "B" }, { text: "C" }, { text: "D" }], { question: LONG_A + " " + LONG_C, questionFontSize: 44 }),
     // A list option with a tall picture: a drag line stops at it.
     slide("s5", 4, "list", [{ text: "Sun" }, { text: "B" }, { text: "C" }, { text: "D" }], {
       elements: [{ id: "pic5", assetId: "star", x: 300, y: 4, width: 90, height: 90, color: "#FFC233", containerId: "s5-a" }],
@@ -174,6 +176,25 @@ try {
   await page.keyboard.press("Control+z");
   await page.waitForTimeout(400);
   check("one undo puts the size back", (await fontSize("s6-a")) === "56px", await fontSize("s6-a"));
+
+  // ─── The same for the question ───────────────────────────────────────────────────────────────────────────
+  await item("s7").scrollIntoViewIfNeeded();
+  await page.waitForTimeout(300);
+  const question = item("s7").locator('[data-container-id="question"]');
+  const questionSize = () => question.locator('[style*="font-size"]').first().evaluate((el) => getComputedStyle(el).fontSize);
+  const qMark = question.locator(MARK);
+  check("a cut-off question shows +…", (await qMark.count()) === 1);
+  const optionSizes7 = await Promise.all(["s7-a", "s7-b", "s7-c", "s7-d"].map(fontSize));
+  await qMark.click();
+  await page.waitForTimeout(400);
+  const qFitted = Number.parseFloat(await questionSize());
+  check("the click makes the question's text smaller", qFitted < 44, String(qFitted));
+  check("then all of the question shows (no +…)", (await question.locator(MARK).count()) === 0);
+  check("the options' sizes didn't change", JSON.stringify(await Promise.all(["s7-a", "s7-b", "s7-c", "s7-d"].map(fontSize))) === JSON.stringify(optionSizes7));
+  await page.waitForTimeout(1200);
+  await page.keyboard.press("Control+z");
+  await page.waitForTimeout(400);
+  check("one undo puts the question's size back", (await questionSize()) === "44px", await questionSize());
 
   await page.screenshot({ path: `${SHOTS}/option-rows-editor.png` });
 

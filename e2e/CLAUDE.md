@@ -102,8 +102,8 @@ Tests that delete data (the announcements ones empty the announcements table) do
   inside the options area with "+…" and its size; a grid's columns end together after Shuffles (sizes unchanged), with
   no lines; a picture's row is never shorter than the picture, a line stops at a picture and sits in the middle of the
   gap, ↑ / ↓ on a line never move a selected picture, a line never covers a "+…" mark, an option's text stays full
-  width with its picture on top; a click on a cut-off option's "+…" makes only its text smaller until all of it shows
-  (one undo puts the size back); save, reload and presenting draw the same rows.
+  width with its picture on top; a click on a cut-off option's or question's "+…" makes only that text smaller until all of
+  it shows (one undo puts the size back); save, reload and presenting draw the same rows.
 - `hidden-text-mark.mjs`: the "+…" mark on cut-off text: shown on a long question, answer choice, text box and
   table cell, not on text that fits or outside the editable slides; typing past the bottom shows it, undo and making
   the box taller take it away.

@@ -19,7 +19,7 @@ interface EditableTextProps {
   // Selected with one click: the header shows the format toolbar for all of this text.
   isSelected?: boolean;
   className?: string;
-  // Answer choices: a click on the "+…" mark makes the text smaller so all of it shows.
+  // The question and answer choices: a click on the "+…" mark makes the text smaller so all of it shows.
   onFitText?: () => void;
 }
 

@@ -2,7 +2,7 @@
  * "+…" in the bottom-right corner of a text on the canvas whose end is cut off, so a teacher doesn't miss it. Only in
  * the editor (never presenting or thumbnails). Its parent must be `relative`. It hangs over the box's corner,
  * a third of it outside. `inTableCell`: a cell cuts off anything outside it, so the mark sits flush in the cell's own
- * corner, past its padding (`px-2 py-1` in `TableGrid`). `onFit` (answer choices): a click makes the text smaller,
+ * corner, past its padding (`px-2 py-1` in `TableGrid`). `onFit` (the question and answer choices): a click makes the text smaller,
  * just enough for all of it to show (the teacher's own click, never by itself).
  */
 export function HiddenTextMark({ inTableCell = false, onFit }: { inTableCell?: boolean; onFit?: () => void }) {
