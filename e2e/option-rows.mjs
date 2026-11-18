@@ -114,6 +114,13 @@ try {
   const last = await box("s2-d");
   check("too-big text: the rows end inside the options area", last.y + last.height <= area.y + area.height + 1, `${last.y + last.height} vs ${area.y + area.height}`);
   check("too-big text: +… shows", (await item("s2").locator(MARK).count()) > 0);
+  // The "+…" mark hangs into the gap where a line is: the mark stays on top (its tip shows, a press reaches it).
+  const markOnTop = await item("s2").locator(MARK).first().evaluate((el) => {
+    const r = el.getBoundingClientRect();
+    const hit = document.elementFromPoint(r.x + r.width / 2, r.y + r.height * 0.85);
+    return !!hit && (el === hit || el.contains(hit));
+  });
+  check("a row line doesn't cover the +… mark", markOnTop);
   check("too-big text: the size stays 60 px", (await fontSize("s2-a")) === "60px", await fontSize("s2-a"));
 
   // ─── Grid: rows fitted again after Shuffle, both columns end together ──────────────────────────────────
@@ -173,6 +180,18 @@ try {
   const bBox = await box("s5-b");
   const gapMiddle = (aBox.y + aBox.height + bBox.y) / 2;
   check("the line sits in the middle of the gap between the rows", near(line5.y + line5.height / 2, gapMiddle, 1.5), `${line5.y + line5.height / 2} vs ${gapMiddle}`);
+  // Arrow keys on a focused line move the line only, never a selected picture.
+  await pic5.click();
+  const picPicked = await pic5.boundingBox();
+  const rowBeforeKeys = (await box("s5-a")).height;
+  await item("s5").getByRole("separator").first().focus();
+  await page.keyboard.press("ArrowDown");
+  await page.waitForTimeout(300);
+  const picAfterKeys = await pic5.boundingBox();
+  check("ArrowDown on a line leaves a selected picture where it was", near(picAfterKeys.y, picPicked.y, 0.5) && near(picAfterKeys.x, picPicked.x, 0.5), `${picPicked.y} → ${picAfterKeys.y}`);
+  check("ArrowDown on a line moves the line", (await box("s5-a")).height > rowBeforeKeys + 2, `${rowBeforeKeys} → ${(await box("s5-a")).height}`);
+  await page.keyboard.press("ArrowUp");
+  await page.waitForTimeout(300);
   await page.mouse.move(line5.x + line5.width / 2, line5.y + line5.height / 2);
   await page.mouse.down();
   await page.mouse.move(line5.x + line5.width / 2, line5.y - 150, { steps: 6 });

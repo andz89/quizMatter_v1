@@ -55,10 +55,13 @@ export function OptionRowLines({ slide }: { slide: Slide }) {
         onKeyDown={(e) => {
           if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
           e.preventDefault();
+          // The editor's own arrow keys (useEditorShortcuts, on window) would also move a selected picture.
+          e.stopPropagation();
           move(index, e.key === "ArrowUp" ? -6 : 6, heights);
         }}
-        // The whole gap's width, so the line is easy to find; the bar in the middle is what to grab.
-        className="group absolute inset-x-0 z-20 flex h-3.5 -translate-y-1/2 cursor-row-resize items-center justify-center outline-none"
+        // The whole gap's width, so the line is easy to find; the bar in the middle is what to grab. Under an
+        // option's "+…" mark (z-10), which hangs into the gap.
+        className="group absolute inset-x-0 z-[5] flex h-3.5 -translate-y-1/2 cursor-row-resize items-center justify-center outline-none"
         style={{ top }}
       >
         <div className="absolute inset-x-0 top-1/2 border-t border-dashed border-accent opacity-30 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100" />

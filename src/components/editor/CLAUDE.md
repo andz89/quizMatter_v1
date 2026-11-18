@@ -226,7 +226,9 @@ keeps its own, only the teacher changes it.
 - **Lines between list rows** (`OptionRowLines.tsx`, in the 12 px gap, the `ResizeHandle` look): dragging one makes one
   row taller and its neighbor shorter, each down to one line of its own text or its lowest picture, whichever is
   taller (`moveRowLine`, `rowMin`), so a drag never squeezes a picture; ↑ / ↓ move it by 6. Each line is placed with
-  the rows' own shares (`lineTop`, a CSS `calc`), so it sits in the middle of the real gap. The store's `setOptionRowHeights`. Undo takes back a drag (the history joins changes less than
+  the rows' own shares (`lineTop`, a CSS `calc`), so it sits in the middle of the real gap. Its ↑ / ↓ stop there (the
+  editor's arrow keys would also move a selected picture), and it sits under an option's "+…" mark (`z-[5]` vs
+  `z-10`), which hangs into the gap. The store's `setOptionRowHeights`. Undo takes back a drag (the history joins changes less than
   half a second apart, so a drag that pauses longer takes more than one undo).
 - **Grid:** no lines. Its rows are fitted again after Shuffle and reorder (`refitGridRows`), each as tall as its taller
   option, so a column never runs off the slide. Not while typing: "+…" tells the teacher.
