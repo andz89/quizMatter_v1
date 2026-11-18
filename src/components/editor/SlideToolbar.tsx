@@ -7,7 +7,7 @@ import { MAX_ITEM_COUNT, MAX_SLIDES, PLAIN_TEXT_MAX, TOO_MANY_SLIDES_MESSAGE, ty
 import { ANSWER_CONTAINER_ID, canHaveAnswer, getItemCount, hasAnswerContent, hasOptions, hasReveal, isDiscussionSlide } from "@/lib/constants";
 import { ToolPanelButton, PanelLabel } from "./PanelControls";
 import { AddSlideMenu } from "./AddSlideMenu";
-import { CheckIcon, ChevronDownIcon, ChevronUpIcon, CopyIcon, EraserIcon, EyeIcon, EyeOffIcon, Grid2x2Icon, GripVerticalIcon, PanelRightIcon, PlusIcon, Rows3Icon, ShuffleIcon, Trash2Icon } from "lucide-react";
+import { AlignVerticalSpaceAroundIcon, CheckIcon, ChevronDownIcon, ChevronUpIcon, CopyIcon, EraserIcon, EyeIcon, EyeOffIcon, Grid2x2Icon, GripVerticalIcon, PanelRightIcon, PlusIcon, Rows3Icon, ShuffleIcon, Trash2Icon } from "lucide-react";
 
 const LAYOUTS: { value: Slide["layout"]; label: string; icon: ReactNode }[] = [
   { value: "grid", label: "Grid", icon: <Grid2x2Icon size={18} /> },
@@ -33,6 +33,7 @@ interface SlideToolbarProps {
 export function SlideToolbar({ slide, slideNumber, isFirst, isLast, canDelete, onMoveUp, onMoveDown, dragHandle }: SlideToolbarProps) {
   const duplicateSlide = useEditorStore((s) => s.duplicateSlide);
   const shuffleOptions = useEditorStore((s) => s.shuffleOptions);
+  const fitOptionRows = useEditorStore((s) => s.fitOptionRows);
   const addSlide = useEditorStore((s) => s.addSlide);
   const deleteSlide = useEditorStore((s) => s.deleteSlide);
   const clearSlide = useEditorStore((s) => s.clearSlide);
@@ -203,6 +204,17 @@ export function SlideToolbar({ slide, slideNumber, isFirst, isLast, canDelete, o
                   className="flex h-8 w-8 items-center justify-center rounded-dropdown text-text-primary hover:bg-bg-page"
                 >
                   <ShuffleIcon size={18} />
+                </button>
+              )}
+              {/* A true-or-false grid has one row: nothing to fit. */}
+              {!(slide.type === "true-false" && slide.layout === "grid") && (
+                <button
+                  type="button"
+                  onClick={() => fitOptionRows(slide.id)}
+                  title="Fit rows to text"
+                  className="flex h-8 w-8 items-center justify-center rounded-dropdown text-text-primary hover:bg-bg-page"
+                >
+                  <AlignVerticalSpaceAroundIcon size={18} />
                 </button>
               )}
               <ToolPanelButton
