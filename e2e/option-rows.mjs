@@ -46,6 +46,10 @@ await api("/rest/v1/slides", {
     slide("s4", 3, "grid", [{ text: "Star" }, { text: "Moon" }, { text: LONG_A, fontSize: 30 }, { text: "D" }], {
       elements: [{ id: "pic", assetId: "star", x: 300, y: 4, width: 100, height: 100, color: "#FFC233", containerId: "s4-a" }],
     }),
+    // A list option with a tall picture: a drag line stops at it.
+    slide("s5", 4, "list", [{ text: "Sun" }, { text: "B" }, { text: "C" }, { text: "D" }], {
+      elements: [{ id: "pic5", assetId: "star", x: 300, y: 4, width: 90, height: 90, color: "#FFC233", containerId: "s5-a" }],
+    }),
   ]),
 });
 
@@ -148,6 +152,26 @@ try {
   const picAgain = await item("s4").locator('[data-element-id="pic"]').boundingBox();
   check("Fit twice changes nothing (rows and picture)", (await grid("s4").getAttribute("style")) === rowsOnce && near(picAgain.height, pic.height, 0.5), `${pic.height} → ${picAgain.height}`);
   await page.screenshot({ path: `${SHOTS}/option-rows-editor.png` });
+
+  // ─── A drag line stops at a picture, and sits in the middle of the real gap ────────────────────────────
+  await item("s5").scrollIntoViewIfNeeded();
+  await page.waitForTimeout(300);
+  const pic5 = item("s5").locator('[data-element-id="pic5"]');
+  const picBefore = await pic5.boundingBox();
+  const line5 = await item("s5").getByRole("separator").first().boundingBox();
+  const aBox = await box("s5-a");
+  const bBox = await box("s5-b");
+  const gapMiddle = (aBox.y + aBox.height + bBox.y) / 2;
+  check("the line sits in the middle of the gap between the rows", near(line5.y + line5.height / 2, gapMiddle, 1.5), `${line5.y + line5.height / 2} vs ${gapMiddle}`);
+  await page.mouse.move(line5.x + line5.width / 2, line5.y + line5.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(line5.x + line5.width / 2, line5.y - 150, { steps: 6 });
+  await page.mouse.up();
+  await page.waitForTimeout(300);
+  const picAfter = await pic5.boundingBox();
+  const rowAfter = await box("s5-a");
+  check("dragging up stops at the picture: it isn't squeezed", near(picAfter.height, picBefore.height, 0.5), `${picBefore.height} → ${picAfter.height}`);
+  check("the row still holds the whole picture", picAfter.y + picAfter.height <= rowAfter.y + rowAfter.height + 1);
 
   // ─── Save, reload, present: the same rows ──────────────────────────────────────────────────────────────
   const editorRows = await grid("s1").getAttribute("style");

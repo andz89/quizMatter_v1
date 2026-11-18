@@ -70,3 +70,19 @@ export function fitIntoRow<R extends { x: number; y: number; width: number; heig
   const width = rect.width * scale;
   return { ...rect, y: rect.y * scale, width, height: rect.height * scale, x: Math.min(rect.x, Math.max(0, box.width - width)) };
 }
+
+/** The smallest a drag line leaves a row: one line of its text, or its lowest picture (plus the border) if taller. */
+export function rowMin(fontSize: number, pictureBottoms: number[]): number {
+  return Math.max(oneLineHeight(fontSize), ...pictureBottoms.map((bottom) => bottom + OPTION_BORDER));
+}
+
+/**
+ * Where the line after row `index` sits in the options grid (CSS `top`): the rows are shares of the grid's real height
+ * less its gaps (`getOptionsGridStyle`), so the line uses the same shares and lands in the middle of the real gap.
+ */
+export function lineTop(heights: number[], index: number, gap: number): string {
+  const total = heights.reduce((a, b) => a + b, 0);
+  const above = heights.slice(0, index + 1).reduce((a, b) => a + b, 0);
+  const gaps = gap * (heights.length - 1);
+  return `calc((100% - ${gaps}px) * ${above / total} + ${gap * index + gap / 2}px)`;
+}

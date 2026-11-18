@@ -3,7 +3,7 @@
 import { useRef } from "react";
 import { useEditorStore } from "@/lib/store";
 import { OPTION_FONT_SIZE, getOptionRowHeights, getShownOptions } from "@/lib/constants";
-import { moveRowLine, oneLineHeight } from "@/lib/optionRows";
+import { lineTop, moveRowLine, rowMin } from "@/lib/optionRows";
 import type { Slide } from "@/lib/schema";
 
 // The gap between list rows (gap-3), where each line sits.
@@ -11,7 +11,7 @@ const ROW_GAP = 12;
 
 /**
  * List layouts: a line in the gap between two option rows. Dragging it makes one row taller and the other shorter,
- * each down to one line of its own text size; text sizes never change. Sits inside the options grid (absolute).
+ * each down to one line of its own text (or its lowest picture); text sizes never change. Sits inside the options grid (absolute).
  */
 export function OptionRowLines({ slide }: { slide: Slide }) {
   const zoom = useEditorStore((s) => s.zoom);
@@ -19,12 +19,17 @@ export function OptionRowLines({ slide }: { slide: Slide }) {
   const drag = useRef<{ index: number; y: number; heights: number[] } | null>(null);
 
   const heights = getOptionRowHeights(slide);
-  const mins = getShownOptions(slide).map((o) => oneLineHeight(o.fontSize ?? OPTION_FONT_SIZE));
+  // A row stops at one line of its text, or at its lowest picture, so a drag never squeezes a picture.
+  const mins = getShownOptions(slide).map((o) =>
+    rowMin(
+      o.fontSize ?? OPTION_FONT_SIZE,
+      slide.elements.filter((el) => el.containerId === o.id).map((el) => el.y + el.height),
+    ),
+  );
   const move = (index: number, dy: number, from: number[]) => setOptionRowHeights(slide.id, moveRowLine(from, index, dy, mins));
 
-  // Each line's middle: the bottom of the rows above it plus half a gap.
-  const lineTops = heights.slice(0, -1).map((_, index) => heights.slice(0, index + 1).reduce((a, b) => a + b, 0) + ROW_GAP * index + ROW_GAP / 2);
-  return lineTops.map((top, index) => {
+  return heights.slice(0, -1).map((_, index) => {
+    const top = lineTop(heights, index, ROW_GAP);
     return (
       <div
         key={index}

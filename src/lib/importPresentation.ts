@@ -1120,7 +1120,8 @@ function buildSlide(
       const equal = getContainerBounds(slide.options[0].id, slide).height;
       const needs = getShownOptions(slide).map((option, i) => {
         const width = getContainerBounds(option.id, slide).width;
-        const hasPictures = recipe.elements.some((el) => el.in === OPTION_LABELS[i]);
+        // Text boxes Claude puts in an option need room like its pictures do.
+        const hasPictures = [...recipe.elements, ...(recipe.textBoxes ?? [])].some((el) => el.in === OPTION_LABELS[i]);
         const need = optionNeedFor(option.text, hasPictures ? width / 2 : width, option.fontSize ?? OPTION_FONT_SIZE);
         return hasPictures ? Math.max(need, equal) : need;
       });

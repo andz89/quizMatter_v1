@@ -173,7 +173,8 @@
   gives no date). Names are always English, so the server and every browser draw the same. No imports, so tests
   and `schema.ts` load it. Tests: `calendarDate.test.ts`.
 - `optionRows.ts`: the math for option row heights (no imports, tested in `optionRows.test.ts`): `shareOut`,
-  `heightsFromShares`, `gridRowNeeds`, `moveRowLine`, `oneLineHeight`, `OPTION_BOX_EDGES`. Saved as an option's
+  `heightsFromShares`, `gridRowNeeds`, `moveRowLine`, `oneLineHeight`, `rowMin`, `lineTop`, `fitIntoRow`,
+  `OPTION_BOX_EDGES`, `OPTION_BORDER`. Saved as an option's
   `rowSize` and a slide's `gridRowSizes` (shares; DATA_VERSION 6, `20261231002100_option_row_heights.sql`).
   `measureOptions.ts` (browser only) measures what each option's row needs. Never changes a text size. How the editor
   uses them: `src/components/editor/CLAUDE.md`, "Option row heights".

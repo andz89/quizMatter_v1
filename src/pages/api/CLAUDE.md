@@ -64,8 +64,10 @@
 - Option rows are sized by their text (`optionNeedFor`, `src/lib/importText.ts`; saved as each option's `rowSize`,
   or a grid's `gridRowSizes`, like the editor's Fit rows to text). Option text keeps the size Claude gives, or the
   default: the import never changes it. When a picture strip Claude left at its own height leaves the options too
-  little room, the strip gets shorter (not below `MIN_SHAPE_STRIP_HEIGHT`). The layout report lists each option's
-  box and names any still cut off. Test: `e2e/claude-text-fit.mjs`.
+  little room, the strip gets shorter (not below `MIN_SHAPE_STRIP_HEIGHT`). An option holding pictures or text boxes
+  keeps at least an equal row, for them. The layout report lists each option's box and names any still cut off.
+  Claude can't set or read row sizes, so when it edits a saved presentation (`read_presentation`, then a new draft)
+  rows a teacher dragged are sized by their text again; text sizes stay. Test: `e2e/claude-text-fit.mjs`.
 - An element's `color` can be a gradient (`gradient:#A,#B`), except on text.
 - Diagrams use the automatic layout: each box is its `text` and, if wanted, its look (`fill`, `border`, `borderWidth`,
   `textColor`, `fontSize`, `shape`), the fields the editor saves. Never a box's place or size.

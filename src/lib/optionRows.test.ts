@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { fitIntoRow, gridRowNeeds, heightsFromShares, moveRowLine, oneLineHeight, shareOut } from "./optionRows";
+import { fitIntoRow, gridRowNeeds, heightsFromShares, lineTop, moveRowLine, oneLineHeight, rowMin, shareOut } from "./optionRows";
 
 test("shareOut gives the spare out equally", () => {
   assert.deepEqual(shareOut([50, 100, 50, 100], 400), [75, 125, 75, 125]);
@@ -49,4 +49,15 @@ test("fitIntoRow leaves a picture that fits alone, so Fit twice changes nothing"
 test("fitIntoRow shrinks a picture that no longer fits, just enough, and keeps it inside", () => {
   assert.deepEqual(fitIntoRow({ x: 600, y: 20, width: 100, height: 100 }, { width: 1000, height: 60 }), { x: 600, y: 10, width: 50, height: 50 });
   assert.deepEqual(fitIntoRow({ x: 990, y: 0, width: 100, height: 100 }, { width: 1000, height: 200 }), { x: 900, y: 0, width: 100, height: 100 });
+});
+
+test("rowMin is one line of text, or the lowest picture plus the border when that's taller", () => {
+  assert.equal(rowMin(40, []), 63);
+  assert.equal(rowMin(40, [50, 120]), 123);
+  assert.equal(rowMin(40, [20]), 63);
+});
+
+test("lineTop puts a line in the middle of the real gap, from the rows' shares", () => {
+  // Rows 100 and 300 of 400 share the room left after one 12 px gap.
+  assert.equal(lineTop([100, 300], 0, 12), "calc((100% - 12px) * 0.25 + 6px)");
 });
