@@ -858,7 +858,7 @@ Blank and custom slides:
 
 Where they go ("in", default "side"; blank, title and custom slides have no boxes, so leave "in" out there):
 - "side": the question's picture box, or the open area under the question on short-answer slides (see above).
-- "A", "B", "C", "D": an option box ("A" and "B" only on true-false slides). If the option has text, its pictures sit on the right half, beside the text. An option can be just a picture: leave its text empty ("").
+- "A", "B", "C", "D": an option box ("A" and "B" only on true-false slides). Like the question box, an option's text spans the whole box and its pictures sit on top of the text, on the right half: keep that option's text short enough for the left half. An option can be just a picture: leave its text empty ("").
 
 How they look:
 - "size" (small, medium, large) is compared to the box. On "grid" and "list" slides, small is shown as medium.
@@ -1122,7 +1122,8 @@ function buildSlide(
         const width = getContainerBounds(option.id, slide).width;
         // Text boxes Claude puts in an option need room like its pictures do.
         const hasPictures = [...recipe.elements, ...(recipe.textBoxes ?? [])].some((el) => el.in === OPTION_LABELS[i]);
-        const need = optionNeedFor(option.text, hasPictures ? width / 2 : width, option.fontSize ?? OPTION_FONT_SIZE);
+        // The text spans the whole box (pictures sit on top of it, like the question's).
+        const need = optionNeedFor(option.text, width, option.fontSize ?? OPTION_FONT_SIZE);
         return hasPictures ? Math.max(need, equal) : need;
       });
       const round = (h: number) => Math.max(0.01, Math.round(h * 100) / 100);
@@ -1471,13 +1472,15 @@ function describeSlide(slide: Slide, texts: BlankText[], pictures: SvgElement[],
     if (hasOptions(slide)) {
       getShownOptions(slide).forEach((option, i) => {
         const box = getContainerBounds(option.id, slide);
-        // Pictures in an option sit on its right half, so its text should fit in the left half.
+        // The text spans the whole box and pictures sit on top of it (like the question's), on the right half: text
+        // past the left half runs under them.
         const hasPictures = pictures.some((picture) => picture.containerId === option.id);
-        const room = { width: box.width / (hasPictures ? 2 : 1) - OPTION_TEXT_PADDING, height: box.height - OPTION_TEXT_PADDING };
+        const height = box.height - OPTION_TEXT_PADDING;
         const fontSize = option.fontSize ?? OPTION_FONT_SIZE;
-        if (tooLong(option.text, room, fontSize)) {
-          const where = hasPictures ? "the left half of its box" : "its box";
-          warnings.push(`option ${OPTION_LABELS[i]} is probably too long for ${where} at ${fontSize}px, so it will be cut off.`);
+        if (tooLong(option.text, { width: box.width - OPTION_TEXT_PADDING, height }, fontSize)) {
+          warnings.push(`option ${OPTION_LABELS[i]} is probably too long for its box at ${fontSize}px, so it will be cut off.`);
+        } else if (hasPictures && tooLong(option.text, { width: box.width / 2 - OPTION_TEXT_PADDING, height }, fontSize)) {
+          warnings.push(`option ${OPTION_LABELS[i]}'s text probably runs under its pictures (they sit on top of the text, on the right half): shorten it or lower its size.`);
         }
       });
     }

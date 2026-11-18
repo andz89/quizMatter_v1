@@ -230,6 +230,9 @@ keeps its own, only the teacher changes it.
   half a second apart, so a drag that pauses longer takes more than one undo).
 - **Grid:** no lines. Its rows are fitted again after Shuffle and reorder (`refitGridRows`), each as tall as its taller
   option, so a column never runs off the slide. Not while typing: "+…" tells the teacher.
+- **Pictures in an option sit on top of its text, like the question box's:** the text always spans the whole option
+  (`OptionCard`, `SlideStaticView`), and the element layer is drawn over it. (Before 2026-11-18 the text kept to the
+  left half when the option had a picture.)
 - Pictures in an option stay as they are while they fit their row and only shrink when it gets too short for them
   (`fitIntoRow`, never grown), so Fit twice changes nothing and a grid's Shuffle doesn't keep resizing them. Their
   room counts the card's border (`OPTION_BORDER`).

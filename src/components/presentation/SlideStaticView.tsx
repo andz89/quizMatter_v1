@@ -222,8 +222,8 @@ export function SlideStaticView({ slide, questionNumber, revealAnswer = false, f
                   >
                     {isCorrect ? "✓" : OPTION_LABELS[index]}
                   </span>
-                  {/* With pictures, the text keeps to the left half, like the editor (OptionCard). */}
-                  <div className={`h-full ${optionElements.length ? "w-1/2" : "w-full"}`}>
+                  {/* Full width, like the editor (OptionCard): pictures sit on top of the text. */}
+                  <div className="h-full w-full">
                     <SlideText
                       text={option.text}
                       html={option.html}

@@ -34,9 +34,8 @@ export function measureOptionNeeds(slide: Slide): number[] {
   const box = getProbe();
   return getShownOptions(slide).map((option) => {
     const pictures = slide.elements.filter((el) => el.containerId === option.id);
-    const inner = getContainerBounds(option.id, slide).width - OPTION_BOX_EDGES;
-    // With pictures, the text keeps to the left half (OptionCard).
-    box.style.width = `${pictures.length ? inner / 2 : inner}px`;
+    // Full width, like OptionCard: pictures sit on top of the text, as in the question box.
+    box.style.width = `${getContainerBounds(option.id, slide).width - OPTION_BOX_EDGES}px`;
     box.style.fontSize = `${option.fontSize ?? OPTION_FONT_SIZE}px`;
     box.innerHTML = (option.html ? toSafeHtml(option.html) : textToHtml(option.text)).replace(/<p([^>]*)><\/p>/g, "<p$1><br></p>");
     const textNeed = box.scrollHeight + OPTION_BOX_EDGES;

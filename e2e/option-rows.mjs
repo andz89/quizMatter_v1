@@ -157,6 +157,16 @@ try {
   await item("s5").scrollIntoViewIfNeeded();
   await page.waitForTimeout(300);
   const pic5 = item("s5").locator('[data-element-id="pic5"]');
+  // Like the question box: the text spans the whole option, and the picture sits on top of it.
+  const card5 = await box("s5-a");
+  const text5 = await option("s5-a").locator('[style*="font-size"]').first().boundingBox();
+  check("an option with a picture keeps its text full width", text5.width > card5.width * 0.9, `${text5.width} of ${card5.width}`);
+  const onTop = await pic5.evaluate((el) => {
+    const r = el.getBoundingClientRect();
+    const hit = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
+    return !!hit && (el === hit || el.contains(hit));
+  });
+  check("the picture sits on top of the option's text", onTop);
   const picBefore = await pic5.boundingBox();
   const line5 = await item("s5").getByRole("separator").first().boundingBox();
   const aBox = await box("s5-a");
