@@ -23,6 +23,7 @@ import {
   hasShapeBox,
   hasOptions,
   getShownOptions,
+  getOptionRoom,
   type BoxLayout,
   MIN_QUESTION_HEIGHT,
   MIN_SHAPE_STRIP_HEIGHT,
@@ -47,6 +48,8 @@ import { finishDraft } from "@/app/actions";
 import { isEmbedSlide } from "./embed";
 import { todayCalendarDate } from "./calendarDate";
 import { newTable, type TableCellSpot } from "./table";
+import { gridRowNeeds, shareOut } from "./optionRows";
+import { measureOptionNeeds } from "./measureOptions";
 import type { Photo, PresentationDetails, Presentation, ReviewerFields, Slide, SlideType, SvgElement } from "./schema";
 import { MAX_ITEM_COUNT, MAX_SLIDES, TOO_MANY_SLIDES_MESSAGE } from "./schema";
 
@@ -263,6 +266,42 @@ function scaleElementsToBoxes(elements: SvgElement[], from: BoxLayout, to: BoxLa
 }
 
 /**
+ * `next` (the slide after a change, e.g. its options moved) with its option rows set to `heights` (slide px: one per
+ * shown option in the lists, one per row in a grid), saved as shares, and the options' pictures scaled from how they
+ * were in `from`. Text sizes never change.
+ */
+function withRowHeights(from: Slide, next: Slide, heights: number[]): Slide {
+  // Two decimals are plenty for a share and keep the saved data short.
+  const shares = heights.map((h) => Math.max(0.01, Math.round(h * 100) / 100));
+  let resized: Slide;
+  if (next.layout === "grid") {
+    if (shares.length !== 2) return next;
+    resized = { ...next, gridRowSizes: [shares[0], shares[1]] };
+  } else {
+    const shown = getShownOptions(next);
+    if (shares.length !== shown.length) return next;
+    const sizes = new Map(shown.map((o, i) => [o.id, shares[i]]));
+    resized = { ...next, options: next.options.map((o) => (sizes.has(o.id) ? { ...o, rowSize: sizes.get(o.id) } : o)) as Slide["options"] };
+  }
+  return { ...resized, elements: scaleElementsToBoxes(next.elements, from, resized) };
+}
+
+/** Fit rows to text (see fitOptionRows), measured in the browser. `from` is the slide before the change. */
+function fitRows(from: Slide, next: Slide): Slide {
+  if (!hasOptions(next)) return next;
+  const needs = measureOptionNeeds(next);
+  const room = getOptionRoom(next);
+  if (next.layout !== "grid") return withRowHeights(from, next, shareOut(needs, room));
+  const rows = gridRowNeeds(needs);
+  return rows.length === 2 ? withRowHeights(from, next, shareOut(rows, room)) : next;
+}
+
+/** After Shuffle or reorder: a grid's rows are fitted again; the lists need nothing (sizes move with options). */
+function refitGridRows(from: Slide, next: Slide): Slide {
+  return next.layout === "grid" ? fitRows(from, next) : next;
+}
+
+/**
  * A strip height that still fits after a layout change or after the strip comes back. The question
  * box is shrunk after this if needed; the strip only gives way when even the smallest question box
  * wouldn't fit next to it.
@@ -374,8 +413,15 @@ interface EditorState {
   // Embed slides: the link they show (already checked with embedLinkSchema).
   setEmbedUrl: (slideId: string, embedUrl: string) => void;
   // Puts a question slide in or takes it out of the question numbers (1, 2, 3…).
+  // Reorder and Shuffle: in a grid the rows are fitted again (text keeps its size); in the lists each row's size moves
+  // with its option.
   reorderOptions: (slideId: string, fromOptionId: string, toOptionId: string) => void;
   shuffleOptions: (slideId: string) => void;
+  // Fit rows to text: each option row gets what its text needs at its own size, the spare room shared out. Never
+  // changes a text size (spec: 2026-11-18-option-row-heights-design.md).
+  fitOptionRows: (slideId: string) => void;
+  // List layouts: the option rows' new heights (a drag line between two rows), in slide px, one per shown option.
+  setOptionRowHeights: (slideId: string, heights: number[]) => void;
   // Empties the question, every option's text and all slide elements; keeps the answer (text and canvas) and layout.
   clearSlide: (slideId: string) => void;
 
@@ -1223,7 +1269,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         const options = [...s.options];
         const [moved] = options.splice(fromIndex, 1);
         options.splice(toIndex, 0, moved);
-        return { ...s, options: options as typeof s.options };
+        return refitGridRows(s, { ...s, options: options as typeof s.options });
       }),
     });
   },
@@ -1240,9 +1286,19 @@ export const useEditorStore = create<EditorState>((set, get) => ({
             [options[i], options[j]] = [options[j], options[i]];
           }
         } while (options.every((o, i) => o.id === s.options[i].id));
-        return { ...s, options: options as typeof s.options };
+        return refitGridRows(s, { ...s, options: options as typeof s.options });
       }),
     });
+  },
+
+  fitOptionRows: (slideId) => {
+    set((state) => ({ presentation: updateSlide(state.presentation, slideId, (s) => fitRows(s, s)) }));
+  },
+
+  setOptionRowHeights: (slideId, heights) => {
+    set((state) => ({
+      presentation: updateSlide(state.presentation, slideId, (s) => (s.layout === "grid" ? s : withRowHeights(s, s, heights))),
+    }));
   },
 
   clearSlide: (slideId) => {
