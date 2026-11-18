@@ -256,6 +256,7 @@ test("math tool settings no panel can make are left out, so the slide still open
     ["fraction-bar", "fraction", [null, { parts: "4", shaded: 1 }, { parts: 4 }, { parts: 13, shaded: 1 }, { parts: 1, shaded: 1 }, { parts: 20000, shaded: 1 }, { parts: 1.5, shaded: 1 }], { parts: 12, shaded: 12 }],
     ["fraction-circle", "fraction", [{ parts: -3, shaded: 1 }, { parts: 13, shaded: 1 }], { parts: 2, shaded: 0 }],
     ["fraction-number", "fraction", [{ parts: 0, shaded: 1 }, { parts: 1000, shaded: 1 }, { parts: 2, shaded: 1000 }], { parts: 999, shaded: 999 }],
+    ["mixed-fraction", "fraction", [{ whole: 0, parts: 4, shaded: 3 }, { whole: 1000, parts: 4, shaded: 3 }, { whole: 1.5, parts: 4, shaded: 3 }, { whole: "2", parts: 4, shaded: 3 }], { whole: 999, parts: 999, shaded: 0 }],
     ["ten-frame", "tenFrame", [null, { count: "5" }, { count: 1, rows: 0, columns: 5 }, { count: 1, rows: 150, columns: 150 }, { count: -1 }, { count: 101 }], { count: 100, rows: 10, columns: 10 }],
     ["base-ten-blocks", "baseTen", [{ hundreds: 1, tens: 1 }, { hundreds: 3000, tens: 0, ones: 0 }, { hundreds: -1, tens: 0, ones: 0 }], { hundreds: 9, tens: 0, ones: 9 }],
     ["thermometer", "thermometer", [{ value: "hot" }, { value: 500 }, { value: -21 }], { value: -20 }],
@@ -298,8 +299,22 @@ test("a table cell keeps a safe background color, and an unsafe one is left out 
   assert.deepEqual(cells?.[1], { html: "<p>Yo</p>" });
 });
 
-test("the saved shape is version 4 (table cell fills)", () => {
-  assert.equal(DATA_VERSION, 4);
+test("the saved shape is version 5 (a mixed fraction's whole number)", () => {
+  assert.equal(DATA_VERSION, 5);
+});
+
+test("a mixed fraction keeps its whole number", () => {
+  const element = { id: "m", assetId: "mixed-fraction", x: 0, y: 0, width: 170, height: 100, color: "#191A2C", containerId: null };
+  const kept = svgElementSchema.parse({ ...element, fraction: { whole: 2, shaded: 3, parts: 4 } });
+  assert.deepEqual(kept.fraction, { whole: 2, shaded: 3, parts: 4 });
+});
+
+test("only a mixed fraction keeps a whole number; on other fractions it's left out", () => {
+  for (const assetId of ["fraction-number", "fraction-bar", "fraction-circle"]) {
+    const element = { id: "f", assetId, x: 0, y: 0, width: 100, height: 100, color: "#191A2C", containerId: null };
+    const slide = slideSchema.parse({ ...blankSlide, elements: [{ ...element, fraction: { whole: 2, shaded: 1, parts: 4 } }] });
+    assert.deepEqual(slide.elements[0].fraction, { shaded: 1, parts: 4 }, assetId);
+  }
 });
 
 test("a table keeps its column and row sizes and refuses ones that don't match", () => {

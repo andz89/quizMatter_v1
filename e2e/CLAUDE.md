@@ -93,6 +93,12 @@ Tests that delete data (the announcements ones empty the announcements table) do
   cell colors: the format names a cell's `fill`, `send_presentation` refuses one that isn't a color and builds
   solid and gradient ones, the draft opens in the editor with the colored cells, and `read_presentation` gives a
   saved cell's `fill` back (none for a plain cell).
+- `claude-text-fit.mjs`: Claude's connector and text that never shrinks: the format says so; Claude's own 56 px
+  options in short "list" rows under a strip and a question too long for its `questionHeight` are reported as cut
+  off; left out, the options get a size that fits and the draft opens with no "+…".
+- `hidden-text-mark.mjs`: the "+…" mark on cut-off text: shown on a long question, answer choice, text box and
+  table cell, not on text that fits or outside the editable slides; typing past the bottom shows it, undo and making
+  the box taller take it away.
 - `text-limits.mjs`: pasting past the limit into the question, an answer choice (5,000 characters) and a text box
   (50,000 as HTML, so 10,000 "&" is refused) leaves the text as it was with one toast; up to the limit goes in;
   typing at the limit is refused, deleting works; Ctrl+S saves; the slide name box's `maxlength`.
@@ -120,13 +126,14 @@ Tests that delete data (the announcements ones empty the announcements table) do
   page; a 1280 × 720 screen; New Year's Eve in Manila and Honolulu (Playwright's `clock`, a German browser).
   `ONLY="date box|zoomed" node e2e/diagrams-date-time.mjs` runs just the scenarios whose names match.
 - `math-tools.mjs`: every math tool added from the Elements panel, then each panel at its limits with the drawing read
-  from the SVG: number lines, fractions, the counting frame, blocks, thermometer, bar graph, protractor. Save, reopen
+  from the SVG: number lines, fractions (bar, circle, written and mixed), the counting frame, blocks, thermometer, bar graph, protractor. Save, reopen
   and read the panel back; Reset and undo with the panel open; copy, paste, Duplicate slide; turned and flipped; groups;
   the question and answer boxes; every field surviving a save; present, All slides, the view page; a 1280 × 720 screen;
   bad saved values and numbers no panel can make. `ONLY="bar graph|undo"` runs just the scenarios that match.
 - `all-elements.mjs`: every tile in the Elements panel added, drawn, saved and opened again (the categories are read
   from the panel), then pictures, photo crops, squares, lines, 3D solids, text boxes, custom drawings, layers, align,
-  groups, moving into and between boxes (Alt keeps a free picture on the slide), a photo that never answers, letters
+  groups, the text size box (Escape keeps the old size, + drops a typed size, a typed size stays with its own box
+when another is picked), moving into and between boxes (Alt keeps a free picture on the slide), a photo that never answers, letters
   keeping their size when opened again, a slide at 1,000 elements, present, the view page, and about 30 kinds of bad
   saved data. Each scenario has its own presentation and page. `ONLY="crop|layers"` runs just the scenarios that
   match; to run tiles add `lists its categories|every tile$` (for example `ONLY="lists its categories|every tile$|every tile: Emoji"`).

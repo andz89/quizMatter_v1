@@ -443,9 +443,18 @@ try {
 
     await t.element("t").click();
     await t.wait(150);
-    const size = t.button("Text size (it still shrinks to fit its box)");
-    for (let i = 0; i < 20; i++) await t.button("Bigger text").click();
-    t.ok("Bigger text stops at 96", (await size.innerText()).trim() === "96", await size.innerText());
+    const size = t.page.locator('input[aria-label="Text size"]');
+    await t.button("Bigger text").click();
+    t.ok("Bigger text steps by 1", (await size.inputValue()) === "49", await size.inputValue());
+    await size.click();
+    await size.fill("200");
+    await size.press("Enter");
+    t.ok("a typed size stops at 96", (await size.inputValue()) === "96", await size.inputValue());
+    await t.button("Bigger text").click();
+    t.ok("Bigger text stops at 96", (await size.inputValue()) === "96", await size.inputValue());
+    // Typing in the size box took the focus: pick the text box again for the format toolbar.
+    await t.element("t").click();
+    await t.wait(150);
     await t.button("Bold (Ctrl+B)").click();
     t.ok(
       "saved: words and size",
@@ -458,6 +467,35 @@ try {
     await t.reload("t");
     t.ok("the words open as plain words", (await t.element("t").locator("b:text-is('not bold')").count()) === 0 && (await t.element("t").innerText()).includes("<b>not bold</b>"), await t.element("t").innerText());
     t.ok("opens with no change", (await t.saveLabel()) === "Saved", await t.saveLabel());
+  });
+
+  await scenario("the text size box", [blank("s", [textBox("t", 100, 100), textBox("u", 600, 100)])], async (t) => {
+    const size = t.page.locator('input[aria-label="Text size"]');
+    const pick = async (id) => {
+      await t.element(id).click();
+      await t.wait(200);
+    };
+    await pick("t");
+    await size.click();
+    await size.fill("30");
+    await size.press("Escape");
+    await t.wait(200);
+    await pick("t");
+    t.ok("Escape keeps the old size", (await size.inputValue()) === "48", await size.inputValue());
+
+    await size.click();
+    await size.fill("30");
+    await t.button("Bigger text").click();
+    await t.wait(200);
+    await pick("t");
+    t.ok("+ after typing steps from the old size and drops the typed one", (await size.inputValue()) === "49", await size.inputValue());
+
+    await size.click();
+    await size.fill("30");
+    await pick("u");
+    t.ok("picking another box doesn't give it the typed size", (await size.inputValue()) === "48", await size.inputValue());
+    await pick("t");
+    t.ok("the typed size goes to the box it was typed for", (await size.inputValue()) === "30", await size.inputValue());
   });
 
   await scenario("a text box past its limit", [blank("s", [textBox("t", 300, 100)])], async (t) => {
@@ -473,7 +511,8 @@ try {
     const words = told ? (await t.page.locator("[data-sonner-toast]").first().innerText()).replace(/\s+/g, " ") : "";
     t.ok("a save over the limit tells the teacher why", told && /long|limit|too|characters/i.test(words), words.slice(0, 200));
     t.ok("nothing too long reached the database", ((await t.savedOne("t"))?.text?.html.length ?? 0) <= 50000);
-    t.ok("the box still shows unsaved", (await t.saveLabel()) !== "Saved", await t.saveLabel());
+    // Since the editor stops typing at the save limits (2026-11-17), the too-long text never gets in: nothing changed.
+    t.ok("the too-long text was stopped while typing", (await t.saveLabel()) === "Saved", await t.saveLabel());
   });
 
   await scenario(

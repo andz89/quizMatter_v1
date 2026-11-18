@@ -2,6 +2,16 @@
 // *what* goes on a slide ("3 apples, medium, in the question box"); this file works out *where*
 // — every element's size and position — from the real box sizes.
 import { z } from "zod";
+import {
+  OPTION_TEXT_PADDING,
+  QUESTION_PADDING,
+  QUESTION_TEXT_WIDTH,
+  optionFontSizeFor,
+  questionHeightFor,
+  textBoxHeightFor,
+  textHeightFor,
+  tooLong,
+} from "./importText";
 import { createBlankSlide, TITLE_SLIDE_DESCRIPTION, TITLE_SLIDE_TITLE } from "./factories";
 import type { EmbedKind } from "./embed";
 import {
@@ -11,7 +21,6 @@ import {
   BORDER_WIDTH_MAX,
   CORNER_RADIUS_MAX,
   isFreeCanvas,
-  DEFAULT_QUESTION_HEIGHT,
   DEFAULT_SHAPE_STRIP_HEIGHT,
   getContainerBounds,
   getMaxQuestionHeight,
@@ -26,8 +35,6 @@ import {
   OPTION_FONT_SIZE,
   OPTION_LABELS,
   QUESTION_CONTAINER_ID,
-  QUESTION_CONTAINER_WIDTH,
-  QUESTION_NUMBER_INDENT,
   QUESTION_FONT_SIZE,
   SIDE_CONTAINER_ID,
   ANSWER_CONTAINER_ID,
@@ -191,8 +198,8 @@ const groupName = z
     'Give the same name to the pieces that belong together (e.g. a ribbon and its words: "banner"), so the teacher moves them as one. Only within one slide, and all in the same box.',
   );
 
-// One box of a diagram: its text ("\n" = a new line) and, if wanted, its own look (the same fields the editor saves). Like
-// a text box, long text shrinks to fit the box. Claude always uses the automatic layout; teachers can move and resize
+// One box of a diagram: its text ("\n" = a new line) and, if wanted, its own look (the same fields the editor saves). Long
+// text shrinks to fit the box (unlike other slide text). Claude always uses the automatic layout; teachers can move and resize
 // boxes in the editor.
 const diagramBoxColor = z.union([hexColor, z.literal(DIAGRAM_NONE)]);
 const diagramBox = z
@@ -218,9 +225,9 @@ const claudeFactorNode: z.ZodType<ClaudeFactorNode> = z.lazy(() =>
   }),
 );
 
-// A text's font size (px). The text still shrinks to fit its box, so this is the largest it gets.
+// A text's font size (px). The text never shrinks: what doesn't fit its box is cut off.
 const fontSize = whole(FONT_SIZE_RANGE.min, FONT_SIZE_RANGE.max);
-const fontSizeNote = "Largest font size in px; long text still shrinks to fit. Leave out unless the user asks for bigger or smaller text.";
+const fontSizeNote = "Font size in px; text never shrinks, so what doesn't fit its box is cut off. Leave out unless the user asks for bigger or smaller text, or the text needs it to fit.";
 
 // A table's cell: its words, or its words with their own look and background.
 const tableCell = z.union([
@@ -272,11 +279,16 @@ const elementRecipe = z.object({
     .optional()
     .describe("Only for number-line (11 ticks) and integer-number-line (17 ticks, 0 in the middle)."),
   fraction: z
-    .object({ parts: whole(1, FRACTION_NUMBER_MAX), shaded: whole(0, FRACTION_NUMBER_MAX) })
+    .object({
+      parts: whole(1, FRACTION_NUMBER_MAX),
+      shaded: whole(0, FRACTION_NUMBER_MAX),
+      whole: whole(1, FRACTION_NUMBER_MAX).optional().describe("Only for mixed-fraction: the whole number in front (leave out = 1)."),
+    })
     .optional()
     .describe(
-      `Only for fraction-bar, fraction-circle (parts ${FRACTION_PARTS.min}–${FRACTION_PARTS.max}, shaded 0–parts) ` +
-        `and fraction-number (shaded = top number, parts = bottom number, up to ${FRACTION_NUMBER_MAX}).`,
+      `Only for fraction-bar, fraction-circle (parts ${FRACTION_PARTS.min}–${FRACTION_PARTS.max}, shaded 0–parts), ` +
+        `fraction-number (shaded = top number, parts = bottom number, up to ${FRACTION_NUMBER_MAX}) ` +
+        `and mixed-fraction (the same, plus "whole", e.g. 2 3/4 = { "whole": 2, "shaded": 3, "parts": 4 }).`,
     ),
   tenFrame: z
     .object({
@@ -818,7 +830,7 @@ The question box never holds pictures. Pictures always go in a picture box or an
 - Styled words: inside any text, **word** makes it bold and *word* makes it italic. Write × for times, not *.
 - Style for a whole text ("questionStyle", "optionStyle", "titleStyle", "textStyle", a text box's "style"): "color", "align" (left, center, right), "bold", "italic", "underline". Any color works — e.g. a title in the topic's color, or white words on a dark shape — as long as it's easy to read on what's behind it: the layout report checks that for blank, title and custom slides.
 - "\\n" starts a new line (a new paragraph).
-- Font sizes: every text shrinks to fit its box, so the font size is the largest a text gets. Defaults: question ${QUESTION_FONT_SIZE}px, options ${OPTION_FONT_SIZE}px, blank slide title and text ${TEXT_BOX_FONT_SIZE}px. You can set ${FONT_SIZE_RANGE.min}–${FONT_SIZE_RANGE.max}px, e.g. bigger text for young learners.
+- Font sizes: text never shrinks to fit its box: long text goes onto new lines, and what's past the box's bottom is cut off (the layout report warns). Then lower the font size, shorten the text or give it more room. Defaults: question ${QUESTION_FONT_SIZE}px, options ${OPTION_FONT_SIZE}px (smaller when an option row is too short for one line of it, e.g. "list" rows under a picture strip), blank slide title and text ${TEXT_BOX_FONT_SIZE}px. You can set ${FONT_SIZE_RANGE.min}–${FONT_SIZE_RANGE.max}px, e.g. bigger text for young learners.
 
 === Box sizes (question slides) ===
 
@@ -828,7 +840,7 @@ The question box, the strip and the options share the slide's height, so giving 
   - "list": ${getMaxQuestionHeight({ layout: "list" })}, or ${getMaxQuestionHeight({ layout: "list", hasShapeBox: true })} with a strip.
   - "list-side": ${getMaxQuestionHeight({ layout: "list-side" })}.
   - "short-answer": ${getMaxQuestionHeight({ type: "short-answer", layout: "list" })}.
-- "stripHeight" (px, at least ${MIN_SHAPE_STRIP_HEIGHT}; "grid" and "list" with pictures in "side"): leave it out and the app gives it the room the options can spare. A taller strip means shorter options. If a height is too big, the error says the most allowed.
+- "stripHeight" (px, at least ${MIN_SHAPE_STRIP_HEIGHT}; "grid" and "list" with pictures in "side"): leave it out and the app gives it the room the options can spare. A taller strip means shorter options, and text that doesn't fit an option is cut off. If a height is too big, the error says the most allowed.
 
 === Layouts ===
 
@@ -915,7 +927,7 @@ Arrows that point at part of a picture ("callouts", blank, title and custom slid
 
 === Checking before the final version (the layout report) ===
 
-- send_presentation replies with a layout report: every box's size, and where each text and picture landed, in the same px as "position". Lines starting with "!" point out things to check: pictures that wrapped to more rows or shrank a lot, pictures on top of text, text that will probably shrink, text that's hard to read on what's behind it.
+- send_presentation replies with a layout report: every box's size, and where each text and picture landed, in the same px as "position". Lines starting with "!" point out things to check: pictures that wrapped to more rows or shrank a lot, pictures on top of text, text that will probably be cut off, text that's hard to read on what's behind it.
 - Send the presentation first with "final": false. The user sees it as "Checking…" and can't open it yet. Check the report against what you meant, and fix anything that's off (e.g. give "position" with the numbers you want). You can check again the same way.
 - Then send it with "final": true and the "draftId" you got. That turns the checking version into the finished presentation and gives you the link for the user.
 
@@ -1099,6 +1111,12 @@ function buildSlide(
       // Short options don't need much room, so a strip with pictures takes what the options can spare.
       slide.shapeStripHeight = stripHeight ?? Math.max(DEFAULT_SHAPE_STRIP_HEIGHT, Math.min(MAX_IMPORT_STRIP_HEIGHT, maxStrip));
     }
+    // Text never shrinks: when Claude left the options' size out and a row is too short for one line of the default
+    // (a list row under a picture strip), they get the largest size that fits.
+    if ((recipe.type === "choice" || recipe.type === "true-false") && recipe.optionFontSize === undefined) {
+      const fontSize = optionFontSizeFor(getContainerBounds(slide.options[0].id, slide).height, OPTION_FONT_SIZE);
+      if (fontSize !== undefined) slide.options = slide.options.map((option) => ({ ...option, fontSize })) as Slide["options"];
+    }
   }
 
   // Blank, title and custom slides: the title and text become text boxes, and the pictures get the room that's left.
@@ -1155,7 +1173,7 @@ function buildSlide(
     texts.push({ label: `text box ${i + 1}`, box: element, words: stripMarkup(box.text), bold: box.style?.bold, color: box.style?.color });
     // Free canvas slides report on their text in describeSlide.
     if (!isCanvas && tooLong(stripMarkup(box.text), element, box.fontSize ?? TEXT_BOX_FONT_SIZE, box.style?.bold)) {
-      notes.push(`text box ${i + 1} is probably too long for its box, so it will shrink.`);
+      notes.push(`text box ${i + 1} is probably too long for its box, so it will be cut off.`);
     }
     if (box.group) groupNames.set(element.id, box.group);
     return [element];
@@ -1357,9 +1375,6 @@ interface BlankText {
   color?: string;
 }
 
-// Room an option's text keeps from its box's edges (px, both sides together), about.
-const OPTION_TEXT_PADDING = 16;
-
 function boundsOf(containerId: string | null, slide: Slide): Size {
   return containerId === null ? CANVAS : getContainerBounds(containerId, slide);
 }
@@ -1373,17 +1388,6 @@ function boxLabel(containerId: string | null, slide: Slide): string {
 const formatSize = ({ width, height }: Size) => `${Math.round(width)}×${Math.round(height)}`;
 const formatRect = (rect: Rect) => `${Math.round(rect.x)},${Math.round(rect.y)} ${formatSize(rect)}`;
 
-/** Whether text probably needs more room than the box has at this font size (then it shrinks). A guess: the browser does the real fitting. */
-function tooLong(words: string, box: Size, fontSize: number, bold = false): boolean {
-  if (words.trim() === "") return false;
-  // Words never break in the middle, so a word longer than a line makes the text shrink.
-  const longestWord = Math.max(...words.split(/\s+/).map((word) => word.length));
-  if (longestWord > charsPerLineFor(Math.max(1, box.width), fontSize, bold)) return true;
-  // One line always counts as fitting: a short option in a short list row is fine.
-  const lineHeight = fontSize * LINE_HEIGHT_PER_PX;
-  const lines = textHeightFor(words, Math.max(1, box.width), fontSize, bold) / lineHeight;
-  return lines > Math.max(1, Math.floor(box.height / lineHeight));
-}
 
 /** The slide's boxes, text and pictures (x,y = top-left corner, inside its box), and anything to check. */
 function describeSlide(slide: Slide, texts: BlankText[], pictures: SvgElement[], notes: string[]): string[] {
@@ -1394,7 +1398,7 @@ function describeSlide(slide: Slide, texts: BlankText[], pictures: SvgElement[],
     if (texts.length) lines.push(`Text: ${texts.map(({ label, box }) => `${label} ${formatRect(box)}`).join(" · ")}`);
     for (const { label, box, words, bold, color = DEFAULT_TEXT_COLOR } of texts) {
       const fontSize = box.text?.fontSize ?? TEXT_BOX_FONT_SIZE;
-      if (tooLong(words, box, fontSize, bold)) warnings.push(`the ${label} is probably too long for its box at ${fontSize}px, so it will shrink.`);
+      if (tooLong(words, box, fontSize, bold)) warnings.push(`the ${label} is probably too long for its box at ${fontSize}px, so it will be cut off.`);
       // Checked at a few points across the text, as a shape may sit behind only part of it. The worst one counts.
       const ratios = CONTRAST_POINTS.flatMap((share) => {
         const behind = colorBehind(box.x + box.width * share, box.y + box.height / 2, slide);
@@ -1434,7 +1438,7 @@ function describeSlide(slide: Slide, texts: BlankText[], pictures: SvgElement[],
     }
     lines.push(`Boxes: ${boxes.join(" · ")}`);
     if (tooLong(slide.question, questionRoom, questionFont)) {
-      warnings.push(`the question is probably too long for its box at ${questionFont}px, so it will shrink.`);
+      warnings.push(`the question is probably too long for its box at ${questionFont}px, so it will be cut off.`);
     }
     if (hasOptions(slide)) {
       getShownOptions(slide).forEach((option, i) => {
@@ -1445,7 +1449,7 @@ function describeSlide(slide: Slide, texts: BlankText[], pictures: SvgElement[],
         const fontSize = option.fontSize ?? OPTION_FONT_SIZE;
         if (tooLong(option.text, room, fontSize)) {
           const where = hasPictures ? "the left half of its box" : "its box";
-          warnings.push(`option ${OPTION_LABELS[i]} is probably too long for ${where} at ${fontSize}px, so it will shrink.`);
+          warnings.push(`option ${OPTION_LABELS[i]} is probably too long for ${where} at ${fontSize}px, so it will be cut off.`);
         }
       });
     }
@@ -1843,38 +1847,6 @@ function overlaps(a: Rect, b: Rect): boolean {
 // Tallest strip an import makes (px), so the options never shrink more than they need to.
 const MAX_IMPORT_STRIP_HEIGHT = 240;
 
-// For each px of font size, a character is about this wide and a line this tall (px).
-const CHAR_WIDTH_PER_PX = 0.525;
-const LINE_HEIGHT_PER_PX = 1.25;
-// Bold letters are about this much wider than regular ones.
-const BOLD_WIDTH = 1.08;
-// The room the question box's edges take (px), top + bottom (and left + right): p-4 plus its 1px border.
-const QUESTION_PADDING = 34;
-// Room the question text has across: slides from Claude are numbered, so their question box is narrower.
-const QUESTION_TEXT_WIDTH = QUESTION_CONTAINER_WIDTH - QUESTION_PADDING - QUESTION_NUMBER_INDENT;
-
-/** How many characters fit on one line of a box `width` wide at `fontSize`, about. */
-function charsPerLineFor(width: number, fontSize: number, bold = false): number {
-  return Math.max(1, Math.floor(width / (fontSize * CHAR_WIDTH_PER_PX * (bold ? BOLD_WIDTH : 1))));
-}
-
-/** Roughly how tall `text` is at `fontSize` in a box `width` wide. Each \n starts a new line. */
-function textHeightFor(text: string, width: number, fontSize: number, bold = false): number {
-  const charsPerLine = charsPerLineFor(width, fontSize, bold);
-  const lines = text.split("\n").reduce((sum, line) => sum + Math.max(1, Math.ceil(line.length / charsPerLine)), 0);
-  return lines * fontSize * LINE_HEIGHT_PER_PX;
-}
-
-/** A text box's height for `text`: its guessed height plus half a line, as the guess is rough. */
-function textBoxHeightFor(text: string, width: number, fontSize: number, bold = false): number {
-  return Math.ceil(textHeightFor(text, width, fontSize, bold) + (fontSize * LINE_HEIGHT_PER_PX) / 2);
-}
-
-/** A question box just tall enough for its text — short questions get a shorter box. Never taller than the default. */
-function questionHeightFor(question: string, fontSize = QUESTION_FONT_SIZE): number {
-  const height = textHeightFor(question, QUESTION_TEXT_WIDTH, fontSize) + QUESTION_PADDING;
-  return Math.min(DEFAULT_QUESTION_HEIGHT, height);
-}
 
 function toContainerId(box: BoxName, slide: Slide): string | null {
   if (box === "canvas") return null;
@@ -1936,14 +1908,15 @@ function buildSettings(el: ElementRecipe, asset: Asset): Partial<SvgElement> | s
     settings.numberLine = { start, step, hidden: values.flatMap((value, i) => (hidden.includes(value) ? [i] : [])) };
   }
 
-  // Fraction bars/circles and the written fraction share the `fraction` setting.
-  const tool = asset.mathTool === "fractionNumber" ? "fraction" : asset.mathTool;
+  // Fraction bars/circles, the written fraction and the mixed fraction share the `fraction` setting.
+  const tool = asset.mathTool === "fractionNumber" || asset.mathTool === "mixedFraction" ? "fraction" : asset.mathTool;
   for (const key of MATH_SETTINGS) {
     if (el[key] && tool !== key) return `${key} doesn't work on ${el.asset}.`;
   }
 
   if (el.fraction) {
     const { parts, shaded } = el.fraction;
+    if (el.fraction.whole !== undefined && asset.mathTool !== "mixedFraction") return "fraction.whole only works on mixed-fraction.";
     if (asset.mathTool === "fraction") {
       if (parts < FRACTION_PARTS.min || parts > FRACTION_PARTS.max)
         return `fraction.parts must be ${FRACTION_PARTS.min}–${FRACTION_PARTS.max}.`;

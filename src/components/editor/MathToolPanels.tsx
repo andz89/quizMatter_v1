@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { useEditorStore } from "@/lib/store";
+import { sameValue } from "@/lib/sameValue";
 import {
   getElementAsset,
   getNumberLineValue,
@@ -15,6 +16,7 @@ import {
   DEFAULT_NUMBER_LINE,
   DEFAULT_FRACTION,
   DEFAULT_FRACTION_NUMBER,
+  DEFAULT_MIXED_FRACTION,
   DEFAULT_TEN_FRAME,
   DEFAULT_BASE_TEN,
   DEFAULT_THERMOMETER,
@@ -99,10 +101,15 @@ export function MathToolControls({ element, slideId, box }: MathToolControlsProp
   const update: Update = (patch) => {
     const shown: Record<string, unknown> = {
       ...SHOWN_WITHOUT_SETTINGS,
-      fraction: asset?.mathTool === "fractionNumber" ? DEFAULT_FRACTION_NUMBER : DEFAULT_FRACTION,
+      fraction:
+        asset?.mathTool === "fractionNumber"
+          ? DEFAULT_FRACTION_NUMBER
+          : asset?.mathTool === "mixedFraction"
+            ? DEFAULT_MIXED_FRACTION
+            : DEFAULT_FRACTION,
       ...element,
     };
-    if (Object.entries(patch).some(([field, value]) => JSON.stringify(value) !== JSON.stringify(shown[field]))) {
+    if (Object.entries(patch).some(([field, value]) => !sameValue(value, shown[field]))) {
       updateElement(slideId, element.id, patch);
     }
   };
@@ -114,6 +121,8 @@ export function MathToolControls({ element, slideId, box }: MathToolControlsProp
       return <FractionControls element={element} update={update} />;
     case "fractionNumber":
       return <FractionNumberControls element={element} update={update} />;
+    case "mixedFraction":
+      return <MixedFractionControls element={element} update={update} />;
     case "tenFrame":
       return <TenFrameControls key={element.id} element={element} box={box} update={update} />;
     case "baseTen":
@@ -293,6 +302,24 @@ function FractionNumberControls({ element, update }: { element: SvgElement; upda
       {/* Never 0 — you can't divide by zero. */}
       <FractionNumberBox label="Denominator" value={fraction.parts} min={1} onChange={(parts) => set({ parts })} />
       <ResetButton onClick={() => set(DEFAULT_FRACTION_NUMBER)} />
+    </ToolPanelButton>
+  );
+}
+
+// Mixed fraction: the written fraction's boxes, plus the whole number in front (at least 1).
+function MixedFractionControls({ element, update }: { element: SvgElement; update: Update }) {
+  const fraction = { ...DEFAULT_MIXED_FRACTION, ...element.fraction };
+  const set = (patch: Partial<typeof fraction>) => update({ fraction: { ...fraction, ...patch } });
+
+  return (
+    <ToolPanelButton title="Edit fraction" icon={<ChartPieIcon size={16} />}>
+      <PanelReadout>
+        {fraction.whole} {fraction.shaded}/{fraction.parts}
+      </PanelReadout>
+      <FractionNumberBox label="Whole number" value={fraction.whole ?? 1} min={1} onChange={(whole) => set({ whole })} />
+      <FractionNumberBox label="Numerator" value={fraction.shaded} min={0} onChange={(shaded) => set({ shaded })} />
+      <FractionNumberBox label="Denominator" value={fraction.parts} min={1} onChange={(parts) => set({ parts })} />
+      <ResetButton onClick={() => set(DEFAULT_MIXED_FRACTION)} />
     </ToolPanelButton>
   );
 }

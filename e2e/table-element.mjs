@@ -261,7 +261,7 @@ try {
   // Text size with the table selected: the whole table's, and it's saved.
   await page.locator('[data-element-toolbar] button[title="Bigger text"]').click();
   await page.keyboard.press("Control+s");
-  check("saved: the table's text size", await waitForSaved((t) => t[0]?.table.fontSize === 28));
+  check("saved: the table's text size", await waitForSaved((t) => t[0]?.table.fontSize === 25));
 
   // Dragging a column's or row's line changes only that one, like Excel.
   const widths = () => Promise.all([0, 1, 2].map(async (c) => (await cell(0, c).boundingBox()).width));
@@ -380,7 +380,9 @@ try {
   await questionSlide.locator('[contenteditable="true"]').last().waitFor();
   await page2.keyboard.type("In a box");
   await page2.keyboard.press("Escape");
-  check("typing works in a table in a box", (await boxCells.first().innerText()).trim() === "In a box");
+  // The cell is too short for the text here, so it also shows the "+…" mark (HiddenTextMark): leave that out.
+  const boxCellText = async () => (await boxCells.first().innerText()).replace("+…", "").trim();
+  check("typing works in a table in a box", (await boxCellText()) === "In a box", JSON.stringify(await boxCellText()));
   const boxPlus = page2.locator('button[title="Add a row"]');
   check('the "+" shows on a table in a box', await boxPlus.isVisible());
   await boxPlus.click();

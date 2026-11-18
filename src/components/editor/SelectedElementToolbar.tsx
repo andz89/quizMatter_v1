@@ -25,6 +25,7 @@ import {
 } from "@/lib/constants";
 import { boxForShownPart, getCropFrame } from "@/lib/crop";
 import { fitInBox } from "@/lib/geometry";
+import { FONT_SIZE_RANGE } from "@/lib/schema";
 import { toCssBackground } from "./ElementSvg";
 import { NONE_SWATCH } from "./ColorPanel";
 import { ArrangePanel } from "./ArrangePanel";
@@ -360,6 +361,7 @@ export function SelectedElementToolbar({ showColor = true }: { showColor?: boole
           <FontSizePicker
             size={firstBox.fontSize ?? DIAGRAM_FONT_SIZE.default}
             sizes={DIAGRAM_FONT_SIZES}
+            range={DIAGRAM_FONT_SIZE}
             onChoose={(fontSize) => setBoxStyle({ fontSize })}
           />
           <button
@@ -398,6 +400,7 @@ export function SelectedElementToolbar({ showColor = true }: { showColor?: boole
             <FontSizePicker
               size={tableElement.table.fontSize ?? TABLE_FONT_SIZE}
               sizes={FONT_SIZES}
+              range={FONT_SIZE_RANGE}
               onChoose={(fontSize) => tableElement.table && updateElement(selectedSlideId, tableElement.id, { table: { ...tableElement.table, fontSize } })}
             />
           )}

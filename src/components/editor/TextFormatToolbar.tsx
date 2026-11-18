@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useEditorState, type ChainedCommands } from "@tiptap/react";
 import { useEditorStore, type TextEditorEntry, type TextTarget } from "@/lib/store";
 import { formatChain } from "@/lib/richText";
 import { DEFAULT_TEXT_COLOR, OPTION_FONT_SIZE, QUESTION_CONTAINER_ID, QUESTION_FONT_SIZE, TABLE_FONT_SIZE, TEXT_BOX_FONT_SIZE } from "@/lib/constants";
-import type { Presentation } from "@/lib/schema";
+import { FONT_SIZE_RANGE, type Presentation } from "@/lib/schema";
 import { EraserIcon, TextAlignCenterIcon, TextAlignEndIcon, TextAlignStartIcon } from "lucide-react";
 
 type Align = "left" | "center" | "right";
@@ -56,7 +56,7 @@ export function TextFormatToolbar({ texts }: { texts: TextEditorEntry[] }) {
       data-keep-container-selection="true"
       className="flex items-center gap-0.5 rounded-button border border-border-default bg-bg-surface p-1"
     >
-      {fontSize !== null && <FontSizePicker size={fontSize} sizes={FONT_SIZES} onChoose={(size) => setTextFontSizes(targets, size)} />}
+      {fontSize !== null && <FontSizePicker size={fontSize} sizes={FONT_SIZES} range={FONT_SIZE_RANGE} onChoose={(size) => setTextFontSizes(targets, size)} />}
 
       <Divider />
 
@@ -151,37 +151,104 @@ function ToolButton({
   );
 }
 
-// Sizes offered in the list; − and + step between them. All within FONT_SIZE_RANGE (see schema.ts).
+// Sizes offered in the list (− and + step by 1). All within FONT_SIZE_RANGE (see schema.ts).
 export const FONT_SIZES = [12, 14, 16, 18, 20, 24, 28, 32, 36, 40, 44, 48, 56, 64, 72, 80, 96];
 
 /**
- * − / size / + with a list of `sizes`. The size is the largest the text gets: it still shrinks to fit
- * its box when it's too long. Used by the text toolbar and by diagram boxes.
+ * − / size / + with a list of `sizes`. The size box takes any whole number in `range` (typed, then Enter or
+ * leaving the box; Escape puts the old one back), − and + step by 1, and clicking the box opens the list.
+ * Used by the text toolbar, tables and diagram boxes.
  */
-export function FontSizePicker({ size, sizes, onChoose }: { size: number; sizes: number[]; onChoose: (size: number) => void }) {
+export function FontSizePicker({
+  size,
+  sizes,
+  range,
+  onChoose,
+}: {
+  size: number;
+  sizes: number[];
+  range: { min: number; max: number };
+  onChoose: (size: number) => void;
+}) {
   const [isListOpen, setIsListOpen] = useState(false);
+  // What's typed in the box and not used yet; null = the box shows `size`.
+  const [typed, setTyped] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  // The size and `onChoose` from when the box got the focus. A typed size goes to the text it was typed for, even
+  // when the click that leaves the box picks another text first.
+  const atFocus = useRef<{ size: number; onChoose: (size: number) => void } | null>(null);
+  // The typed size to use when the box is left; null = nothing to use (Escape, a list pick, − / + or ↑ / ↓).
+  // A ref, not the state: blur() runs onBlur at once, before React has redrawn with the new state.
+  const pending = useRef<string | null>(null);
 
-  const smaller = sizes.findLast((option) => option < size);
-  const bigger = sizes.find((option) => option > size);
-  const choose = (next: number | undefined) => {
-    if (next !== undefined) onChoose(next);
-    setIsListOpen(false);
+  const clamp = (next: number) => Math.min(range.max, Math.max(range.min, Math.round(next)));
+  const choose = (next: number) => {
+    const clamped = clamp(next);
+    if (clamped !== size) onChoose(clamped);
+    return clamped;
+  };
+  const forgetTyped = () => {
+    pending.current = null;
+    setTyped(null);
+  };
+  const stepBy = (delta: 1 | -1) => choose(delta > 0 ? Math.floor(size) + 1 : Math.ceil(size) - 1);
+  // − and +: a size typed but not used yet is dropped, so it can't undo the step when the box is left.
+  const stepFromButton = (delta: 1 | -1) => {
+    forgetTyped();
+    inputRef.current?.blur();
+    stepBy(delta);
   };
 
   return (
     <div className="relative flex items-center">
-      <ToolButton title="Smaller text" active={false} onClick={() => choose(smaller)}>
+      <ToolButton title="Smaller text" active={false} onClick={() => stepFromButton(-1)}>
         <span className="text-base leading-none">−</span>
       </ToolButton>
-      <button
-        type="button"
-        onClick={() => setIsListOpen(!isListOpen)}
-        title="Text size (it still shrinks to fit its box)"
-        className="h-8 min-w-10 rounded-dropdown px-1.5 text-sm font-semibold tabular-nums text-text-primary hover:bg-bg-page"
-      >
-        {size}
-      </button>
-      <ToolButton title="Bigger text" active={false} onClick={() => choose(bigger)}>
+      <input
+        ref={inputRef}
+        type="text"
+        inputMode="numeric"
+        aria-label="Text size"
+        title="Text size"
+        value={typed ?? String(size)}
+        // The text toolbar stops mousedown (so typing in a text keeps its focus); this box needs the focus.
+        onMouseDown={(e) => e.stopPropagation()}
+        onFocus={(e) => {
+          e.target.select();
+          atFocus.current = { size, onChoose };
+          setIsListOpen(true);
+        }}
+        onChange={(e) => {
+          const digits = e.target.value.replace(/\D/g, "").slice(0, 3);
+          pending.current = digits === "" ? null : digits;
+          setTyped(digits);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.currentTarget.blur();
+          } else if (e.key === "Escape") {
+            forgetTyped();
+            e.currentTarget.blur();
+          } else if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+            e.preventDefault();
+            forgetTyped();
+            // A size typed next compares with what the arrow just set.
+            atFocus.current = { size: stepBy(e.key === "ArrowUp" ? 1 : -1), onChoose };
+          }
+        }}
+        onBlur={() => {
+          const typedSize = pending.current;
+          const target = atFocus.current ?? { size, onChoose };
+          forgetTyped();
+          atFocus.current = null;
+          setIsListOpen(false);
+          if (typedSize === null) return;
+          const clamped = clamp(Number(typedSize));
+          if (clamped !== target.size) target.onChoose(clamped);
+        }}
+        className="h-8 w-10 rounded-dropdown bg-transparent px-1 text-center text-sm font-semibold tabular-nums text-text-primary outline-none hover:bg-bg-page focus:bg-bg-page focus:ring-2 focus:ring-accent"
+      />
+      <ToolButton title="Bigger text" active={false} onClick={() => stepFromButton(1)}>
         <span className="text-base leading-none">+</span>
       </ToolButton>
 
@@ -191,7 +258,13 @@ export function FontSizePicker({ size, sizes, onChoose }: { size: number; sizes:
             <button
               key={option}
               type="button"
-              onClick={() => choose(option)}
+              // Keeps the focus in the size box until the click is done.
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => {
+                forgetTyped();
+                inputRef.current?.blur();
+                choose(option);
+              }}
               className={`rounded-dropdown py-1.5 text-sm tabular-nums ${
                 option === size ? "bg-accent font-semibold text-white" : "text-text-primary hover:bg-bg-page"
               }`}

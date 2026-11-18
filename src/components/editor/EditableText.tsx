@@ -5,6 +5,7 @@ import { EditorContent } from "@tiptap/react";
 import { useCanvasTextEditor } from "@/lib/useCanvasTextEditor";
 import { textToHtml } from "@/lib/richText";
 import type { TextTarget } from "@/lib/store";
+import { HiddenTextMark } from "./HiddenTextMark";
 
 interface EditableTextProps {
   text: string;
@@ -13,7 +14,7 @@ interface EditableTextProps {
   onChange: (text: string, html: string) => void;
   placeholder: string;
   target: TextTarget;
-  // The largest the text gets; it shrinks when it's too long for its box.
+  // Always shown at this size: long text goes onto new lines, and what's past the box's bottom is cut off.
   fontSize: number;
   // Selected with one click: the header shows the format toolbar for all of this text.
   isSelected?: boolean;
@@ -34,7 +35,7 @@ export function EditableText({
   // Read-only until then, so a drag on the box draws the selection rectangle instead of selecting words.
   const [editStart, setEditStart] = useState<{ x: number; y: number } | null>(null);
 
-  const { editor, ref, fontSize } = useCanvasTextEditor({
+  const { editor, ref, fontSize, hasHiddenText } = useCanvasTextEditor({
     content: html ?? textToHtml(text),
     editStart,
     target,
@@ -53,7 +54,7 @@ export function EditableText({
     <div
       // Already typing: leave it be, so a double-click selects a word instead of moving the cursor.
       onDoubleClick={(e) => setEditStart((current) => current ?? { x: e.clientX, y: e.clientY })}
-      className={`relative flex h-full w-full items-center overflow-hidden ${editStart ? "cursor-text" : ""}`}
+      className={`relative flex h-full w-full items-center ${editStart ? "cursor-text" : ""}`}
     >
       {text === "" && (
         <span className="pointer-events-none absolute text-text-secondary" style={{ fontSize }}>
@@ -63,12 +64,12 @@ export function EditableText({
       <div
         ref={ref}
         // Not typing: no text highlighting, so a drag draws the selection rectangle instead.
-        // no-word-break: a word too long for the box makes the text shrink instead of breaking in the middle.
-        className={`no-word-break h-full w-full overflow-hidden ${editStart ? "" : "select-none"} ${className ?? ""}`}
+        className={`h-full w-full overflow-hidden ${editStart ? "" : "select-none"} ${className ?? ""}`}
         style={{ fontSize, lineHeight: 1.25 }}
       >
         <EditorContent editor={editor} className="h-full" />
       </div>
+      {hasHiddenText && <HiddenTextMark />}
     </div>
   );
 }

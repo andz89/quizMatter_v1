@@ -940,10 +940,10 @@ try {
     await t.selectDiagram("f");
     const bigger = t.toolbar.locator('button[title="Bigger text"]');
     const smaller = t.toolbar.locator('button[title="Smaller text"]');
-    const size = async () => (await t.toolbar.locator('button[title^="Text size"]').innerText()).trim();
-    for (let i = 0; i < 14; i++) await bigger.click();
+    const size = () => t.toolbar.locator('input[aria-label="Text size"]').inputValue();
+    for (let i = 0; i < 26; i++) await bigger.click();
     t.ok("Bigger stops at 36", (await size()) === "36", await size());
-    for (let i = 0; i < 14; i++) await smaller.click();
+    for (let i = 0; i < 32; i++) await smaller.click();
     t.ok("Smaller stops at 6", (await size()) === "6", await size());
     t.ok(
       "saved: the size at the limit",
