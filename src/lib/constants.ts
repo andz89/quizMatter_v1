@@ -1,5 +1,6 @@
 import type { Slide } from "./schema";
 import { isEmbedSlide } from "./embed";
+import { heightsFromShares } from "./optionRows";
 
 export const CANVAS_WIDTH = 1280;
 export const CANVAS_HEIGHT = 720;
@@ -150,20 +151,23 @@ const CONTENT_HEIGHT = CANVAS_HEIGHT - CARD_PADDING * 2;
 
 export type SlideLayout = Slide["layout"];
 // The parts of a slide that decide how big each box is.
-export type BoxLayout = Pick<Slide, "questionHeight" | "layout" | "hasShapeBox" | "type" | "shapeStripHeight" | "questionBox">;
+// `options` and `gridRowSizes` give each option row its own height; without them the rows are equal.
+export type BoxLayout = Pick<Slide, "questionHeight" | "layout" | "hasShapeBox" | "type" | "shapeStripHeight" | "questionBox"> &
+  Partial<Pick<Slide, "options" | "gridRowSizes">>;
 
 // Tailwind classes for the options area in each layout (the canvas, thumbnails and presentation
 // all use these, so they can't drift apart). list-side puts this area and the side box in a row.
+// The rows' heights come from getOptionsGridStyle (each row its own height).
 const OPTIONS_GRID_CLASSES: Record<SlideLayout, string> = {
-  grid: "grid-cols-2 grid-rows-2 gap-x-24 gap-y-5",
-  list: "grid-rows-4 gap-3",
-  "list-side": "grid-rows-4 gap-3",
+  grid: "grid-cols-2 gap-x-24 gap-y-5",
+  list: "gap-3",
+  "list-side": "gap-3",
 };
 // True-or-false slides have 2 cards: side by side in the grid, 2 rows in the lists.
 const TRUE_FALSE_GRID_CLASSES: Record<SlideLayout, string> = {
-  grid: "grid-cols-2 grid-rows-1 gap-x-24",
-  list: "grid-rows-2 gap-3",
-  "list-side": "grid-rows-2 gap-3",
+  grid: "grid-cols-2 gap-x-24",
+  list: "gap-3",
+  "list-side": "gap-3",
 };
 
 export function getOptionsGridClasses(box: Pick<Slide, "type" | "layout">): string {
@@ -384,17 +388,47 @@ export function getContainerBounds(containerId: string | null, box: BoxLayout): 
       ? { width: LIST_SIDE_HALF_WIDTH - SIDE_PADDING * 2, height: getOptionsAreaHeight(box) - SIDE_PADDING * 2 }
       : { width: QUESTION_CONTAINER_WIDTH, height: getShapeStripHeight(box) }; // the strip has no inner padding
   }
-  const optionsHeight = getOptionsAreaHeight(box);
-  // True-or-false slides have 1 grid row or 2 list rows instead of 2 and 4.
-  const gridRows = box.type === "true-false" ? 1 : 2;
-  const listRows = gridRows * 2;
+  const heights = getOptionRowHeights(box);
+  // An option this slide doesn't hold (or no options given): the first row's place, as before.
+  const shownIndex = box.options ? getShownOptions({ type: box.type, options: box.options }).findIndex((o) => o.id === containerId) : -1;
+  const place = Math.max(0, shownIndex);
   return {
     width: box.layout === "list" ? OPTIONS_WIDTH : box.layout === "grid" ? GRID_OPTION_WIDTH : LIST_SIDE_HALF_WIDTH,
-    height:
-      box.layout === "grid"
-        ? (optionsHeight - GRID_ROW_GAP * (gridRows - 1)) / gridRows
-        : (optionsHeight - LIST_GAP * (listRows - 1)) / listRows,
+    height: heights[box.layout === "grid" ? place >> 1 : place] ?? heights[0],
   };
+}
+
+// True-or-false slides have 1 grid row or 2 list rows instead of 2 and 4.
+function getOptionRowCount(box: BoxLayout): number {
+  const gridRows = box.type === "true-false" ? 1 : 2;
+  return box.layout === "grid" ? gridRows : gridRows * 2;
+}
+
+/** The height the option rows share: the options area less the gaps between the rows. */
+export function getOptionRoom(box: BoxLayout): number {
+  const gap = box.layout === "grid" ? GRID_ROW_GAP : LIST_GAP;
+  return getOptionsAreaHeight(box) - gap * (getOptionRowCount(box) - 1);
+}
+
+/**
+ * Each option row's height (list layouts: one per shown option, in order; grid: one per row), from the saved shares
+ * (optionRows.ts): the options' `rowSize` in the lists, the slide's `gridRowSizes` in a grid. Missing = equal rows.
+ */
+export function getOptionRowHeights(box: BoxLayout): number[] {
+  const count = getOptionRowCount(box);
+  const room = getOptionRoom(box);
+  if (box.layout === "grid") {
+    const shares = count === 2 && box.gridRowSizes ? [...box.gridRowSizes] : Array<number | undefined>(count).fill(undefined);
+    return heightsFromShares(shares, room);
+  }
+  const shown = box.options ? getShownOptions({ type: box.type, options: box.options }) : [];
+  const shares = shown.length === count ? shown.map((o) => o.rowSize) : Array<number | undefined>(count).fill(undefined);
+  return heightsFromShares(shares, room);
+}
+
+/** The options grid's rows, for the canvas, thumbnails and presenting (one style, so they can't drift apart). */
+export function getOptionsGridStyle(box: BoxLayout): { gridTemplateRows: string } {
+  return { gridTemplateRows: getOptionRowHeights(box).map((h) => `${h}px`).join(" ") };
 }
 
 /**

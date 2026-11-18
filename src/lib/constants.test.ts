@@ -1,6 +1,15 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { getSlideNumbers, presentStartIndex, shownSlides, stepPresentation } from "./constants";
+import {
+  getContainerBounds,
+  getOptionRoom,
+  getOptionRowHeights,
+  getOptionsGridStyle,
+  getSlideNumbers,
+  presentStartIndex,
+  shownSlides,
+  stepPresentation,
+} from "./constants";
 import type { Slide } from "./schema";
 
 const slide = (id: string, extra: Partial<Slide> = {}) => ({ id, type: "choice", ...extra }) as Slide;
@@ -51,4 +60,60 @@ test("shownSlides leaves out hidden slides, in order", () => {
 test("shownSlides keeps every slide when every slide is hidden (like presenting)", () => {
   const slides = [slide("a", { hidden: true }), slide("b", { hidden: true })];
   assert.deepEqual(shownSlides(slides).map((s) => s.id), ["a", "b"]);
+});
+
+// ─── Option row heights ────────────────────────────────────────────────────────────────────────────────────
+const choice = (extra: Partial<Slide> = {}) =>
+  ({
+    id: "s",
+    type: "choice",
+    layout: "list",
+    questionHeight: 160,
+    options: ["o1", "o2", "o3", "o4"].map((id) => ({ id, text: id })),
+    ...extra,
+  }) as Slide;
+const withRowSizes = (sizes: (number | undefined)[]) =>
+  choice().options.map((o, i) => ({ ...o, rowSize: sizes[i] })) as Slide["options"];
+const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0);
+const near = (a: number, b: number) => assert.ok(Math.abs(a - b) < 0.001, `${a} ≈ ${b}`);
+
+test("equal rows when no option has rowSize (older slides look as before)", () => {
+  const before = getContainerBounds("o1", { type: "choice", layout: "list", questionHeight: 160 });
+  const heights = getOptionRowHeights(choice());
+  assert.equal(heights.length, 4);
+  heights.forEach((h) => near(h, before.height));
+  ["o1", "o2", "o3", "o4"].forEach((id) => near(getContainerBounds(id, choice()).height, before.height));
+});
+
+test("list rows follow rowSize and fill the room", () => {
+  const slide = choice({ options: withRowSizes([1, 3, 1, 1]) });
+  const heights = getOptionRowHeights(slide);
+  near(sum(heights), getOptionRoom(slide));
+  near(heights[1], heights[0] * 3);
+  near(getContainerBounds("o2", slide).height, heights[1]);
+});
+
+test("true-false uses the first two options' rowSize", () => {
+  const slide = choice({ type: "true-false", options: withRowSizes([1, 3, 50, 50]) });
+  const heights = getOptionRowHeights(slide);
+  assert.equal(heights.length, 2);
+  near(heights[1], heights[0] * 3);
+});
+
+test("grid uses gridRowSizes, list uses rowSize", () => {
+  const options = withRowSizes([5, 1, 1, 1]);
+  const grid = choice({ layout: "grid", options, gridRowSizes: [1, 2] });
+  const rows = getOptionRowHeights(grid);
+  assert.equal(rows.length, 2);
+  near(rows[1], rows[0] * 2);
+  near(getContainerBounds("o2", grid).height, rows[0]);
+  near(getContainerBounds("o3", grid).height, rows[1]);
+  const list = choice({ options, gridRowSizes: [1, 2] });
+  near(getOptionRowHeights(list)[0], getOptionRowHeights(list)[1] * 5);
+});
+
+test("getOptionsGridStyle lists the row heights", () => {
+  const slide = choice({ options: withRowSizes([1, 3, 1, 1]) });
+  const heights = getOptionRowHeights(slide);
+  assert.equal(getOptionsGridStyle(slide).gridTemplateRows, heights.map((h) => `${h}px`).join(" "));
 });

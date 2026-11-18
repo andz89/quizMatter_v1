@@ -9,6 +9,7 @@ import {
   CANVAS_HEIGHT,
   OPTIONS_AREA_CLASSES,
   getOptionsGridClasses,
+  getOptionsGridStyle,
   getShownOptions,
   hasOptions,
   ADD_SHAPE_BOX_ROW_HEIGHT,
@@ -147,7 +148,7 @@ export function SlideCanvas({ slide, questionNumber }: SlideCanvasProps) {
           <div className={OPTIONS_AREA_CLASSES}>
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
               <SortableContext items={shownOptions.map((o) => o.id)} strategy={rectSortingStrategy}>
-                <div className={`grid min-h-0 flex-1 ${getOptionsGridClasses(slide)}`}>
+                <div className={`grid min-h-0 flex-1 ${getOptionsGridClasses(slide)}`} style={getOptionsGridStyle(slide)}>
                   {shownOptions.map((option, index) => (
                     <OptionCard
                       key={option.id}
