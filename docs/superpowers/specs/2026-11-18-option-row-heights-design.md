@@ -65,8 +65,8 @@ Teachers need the room to go where the text is.
 
 - **Rows never pass the bottom of the slide**: the sizes are shares of the room, so they always fill it exactly.
   Dragging the question box, the picture strip or switching layout keeps each row's share.
-- **Measuring** happens in the editor (browser), at the option's real text width (half width when it has pictures,
-  `OptionCard`), after the fonts load. The store's actions get the needs from a small measuring helper.
+- **Measuring** happens in the editor (browser), at the option's full text width (`measureOptions.ts`), after the
+  fonts load. The store's actions get the needs from it.
 - **Pictures in an option:** the row's need is at least the bottom of its lowest picture (my call), and when a row's
   height changes its pictures scale with it, like `scaleElementsToBoxes` does for the question box.
 - **Box sizes:** `getContainerBounds` returns each option's own height (today one size for all four), so pictures,
@@ -108,3 +108,19 @@ Teachers need the room to go where the text is.
 - The zod maximum for `rowSize`, and how the measuring helper is shared between the editor and the store.
 - Notes: `src/components/editor/CLAUDE.md` (a section), `src/lib/CLAUDE.md` (the helper, the new fields),
   `src/pages/api/CLAUDE.md` (Claude's import).
+
+## Changes after the first build (2026-11-18, after the user tried it)
+
+- **Fit rows to text is on grid slides only.** List slides use the drag lines.
+- **The lines and the question box / picture strip resize bar** share one look: a violet bar, solid on hover; the
+  lines add a faint dashed violet line across the gap.
+- **An option's pictures sit on top of its text, like the question box's:** the text always spans the whole option
+  (before, it kept to the left half when the option had a picture). Fit measures at full width; Claude's import
+  still puts option pictures on the right half and its report warns when text runs under them.
+- **Pictures never grow on Fit or a grid Shuffle:** they stay as they are while they fit their row and only shrink
+  when it gets too short (`fitIntoRow`), so Fit twice changes nothing. A drag line stops at an option's lowest
+  picture (`rowMin`), so a drag never squeezes one.
+- **Claude's import:** a picture strip Claude left at its own height gets shorter when the options need the room
+  (never the text); an option holding pictures or text boxes keeps at least an equal row.
+- **Known limit:** Claude can't read or set row sizes, so its edit of a saved presentation sizes dragged rows by
+  their text again (text sizes stay).

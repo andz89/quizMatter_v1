@@ -7,7 +7,10 @@ Slides drawn without the editor: fullscreen presenting, cards, the view page, re
   `slideBackgroundCss`; they draw nothing for a color `isSafeColor` refuses, see `src/lib/CLAUDE.md`), the shape box
   frame and `QuestionNumberBadge`, which the editor reuses.
   `revealAnswer` shows the right answer; `liveEmbed` plays a video / slide deck (only on the slide being shown), and gives a picture slide from another
-  website its "Show picture" button (see `src/components/editor/CLAUDE.md`).
+  website its "Show picture" button (see `src/components/editor/CLAUDE.md`). Option rows take their heights from
+  `getOptionsGridStyle` (each option's `rowSize`, a grid's `gridRowSizes`), the same style as the editor, and an
+  option's text spans the whole option with its pictures on top (see "Option row heights" in
+  `src/components/editor/CLAUDE.md`).
 - `FluidSlidePreview.tsx`: a slide shrunk to fit its box's width (cards, lists, panels). Use it for any small
   picture of a slide; don't scale slides another way. `HiddenSlideMark` there fades a hidden slide's picture and adds
   an eye-off mark (also used by the editor's `SlideThumbnailPreview`).
