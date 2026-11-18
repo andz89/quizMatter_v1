@@ -272,11 +272,16 @@ const elementRecipe = z.object({
     .optional()
     .describe("Only for number-line (11 ticks) and integer-number-line (17 ticks, 0 in the middle)."),
   fraction: z
-    .object({ parts: whole(1, FRACTION_NUMBER_MAX), shaded: whole(0, FRACTION_NUMBER_MAX) })
+    .object({
+      parts: whole(1, FRACTION_NUMBER_MAX),
+      shaded: whole(0, FRACTION_NUMBER_MAX),
+      whole: whole(1, FRACTION_NUMBER_MAX).optional().describe("Only for mixed-fraction: the whole number in front (leave out = 1)."),
+    })
     .optional()
     .describe(
-      `Only for fraction-bar, fraction-circle (parts ${FRACTION_PARTS.min}–${FRACTION_PARTS.max}, shaded 0–parts) ` +
-        `and fraction-number (shaded = top number, parts = bottom number, up to ${FRACTION_NUMBER_MAX}).`,
+      `Only for fraction-bar, fraction-circle (parts ${FRACTION_PARTS.min}–${FRACTION_PARTS.max}, shaded 0–parts), ` +
+        `fraction-number (shaded = top number, parts = bottom number, up to ${FRACTION_NUMBER_MAX}) ` +
+        `and mixed-fraction (the same, plus "whole", e.g. 2 3/4 = { "whole": 2, "shaded": 3, "parts": 4 }).`,
     ),
   tenFrame: z
     .object({
@@ -1936,14 +1941,15 @@ function buildSettings(el: ElementRecipe, asset: Asset): Partial<SvgElement> | s
     settings.numberLine = { start, step, hidden: values.flatMap((value, i) => (hidden.includes(value) ? [i] : [])) };
   }
 
-  // Fraction bars/circles and the written fraction share the `fraction` setting.
-  const tool = asset.mathTool === "fractionNumber" ? "fraction" : asset.mathTool;
+  // Fraction bars/circles, the written fraction and the mixed fraction share the `fraction` setting.
+  const tool = asset.mathTool === "fractionNumber" || asset.mathTool === "mixedFraction" ? "fraction" : asset.mathTool;
   for (const key of MATH_SETTINGS) {
     if (el[key] && tool !== key) return `${key} doesn't work on ${el.asset}.`;
   }
 
   if (el.fraction) {
     const { parts, shaded } = el.fraction;
+    if (el.fraction.whole !== undefined && asset.mathTool !== "mixedFraction") return "fraction.whole only works on mixed-fraction.";
     if (asset.mathTool === "fraction") {
       if (parts < FRACTION_PARTS.min || parts > FRACTION_PARTS.max)
         return `fraction.parts must be ${FRACTION_PARTS.min}–${FRACTION_PARTS.max}.`;

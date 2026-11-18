@@ -93,10 +93,12 @@ export interface ElementAsset {
   // Which math tool this is, for the ones with their own settings panel (each uses its matching
   // setting, e.g. "fraction" uses `fraction`). Fraction bars and circles share "fraction".
   // The written fraction ("fractionNumber") also uses `fraction`: shaded = numerator, parts = denominator.
+  // The mixed fraction ("mixedFraction") too, plus `whole`, the whole number in front.
   // The Diagrams (flowchart, cycle, mind map, tree, factor tree) use this too, with their own setting each.
   mathTool?:
     | "fraction"
     | "fractionNumber"
+    | "mixedFraction"
     | "tenFrame"
     | "baseTen"
     | "thermometer"
@@ -341,20 +343,46 @@ export const DEFAULT_FRACTION: FractionSettings = { parts: 4, shaded: 1 };
 // Written fraction: `shaded` is the numerator (top), `parts` the denominator (bottom).
 export const DEFAULT_FRACTION_NUMBER: FractionSettings = { parts: 2, shaded: 1 };
 
-// Draws a written fraction — numerator, a bar, denominator — all in the element color.
-function renderFractionNumber(color: string, { parts, shaded }: FractionSettings = DEFAULT_FRACTION_NUMBER) {
-  // Widen the bar to cover the longer number (a digit is about 0.7× the 34 font size wide).
-  const digits = Math.max(String(shaded).length, String(parts).length);
-  const halfBar = Math.min(46, digits * 12 + 8);
+// Mixed fraction: `whole` in front of the written fraction. Missing whole = 1.
+export const DEFAULT_MIXED_FRACTION: FractionSettings = { whole: 1, parts: 2, shaded: 1 };
+
+// Half the width of a written fraction's bar: it covers the longer number (a digit is about 0.7× the 34 font size wide).
+function fractionHalfBar({ parts, shaded }: FractionSettings) {
+  return Math.min(46, Math.max(String(shaded).length, String(parts).length) * 12 + 8);
+}
+
+// Numerator, a bar, denominator, centered on x in a 100 tall area.
+function drawFraction(color: string, x: number, { parts, shaded }: FractionSettings, halfBar: number) {
   return (
     <>
-      <text x="50" y="27" textAnchor="middle" dominantBaseline="central" fontSize="34" fontWeight="700" fill={color}>
+      <text x={x} y="27" textAnchor="middle" dominantBaseline="central" fontSize="34" fontWeight="700" fill={color}>
         {shaded}
       </text>
-      <line x1={50 - halfBar} y1="50" x2={50 + halfBar} y2="50" stroke={color} strokeWidth="5" strokeLinecap="round" />
-      <text x="50" y="74" textAnchor="middle" dominantBaseline="central" fontSize="34" fontWeight="700" fill={color}>
+      <line x1={x - halfBar} y1="50" x2={x + halfBar} y2="50" stroke={color} strokeWidth="5" strokeLinecap="round" />
+      <text x={x} y="74" textAnchor="middle" dominantBaseline="central" fontSize="34" fontWeight="700" fill={color}>
         {parts}
       </text>
+    </>
+  );
+}
+
+// Draws a written fraction — numerator, a bar, denominator — all in the element color.
+function renderFractionNumber(color: string, fraction: FractionSettings = DEFAULT_FRACTION_NUMBER) {
+  return drawFraction(color, 50, fraction, fractionHalfBar(fraction));
+}
+
+// Draws a mixed fraction in a 170×100 area: the whole number, big, ending at x 72, then the fraction just after it.
+// The whole number shrinks so up to 3 digits fit in the 70 units before it (a bold digit is about 0.6× its size wide).
+function renderMixedFraction(color: string, fraction: FractionSettings = DEFAULT_MIXED_FRACTION) {
+  const whole = fraction.whole ?? 1;
+  const fontSize = Math.min(64, 70 / (String(whole).length * 0.6));
+  const halfBar = fractionHalfBar(fraction);
+  return (
+    <>
+      <text x="72" y="50" textAnchor="end" dominantBaseline="central" fontSize={fontSize} fontWeight="700" fill={color}>
+        {whole}
+      </text>
+      {drawFraction(color, 80 + halfBar, fraction, halfBar)}
     </>
   );
 }
@@ -2644,6 +2672,16 @@ const ASSETS: ElementAsset[] = [
     defaultColor: "#191A2C",
     mathTool: "fractionNumber",
     render: (color, { fraction }) => renderFractionNumber(color, fraction),
+  },
+  {
+    id: "mixed-fraction",
+    category: "math",
+    label: "Mixed Fraction",
+    defaultColor: "#191A2C",
+    mathTool: "mixedFraction",
+    viewBox: "0 0 170 100",
+    defaultSize: { width: 170, height: 100 },
+    render: (color, { fraction }) => renderMixedFraction(color, fraction),
   },
   {
     id: "ten-frame",

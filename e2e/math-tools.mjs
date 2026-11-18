@@ -32,6 +32,7 @@ const integerLine = (id, x, y, extra) => item("integer-number-line", id, x, y, 7
 const bar = (id, x, y, extra) => item("fraction-bar", id, x, y, 480, 96, extra);
 const circle = (id, x, y, extra) => item("fraction-circle", id, x, y, 200, 200, extra);
 const written = (id, x, y, extra) => item("fraction-number", id, x, y, 200, 200, extra);
+const mixed = (id, x, y, extra) => item("mixed-fraction", id, x, y, 340, 200, extra);
 const frame = (id, x, y, extra) => item("ten-frame", id, x, y, 220, 92, extra);
 const blocks = (id, x, y, extra) => item("base-ten-blocks", id, x, y, 280, 144, extra);
 const thermometer = (id, x, y, extra) => item("thermometer", id, x, y, 90, 300, extra);
@@ -355,6 +356,38 @@ try {
     await t.page.getByRole("button", { name: "Reset", exact: true }).click();
     await t.wait(100);
     t.ok("Reset goes back to 1/2", (await t.drawn("w")).join() === "1,2" && (await t.numberBox("Numerator").inputValue()) === "1", (await t.drawn("w")).join());
+  });
+
+  await scenario("mixed fraction", [blank("s", [mixed("m", 100, 100)])], async (t) => {
+    t.ok("starts at 1 1/2", (await t.drawn("m")).join() === "1,1,2", (await t.drawn("m")).join());
+    await t.open("m", "Edit fraction");
+    const whole = t.numberBox("Whole number");
+    await whole.fill("2");
+    await t.numberBox("Numerator").fill("3");
+    await t.numberBox("Denominator").fill("4");
+    t.ok("2 3/4 is drawn", (await t.drawn("m")).join() === "2,3,4", (await t.drawn("m")).join());
+    await t.element("m").screenshot({ path: `${SHOTS}math-mixed-fraction.png` });
+    for (const [bad, what] of [["0", "a whole number of 0"], ["1000", "1000"], ["1.5", "a decimal"]]) {
+      await whole.fill(bad);
+      await t.wait(100);
+      t.ok(`${what} is refused`, (await t.drawn("m")).join() === "2,3,4", (await t.drawn("m")).join());
+    }
+    await whole.fill("999");
+    await t.numberBox("Numerator").fill("999");
+    await t.numberBox("Denominator").fill("999");
+    t.ok("999 999/999 fits in the drawing", await t.element("m").evaluate((el) => [...el.querySelectorAll("svg text")].every((x) => { const b = x.getBBox(); return b.x >= 0 && b.x + b.width <= 170; })));
+    t.ok("the whole number doesn't run into the fraction", await t.element("m").evaluate((el) => { const [w, top] = [...el.querySelectorAll("svg text")].map((x) => x.getBBox()); return w.x + w.width <= top.x; }));
+    await whole.fill("12");
+    await t.numberBox("Numerator").fill("5");
+    await t.numberBox("Denominator").fill("8");
+    t.ok("saved: the mixed fraction", await t.save(async () => same((await t.savedOne("m"))?.fraction, { whole: 12, shaded: 5, parts: 8 })), JSON.stringify((await t.savedOne("m"))?.fraction));
+    await t.reload("m");
+    t.ok("opens again the same", (await t.drawn("m")).join() === "12,5,8", (await t.drawn("m")).join());
+    await t.open("m", "Edit fraction");
+    t.ok("the panel reads it back", (await t.numberBox("Whole number").inputValue()) === "12" && (await t.numberBox("Denominator").inputValue()) === "8");
+    await t.page.getByRole("button", { name: "Reset", exact: true }).click();
+    await t.wait(100);
+    t.ok("Reset goes back to 1 1/2", (await t.drawn("m")).join() === "1,1,2", (await t.drawn("m")).join());
   });
 
   await scenario("counting frame", [blank("s", [frame("f", 300, 100)])], async (t) => {

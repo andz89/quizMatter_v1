@@ -29,7 +29,11 @@
   presenting goes through, for the view page's Prev/Next); tests `constants.test.ts`.
 - `factories.ts`: new blank slides and presentations, `duplicateSlide`.
 - `svgLibrary.tsx` (very big): every drawing in the Elements panel and the diagram layouts. Before changing diagram
-  code here, read the Diagrams rules in `src/components/editor/CLAUDE.md`.
+  code here, read the Diagrams rules in `src/components/editor/CLAUDE.md`. The two written fractions share an
+  element's `fraction`: the Written Fraction (`shaded` over `parts`) and the Mixed Fraction (the same, plus `whole`
+  in front, 1–999, missing = 1; DATA_VERSION 5, `20261231002000_mixed_fraction.sql`, spec
+  `docs/superpowers/specs/2026-11-18-mixed-fraction-design.md`). Only the mixed one reads `whole`, and Claude's
+  import refuses it on anything else. Their panels are in `src/components/editor/MathToolPanels.tsx`.
 - `importPresentation.ts` (very big): turns Claude's simple "recipe" JSON into real slides, working out every
   element's size and place. `getClaudeFormat()` is the format text Claude reads.
 - `importTable.ts`: how big Claude's tables are: the start size and the rows shared out by their text, naming the rows

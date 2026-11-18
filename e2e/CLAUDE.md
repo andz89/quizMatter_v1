@@ -120,7 +120,7 @@ Tests that delete data (the announcements ones empty the announcements table) do
   page; a 1280 × 720 screen; New Year's Eve in Manila and Honolulu (Playwright's `clock`, a German browser).
   `ONLY="date box|zoomed" node e2e/diagrams-date-time.mjs` runs just the scenarios whose names match.
 - `math-tools.mjs`: every math tool added from the Elements panel, then each panel at its limits with the drawing read
-  from the SVG: number lines, fractions, the counting frame, blocks, thermometer, bar graph, protractor. Save, reopen
+  from the SVG: number lines, fractions (bar, circle, written and mixed), the counting frame, blocks, thermometer, bar graph, protractor. Save, reopen
   and read the panel back; Reset and undo with the panel open; copy, paste, Duplicate slide; turned and flipped; groups;
   the question and answer boxes; every field surviving a save; present, All slides, the view page; a 1280 × 720 screen;
   bad saved values and numbers no panel can make. `ONLY="bar graph|undo"` runs just the scenarios that match.

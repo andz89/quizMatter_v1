@@ -316,7 +316,13 @@ const MATH_TOOL_SCHEMAS = {
   numberLine: z.object({ start: z.number(), step: z.number(), hidden: z.array(z.number()).max(100) }),
   // Fraction bars/circles: equal parts and how many are shaded, missing = 4 parts, 1 shaded (cleanElement also holds a
   // bar or circle to FRACTION_PARTS). Written fractions: `shaded` on top, `parts` below, missing = 1/2.
-  fraction: z.object({ parts: wholeNumber(1, FRACTION_NUMBER_MAX), shaded: wholeNumber(0, FRACTION_NUMBER_MAX) }),
+  // Mixed fractions: the same, plus the whole number in front (`whole`, only theirs; missing = 1, and the whole
+  // setting missing = 1 1/2). `whole` was added in DATA_VERSION 5.
+  fraction: z.object({
+    parts: wholeNumber(1, FRACTION_NUMBER_MAX),
+    shaded: wholeNumber(0, FRACTION_NUMBER_MAX),
+    whole: wholeNumber(1, FRACTION_NUMBER_MAX).optional(),
+  }),
   // The counting frame: how many dots, and the grid size (missing rows/columns = 2×5). Missing = 5 dots on a 2×5 grid.
   tenFrame: z.object({
     count: wholeNumber(0, TEN_FRAME_SIDE_MAX * TEN_FRAME_SIDE_MAX),
@@ -458,7 +464,7 @@ export function embedLinkSchema(kind: EmbedKind) {
 // a save from a lower version than the one that last saved that presentation (QMOLD), so an editor tab running
 // older code can't drop fields it doesn't know. Bump it whenever the saved shape changes: see "Changing the saved
 // shape" in src/lib/CLAUDE.md.
-export const DATA_VERSION = 4;
+export const DATA_VERSION = 5;
 
 // True when a presentation was saved by newer app code than this tab runs. Copying it here would drop fields this tab
 // doesn't know, so copy paths check this first (the database refuses it too, with QMOLD).
