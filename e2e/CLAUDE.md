@@ -164,6 +164,8 @@ when another is picked), moving into and between boxes (Alt keeps a free picture
   match; to run tiles add `lists its categories|every tile$` (for example `ONLY="lists its categories|every tile$|every tile: Emoji"`).
 - `proxy.mjs`: an expired session opening /login is refreshed and the redirect keeps the new cookies; `/api/mcp`
   skips the proxy, `/api/mcp-admin` and `/api/claude-photos` don't.
+- `admin-list.mjs`: Admin → Admins as the super admin: every admin with Super admin / Admin and Two-step on / not
+  set up (an admin row without an authenticator app); a plain admin gets "page not found" and no menu item.
 - `reports-plain-admin.mjs`: Admin → Reports as a plain admin: a teacher's reported copy has Hide and Delete, a
   reported QuizMatter lesson has neither and says why.
 - `submissions.mjs`: Submit to QuizMatter from start to end. An editor submits from the card's ⋮ menu (an empty
