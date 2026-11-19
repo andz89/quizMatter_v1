@@ -1,5 +1,5 @@
 // "+…" on cut-off text: slide text never shrinks, so a text whose end is past its box's bottom shows the mark in the
-// editor (question, answer choice, text box, table cell, and while typing), never on text that fits, the slide
+// editor (question, answer choice, text box, and while typing), never on text that fits, a table's cells, the slide
 // thumbnails or presenting.
 import { randomUUID } from "node:crypto";
 import { chromium } from "playwright";
@@ -90,7 +90,7 @@ try {
   check("the cut-off question and answer choice show the mark", (await marksIn(s1)) === 2, String(await marksIn(s1)));
   check("a text box that fits shows none", (await marksIn(el("short"))) === 0);
   check("a cut-off text box shows it", (await marksIn(el("long"))) === 1);
-  check("only the cut-off table cell shows it", (await marksIn(el("tbl"))) === 1, String(await marksIn(el("tbl"))));
+  check("a table never shows it, even on a cut-off cell", (await marksIn(el("tbl"))) === 0, String(await marksIn(el("tbl"))));
   await page.screenshot({ path: `${SHOTS}hidden-text-mark.png` });
 
   // Hovering the mark says why (a "title" shows only on something the pointer can reach).

@@ -380,8 +380,7 @@ try {
   await questionSlide.locator('[contenteditable="true"]').last().waitFor();
   await page2.keyboard.type("In a box");
   await page2.keyboard.press("Escape");
-  // The cell is too short for the text here, so it also shows the "+…" mark (HiddenTextMark): leave that out.
-  const boxCellText = async () => (await boxCells.first().innerText()).replace("+…", "").trim();
+  const boxCellText = async () => (await boxCells.first().innerText()).trim();
   check("typing works in a table in a box", (await boxCellText()) === "In a box", JSON.stringify(await boxCellText()));
   const boxPlus = page2.locator('button[title="Add a row"]');
   check('the "+" shows on a table in a box', await boxPlus.isVisible());

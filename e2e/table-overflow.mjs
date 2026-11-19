@@ -153,8 +153,7 @@ try {
   // ─── Text far too long for its cell, saved that way ─────────────────────────────────────────────────────────
   await scenario("a cut-off saved cell", [table("tbl", [["fits", LINES], ["a", "b"]], { width: 400, height: 200 })], async (t) => {
     await t.cell(0, 1).waitFor();
-    t.ok("the cut-off cell shows the mark", (await t.marks(t.cell(0, 1))) === 1);
-    t.ok("only that cell shows it", (await t.marks(t.el("tbl"))) === 1, String(await t.marks(t.el("tbl"))));
+    t.ok('a table never shows "+…", even on a cut-off cell', (await t.marks(t.el("tbl"))) === 0, String(await t.marks(t.el("tbl"))));
     const m = await t.measure(t.cell(0, 1));
     t.ok("its text keeps the table's size (24) and is clipped, not spilled", m.fontSize === 24 && m.cutOff && m.clipped, JSON.stringify(m));
     // Row 1 isn't taller than row 2: the text never stretches its row.
@@ -167,16 +166,9 @@ try {
       Math.abs(tbl.height - 200 * scale) <= 3 && Math.abs(tbl.width - 400 * scale) <= 3,
       JSON.stringify({ tbl, scale }),
     );
-    // The mark sits inside the cell (a cell cuts off whatever is outside it).
-    const mark = await t.box(t.cell(0, 1).locator(MARK));
-    t.ok(
-      "the mark is inside its cell",
-      mark.x >= top.x - 1 && mark.y >= top.y - 1 && mark.x + mark.width <= top.x + top.width + 1 && mark.y + mark.height <= top.y + top.height + 1,
-      JSON.stringify({ mark, cell: top }),
-    );
     await t.page.screenshot({ path: `${SHOTS}table-overflow-saved.png` });
 
-    // Presenting: the same cell is still cut (same size), and there's no mark outside the editor.
+    // Presenting: the same cell is still cut (same size), and no mark.
     await t.page.locator('button[title="Present (fullscreen)"]').first().click();
     await t.page.waitForFunction(() => document.documentElement.dataset.presenting === "true");
     const presenting = t.page.locator("div.fixed.inset-0.z-50");
@@ -202,10 +194,10 @@ try {
       if (i < 15) await t.page.keyboard.press("Enter");
     }
     await t.page.waitForTimeout(300);
-    t.ok("while typing the cell shows the mark", (await t.marks(t.el("tbl"))) === 1, String(await t.marks(t.el("tbl"))));
+    t.ok("while typing: no mark", (await t.marks(t.el("tbl"))) === 0, String(await t.marks(t.el("tbl"))));
     t.ok("while typing the table keeps its size", JSON.stringify(await t.box(t.el("tbl"))) === JSON.stringify(tableBefore));
     await t.stopTyping();
-    t.ok("after typing the cell still shows it", (await t.marks(t.cell(1, 1))) === 1);
+    t.ok("after typing: no mark", (await t.marks(t.el("tbl"))) === 0);
     const cellsAfter = await Promise.all([[0, 0], [1, 0], [2, 2]].map(([r, c]) => t.box(t.cell(r, c))));
     t.ok("the other cells didn't move or grow", JSON.stringify(cellsAfter) === JSON.stringify(cellsBefore), JSON.stringify({ cellsBefore, cellsAfter }));
     const m = await t.measure(t.cell(1, 1));
@@ -225,7 +217,7 @@ try {
     await t.page.reload();
     await t.cell(1, 1).waitFor();
     await t.page.waitForTimeout(400);
-    t.ok("after reload the mark is back", (await t.marks(t.cell(1, 1))) === 1);
+    t.ok("after reload: still no mark", (await t.marks(t.el("tbl"))) === 0);
   });
 
   // ─── Long words, links and emoji stay inside their cell ────────────────────────────────────────────────────
@@ -306,7 +298,7 @@ try {
     await t.page.waitForTimeout(300);
     t.ok("a 40-line paste goes in", (await t.editable.innerText()).includes("pasted 40"));
     t.ok("the table keeps its size", JSON.stringify(await t.box(t.el("tbl"))) === JSON.stringify(tableBefore));
-    t.ok("the cell shows the mark", (await t.marks(t.el("tbl"))) === 1);
+    t.ok("no mark", (await t.marks(t.el("tbl"))) === 0);
 
     // Past the limit: nothing changes, one toast says why.
     await t.page.keyboard.press("Tab");
@@ -343,7 +335,7 @@ try {
     const m = await t.measure(t.cell(1, 1));
     t.ok("96 px text stays 96 px, never shrunk", m.fontSize === 96, JSON.stringify(m));
     t.ok("and doesn't poke out sideways (words break)", !m.pokesOut, JSON.stringify(m));
-    t.ok("every cut-off cell shows the mark", (await t.marks(t.el("tbl"))) === 9, String(await t.marks(t.el("tbl"))));
+    t.ok("no mark on the cut-off cells", (await t.marks(t.el("tbl"))) === 0, String(await t.marks(t.el("tbl"))));
     await t.page.screenshot({ path: `${SHOTS}table-overflow-huge.png` });
 
     // Select the table and type 12 in the size box: everything fits again.
@@ -355,7 +347,7 @@ try {
     await t.page.waitForTimeout(400);
     const small = await t.measure(t.cell(1, 1));
     t.ok("size 12 goes to every cell", small.fontSize === 12, JSON.stringify(small));
-    t.ok("at 12 px no cell is cut off", (await t.marks(t.el("tbl"))) === 0, String(await t.marks(t.el("tbl"))));
+    t.ok("at 12 px no cell is cut off", !small.cutOff, JSON.stringify(small));
     const shown = await t.box(t.el("tbl"));
     t.ok("the table kept its size", Math.abs(shown.width - 300 * (await t.scale())) <= 3, JSON.stringify(shown));
 
@@ -383,13 +375,12 @@ try {
     t.ok("the table got much smaller", after.width < before.width / 2 && after.height < before.height / 2, JSON.stringify({ before, after }));
     const m = await t.measure(t.cell(0, 0));
     t.ok("its text keeps 24 px", m.fontSize === 24, JSON.stringify(m));
-    t.ok("cut-off cells show the mark", (await t.marks(t.el("tbl"))) >= 1, String(await t.marks(t.el("tbl"))));
+    t.ok("no mark on the cut-off cells", (await t.marks(t.el("tbl"))) === 0, String(await t.marks(t.el("tbl"))));
     await t.page.screenshot({ path: `${SHOTS}table-overflow-shrunk.png` });
     await t.page.waitForTimeout(UNDO_STEP_MS);
     await t.page.keyboard.press("Control+z");
     await t.page.waitForTimeout(300);
     t.ok("one undo puts the size back", JSON.stringify(await t.box(t.el("tbl"))) === JSON.stringify(before), JSON.stringify(await t.box(t.el("tbl"))));
-    t.ok("and the mark goes away", (await t.marks(t.el("tbl"))) === 0);
   });
 
   // ─── At the limits: 15 × 15 and 1 × 1 ──────────────────────────────────────────────────────────────────────

@@ -73,6 +73,8 @@ Tests that delete data (the announcements ones empty the announcements table) do
   a Claude draft and on a live QuizMatter lesson; it retries after a lost connection; a review saves its own draft.
   After a conflict (another save since), the reload the toast asks for asks no "Leave page?", the edit comes back,
   and Ctrl+S saves it over the newest copy.
+- `toolbar-rows.mjs`: at 1280 px the middle toolbars: one sits in the middle of the bar's height; typing in a table
+  (text bar + table bar, two rows) keeps the first row inside the bar and none off the top of the screen.
 - `save-button-width.mjs`: at 1280 px with a text box picked, the Save button never runs into the toolbar in the
   middle of the bar (saved, unsaved, saving, couldn't save), and keeps its size while it saves.
 - `hidden-slides.mjs`: hide a slide, save, present (→ / ← skip it), the all-slides grid, then publish it: on the view
@@ -90,11 +92,10 @@ Tests that delete data (the announcements ones empty the announcements table) do
   typed-in row, Delete on a picked cell, duplicate, dragging column and row lines, save, reload, the slide's edge, present, a table in a question
   slide's box, long text and a very long word wrapping at the table's text size (never shrinking).
 - `table-overflow.mjs`: the table at its edges, each scenario with its own presentation and page (`ONLY="paste|limits"`
-  runs just those). A saved cell far too long: "+…" only on it, 24 px, clipped, its row and the table keep their size,
-  presenting clips it with no mark. Typing 15 lines past the bottom (no cell moves; every line saved; the mark after
-  reload). A long link, emoji and a long number stay inside at full size. `<script>`, `<img onerror>` and `&` typed
+  runs just those). Tables never show "+…". A saved cell far too long: 24 px, clipped, its row and the table keep
+  their size, presenting clips it too. Typing 15 lines past the bottom (no cell moves; every line saved). A long link, emoji and a long number stay inside at full size. `<script>`, `<img onerror>` and `&` typed
   show as letters and save escaped; unsafe saved HTML runs nothing. A 40-line paste; a paste past 50,000 (and 10,000
-  "&") refused with one toast. Size 96 never shrinks (all 9 cells marked), 12 fits, a typed 500 saves as 96. Shrunk
+  "&") refused with one toast. Size 96 never shrinks, 12 fits, a typed 500 saves as 96. Shrunk
   under its text and one undo back. 15 × 15 (no "+", the menu's Add greyed out, Tab stops at cell 225), 1 × 1 (no
   Delete row / column; Delete empties the cell), 14 → 15 rows. Broken saved tables (16 rows, uneven rows, wrong
   `columnSizes`) are left out on open, an unsafe cell fill dropped, and saving still works.
@@ -121,8 +122,8 @@ Tests that delete data (the announcements ones empty the announcements table) do
   letters does; the grow mark shows on hover where there's room and its click makes the text bigger, still whole and
   with no broken word; on a long question at 22–30 px, wherever the grow mark shows its click really grows the text;
   a cut-off text box's "+…" shrinks it, a roomy text box shows the grow mark only when selected and grows; save, reload and presenting draw the same rows.
-- `hidden-text-mark.mjs`: the "+…" mark on cut-off text: shown on a long question, answer choice, text box and
-  table cell, not on text that fits or outside the editable slides; typing past the bottom shows it, undo and making
+- `hidden-text-mark.mjs`: the "+…" mark on cut-off text: shown on a long question, answer choice and text box,
+  never on a table cell, not on text that fits or outside the editable slides; typing past the bottom shows it, undo and making
   the box taller take it away.
 - `text-limits.mjs`: pasting past the limit into the question, an answer choice (5,000 characters) and a text box
   (50,000 as HTML, so 10,000 "&" is refused) leaves the text as it was with one toast; up to the limit goes in;

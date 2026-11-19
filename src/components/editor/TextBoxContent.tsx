@@ -64,7 +64,7 @@ export function TextBoxContent({ html, fontSize: chosenFontSize = TEXT_BOX_FONT_
       >
         <EditorContent editor={editor} />
       </div>
-      {hasHiddenText && <HiddenTextMark inTableCell={inTableCell} onFit={inTableCell ? undefined : fit} place={markPlace} />}
+      {hasHiddenText && <HiddenTextMark onFit={fit} place={markPlace} />}
       {!inTableCell && !hasHiddenText && hasSpareRoom && !editStart && <GrowTextMark onFit={fit} isSelected={isSelected} inTextBox place={markPlace} />}
     </div>
   );

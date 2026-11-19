@@ -53,8 +53,10 @@ export function EditorTopBar() {
         </button>
       </div>
 
-      {/* A selected text box gets both bars: its text formatting and the element controls. */}
-      <div className="order-last flex w-full flex-wrap items-center justify-center gap-2 pt-2.5 empty:hidden lg:absolute lg:top-1/2 lg:left-1/2 lg:w-auto lg:-translate-x-1/2 lg:-translate-y-1/2 lg:pt-0">
+      {/* A selected text box gets both bars: its text formatting and the element controls. From laptop width they
+          sit in the middle of the bar, pinned to its top: when they don't fit on one line (typing in a table), the
+          second row hangs below the bar instead of the first one being pushed off the top of the screen. */}
+      <div className="order-last flex w-full flex-wrap items-center justify-center gap-2 pt-2.5 empty:hidden lg:absolute lg:top-1.5 lg:left-1/2 lg:w-auto lg:-translate-x-1/2 lg:pt-0">
         {formatTexts.length > 0 && <TextFormatToolbar texts={formatTexts} />}
         {hasSelectedElements && <SelectedElementToolbar showColor={formatTexts.length === 0} />}
         {formatTexts.length === 0 && !hasSelectedElements && <ShapeBoxToolbar />}
