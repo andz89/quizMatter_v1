@@ -2,7 +2,7 @@ import { ALargeSmallIcon } from "lucide-react";
 import { OUTSIDE_CORNER, markPlaceClasses, type MarkPlace } from "@/lib/markPlace";
 
 /**
- * Outside the corner (markPlace.ts) of the question, an answer choice or a text box whose next text size up still
+ * Outside (markPlace.ts, above the box, right edges lined up) the question, an answer choice or a text box whose next text size up still
  * fits: a click makes the text bigger, as big as still fits (the teacher's own click, never by itself). Shown while the
  * box is hovered or selected, so short options don't all carry one. The other side of HiddenTextMark ("+…", which
  * makes text smaller). Outside, so it never covers the text or the resize handles, even on a small box.

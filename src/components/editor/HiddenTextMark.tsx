@@ -1,7 +1,7 @@
 import { OUTSIDE_CORNER, markPlaceClasses, type MarkPlace } from "@/lib/markPlace";
 
 /**
- * "+…" by the bottom-right corner of a text on the canvas whose end is cut off, so a teacher doesn't miss it. Only in
+ * "+…" beside (markPlace.ts) a text on the canvas whose end is cut off, so a teacher doesn't miss it. Only in
  * the editor (never presenting or thumbnails). Its parent must be `relative`. It sits outside the box, by `place`
  * (markPlace.ts), so it never covers the text or the handles, even on a small box. `inTableCell`: a cell cuts off anything outside it, so the mark sits flush in the cell's own
  * corner, past its padding (`px-2 py-1` in `TableGrid`). `onFit` (the question, answer choices and text boxes): a click makes the text smaller,

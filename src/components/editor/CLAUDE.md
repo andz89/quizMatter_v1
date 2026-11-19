@@ -230,10 +230,10 @@ keeps its own until the teacher changes it (the size box, or a click on its "+â€
   removed 2026-11-18, the user's choice). On the question and answer choices (`canFit` on `EditableText`, from
   `QuestionContainer` and `OptionCard`) and text boxes (`TextBoxContent`; their grow mark shows only while selected; table cells keep the plain mark, a table's size being the whole
   table's): a click on "+â€¦" (cut off) makes the text smaller, and a click on the grow mark (`GrowTextMark.tsx`, an
-  `ALargeSmallIcon`; both marks sit outside the box (`src/lib/markPlace.ts`), past its bottom-right corner, 12 px out past the
-  corner handle, so they never cover the text or handles on a small box; a text box near the slide's right or bottom
-  edge (the slide cuts off what passes it) gets them on its left or above instead (`markSide`, from `SvgElementItem`),
-  inside its corner only when it's nearly as wide or tall as the slide; the gap is see-through padding of the mark's
+  `ALargeSmallIcon`; both marks sit outside the box (`src/lib/markPlace.ts`), 12 px above it (past the corner handles), their
+  right edge lined up with the box's right edge, so they never cover the text or handles on a small box; a text box near the slide's top
+  edge (the slide cuts off what passes it) gets them under it instead (or beside it, tops lined up, when there's no room above or under) (`markSide`, from `SvgElementItem`),
+  inside its corner only when it's nearly as big as the whole slide; the gap is see-through padding of the mark's
   holder, so a hover-only mark keeps the box hovered and a press reaches the handle under it; shown while the box is hovered or selected, never while typing, on empty text or
   at 96 px, and only when the next size up really fits) makes it bigger. Both call `fittingSize` (`src/lib/textFit.ts`)
   on the real text box: the hidden copy at each size, the range halved each try (`largestFittingSize` in `textRoom.ts`,

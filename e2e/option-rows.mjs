@@ -82,7 +82,7 @@ await api("/rest/v1/slides", {
           // Already at the biggest size, with room: no grow mark (its click could give nothing).
           // The user's small text box: the grow mark used to cover it and its handles.
           { id: "tb-small", assetId: "text-box", x: 1150, y: 20, width: 60, height: 60, color: "#1B1530", containerId: null, text: { html: "<p>A</p>", fontSize: 16 } },
-          // A small one at the slide's right edge: its mark goes to its left, still outside and not cut off.
+          // A small one at the slide's right edge: its mark sits above it, lined up, not cut off.
           { id: "tb-edge", assetId: "text-box", x: 1215, y: 200, width: 60, height: 60, color: "#1B1530", containerId: null, text: { html: "<p>B</p>", fontSize: 16 } },
           { id: "tb-max", assetId: "text-box", x: 700, y: 380, width: 500, height: 300, color: "#1B1530", containerId: null, text: { html: "<p>Hi</p>", fontSize: 96 } },
         ],
@@ -236,10 +236,15 @@ try {
   await page.waitForTimeout(400);
   check("one undo puts the question's size back", (await questionSize()) === "44px", await questionSize());
 
-  // A mark is fully past the box's right and bottom edges (so it covers no text and no handle).
+  // A mark is fully above the box (so it covers no text and no handle), its right edge lined up with the box's.
   const outside = async (mark, box) => {
     const [m, b] = [await mark.boundingBox(), await box.boundingBox()];
-    return !!m && !!b && m.x >= b.x + b.width && m.y >= b.y + b.height;
+    return !!m && !!b && m.y + m.height <= b.y && Math.abs(m.x + m.width - (b.x + b.width)) <= 2;
+  };
+  // The same, under the box (a text box at the slide's top edge).
+  const under = async (mark, box) => {
+    const [m, b] = [await mark.boundingBox(), await box.boundingBox()];
+    return !!m && !!b && m.y >= b.y + b.height && Math.abs(m.x + m.width - (b.x + b.width)) <= 2;
   };
   // Nothing covers or cuts off the mark: the point at its middle is the mark itself.
   const seen = (mark) =>
@@ -279,16 +284,16 @@ try {
   await option("s8-b").hover();
   await page.waitForTimeout(200);
   check("a short option with room shows the grow mark on hover", (await grow.count()) === 1 && (await grow.evaluate((el) => getComputedStyle(el).opacity)) === "1");
-  // Every option's and the question's text leaves room for a mark (64 slide px) before the slide's right and bottom edges.
+  // Every option's and the question's text leaves room above it for a mark (its 12 px gap + the grow mark's 38 px).
   const roomy = await item("s8").evaluate((slide) => {
     const sr = slide.querySelector("[data-container-id]").closest(".overflow-hidden")?.getBoundingClientRect() ?? slide.getBoundingClientRect();
     const zoom = slide.querySelector("[data-container-id]").getBoundingClientRect().width / slide.querySelector("[data-container-id]").offsetWidth;
     return [...slide.querySelectorAll("[data-container-id] [style*='font-size']")].map((el) => {
       const r = el.getBoundingClientRect();
-      return Math.min(sr.right - r.right, sr.bottom - r.bottom) / zoom;
+      return (r.top - sr.top) / zoom;
     });
   });
-  check("every option and the question have room for their marks outside", roomy.length >= 5 && roomy.every((r) => r >= 64), roomy.map(Math.round).join(", "));
+  check("every option and the question have room for their marks outside", roomy.length >= 5 && roomy.every((r) => r >= 50), roomy.map(Math.round).join(", "));
   check("the grow mark sits outside the option, not cut off", (await outside(grow, option("s8-b"))) && (await seen(grow)));
   await grow.click();
   await page.waitForTimeout(400);
@@ -352,8 +357,12 @@ try {
   await page.waitForTimeout(300);
   const smallGrow = tbSmall.locator("[data-grow-text-mark]");
   check("a small text box shows the grow mark when selected", (await smallGrow.count()) === 1);
-  check("it sits outside the small box, not cut off by the slide", (await outside(smallGrow, tbSmall)) && (await seen(smallGrow)));
-  check("it doesn't cover the corner handle", await outside(smallGrow, item("tb").locator('[title="Resize"]').last()));
+  check("at the slide's top edge it sits under the small box, not cut off by the slide", (await under(smallGrow, tbSmall)) && (await seen(smallGrow)));
+  const handleClear = async () => {
+    const [m, h] = [await smallGrow.boundingBox(), await item("tb").locator('[title="Resize"]').last().boundingBox()];
+    return !!m && !!h && m.y >= h.y + h.height;
+  };
+  check("it doesn't cover the corner handle", await handleClear());
   await smallGrow.click();
   await page.waitForTimeout(400);
   check("its click makes the small box's text bigger", Number.parseFloat(await tbSize(tbSmall)) > 16, await tbSize(tbSmall));
@@ -362,8 +371,7 @@ try {
   await tbEdge.click();
   await page.waitForTimeout(300);
   const edgeGrow = tbEdge.locator("[data-grow-text-mark]");
-  const [em, eb] = [await edgeGrow.boundingBox(), await tbEdge.boundingBox()];
-  check("at the slide's right edge the mark goes to the box's left, below it", !!em && !!eb && em.x + em.width <= eb.x && em.y >= eb.y + eb.height);
+  check("at the slide's right edge the mark sits above the box, lined up, not past the slide", await outside(edgeGrow, tbEdge));
   check("and it isn't cut off by the slide", await seen(edgeGrow));
   await page.keyboard.press("Escape");
   check("a turned text box that's cut off still shows +…", (await item("tb").locator('[data-element-id="tb-turned"]').locator(MARK).count()) === 1);

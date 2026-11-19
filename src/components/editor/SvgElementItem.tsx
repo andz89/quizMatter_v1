@@ -748,8 +748,8 @@ export const SvgElementItem = memo(function SvgElementItem({ slideId, element, i
               color={element.color}
               editStart={editStart}
               isSelected={isOnlySelected}
-              // The slide cuts off what passes its edge: the marks go to a side that has room.
-              markPlace={{ x: markSide(element.x, element.width, bounds.width), y: markSide(element.y, element.height, bounds.height) }}
+              // The slide cuts off what passes its edge: the marks go above when there's room, else to a side that has it.
+              markPlace={{ x: markSide(element.x, element.width, bounds.width), y: markSide(element.y, element.height, bounds.height, true) }}
               onChange={(html) => updateElement(slideId, element.id, { text: { ...element.text, html } })}
               onStopEditing={() => setEditStart(null)}
             />
