@@ -1,6 +1,7 @@
 import { cache } from "react";
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/database.types";
+import { slideCountLabel } from "@/lib/format";
 import { parseSlide, type Slide } from "@/lib/schema";
 
 /**
@@ -47,12 +48,7 @@ export function publicDescription(p: PublicPresentation): string {
   const own = p.description.trim().replace(/\s+/g, " ");
   if (own) return own.length <= DESCRIPTION_MAX ? own : `${own.slice(0, DESCRIPTION_MAX - 1).trimEnd()}…`;
   const by = p.authorName ? ` by ${p.authorName}` : "";
-  return `${p.title}${by} on QuizMatter: ${slidesWords(p.slideCount)}.`;
-}
-
-/** "1 slide", "3 slides". */
-export function slidesWords(count: number): string {
-  return `${count} ${count === 1 ? "slide" : "slides"}`;
+  return `${p.title}${by} on QuizMatter: ${slideCountLabel(p.slideCount)}.`;
 }
 
 /**

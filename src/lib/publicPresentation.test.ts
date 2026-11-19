@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { publicDescription, toPublicPresentation, type PublicPresentation } from "./publicPresentation.ts";
+import { publicDescription, toPublicPresentation, type PublicPresentation } from "./publicPresentation";
 
 const row = {
   title: "Fractions",
