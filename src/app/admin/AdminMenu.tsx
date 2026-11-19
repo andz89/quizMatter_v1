@@ -32,6 +32,7 @@ const GROUPS: { label: string; items: Item[] }[] = [
     items: [
       { href: "/admin/teachers", label: "Teachers", superOnly: true },
       { href: "/admin/editors", label: "Editors" },
+      { href: "/admin/admins", label: "Admins", superOnly: true },
       { href: "/admin/safety", label: "Safety", superOnly: true },
     ],
   },
