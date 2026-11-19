@@ -189,12 +189,20 @@ smaller. The editor (`EditableText`, `TextBoxContent`) and the read-only `SlideT
 the same way. Diagram boxes are different: their text still shrinks (see "Diagrams").
 
 So a teacher doesn't miss cut-off text, the editor shows a Sunny "+…" (24 px) hanging over the bottom-right corner (a third outside; flush inside a table cell, which cuts off what is outside it) of any text
-whose end is past its box's bottom (`HiddenTextMark.tsx`, hover says why): the question, answer choices and text boxes
+whose letters are cut at its box's bottom (`HiddenTextMark.tsx`, hover says why; on the question, answer choices and
+text boxes a click on it fits the text, see "Option row heights"): the question, answer choices and text boxes
 (`useCanvasTextEditor` returns `hasHiddenText`), the cell being typed in, and the other table cells (`TableGrid`'s
-`markHiddenText`, which `TableContent` turns on, passed to `SlideText`). `useHasHiddenText` (`src/lib`) watches the
+`markHiddenText`, which `TableContent` turns on, passed to `SlideText`). **Tables are left out of the text fit feature
+(the user's rule):** a cell's "+…" keeps its original check, the box's scroll height past its height
+(`useHasHiddenText`, `isTableCell` in `useCanvasTextEditor`), with no click and no grow mark. The question, answer
+choices and text boxes use `useTextRoom` (`src/lib`), which calls `measureRoom` (`src/lib/textFit.ts`): a hidden, unrotated copy of the text at the box's real width (so a turned or
+zoomed box, or one scrolled while typing, measures the same) and its last line's letters. Lexend keeps the bottom
+fifth of a line for letters that hang down (g, y, p, a comma), so cutting only that room off a last line without such
+letters doesn't count (`isCutOff`, `src/lib/textRoom.ts`; a "uniform." whose empty room is cut shows whole). It watches the
 box's size and everything inside it (and checks again once the fonts have loaded), so typing, undo, a size change
-or resizing the box updates it at once. The mark takes the mouse, so its tip shows; a press on it still reaches the
-box (select, drag, double-click to type), and it keeps the focus (`preventDefault` on mousedown), so pressing it while
+or resizing the box updates it at once. The mark takes the mouse, so its tip shows. Where it can't fit the text (table
+cells) a press on it still reaches the box (select, drag, double-click to type); where it can, the press and click stay
+on the mark. Either way it keeps the focus (`preventDefault` on mousedown), so pressing it while
 typing doesn't stop the typing. Typing near the bottom scrolls the box to the cursor (hidden overflow can still
 scroll), so `useCanvasTextEditor` scrolls it back to the top when typing stops: the text's start always shows. It is
 editor only: thumbnails, the view page and presenting never show it. Test: `e2e/hidden-text-mark.mjs`.
@@ -207,10 +215,55 @@ focus, even when the click that leaves the box picks another one first; − / + 
 wasn't used yet. What blur does is kept in refs, since `blur()` runs it before React redraws. The box stops mousedown from reaching the text toolbar (which
 keeps focus in the text), so clicking it while typing ends the typing.
 
+## Option row heights
+
+The option rows share the options area by their text (spec: `docs/superpowers/specs/2026-11-18-option-row-heights-design.md`;
+math: `src/lib/optionRows.ts`; test: `e2e/option-rows.mjs`). **Nothing here changes a text size by itself**: every option
+keeps its own until the teacher changes it (the size box, or a click on its "+…" mark, below).
+
+- **Saved as shares**, numbers that only count compared with each other: each option's `rowSize` in the list layouts
+  (it moves with the option on Shuffle and reorder), the slide's `gridRowSizes` in a grid (by place). Missing = equal
+  rows. `getOptionRowHeights` (`constants.ts`) turns them into heights for `getContainerBounds`, and
+  `getOptionsGridStyle` into the options grid's rows (as `minmax(0, Nfr)`, so they always fill the real area and never
+  pass its bottom) in `SlideCanvas` and `SlideStaticView` alike.
+- **Fit the text on a click** (the only size change here, and only the teacher's click; there's no Fit button:
+  removed 2026-11-18, the user's choice). On the question and answer choices (`canFit` on `EditableText`, from
+  `QuestionContainer` and `OptionCard`) and text boxes (`TextBoxContent`; their grow mark shows only while selected,
+  inside the corner, clear of the resize handle; table cells keep the plain mark, a table's size being the whole
+  table's): a click on "+…" (cut off) makes the text smaller, and a click on the grow mark (`GrowTextMark.tsx`, an
+  `ALargeSmallIcon` in the same corner, shown while the box is hovered or selected, never while typing, on empty text or
+  at 96 px, and only when the next size up really fits) makes it bigger. Both call `fittingSize` (`src/lib/textFit.ts`)
+  on the real text box: the hidden copy at each size, the range halved each try (`largestFittingSize` in `textRoom.ts`,
+  about 7 tries), keeping the biggest that is no taller than the box and breaks no word (all words measured once, in
+  one pass, then scaled; a word too wide even at 12 px, like a web address, is ignored); then `setTextFontSizes` (one
+  undo step). The grow mark's check (`measureRoom` with `withSpare`, asked only while that mark can show:
+  `checkSpareRoom` in `useCanvasTextEditor`) uses the same measure, so it never offers a size the click can't give.
+  The box's height stays. Both marks keep their press (`stopPropagation` on pointerdown), or a text box's drag would
+  take the pointer and swallow the click. The hidden copy drops `contenteditable` and ids and is emptied after each
+  measure (a copy of the typing editor broke "is anyone typing").
+- **Lines between list rows** (`OptionRowLines.tsx`, in the 12 px gap, the `ResizeHandle` look): dragging one makes one
+  row taller and its neighbor shorter, each down to one line of its own text or its lowest picture, whichever is
+  taller (`moveRowLine`, `rowMin`), so a drag never squeezes a picture; ↑ / ↓ move it by 6. Each line is placed with
+  the rows' own shares (`lineTop`, a CSS `calc`), so it sits in the middle of the real gap. Its ↑ / ↓ stop there (the
+  editor's arrow keys would also move a selected picture), and it sits under an option's "+…" mark (`z-[5]` vs
+  `z-10`), which hangs into the gap. The store's `setOptionRowHeights`. Undo takes back a drag (the history joins changes less than
+  half a second apart, so a drag that pauses longer takes more than one undo).
+- **Grid:** no lines. Its rows are fitted again after Shuffle and reorder (`refitGridRows`, rows only: it measures
+  each option with `measureOptionNeeds`, its text at its own size and full width plus its lowest picture), each as tall
+  as its taller option, so a column never runs off the slide. Not while typing: "+…" tells the teacher.
+- **Pictures in an option sit on top of its text, like the question box's:** the text always spans the whole option
+  (`OptionCard`, `SlideStaticView`), and the element layer is drawn over it. (Before 2026-11-18 the text kept to the
+  left half when the option had a picture.)
+- Pictures in an option stay as they are while they fit their row and only shrink when it gets too short for them
+  (`fitIntoRow`, never grown), so a grid's Shuffle doesn't keep resizing them. Their
+  room counts the card's border (`OPTION_BORDER`).
+- The lines and the question box / picture strip's resize bar (`ResizeHandle`) share one look: a violet bar, solid on
+  hover (the lines add a faint dashed line across the gap).
+
 ## Tables
 
 The "Table" tile in the Elements panel. Design: `docs/superpowers/specs/2026-11-08-table-element-design.md`; math:
-`src/lib/table.ts`; browser test: `e2e/table-element.mjs`. When changing them, keep these rules:
+`src/lib/table.ts`; browser tests: `e2e/table-element.mjs`, `e2e/table-overflow.mjs` (edge cases). When changing them, keep these rules:
 
 - **One grid everywhere:** `TableGrid` (`ElementSvg.tsx`) draws a table in the editor, small pictures, presenting and
   drag previews, each cell a read-only `SlideText`. Its lines are one SVG shape over the cells (`tableLinePositions`),
@@ -271,7 +324,7 @@ The "Diagrams" group of the Elements panel. Full design: `docs/superpowers/specs
 
 - **Each box works like a text box:** it keeps its size, its text shrinks to fit (size 12 down to 1; a word too wide for the box shrinks it first so the word isn't cut in two, but not below size 8, `DIAGRAM_WHOLE_WORD_FONT`), and a picked box has the same handles (corners keep the shape, side handles change width or height), drawn over the diagram's own handles so a box at the diagram's corner can be resized from there. Reuse `CORNERS` / `EDGE_HANDLES` from `src/components/editor/handles.ts`; don't make new handles.
 - **One layout, two users:** the layouts in `svgLibrary.tsx` place every box, and `getDiagramBoxes` gives those same boxes to the editor (`DiagramBoxEditor.tsx`). Never place boxes a second way in the editor, or the outline won't match the drawing.
-- **Text is typed on the slide** (double-click a box; Shift+Enter = new line, Enter/Esc/click outside = done). The panels have no text boxes, only box count, Across/Down, Tidy up, Reset (and the Tree's add/remove).
+- **Text is typed on the slide** (double-click a box; Shift+Enter = new line, Enter/Esc/click outside = done; an Enter that picks a word in a Chinese/Japanese/Korean keyboard, `isComposing`, isn't "done", and the same goes for the slide name box). The panels have no text boxes, only box count, Across/Down, Tidy up, Reset (and the Tree's add/remove).
 - **A box's own place and size** (`x, y, width, height`) are saved all together or not at all; missing = its automatic spot. Limits live in `constants.ts` and are checked by `diagramBoxSchema` (zod) before saving.
 - **A box's own look** (`fill`, `border`, `borderWidth`, `textColor`, `fontSize`) is optional; missing = the diagram's Color tint and border, dark text, size 12. The toolbar's box style group and the Color panel (`boxFill` / `boxBorder` / `boxText`) change the picked box, or every box when none is picked, through `diagramStyleTargets` + `withDiagramBoxStyle`. Moving, Tidy up and new boxes keep or copy the look. Spec: `docs/superpowers/specs/2026-10-07-diagram-box-style-design.md`.
 - **"+" and × on every box** of a selected diagram (`DiagramBoxButtons.tsx`) add a box next to it or remove it. The rules per diagram (where, limits, new text, copying the look) live only in `diagramBoxActions` (`svgLibrary.tsx`); the element is kept in place with `keepInPlace`. Delete on a picked box does the same as its × (`boxRemovalPatch`); a box with no × stays, and Delete removes the whole diagram only when no box is picked. Spec: `docs/superpowers/specs/2026-10-07-diagram-box-add-remove-design.md`.

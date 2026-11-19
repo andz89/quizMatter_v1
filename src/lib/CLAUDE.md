@@ -41,8 +41,8 @@
 - `importText.ts`: the import's guesses of how much room text takes (slide text never shrinks, so they are what warns
   Claude): `tooLong` (the layout report's "will be cut off"; counts the room lost where lines end at a whole word, and
   a single line taller than its box), `questionHeightFor` (the question box: its text plus half a line, up to the
-  default), `optionFontSizeFor` (options Claude left at the default get a smaller size when a row is too short for one
-  line, e.g. "list" rows under a picture strip), `textHeightFor` (also sizes tables). Tests: `importText.test.ts`,
+  default), `optionNeedFor` (an option row's height for its text, with the same careful count as `tooLong`; the import
+  sizes option rows with it and never changes an option's text size), `textHeightFor` (also sizes tables). Tests: `importText.test.ts`,
   `e2e/claude-text-fit.mjs`.
 
 ## Saving and loading
@@ -172,6 +172,13 @@
   calendar gets the computer's today, in the store's `addElement`; Claude's import uses `todayInManila` when it
   gives no date). Names are always English, so the server and every browser draw the same. No imports, so tests
   and `schema.ts` load it. Tests: `calendarDate.test.ts`.
+- `optionRows.ts`: the math for option row heights (no imports, tested in `optionRows.test.ts`): `shareOut`,
+  `heightsFromShares`, `gridRowNeeds`, `moveRowLine`, `oneLineHeight`, `rowMin`, `lineTop`, `fitIntoRow`,
+  `OPTION_BOX_EDGES`, `OPTION_BORDER`. Saved as an option's
+  `rowSize` and a slide's `gridRowSizes` (shares; DATA_VERSION 6, `20261231002100_option_row_heights.sql`).
+  `measureOptions.ts` (browser only) measures what each option's row needs (a grid's re-fit). Never changes a text
+  size. How the editor
+  uses them: `src/components/editor/CLAUDE.md`, "Option row heights".
 - `table.ts`: the table element's math (an element's `table`, DATA_VERSION 3, `20261231001100_table_element.sql`;
   cell fills DATA_VERSION 4, `20261231001900_table_cell_fill.sql`):
   a new table, adding, deleting and dragging rows and columns (with the table's new size), a cell's new text, Tab's next cell,
@@ -258,7 +265,12 @@ data. Spec: `docs/superpowers/specs/2026-10-23-stable-presentation-data-design.m
   text) always goes through. Test: `e2e/text-limits.mjs`. Spec:
   `docs/superpowers/specs/2026-11-17-text-limits-while-typing-design.md`.
 - Editor hooks: `useEditorShortcuts`, `useMarqueeSelection`, `useElementDropTarget`, `useCanvasTextEditor`,
-  `useFormatTexts`, `useHasHiddenText` (whether a slide text is cut off at its box's bottom, for the "+…" mark).
+  `useFormatTexts`, `useTextRoom` (the question, answer choices and text boxes: whether the text is cut off, for the "+…" mark, and,
+  when asked, whether the next size up fits, for the grow mark), `useHasHiddenText` (table cells only, untouched by the
+  text fit feature: the box's scroll height past its height), `textFit.ts` (browser only: `measureRoom` and
+  `fittingSize`, both on a hidden, unrotated copy of the text at the box's real width; the click's biggest size that
+  fits), `textRoom.ts` (no imports, tested: `isCutOff`, cutting the empty room under a last line with no g, y, p…
+  doesn't count; `largestFittingSize`, the size search that halves the range).
 
 ## Picture Shapes (for Claude's import)
 

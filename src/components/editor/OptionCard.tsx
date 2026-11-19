@@ -100,8 +100,8 @@ export function OptionCard({ slideId, option, index, isCorrect, elements, box }:
         {isCorrect ? "✓" : OPTION_LABELS[index]}
       </button>
 
-      {/* With pictures, the text keeps to the left half: Claude's import puts them on the right half. */}
-      <div className={`h-full ${boundElements.length ? "w-1/2" : "w-full"}`}>
+      {/* Full width, like the question box: pictures sit on top of the text (the element layer below). */}
+      <div className="h-full w-full">
         <EditableText
           text={option.text}
           html={option.html}
@@ -112,6 +112,7 @@ export function OptionCard({ slideId, option, index, isCorrect, elements, box }:
           fontSize={option.fontSize ?? OPTION_FONT_SIZE}
           isSelected={isContainerSelected}
           className="text-text-primary"
+          canFit
         />
       </div>
 

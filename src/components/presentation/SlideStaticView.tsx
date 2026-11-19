@@ -4,6 +4,7 @@ import {
   OPTION_LABELS,
   OPTIONS_AREA_CLASSES,
   getOptionsGridClasses,
+  getOptionsGridStyle,
   getShownOptions,
   hasOptions,
   QUESTION_CONTAINER_ID,
@@ -198,7 +199,7 @@ export function SlideStaticView({ slide, questionNumber, revealAnswer = false, f
           {/* Keeps the editor's "add shape box" row space empty here, so the options line up. */}
           {!hasShapeBox(slide) && <div className="-my-6 shrink-0" style={{ height: ADD_SHAPE_BOX_ROW_HEIGHT }} />}
           <div className={OPTIONS_AREA_CLASSES}>
-            <div className={`grid min-h-0 flex-1 ${getOptionsGridClasses(slide)}`}>
+            <div className={`grid min-h-0 flex-1 ${getOptionsGridClasses(slide)}`} style={getOptionsGridStyle(slide)}>
               {getShownOptions(slide).map((option, index) => {
                 const isCorrect = revealAnswer && option.id === slide.correctOptionId;
                 const optionElements = slide.elements.filter((el) => el.containerId === option.id);
@@ -221,8 +222,8 @@ export function SlideStaticView({ slide, questionNumber, revealAnswer = false, f
                   >
                     {isCorrect ? "✓" : OPTION_LABELS[index]}
                   </span>
-                  {/* With pictures, the text keeps to the left half, like the editor (OptionCard). */}
-                  <div className={`h-full ${optionElements.length ? "w-1/2" : "w-full"}`}>
+                  {/* Full width, like the editor (OptionCard): pictures sit on top of the text. */}
+                  <div className="h-full w-full">
                     <SlideText
                       text={option.text}
                       html={option.html}

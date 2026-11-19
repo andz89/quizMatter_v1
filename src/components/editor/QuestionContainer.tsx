@@ -209,6 +209,7 @@ export function QuestionContainer({
           fontSize={slide.questionFontSize ?? QUESTION_FONT_SIZE}
           isSelected={isContainerSelected}
           className="font-normal text-text-primary"
+          canFit
         />
 
         <div

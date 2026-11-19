@@ -9,6 +9,7 @@ import {
   CANVAS_HEIGHT,
   OPTIONS_AREA_CLASSES,
   getOptionsGridClasses,
+  getOptionsGridStyle,
   getShownOptions,
   hasOptions,
   ADD_SHAPE_BOX_ROW_HEIGHT,
@@ -21,6 +22,7 @@ import { getElementAsset } from "@/lib/svgLibrary";
 import { useElementDropTarget } from "@/lib/useElementDropTarget";
 import { QuestionContainer } from "./QuestionContainer";
 import { OptionCard } from "./OptionCard";
+import { OptionRowLines } from "./OptionRowLines";
 import { SideContainer } from "./SideContainer";
 import { SvgElementItem } from "./SvgElementItem";
 import { GroupSelectionOverlay } from "./GroupSelectionOverlay";
@@ -147,7 +149,7 @@ export function SlideCanvas({ slide, questionNumber }: SlideCanvasProps) {
           <div className={OPTIONS_AREA_CLASSES}>
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
               <SortableContext items={shownOptions.map((o) => o.id)} strategy={rectSortingStrategy}>
-                <div className={`grid min-h-0 flex-1 ${getOptionsGridClasses(slide)}`}>
+                <div className={`relative grid min-h-0 flex-1 ${getOptionsGridClasses(slide)}`} style={getOptionsGridStyle(slide)}>
                   {shownOptions.map((option, index) => (
                     <OptionCard
                       key={option.id}
@@ -159,6 +161,8 @@ export function SlideCanvas({ slide, questionNumber }: SlideCanvasProps) {
                       box={slide}
                     />
                   ))}
+                  {/* Lines between the rows (lists only: a grid's rows are fitted by text). */}
+                  {slide.layout !== "grid" && <OptionRowLines slide={slide} />}
                 </div>
               </SortableContext>
             </DndContext>

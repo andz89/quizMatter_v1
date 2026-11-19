@@ -89,13 +89,33 @@ Tests that delete data (the announcements ones empty the announcements table) do
 - `table-element.mjs`: add a table, type, Tab, the text bar, both "+", the Table menu, undo taking away a picked or
   typed-in row, Delete on a picked cell, duplicate, dragging column and row lines, save, reload, the slide's edge, present, a table in a question
   slide's box, long text and a very long word wrapping at the table's text size (never shrinking).
+- `table-overflow.mjs`: the table at its edges, each scenario with its own presentation and page (`ONLY="paste|limits"`
+  runs just those). A saved cell far too long: "+…" only on it, 24 px, clipped, its row and the table keep their size,
+  presenting clips it with no mark. Typing 15 lines past the bottom (no cell moves; every line saved; the mark after
+  reload). A long link, emoji and a long number stay inside at full size. `<script>`, `<img onerror>` and `&` typed
+  show as letters and save escaped; unsafe saved HTML runs nothing. A 40-line paste; a paste past 50,000 (and 10,000
+  "&") refused with one toast. Size 96 never shrinks (all 9 cells marked), 12 fits, a typed 500 saves as 96. Shrunk
+  under its text and one undo back. 15 × 15 (no "+", the menu's Add greyed out, Tab stops at cell 225), 1 × 1 (no
+  Delete row / column; Delete empties the cell), 14 → 15 rows. Broken saved tables (16 rows, uneven rows, wrong
+  `columnSizes`) are left out on open, an unsafe cell fill dropped, and saving still works.
 - `claude-table-fill.mjs`: Claude's connector (`/api/mcp`, called as an admin with an aal2 login token) and table
   cell colors: the format names a cell's `fill`, `send_presentation` refuses one that isn't a color and builds
   solid and gradient ones, the draft opens in the editor with the colored cells, and `read_presentation` gives a
   saved cell's `fill` back (none for a plain cell).
-- `claude-text-fit.mjs`: Claude's connector and text that never shrinks: the format says so; Claude's own 56 px
-  options in short "list" rows under a strip and a question too long for its `questionHeight` are reported as cut
-  off; left out, the options get a size that fits and the draft opens with no "+…".
+- `claude-text-fit.mjs`: Claude's connector and text that never shrinks: the format says so and that option rows are
+  sized by their text; Claude's own 90 px options under its own 160 px strip and a question too long for its
+  `questionHeight` are reported as cut off; with the size left out, the options keep 56 px, the strip makes room, and
+  the draft opens with no "+…".
+- `option-rows.mjs`: option row heights. No slide has a Fit rows to text button; a line between list rows trades room
+  and changes no text size (one undo puts it back); Shuffle keeps a list row with its option; text far too big stays
+  inside the options area with "+…" and its size; a grid's columns end together after Shuffles (sizes unchanged), with
+  no lines; a picture's row is never shorter than the picture, a line stops at a picture and sits in the middle of the
+  gap, ↑ / ↓ on a line never move a selected picture, a line never covers a "+…" mark, an option's text stays full
+  width with its picture on top; a click on a cut-off option's or question's "+…" makes only that text smaller until all of
+  it shows (one undo puts the size back); cutting only the empty room under "uniform." shows no "+…", cutting into its
+  letters does; the grow mark shows on hover where there's room and its click makes the text bigger, still whole and
+  with no broken word; on a long question at 22–30 px, wherever the grow mark shows its click really grows the text;
+  a cut-off text box's "+…" shrinks it, a roomy text box shows the grow mark only when selected and grows; save, reload and presenting draw the same rows.
 - `hidden-text-mark.mjs`: the "+…" mark on cut-off text: shown on a long question, answer choice, text box and
   table cell, not on text that fits or outside the editable slides; typing past the bottom shows it, undo and making
   the box taller take it away.

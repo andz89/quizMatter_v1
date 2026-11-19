@@ -46,6 +46,10 @@ import { EMBED_SLIDE_TYPES, MAX_EMBED_URL_LENGTH, isEmbedSlide, readEmbedLink, t
 // it still shrinks to fit its box when it's too long.
 export const FONT_SIZE_RANGE = { min: 12, max: 96 };
 const fontSizeSchema = z.number().int().min(FONT_SIZE_RANGE.min).max(FONT_SIZE_RANGE.max);
+// A row's share of the options area (an option's `rowSize`, a slide's `gridRowSizes`). Only counts compared with the
+// others, so this is just a sane ceiling.
+export const OPTION_ROW_SIZE_MAX = 10_000;
+const rowSizeSchema = z.number().positive().max(OPTION_ROW_SIZE_MAX);
 
 // The most slides a presentation can have. A real limit teachers can reach: the editor stops adding slides past
 // it (store.ts), saves are refused (presentations.ts), and so are Claude's presentations (importPresentation.ts).
@@ -106,6 +110,10 @@ export const optionSchema = z.object({
   html: htmlSchema.optional(),
   // Chosen font size. Missing = OPTION_FONT_SIZE.
   fontSize: fontSizeSchema.optional(),
+  // List layouts: this option's row's share of the options area, compared with the other shown options (see
+  // optionRows.ts). It moves with the option on Shuffle and reorder. Missing on any shown option = equal rows.
+  // (Added in DATA_VERSION 6.)
+  rowSize: rowSizeSchema.optional(),
 });
 
 // A photo in our own storage (only there — see PHOTO_URL_PREFIX), with its real size in px to keep its shape.
@@ -464,7 +472,7 @@ export function embedLinkSchema(kind: EmbedKind) {
 // a save from a lower version than the one that last saved that presentation (QMOLD), so an editor tab running
 // older code can't drop fields it doesn't know. Bump it whenever the saved shape changes: see "Changing the saved
 // shape" in src/lib/CLAUDE.md.
-export const DATA_VERSION = 5;
+export const DATA_VERSION = 6;
 
 // True when a presentation was saved by newer app code than this tab runs. Copying it here would drop fields this tab
 // doesn't know, so copy paths check this first (the database refuses it too, with QMOLD).
@@ -594,6 +602,9 @@ export const slideSchema = z.preprocess(upgradeSlide, z.object({
   // The slide's background color, behind everything. Missing = the plain white surface.
   background: colorSchema.optional(),
   options: z.tuple([optionSchema, optionSchema, optionSchema, optionSchema]),
+  // Grid only: the two rows' shares of the options area, by place (top, bottom), compared with each other. Fitted
+  // again after Shuffle and reorder. Missing = equal rows. (Added in DATA_VERSION 6.)
+  gridRowSizes: z.tuple([rowSizeSchema, rowSizeSchema]).optional(),
   correctOptionId: idSchema.nullable(),
   // Short-answer, custom and blank slides only: the answer the teacher expects. (Their options stay empty and aren't shown.)
   // The answer box stops at MAX_ANSWER_LENGTH; this looser limit keeps older answers opening.
