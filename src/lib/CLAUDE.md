@@ -270,7 +270,8 @@ data. Spec: `docs/superpowers/specs/2026-10-23-stable-presentation-data-design.m
   text fit feature: the box's scroll height past its height), `textFit.ts` (browser only: `measureRoom` and
   `fittingSize`, both on a hidden, unrotated copy of the text at the box's real width; the click's biggest size that
   fits), `textRoom.ts` (no imports, tested: `isCutOff`, cutting the empty room under a last line with no g, y, p…
-  doesn't count; `largestFittingSize`, the size search that halves the range).
+  doesn't count; `largestFittingSize`, the size search that halves the range), `markPlace.ts` (no imports, tested:
+  where the "+…" and grow marks sit, outside the box and away from the slide's edges).
 
 ## Picture Shapes (for Claude's import)
 
