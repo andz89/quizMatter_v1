@@ -1,12 +1,14 @@
+import { OUTSIDE_CORNER, markPlaceClasses, type MarkPlace } from "@/lib/markPlace";
+
 /**
- * "+…" in the bottom-right corner of a text on the canvas whose end is cut off, so a teacher doesn't miss it. Only in
- * the editor (never presenting or thumbnails). Its parent must be `relative`. It hangs over the box's corner,
- * a third of it outside. `inTableCell`: a cell cuts off anything outside it, so the mark sits flush in the cell's own
+ * "+…" beside (markPlace.ts) a text on the canvas whose end is cut off, so a teacher doesn't miss it. Only in
+ * the editor (never presenting or thumbnails). Its parent must be `relative`. It sits outside the box, by `place`
+ * (markPlace.ts), so it never covers the text or the handles, even on a small box. `inTableCell`: a cell cuts off anything outside it, so the mark sits flush in the cell's own
  * corner, past its padding (`px-2 py-1` in `TableGrid`). `onFit` (the question, answer choices and text boxes): a click makes the text smaller,
  * just enough for all of it to show (the teacher's own click, never by itself).
  */
-export function HiddenTextMark({ inTableCell = false, onFit }: { inTableCell?: boolean; onFit?: () => void }) {
-  return (
+export function HiddenTextMark({ inTableCell = false, onFit, place = OUTSIDE_CORNER }: { inTableCell?: boolean; onFit?: () => void; place?: MarkPlace }) {
+  const mark = (
     <span
       data-hidden-text-mark
       title={onFit ? "Some text is hidden. Click to make the text smaller so all of it shows." : "Some text is hidden. Make the box bigger or the text smaller."}
@@ -25,9 +27,12 @@ export function HiddenTextMark({ inTableCell = false, onFit }: { inTableCell?: b
       // keeps the focus, so pressing it while typing doesn't stop the typing.
       onMouseDown={(e) => e.preventDefault()}
       // Sizes are slide pixels: the canvas is zoomed to fit the screen.
-      className={`absolute z-10 ${onFit ? "cursor-pointer hover:ring-2 hover:ring-highlight-strong" : "cursor-help"} ${inTableCell ? "-right-2 -bottom-1" : "right-0 bottom-0 translate-x-1/3 translate-y-1/3"} rounded-dropdown bg-highlight px-2 py-1 font-sans text-[24px] leading-none font-semibold text-text-primary`}
+      className={`${onFit ? "cursor-pointer hover:ring-2 hover:ring-highlight-strong" : "cursor-help"} ${inTableCell ? "absolute z-10 -right-2 -bottom-1" : "pointer-events-auto block"} rounded-dropdown bg-highlight px-2 py-1 font-sans text-[24px] leading-none font-semibold text-text-primary`}
     >
       +…
     </span>
   );
+  if (inTableCell) return mark;
+  // Outside the box (markPlace.ts); the holder's gap lets a press through to the handle under it.
+  return <span className={`pointer-events-none absolute z-10 ${markPlaceClasses(place)}`}>{mark}</span>;
 }

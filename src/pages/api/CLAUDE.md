@@ -69,6 +69,12 @@
   sit on top of it (the import puts them on the right half); the report warns when the text runs under them. The layout report lists each option's box and names any still cut off.
   Claude can't set or read row sizes, so when it edits a saved presentation (`read_presentation`, then a new draft)
   rows a teacher dragged are sized by their text again; text sizes stay. Test: `e2e/claude-text-fit.mjs`.
+- **Small slips are fixed, not refused** (`fitted` in `src/lib/importPresentation.ts`): a position's x / y / width /
+  height, a text size (`fontSize`, also a table's), `questionHeight` and `stripHeight` are rounded and pulled into
+  their range (a 12 px tall arrow → 20, a 10 px table text → 12), since one refusal sends the whole presentation
+  back. The format still shows each range. A `questionHeight` or `stripHeight` above what the slide allows is
+  lowered to the most allowed, and the layout report says so. A value that isn't a number is still refused. Test:
+  `e2e/claude-number-fixes.mjs`.
 - An element's `color` can be a gradient (`gradient:#A,#B`), except on text.
 - Diagrams use the automatic layout: each box is its `text` and, if wanted, its look (`fill`, `border`, `borderWidth`,
   `textColor`, `fontSize`, `shape`), the fields the editor saves. Never a box's place or size.

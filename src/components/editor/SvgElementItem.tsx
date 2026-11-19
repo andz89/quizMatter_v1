@@ -5,6 +5,7 @@ import { tidyUp, useEditorStore } from "@/lib/store";
 import { canCrop, getDiagramBoxes, getElementAsset } from "@/lib/svgLibrary";
 import { ElementSvg } from "./ElementSvg";
 import { TextBoxContent } from "./TextBoxContent";
+import { markSide } from "@/lib/markPlace";
 import { DiagramBoxEditor, findDiagramBoxAt } from "./DiagramBoxEditor";
 import { DiagramBoxButtons } from "./DiagramBoxButtons";
 import { TableButtons, TableContent, TableLines, tableCellAt } from "./TableContent";
@@ -747,6 +748,8 @@ export const SvgElementItem = memo(function SvgElementItem({ slideId, element, i
               color={element.color}
               editStart={editStart}
               isSelected={isOnlySelected}
+              // The slide cuts off what passes its edge: the marks go above when there's room, else to a side that has it.
+              markPlace={{ x: markSide(element.x, element.width, bounds.width), y: markSide(element.y, element.height, bounds.height, true) }}
               onChange={(html) => updateElement(slideId, element.id, { text: { ...element.text, html } })}
               onStopEditing={() => setEditStart(null)}
             />

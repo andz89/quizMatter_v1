@@ -132,6 +132,15 @@ type Asset = NonNullable<ReturnType<typeof getElementAsset>>;
 const ASSET_IDS = ELEMENT_LIBRARY.filter((asset) => !asset.isTextBox && !asset.isTable).map((asset) => asset.id) as [string, ...string[]];
 
 const whole = (min: number, max: number) => z.number().int().min(min).max(max);
+// A size Claude gives a little out of range (a 12px-tall line, a 10px table text, 300.5) is rounded and pulled into
+// the range instead of refused, so one small slip doesn't send a whole presentation back. The format still shows
+// the range (the meta), so Claude knows it.
+const fitted = (min: number, max: number) =>
+  z
+    .number()
+    .transform((n) => Math.min(max, Math.max(min, Math.round(n))))
+    .pipe(whole(min, max))
+    .meta({ type: "integer", minimum: min, maximum: max });
 const assetId = z.enum(ASSET_IDS, { error: (issue) => `"${String(issue.input)}" isn't a picture in the app` });
 // "elements" can also hold a shared photo (asset "photo", with the photo from find_photos) and a table (asset "table", with "table").
 const TABLE_ID = "table";
@@ -164,10 +173,10 @@ const DECORATION_SPOTS = [
 
 // A spot on the 1280×720 slide, in px. Anything reaching past the edge is pulled back in.
 const rect = z.object({
-  x: whole(0, CANVAS_WIDTH),
-  y: whole(0, CANVAS_HEIGHT),
-  width: whole(20, CANVAS_WIDTH),
-  height: whole(20, CANVAS_HEIGHT),
+  x: fitted(0, CANVAS_WIDTH),
+  y: fitted(0, CANVAS_HEIGHT),
+  width: fitted(20, CANVAS_WIDTH),
+  height: fitted(20, CANVAS_HEIGHT),
 });
 
 // A look for a whole text. Single words can also be **bold** or *italic* inside the text itself.
@@ -229,7 +238,7 @@ const claudeFactorNode: z.ZodType<ClaudeFactorNode> = z.lazy(() =>
 );
 
 // A text's font size (px). The text never shrinks: what doesn't fit its box is cut off.
-const fontSize = whole(FONT_SIZE_RANGE.min, FONT_SIZE_RANGE.max);
+const fontSize = fitted(FONT_SIZE_RANGE.min, FONT_SIZE_RANGE.max);
 const fontSizeNote = "Font size in px; text never shrinks, so what doesn't fit its box is cut off. Leave out unless the user asks for bigger or smaller text, or the text needs it to fit.";
 
 // A table's cell: its words, or its words with their own look and background.
@@ -479,7 +488,7 @@ const questionBoxes = {
   textBoxes: placedTextBoxes,
   question: z.string().describe("The question. **word** makes a word bold, *word* italic."),
   questionStyle: textStyle.optional().describe("Look of the whole question."),
-  questionHeight: whole(MIN_QUESTION_HEIGHT, 400)
+  questionHeight: fitted(MIN_QUESTION_HEIGHT, 400)
     .optional()
     .describe("Height of the question box in px. Leave out and the app fits it to the question. The most allowed depends on the layout (see the notes)."),
   pictureBox: z
@@ -570,7 +579,7 @@ const slideRecipe = z.discriminatedUnion("type", [
       ),
     ...questionBoxes,
     questionFontSize: fontSize.optional().describe(`The question. ${fontSizeNote}`),
-    stripHeight: whole(MIN_SHAPE_STRIP_HEIGHT, 600)
+    stripHeight: fitted(MIN_SHAPE_STRIP_HEIGHT, 600)
       .optional()
       .describe('grid/list only: height of the picture strip in px, when pictures go in "side". Leave out and the app picks.'),
     options: z
@@ -590,7 +599,7 @@ const slideRecipe = z.discriminatedUnion("type", [
       .describe("grid = 2 options side by side; list = 2 rows; list-side = 2 rows with a tall picture box beside them. Leave out for grid."),
     ...questionBoxes,
     questionFontSize: fontSize.optional().describe(`The statement. ${fontSizeNote}`),
-    stripHeight: whole(MIN_SHAPE_STRIP_HEIGHT, 600)
+    stripHeight: fitted(MIN_SHAPE_STRIP_HEIGHT, 600)
       .optional()
       .describe('grid/list only: height of the picture strip in px, when pictures go in "side". Leave out and the app picks.'),
     options: z
@@ -843,7 +852,7 @@ The question box, the strip and the options share the slide's height, so giving 
   - "list": ${getMaxQuestionHeight({ layout: "list" })}, or ${getMaxQuestionHeight({ layout: "list", hasShapeBox: true })} with a strip.
   - "list-side": ${getMaxQuestionHeight({ layout: "list-side" })}.
   - "short-answer": ${getMaxQuestionHeight({ type: "short-answer", layout: "list" })}.
-- "stripHeight" (px, at least ${MIN_SHAPE_STRIP_HEIGHT}; "grid" and "list" with pictures in "side"): leave it out and the app gives it the room the options can spare. A taller strip means shorter options, and text that doesn't fit an option is cut off. If a height is too big, the error says the most allowed.
+- "stripHeight" (px, at least ${MIN_SHAPE_STRIP_HEIGHT}; "grid" and "list" with pictures in "side"): leave it out and the app gives it the room the options can spare. A taller strip means shorter options, and text that doesn't fit an option is cut off. A "questionHeight" or "stripHeight" that is too big is lowered to the most allowed, and the layout report says so.
 
 === Layouts ===
 
@@ -1099,18 +1108,25 @@ function buildSlide(
     slide.itemCount = recipe.itemCount;
   }
 
+  // Things Claude may want to fix, for the report.
+  const notes: string[] = [];
   if (!isCanvas) {
     if (recipe.pictureBox && recipe.type === "short-answer") reportError('short-answer slides have no picture box, so leave "pictureBox" out.');
     else if (recipe.pictureBox && !hasShapeBox(slide)) reportError('"pictureBox" needs a picture box: put pictures in "side".');
     // The question box and the strip share the room above the options, so each one's limit depends on the other.
-    const stripHeight = recipe.type === "choice" || recipe.type === "true-false" ? recipe.stripHeight : undefined;
+    // Too tall is lowered to the most allowed (and noted), not refused, so it doesn't send the presentation back.
+    let stripHeight = recipe.type === "choice" || recipe.type === "true-false" ? recipe.stripHeight : undefined;
     const maxQuestion = getMaxQuestionHeight({ ...slide, shapeStripHeight: stripHeight ?? DEFAULT_SHAPE_STRIP_HEIGHT });
     if (recipe.questionHeight && recipe.questionHeight > maxQuestion) {
-      reportError(`"questionHeight" can be at most ${maxQuestion} on this slide.`);
+      slide.questionHeight = maxQuestion;
+      notes.push(`"questionHeight" ${recipe.questionHeight} is more than this slide allows, so it was lowered to ${maxQuestion}.`);
     }
     if (slide.hasShapeBox) {
       const maxStrip = getMaxShapeStripHeight(slide);
-      if (stripHeight && stripHeight > maxStrip) reportError(`"stripHeight" can be at most ${maxStrip} on this slide.`);
+      if (stripHeight && stripHeight > maxStrip) {
+        notes.push(`"stripHeight" ${stripHeight} is more than this slide allows, so it was lowered to ${maxStrip}.`);
+        stripHeight = maxStrip;
+      }
       // Short options don't need much room, so a strip with pictures takes what the options can spare.
       slide.shapeStripHeight = stripHeight ?? Math.max(DEFAULT_SHAPE_STRIP_HEIGHT, Math.min(MAX_IMPORT_STRIP_HEIGHT, maxStrip));
     }
@@ -1171,8 +1187,6 @@ function buildSlide(
     textBoxes.push(textBox(areas.text, markupToHtml(recipe.text!, style), fontSize));
     texts.push({ label: "text", box: textBoxes.at(-1)!, words: stripMarkup(recipe.text!), bold: recipe.textStyle?.bold, color: recipe.textStyle?.color });
   }
-  // Things Claude may want to fix, for the report.
-  const notes: string[] = [];
   // Element id → the "group" name Claude gave it (made into groups below).
   const groupNames = new Map<string, string>();
   // Text boxes Claude placed itself. They sit on top of the pictures, so a label can go on one.

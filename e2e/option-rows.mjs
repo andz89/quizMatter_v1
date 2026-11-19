@@ -80,6 +80,10 @@ await api("/rest/v1/slides", {
           // Turned upside down: its hidden lines are drawn above it on screen, yet it's still cut off.
           { id: "tb-turned", assetId: "text-box", x: 100, y: 400, width: 400, height: 90, rotation: 180, color: "#1B1530", containerId: null, text: { html: `<p>${LONG_C}</p>`, fontSize: 40 } },
           // Already at the biggest size, with room: no grow mark (its click could give nothing).
+          // The user's small text box: the grow mark used to cover it and its handles.
+          { id: "tb-small", assetId: "text-box", x: 1150, y: 20, width: 60, height: 60, color: "#1B1530", containerId: null, text: { html: "<p>A</p>", fontSize: 16 } },
+          // A small one at the slide's right edge: its mark sits above it, lined up, not cut off.
+          { id: "tb-edge", assetId: "text-box", x: 1215, y: 200, width: 60, height: 60, color: "#1B1530", containerId: null, text: { html: "<p>B</p>", fontSize: 16 } },
           { id: "tb-max", assetId: "text-box", x: 700, y: 380, width: 500, height: 300, color: "#1B1530", containerId: null, text: { html: "<p>Hi</p>", fontSize: 96 } },
         ],
       },
@@ -232,6 +236,23 @@ try {
   await page.waitForTimeout(400);
   check("one undo puts the question's size back", (await questionSize()) === "44px", await questionSize());
 
+  // A mark is fully above the box (so it covers no text and no handle), its right edge lined up with the box's.
+  const outside = async (mark, box) => {
+    const [m, b] = [await mark.boundingBox(), await box.boundingBox()];
+    return !!m && !!b && m.y + m.height <= b.y && Math.abs(m.x + m.width - (b.x + b.width)) <= 2;
+  };
+  // The same, under the box (a text box at the slide's top edge).
+  const under = async (mark, box) => {
+    const [m, b] = [await mark.boundingBox(), await box.boundingBox()];
+    return !!m && !!b && m.y >= b.y + b.height && Math.abs(m.x + m.width - (b.x + b.width)) <= 2;
+  };
+  // Nothing covers or cuts off the mark: the point at its middle is the mark itself.
+  const seen = (mark) =>
+    mark.evaluate((el) => {
+      const r = el.getBoundingClientRect();
+      return el.contains(document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2));
+    });
+
   // ─── "+…" only when letters are cut; the grow mark where there's room ────────────────────────────────────
   await item("s8").scrollIntoViewIfNeeded();
   await page.waitForTimeout(300);
@@ -263,6 +284,17 @@ try {
   await option("s8-b").hover();
   await page.waitForTimeout(200);
   check("a short option with room shows the grow mark on hover", (await grow.count()) === 1 && (await grow.evaluate((el) => getComputedStyle(el).opacity)) === "1");
+  // Every option's and the question's text leaves room above it for a mark (its 12 px gap + the grow mark's 38 px).
+  const roomy = await item("s8").evaluate((slide) => {
+    const sr = slide.querySelector("[data-container-id]").closest(".overflow-hidden")?.getBoundingClientRect() ?? slide.getBoundingClientRect();
+    const zoom = slide.querySelector("[data-container-id]").getBoundingClientRect().width / slide.querySelector("[data-container-id]").offsetWidth;
+    return [...slide.querySelectorAll("[data-container-id] [style*='font-size']")].map((el) => {
+      const r = el.getBoundingClientRect();
+      return (r.top - sr.top) / zoom;
+    });
+  });
+  check("every option and the question have room for their marks outside", roomy.length >= 5 && roomy.every((r) => r >= 50), roomy.map(Math.round).join(", "));
+  check("the grow mark sits outside the option, not cut off", (await outside(grow, option("s8-b"))) && (await seen(grow)));
   await grow.click();
   await page.waitForTimeout(400);
   const grown = Number.parseFloat(await fontSize("s8-b"));
@@ -304,6 +336,7 @@ try {
   const tbShort = item("tb").locator('[data-element-id="tb-short"]');
   const tbSize = (loc) => loc.locator('[style*="font-size"]').first().evaluate((el) => getComputedStyle(el).fontSize);
   check("a cut-off text box shows +…", (await tbLong.locator(MARK).count()) === 1);
+  check("+… sits outside the text box, not cut off", (await outside(tbLong.locator(MARK), tbLong)) && (await seen(tbLong.locator(MARK))));
   await tbLong.locator(MARK).click();
   await page.waitForTimeout(400);
   const tbFitted = Number.parseFloat(await tbSize(tbLong));
@@ -317,6 +350,29 @@ try {
   await page.waitForTimeout(400);
   const tbGrown = Number.parseFloat(await tbSize(tbShort));
   check("a click on it makes the text box's text bigger, still whole", tbGrown > 24 && (await tbShort.locator(MARK).count()) === 0, String(tbGrown));
+  await page.keyboard.press("Escape");
+  // A small text box: the mark sits outside it and clear of its corner handle, and still works.
+  const tbSmall = item("tb").locator('[data-element-id="tb-small"]');
+  await tbSmall.click();
+  await page.waitForTimeout(300);
+  const smallGrow = tbSmall.locator("[data-grow-text-mark]");
+  check("a small text box shows the grow mark when selected", (await smallGrow.count()) === 1);
+  check("at the slide's top edge it sits under the small box, not cut off by the slide", (await under(smallGrow, tbSmall)) && (await seen(smallGrow)));
+  const handleClear = async () => {
+    const [m, h] = [await smallGrow.boundingBox(), await item("tb").locator('[title="Resize"]').last().boundingBox()];
+    return !!m && !!h && m.y >= h.y + h.height;
+  };
+  check("it doesn't cover the corner handle", await handleClear());
+  await smallGrow.click();
+  await page.waitForTimeout(400);
+  check("its click makes the small box's text bigger", Number.parseFloat(await tbSize(tbSmall)) > 16, await tbSize(tbSmall));
+  await page.keyboard.press("Escape");
+  const tbEdge = item("tb").locator('[data-element-id="tb-edge"]');
+  await tbEdge.click();
+  await page.waitForTimeout(300);
+  const edgeGrow = tbEdge.locator("[data-grow-text-mark]");
+  check("at the slide's right edge the mark sits above the box, lined up, not past the slide", await outside(edgeGrow, tbEdge));
+  check("and it isn't cut off by the slide", await seen(edgeGrow));
   await page.keyboard.press("Escape");
   check("a turned text box that's cut off still shows +…", (await item("tb").locator('[data-element-id="tb-turned"]').locator(MARK).count()) === 1);
   await item("tb").locator('[data-element-id="tb-max"]').click();

@@ -106,7 +106,12 @@ Tests that delete data (the announcements ones empty the announcements table) do
   sized by their text; Claude's own 90 px options under its own 160 px strip and a question too long for its
   `questionHeight` are reported as cut off; with the size left out, the options keep 56 px, the strip makes room, and
   the draft opens with no "+…".
-- `option-rows.mjs`: option row heights. No slide has a Fit rows to text button; a line between list rows trades room
+- `claude-number-fixes.mjs`: Claude's connector pulls slips into range instead of refusing: a 12 px and an 8 px
+  tall arrow, a 10 px table text, a "stripHeight" of 600 and a "questionHeight" of 400 are built (the last two named
+  in the layout report as lowered); the format still shows the 20 px minimum; a font size that isn't a number is
+  still refused.
+- `option-rows.mjs`: option row heights. The "+…" and grow marks sit outside their box, not cut off (above the box, right
+  edges lined up; a small text box at the slide's top edge gets it under, one at the right edge still above). No slide has a Fit rows to text button; a line between list rows trades room
   and changes no text size (one undo puts it back); Shuffle keeps a list row with its option; text far too big stays
   inside the options area with "+…" and its size; a grid's columns end together after Shuffles (sizes unchanged), with
   no lines; a picture's row is never shorter than the picture, a line stops at a picture and sits in the middle of the
