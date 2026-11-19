@@ -108,15 +108,12 @@ export function TableGrid({
   width,
   height,
   renderCell,
-  markHiddenText = false,
 }: {
   table: TableSettings;
   color: string;
   width: number;
   height: number;
   renderCell?: (row: number, column: number) => ReactNode;
-  // The editor: "+…" on a cell whose text is cut off.
-  markHiddenText?: boolean;
 }) {
   const fontSize = table.fontSize ?? TABLE_FONT_SIZE;
   const gradientId = `table-${useId().replace(/[^a-zA-Z0-9_-]/g, "")}`;
@@ -146,7 +143,7 @@ export function TableGrid({
           >
             {/* In the middle top to bottom, like a text box. */}
             {renderCell?.(row, column) ??
-              (cell.html && <SlideText text="" html={cell.html} fontSize={fontSize} className="flex flex-col justify-center-safe" markHiddenText={markHiddenText} />)}
+              (cell.html && <SlideText text="" html={cell.html} fontSize={fontSize} className="flex flex-col justify-center-safe" />)}
           </div>
         )),
       )}

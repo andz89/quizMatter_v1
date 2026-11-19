@@ -8,7 +8,10 @@ editor / view / review, and renders `Editor.tsx`, which calls `store.loadPresent
 - `Editor.tsx`: the frame. `EditorTopBar`, `IconRail` (the left icon bar that opens the side panels), `Workspace`,
   `EditorBottomBar` (zoom, which slide is showing, the slide grid, fullscreen present).
 - `EditorTopBar.tsx`: Save, `ShareButton`, `ReviewControls`, and the toolbar for what is picked:
-  `SelectedElementToolbar` (elements), `TextFormatToolbar` (text), `ShapeBoxToolbar`. `ArrangePanel` and
+  `SelectedElementToolbar` (elements), `TextFormatToolbar` (text), `ShapeBoxToolbar`. From laptop width they sit in
+  the middle of the bar, pinned 6 px from its top; when two don't fit on one line (typing in a table: text bar +
+  table bar) the second row hangs below the bar instead of the first being pushed off the screen (test
+  `e2e/toolbar-rows.mjs`). `ArrangePanel` and
   `MathToolPanels` are drop-downs inside those toolbars (`ToolPanelButton` in `PanelControls.tsx`). One picked
   clock gets "Set time" (`clockTime`); one picked calendar gets "Set date" (`calendarDate`: the date box, and
   "Today"; `DateBox` lets typing pass through dates that can't be saved, like the year "0002" or 31 February, and
@@ -188,21 +191,19 @@ box breaks in the middle, and lines past the box's bottom are cut off until the 
 smaller. The editor (`EditableText`, `TextBoxContent`) and the read-only `SlideText` (thumbnails, presenting) wrap
 the same way. Diagram boxes are different: their text still shrinks (see "Diagrams").
 
-So a teacher doesn't miss cut-off text, the editor shows a Sunny "+…" (24 px) hanging over the bottom-right corner (a third outside; flush inside a table cell, which cuts off what is outside it) of any text
+So a teacher doesn't miss cut-off text, the editor shows a Sunny "+…" (24 px) hanging over the bottom-right corner (a third outside) of any text
 whose letters are cut at its box's bottom (`HiddenTextMark.tsx`, hover says why; on the question, answer choices and
 text boxes a click on it fits the text, see "Option row heights"): the question, answer choices and text boxes
-(`useCanvasTextEditor` returns `hasHiddenText`), the cell being typed in, and the other table cells (`TableGrid`'s
-`markHiddenText`, which `TableContent` turns on, passed to `SlideText`). **Tables are left out of the text fit feature
-(the user's rule):** a cell's "+…" keeps its original check, the box's scroll height past its height
-(`useHasHiddenText`, `isTableCell` in `useCanvasTextEditor`), with no click and no grow mark. The question, answer
+(`useCanvasTextEditor` returns `hasHiddenText`). **Tables show no mark at all (the user's rule, 2026-11-19):** no
+"+…" and no grow mark on any cell, typed in or not (`isTableCell` in `useCanvasTextEditor` turns the check off); a
+cut-off cell is just clipped. The question, answer
 choices and text boxes use `useTextRoom` (`src/lib`), which calls `measureRoom` (`src/lib/textFit.ts`): a hidden, unrotated copy of the text at the box's real width (so a turned or
 zoomed box, or one scrolled while typing, measures the same) and its last line's letters. Lexend keeps the bottom
 fifth of a line for letters that hang down (g, y, p, a comma), so cutting only that room off a last line without such
 letters doesn't count (`isCutOff`, `src/lib/textRoom.ts`; a "uniform." whose empty room is cut shows whole). It watches the
 box's size and everything inside it (and checks again once the fonts have loaded), so typing, undo, a size change
-or resizing the box updates it at once. The mark takes the mouse, so its tip shows. Where it can't fit the text (table
-cells) a press on it still reaches the box (select, drag, double-click to type); where it can, the press and click stay
-on the mark. Either way it keeps the focus (`preventDefault` on mousedown), so pressing it while
+or resizing the box updates it at once. The mark takes the mouse, so its tip shows. Where it can't fit the text a press
+on it still reaches the box (select, drag, double-click to type); where it can, the press and click stay on the mark. Either way it keeps the focus (`preventDefault` on mousedown), so pressing it while
 typing doesn't stop the typing. Typing near the bottom scrolls the box to the cursor (hidden overflow can still
 scroll), so `useCanvasTextEditor` scrolls it back to the top when typing stops: the text's start always shows. It is
 editor only: thumbnails, the view page and presenting never show it. Test: `e2e/hidden-text-mark.mjs`.
@@ -228,8 +229,7 @@ keeps its own until the teacher changes it (the size box, or a click on its "+�
   pass its bottom) in `SlideCanvas` and `SlideStaticView` alike.
 - **Fit the text on a click** (the only size change here, and only the teacher's click; there's no Fit button:
   removed 2026-11-18, the user's choice). On the question and answer choices (`canFit` on `EditableText`, from
-  `QuestionContainer` and `OptionCard`) and text boxes (`TextBoxContent`; their grow mark shows only while selected; table cells keep the plain mark, a table's size being the whole
-  table's): a click on "+…" (cut off) makes the text smaller, and a click on the grow mark (`GrowTextMark.tsx`, an
+  `QuestionContainer` and `OptionCard`) and text boxes (`TextBoxContent`; their grow mark shows only while selected; table cells have no marks): a click on "+…" (cut off) makes the text smaller, and a click on the grow mark (`GrowTextMark.tsx`, an
   `ALargeSmallIcon`; both marks sit outside the box (`src/lib/markPlace.ts`), 12 px above it (past the corner handles), their
   right edge lined up with the box's right edge, so they never cover the text or handles on a small box; a text box near the slide's top
   edge (the slide cuts off what passes it) gets them under it instead (or beside it, tops lined up, when there's no room above or under) (`markSide`, from `SvgElementItem`),
@@ -316,7 +316,7 @@ focus, and Ctrl+Z / Ctrl+Y / Ctrl+Shift+Z leave a plain input or textarea to the
 text on a slide, sliders and date boxes keep the store's undo; `isTextFieldOrDialog` in `dom.ts`; while a box
 (`Modal`, `ConfirmModal`: `role="dialog"` with `aria-modal`) is open, only Ctrl+S works, so no key changes the slides
 behind it, test `e2e/editor-edges.mjs`), `useMarqueeSelection` (drag a rectangle to select), `useElementDropTarget` (drop from a
-panel or the computer), `useHasHiddenText` (the "+…" on cut-off text), `useCanvasTextEditor` + `richText.ts` (text typing, with tiptap; it stops at the save limits with `TextLimit`,
+panel or the computer), `useTextRoom` in `useHasHiddenText.ts` (the "+…" on cut-off text), `useCanvasTextEditor` + `richText.ts` (text typing, with tiptap; it stops at the save limits with `TextLimit`,
 `src/lib/textLimit.ts`: the question and answer choices at 5,000 characters, every text at 50,000 as HTML; the slide
 name box has `maxLength` 5,000), `useFormatTexts` (which texts the format toolbar changes), `geometry.ts` / `crop.ts` (math),
 `svgLibrary.tsx` (every drawing in the Elements panel, and the diagram layouts).

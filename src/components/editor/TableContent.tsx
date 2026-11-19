@@ -104,7 +104,7 @@ export function TableContent({ slideId, element, table }: TableProps) {
     );
   };
 
-  return <TableGrid table={table} color={element.color} width={element.width} height={element.height} renderCell={renderCell} markHiddenText />;
+  return <TableGrid table={table} color={element.color} width={element.width} height={element.height} renderCell={renderCell} />;
 }
 
 /**

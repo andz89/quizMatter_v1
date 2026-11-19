@@ -4,7 +4,7 @@ import type { EditorView } from "@tiptap/pm/view";
 import { toast } from "sonner";
 import { useEditorStore, type TextTarget } from "@/lib/store";
 import { TEXT_EXTENSIONS } from "@/lib/richText";
-import { useHasHiddenText, useTextRoom } from "@/lib/useHasHiddenText";
+import { useTextRoom } from "@/lib/useHasHiddenText";
 import { HTML_MAX, PLAIN_TEXT_MAX } from "@/lib/schema";
 import { TEXT_LIMIT_MESSAGE, TextLimit } from "@/lib/textLimit";
 
@@ -49,7 +49,7 @@ interface CanvasTextEditorOptions {
   hasTextLimit?: boolean;
   // Also check whether the next text size up fits (the grow mark); only while that mark can show.
   checkSpareRoom?: boolean;
-  // A table's cell: its "+…" keeps the plain check it always had (the text fit feature leaves tables alone).
+  // A table's cell: never marked or fitted (the user's rule: tables show no "+…" and no grow mark).
   isTableCell?: boolean;
   onUpdate: (editor: Editor) => void;
   onStopEditing: () => void;
@@ -158,7 +158,6 @@ export function useCanvasTextEditor({
   // a bigger size (`hasSpareRoom`, only with `checkSpareRoom`): the question, answer choices and text boxes offer to
   // make it bigger (GrowTextMark).
   const room = useTextRoom(ref, !isTableCell, checkSpareRoom && !isTableCell);
-  const cellHidden = useHasHiddenText(ref, isTableCell);
 
-  return { editor, ref, fontSize, hasHiddenText: isTableCell ? cellHidden : room.hidden, hasSpareRoom: room.spare };
+  return { editor, ref, fontSize, hasHiddenText: room.hidden, hasSpareRoom: room.spare };
 }
