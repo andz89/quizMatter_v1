@@ -943,6 +943,11 @@ isOneToOne: false
 "profile_slug":
 { Args: { "name": string }; Returns: string
                            },
+"public_presentation":
+{ Args: { "p_id": string }; Returns: {
+              "author_name": string,"description": string,"first_slide": Json,"from_admin": boolean,"grades": (string)[],"slide_count": number,"subject": string,"title": string
+            }[]
+                           },
 "publish_review":
 { Args: { "target_id": string }; Returns: undefined
                            },

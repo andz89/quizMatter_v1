@@ -2952,6 +2952,48 @@ $$;
 ALTER FUNCTION "public"."profile_slug"("name" "text") OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."public_presentation"("p_id" "text") RETURNS TABLE("title" "text", "description" "text", "subject" "text", "grades" "text"[], "from_admin" boolean, "author_name" "text", "slide_count" integer, "first_slide" "jsonb")
+    LANGUAGE "sql" STABLE SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+  select
+    p.title,
+    p.description,
+    p.subject,
+    p.grades,
+    p.from_admin,
+    -- The Author text; else "QuizMatter" for a QuizMatter lesson or an admin's presentation; else the owner's display
+    -- name (what publisher_names gives a teacher; never an email).
+    coalesce(
+      nullif(btrim(p.author), ''),
+      case when p.from_admin or exists (select 1 from public.admins a where a.user_id = p.owner_id) then 'QuizMatter' end,
+      (select coalesce(s.display_name, '') from public.user_settings s where s.user_id = p.owner_id),
+      ''
+    ),
+    -- Shown slides, like shownSlides in src/lib/constants.ts: the ones not hidden, or all of them when every one is.
+    shown.total,
+    shown.first
+  from public.presentations p
+  cross join lateral (
+    select count(*)::int as total,
+      (array_agg(s.data order by s.position))[1] as first
+    from public.slides s
+    where s.presentation_id = p.id
+      and (
+        coalesce((s.data ->> 'hidden')::boolean, false) = false
+        or not exists (
+          select 1 from public.slides v
+          where v.presentation_id = p.id and coalesce((v.data ->> 'hidden')::boolean, false) = false
+        )
+      )
+  ) shown
+  where p.id = p_id and p.is_published and p.hidden_at is null;
+$$;
+
+
+ALTER FUNCTION "public"."public_presentation"("p_id" "text") OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."publish_photos_of_live_presentation"() RETURNS "trigger"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO ''
@@ -6798,6 +6840,13 @@ GRANT ALL ON FUNCTION "public"."profile_is_visible"("profile_id" "uuid") TO "ser
 REVOKE ALL ON FUNCTION "public"."profile_slug"("name" "text") FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."profile_slug"("name" "text") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."profile_slug"("name" "text") TO "service_role";
+
+
+
+REVOKE ALL ON FUNCTION "public"."public_presentation"("p_id" "text") FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."public_presentation"("p_id" "text") TO "service_role";
+GRANT ALL ON FUNCTION "public"."public_presentation"("p_id" "text") TO "anon";
+GRANT ALL ON FUNCTION "public"."public_presentation"("p_id" "text") TO "authenticated";
 
 
 
