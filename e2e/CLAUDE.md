@@ -89,6 +89,15 @@ Tests that delete data (the announcements ones empty the announcements table) do
 - `table-element.mjs`: add a table, type, Tab, the text bar, both "+", the Table menu, undo taking away a picked or
   typed-in row, Delete on a picked cell, duplicate, dragging column and row lines, save, reload, the slide's edge, present, a table in a question
   slide's box, long text and a very long word wrapping at the table's text size (never shrinking).
+- `table-overflow.mjs`: the table at its edges, each scenario with its own presentation and page (`ONLY="paste|limits"`
+  runs just those). A saved cell far too long: "+…" only on it, 24 px, clipped, its row and the table keep their size,
+  presenting clips it with no mark. Typing 15 lines past the bottom (no cell moves; every line saved; the mark after
+  reload). A long link, emoji and a long number stay inside at full size. `<script>`, `<img onerror>` and `&` typed
+  show as letters and save escaped; unsafe saved HTML runs nothing. A 40-line paste; a paste past 50,000 (and 10,000
+  "&") refused with one toast. Size 96 never shrinks (all 9 cells marked), 12 fits, a typed 500 saves as 96. Shrunk
+  under its text and one undo back. 15 × 15 (no "+", the menu's Add greyed out, Tab stops at cell 225), 1 × 1 (no
+  Delete row / column; Delete empties the cell), 14 → 15 rows. Broken saved tables (16 rows, uneven rows, wrong
+  `columnSizes`) are left out on open, an unsafe cell fill dropped, and saving still works.
 - `claude-table-fill.mjs`: Claude's connector (`/api/mcp`, called as an admin with an aal2 login token) and table
   cell colors: the format names a cell's `fill`, `send_presentation` refuses one that isn't a color and builds
   solid and gradient ones, the draft opens in the editor with the colored cells, and `read_presentation` gives a
