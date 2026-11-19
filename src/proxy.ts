@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { getMaintenanceStatus, MAINTENANCE_HEADER, MAINTENANCE_WORDS } from "@/lib/maintenance";
+import { isPublicPreviewPath } from "@/lib/publicPaths";
 
 /**
  * Runs before every page request: refreshes the login session (it expires after a while) and sends
@@ -43,8 +44,10 @@ export async function proxy(request: NextRequest) {
   const isLoginPage = path === "/login" || path === "/signup" || path === "/forgot-password";
   // The link in the "Confirm signup" and "Reset Password" emails (/auth/confirm, a page whose Continue logs the
   // teacher in): it must open while logged out, and logged in too (it then says to log out first). Privacy and
-  // Terms (the footer's links) can be read before making an account.
-  const isOpenToAll = isLoginPage || path === "/auth/confirm" || path === "/privacy" || path === "/terms";
+  // Terms (the footer's links) can be read before making an account. A presentation's link (and its link picture,
+  // the site picture, robots.txt) opens too: the page shows a published one's public preview, else sends to login.
+  const isOpenToAll =
+    isLoginPage || path === "/auth/confirm" || path === "/privacy" || path === "/terms" || isPublicPreviewPath(path);
 
   const maintenance = await getMaintenanceStatus();
   if (maintenance.isOn) {

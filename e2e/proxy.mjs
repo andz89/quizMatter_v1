@@ -1,6 +1,7 @@
 // The proxy (src/proxy.ts): a refreshed login is kept when it sends the page elsewhere (an expired session opening
 // /login is refreshed, and the redirect to / carries the new cookies), and only the exact routes Claude calls skip
-// it (/api/mcp yes, a route that only starts with that name no).
+// it (/api/mcp yes, a route that only starts with that name no). The public preview's paths open logged out, the
+// presentation pages around them don't.
 import { APP, check, deleteTeacher, finish, makeTeacher, sessionCookies } from "./lib.mjs";
 
 const teacher = await makeTeacher({ first: "Proxy" });
@@ -28,6 +29,20 @@ try {
     photoLookAlike.status === 307 && (photoLookAlike.headers.get("location") ?? "").includes("/login"),
     `${photoLookAlike.status} ${photoLookAlike.headers.get("location")}`,
   );
+
+  // The public preview's paths (src/lib/publicPaths.ts): robots.txt opens logged out; the editor, a broken
+  // presentation link and the new-presentation page still go to /login. (The page's own redirect for a private
+  // presentation is in public-preview.mjs.)
+  const robots = await fetch(`${APP}/robots.txt`, { redirect: "manual" });
+  check("/robots.txt opens logged out", robots.status === 200, `${robots.status} ${robots.headers.get("location")}`);
+  for (const path of [`/presentation/${crypto.randomUUID()}/edit`, "/presentation/not-a-uuid", "/presentation/new"]) {
+    const res = await fetch(`${APP}${path}`, { redirect: "manual" });
+    check(
+      `${path.replace(/[0-9a-f-]{36}/, "<id>")} logged out is sent to /login`,
+      res.status === 307 && (res.headers.get("location") ?? "").includes("/login"),
+      `${res.status} ${res.headers.get("location")}`,
+    );
+  }
 } finally {
   await deleteTeacher(teacher);
 }
