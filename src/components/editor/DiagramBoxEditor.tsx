@@ -209,6 +209,8 @@ function DiagramTextArea({
       maxLength={DIAGRAM_TEXT_MAX}
       onChange={(e) => onChange(e.target.value)}
       onKeyDown={(e) => {
+        // isComposing: Enter that picks a word in a Chinese/Japanese/Korean keyboard isn't "done".
+        if (e.nativeEvent.isComposing) return;
         if (e.key === "Escape" || (e.key === "Enter" && !e.shiftKey)) {
           e.preventDefault();
           onDone();

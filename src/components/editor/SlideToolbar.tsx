@@ -79,6 +79,8 @@ export function SlideToolbar({ slide, slideNumber, isFirst, isLast, canDelete, o
                 setIsRenaming(false);
               }}
               onKeyDown={(e) => {
+                // isComposing: Enter that picks a word in a Chinese/Japanese/Korean keyboard isn't "done".
+                if (e.nativeEvent.isComposing) return;
                 if (e.key === "Enter") e.currentTarget.blur();
                 if (e.key === "Escape") {
                   // Put the old name back first, so the blur below saves nothing new.

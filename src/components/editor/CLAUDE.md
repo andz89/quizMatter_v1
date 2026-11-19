@@ -263,7 +263,7 @@ keeps its own until the teacher changes it (the size box, or a click on its "+�
 ## Tables
 
 The "Table" tile in the Elements panel. Design: `docs/superpowers/specs/2026-11-08-table-element-design.md`; math:
-`src/lib/table.ts`; browser test: `e2e/table-element.mjs`. When changing them, keep these rules:
+`src/lib/table.ts`; browser tests: `e2e/table-element.mjs`, `e2e/table-overflow.mjs` (edge cases). When changing them, keep these rules:
 
 - **One grid everywhere:** `TableGrid` (`ElementSvg.tsx`) draws a table in the editor, small pictures, presenting and
   drag previews, each cell a read-only `SlideText`. Its lines are one SVG shape over the cells (`tableLinePositions`),
@@ -324,7 +324,7 @@ The "Diagrams" group of the Elements panel. Full design: `docs/superpowers/specs
 
 - **Each box works like a text box:** it keeps its size, its text shrinks to fit (size 12 down to 1; a word too wide for the box shrinks it first so the word isn't cut in two, but not below size 8, `DIAGRAM_WHOLE_WORD_FONT`), and a picked box has the same handles (corners keep the shape, side handles change width or height), drawn over the diagram's own handles so a box at the diagram's corner can be resized from there. Reuse `CORNERS` / `EDGE_HANDLES` from `src/components/editor/handles.ts`; don't make new handles.
 - **One layout, two users:** the layouts in `svgLibrary.tsx` place every box, and `getDiagramBoxes` gives those same boxes to the editor (`DiagramBoxEditor.tsx`). Never place boxes a second way in the editor, or the outline won't match the drawing.
-- **Text is typed on the slide** (double-click a box; Shift+Enter = new line, Enter/Esc/click outside = done). The panels have no text boxes, only box count, Across/Down, Tidy up, Reset (and the Tree's add/remove).
+- **Text is typed on the slide** (double-click a box; Shift+Enter = new line, Enter/Esc/click outside = done; an Enter that picks a word in a Chinese/Japanese/Korean keyboard, `isComposing`, isn't "done", and the same goes for the slide name box). The panels have no text boxes, only box count, Across/Down, Tidy up, Reset (and the Tree's add/remove).
 - **A box's own place and size** (`x, y, width, height`) are saved all together or not at all; missing = its automatic spot. Limits live in `constants.ts` and are checked by `diagramBoxSchema` (zod) before saving.
 - **A box's own look** (`fill`, `border`, `borderWidth`, `textColor`, `fontSize`) is optional; missing = the diagram's Color tint and border, dark text, size 12. The toolbar's box style group and the Color panel (`boxFill` / `boxBorder` / `boxText`) change the picked box, or every box when none is picked, through `diagramStyleTargets` + `withDiagramBoxStyle`. Moving, Tidy up and new boxes keep or copy the look. Spec: `docs/superpowers/specs/2026-10-07-diagram-box-style-design.md`.
 - **"+" and × on every box** of a selected diagram (`DiagramBoxButtons.tsx`) add a box next to it or remove it. The rules per diagram (where, limits, new text, copying the look) live only in `diagramBoxActions` (`svgLibrary.tsx`); the element is kept in place with `keepInPlace`. Delete on a picked box does the same as its × (`boxRemovalPatch`); a box with no × stays, and Delete removes the whole diagram only when no box is picked. Spec: `docs/superpowers/specs/2026-10-07-diagram-box-add-remove-design.md`.
