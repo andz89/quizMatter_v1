@@ -23,7 +23,8 @@ const bricolage = Bricolage_Grotesque({
 export const metadata: Metadata = {
   // Link pictures (opengraph-image) need full addresses; shared links always point to the live site.
   metadataBase: new URL("https://quizmatter.com"),
-  title: "QuizMatter",
+  // Each page sets a short title ("Saved"), shown as "Saved · QuizMatter"; pages without one show "QuizMatter".
+  title: { default: "QuizMatter", template: "%s · QuizMatter" },
   description: "Build presentations with quizzes built in.",
   openGraph: { siteName: "QuizMatter", type: "website" },
   twitter: { card: "summary_large_image" },

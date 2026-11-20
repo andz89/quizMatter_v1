@@ -1,6 +1,9 @@
+import type { Metadata } from "next";
 import { claimEmail } from "@/lib/emailLinks";
 import { createClient } from "@/lib/supabase/server";
 import { SetPasswordForm } from "./SetPasswordForm";
+
+export const metadata: Metadata = { title: "Set a new password", robots: { index: false } };
 
 /**
  * Forgot password's last step: the reset email's link (/auth/confirm, type=recovery, then Continue) logs the teacher

@@ -4,7 +4,7 @@ import { SupportEmail } from "@/components/SupportEmail";
 import { FACEBOOK_URL } from "@/lib/support";
 import { LegalSection, LegalTitle, ShortVersion } from "../LegalParts";
 
-export const metadata: Metadata = { title: "Privacy Policy · QuizMatter" };
+export const metadata: Metadata = { title: "Privacy Policy" };
 
 // Written to be true to the code (docs/superpowers/specs/2026-10-27-privacy-and-terms-design.md). A change to what the
 // app collects, who sees it, how long it's kept, or which outside service holds it changes this page and LEGAL_VERSION

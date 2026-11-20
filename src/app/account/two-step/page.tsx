@@ -1,9 +1,12 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { LinkPending } from "@/components/LinkPending";
 import { NavBar, navLinkClass } from "@/components/NavBar";
 import { getAccount } from "@/lib/account";
 import { TwoStepSetup } from "./TwoStepSetup";
+
+export const metadata: Metadata = { title: "Two-step login" };
 
 /**
  * Two-step login (admins only): set up an authenticator app. Admins land here from the admin pages until they have

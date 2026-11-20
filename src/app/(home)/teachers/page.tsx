@@ -1,9 +1,12 @@
+import type { Metadata } from "next";
 import { Suspense } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { parseShown } from "../../homeSearch";
 import { CARD_COLUMNS, loadCardContext, myId, orderBy } from "../cards";
 import { SavableCards } from "../CardGrid";
 import { ShowMore } from "../ShowMore";
+
+export const metadata: Metadata = { title: "Other teachers" };
 
 /** "Other teachers": their published presentations, last changed first, 20 at a time ("Show more" adds 20). */
 export default async function TeachersPage({ searchParams }: PageProps<"/teachers">) {

@@ -6,7 +6,7 @@ import { Logo } from "@/components/Logo";
 import { SupportEmail } from "@/components/SupportEmail";
 import { getMaintenanceStatus } from "@/lib/maintenance";
 
-export const metadata: Metadata = { title: "Under maintenance · QuizMatter" };
+export const metadata: Metadata = { title: "Under maintenance" };
 
 /**
  * Where everyone but the super admin goes during maintenance (src/proxy.ts sends them, and MaintenanceWatch sends a

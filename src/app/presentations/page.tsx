@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { DRAFT_LIFETIME_MS, listDrafts, type DraftSummary } from "@/lib/drafts";
@@ -10,6 +11,8 @@ import { loadMySubmissions } from "@/lib/submissions";
 import { mySharedCopies } from "../(home)/cards";
 import { NewPresentationButton } from "../PresentationListButtons";
 import { PresentationList, type PresentationRow } from "./PresentationList";
+
+export const metadata: Metadata = { title: "All my presentations" };
 
 /** "See all" from the home page: every presentation of mine and every draft from Claude, as a table. */
 export default async function AllPresentationsPage() {

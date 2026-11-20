@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { z } from "zod";
@@ -12,6 +13,8 @@ import { createClient } from "@/lib/supabase/server";
 import type { EditorReview } from "@/lib/store";
 import { PresentationEditor } from "./PresentationEditor";
 import { ReviewSubmittedView } from "./ReviewSubmittedView";
+
+export const metadata: Metadata = { title: "Editor" };
 
 export default async function PresentationPage({ params }: PageProps<"/presentation/[id]/edit">) {
   const { id } = await params;

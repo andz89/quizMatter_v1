@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getAccount } from "@/lib/account";
 import { createClient } from "@/lib/supabase/server";
@@ -6,6 +7,8 @@ import { PAGE_SIZE, homeSearchQuery, parseHomeSearch } from "../homeSearch";
 import type { SubmissionStatus } from "@/lib/submissions";
 import { CARD_COLUMNS, draftCard, myCard, myId, mySharedCopies, mySubmissionStatuses, orderBy, type CardPresentation } from "./cards";
 import { MyPresentations } from "./MyPresentations";
+
+export const metadata: Metadata = { title: "My presentations" };
 
 /** My presentations and Claude's drafts, newest changed first, with my folders. */
 export default async function HomePage({ searchParams }: PageProps<"/">) {

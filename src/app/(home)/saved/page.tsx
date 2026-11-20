@@ -1,6 +1,9 @@
+import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import { CARD_COLUMNS, loadCardContext, myId, orderBy, type SavedPresentation } from "../cards";
 import { SavableCards } from "../CardGrid";
+
+export const metadata: Metadata = { title: "Saved" };
 
 /** "Saved": every presentation I saved (MAX_SAVED at most), newest saved first. */
 export default async function SavedPage() {

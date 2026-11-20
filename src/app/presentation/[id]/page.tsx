@@ -28,13 +28,13 @@ import { PublicPresentation } from "./PublicPresentation";
  */
 export async function generateMetadata({ params }: PageProps<"/presentation/[id]">): Promise<Metadata> {
   const { id } = await params;
-  if ((await getAccount()).id) return {};
+  if ((await getAccount()).id) return { title: "Presentation" };
   const preview = z.uuid().safeParse(id).success ? await getPublicPresentation(id) : null;
   if (!preview) return { title: "QuizMatter", robots: { index: false } };
   const title = preview.title || "Untitled presentation";
   const description = publicDescription(preview);
   return {
-    title: `${title} · QuizMatter`,
+    title: { absolute: `${title} · QuizMatter` },
     description,
     openGraph: { type: "article", title, description },
     alternates: { canonical: `/presentation/${id}` },

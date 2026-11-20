@@ -3,7 +3,7 @@ import Link from "next/link";
 import { SupportEmail } from "@/components/SupportEmail";
 import { LegalSection, LegalTitle, ShortVersion } from "../LegalParts";
 
-export const metadata: Metadata = { title: "Terms of Use · QuizMatter" };
+export const metadata: Metadata = { title: "Terms of Use" };
 
 // Written to be true to the code (docs/superpowers/specs/2026-10-27-privacy-and-terms-design.md). A change here changes
 // LEGAL_VERSION (src/lib/legal.ts) in the same commit.

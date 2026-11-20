@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { OTHER_CHOICE, SUBJECTS } from "@/lib/schema";
@@ -5,6 +6,8 @@ import { firstValues } from "@/lib/search";
 import { NO_SUBJECT, QUIZMATTER_ROW_SIZE, parseShown } from "../../homeSearch";
 import { CARD_COLUMNS, bySubjectChip, loadCardContext, myId, orderBy } from "../cards";
 import { QuizMatterPresentations } from "./QuizMatterPresentations";
+
+export const metadata: Metadata = { title: "From QuizMatter" };
 
 // The picked subject chip ("" = All, NO_SUBJECT = "See all" of the presentations with no subject) and the sort.
 const quizMatterSchema = z.object({

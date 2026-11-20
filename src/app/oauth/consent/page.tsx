@@ -1,9 +1,12 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { Logo } from "@/components/Logo";
 import { getAccount } from "@/lib/account";
 import { createClient } from "@/lib/supabase/server";
 import { isAllowedRedirect, NOT_CLAUDE_MESSAGE } from "./allowedApps";
 import { ConsentButtons } from "./ConsentButtons";
+
+export const metadata: Metadata = { title: "Connect Claude", robots: { index: false } };
 
 /**
  * The OAuth consent page: when someone clicks Connect on the QuizMatter connector in claude.ai, Supabase (our OAuth
