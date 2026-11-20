@@ -2952,6 +2952,74 @@ $$;
 ALTER FUNCTION "public"."profile_slug"("name" "text") OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."public_first_slide"("p_id" "text") RETURNS "jsonb"
+    LANGUAGE "sql" STABLE
+    SET "search_path" TO ''
+    AS $$
+  -- The first slide by position among the shown ones (like shownSlides in src/lib/constants.ts: the ones not
+  -- hidden, or all of them when every one is), without its answer: correctOptionId emptied, correctAnswer left out,
+  -- and the pictures in the answer box (containerId "answer", the app's ANSWER_CONTAINER_ID) left out.
+  select jsonb_set(f.data - 'correctAnswer', '{correctOptionId}', 'null'::jsonb)
+    || jsonb_build_object('elements', coalesce((
+      select jsonb_agg(e order by n)
+      from jsonb_array_elements(coalesce(f.data -> 'elements', '[]'::jsonb)) with ordinality as x (e, n)
+      where e ->> 'containerId' is distinct from 'answer'
+    ), '[]'::jsonb))
+  from (
+    select s.data
+    from public.slides s
+    where s.presentation_id = p_id
+      and (
+        coalesce((s.data ->> 'hidden')::boolean, false) = false
+        or not exists (
+          select 1 from public.slides v
+          where v.presentation_id = p_id and coalesce((v.data ->> 'hidden')::boolean, false) = false
+        )
+      )
+    order by s.position
+    limit 1
+  ) f;
+$$;
+
+
+ALTER FUNCTION "public"."public_first_slide"("p_id" "text") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."public_lesson_ids"() RETURNS TABLE("id" "text", "updated_at" timestamp with time zone)
+    LANGUAGE "sql" STABLE SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+  select p.id, p.updated_at
+  from public.presentations p
+  where p.from_admin and p.is_published and p.hidden_at is null
+  order by p.updated_at desc, p.id;
+$$;
+
+
+ALTER FUNCTION "public"."public_lesson_ids"() OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."public_lessons"("p_limit" integer) RETURNS TABLE("id" "text", "title" "text", "subject" "text", "grades" "text"[], "updated_at" timestamp with time zone, "first_slide" "jsonb")
+    LANGUAGE "plpgsql" STABLE SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+begin
+  if p_limit is null or p_limit < 1 or p_limit > 50 then
+    raise exception 'Ask for 1 to 50 lessons.' using errcode = '22023';
+  end if;
+  return query
+    select p.id, p.title, p.subject, p.grades, p.updated_at, public.public_first_slide(p.id)
+    from public.presentations p
+    where p.from_admin and p.is_published and p.hidden_at is null
+    order by p.updated_at desc, p.id
+    limit p_limit;
+end;
+$$;
+
+
+ALTER FUNCTION "public"."public_lessons"("p_limit" integer) OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."public_presentation"("p_id" "text") RETURNS TABLE("title" "text", "description" "text", "subject" "text", "grades" "text"[], "from_admin" boolean, "author_name" "text", "slide_count" integer, "first_slide" "jsonb")
     LANGUAGE "sql" STABLE SECURITY DEFINER
     SET "search_path" TO ''
@@ -2967,30 +3035,20 @@ CREATE OR REPLACE FUNCTION "public"."public_presentation"("p_id" "text") RETURNS
       case when p.from_admin or exists (select 1 from public.admins a where a.user_id = p.owner_id) then 'QuizMatter' end,
       ''
     ),
-    -- Shown slides, like shownSlides in src/lib/constants.ts: the ones not hidden, or all of them when every one is.
-    shown.total,
-    case when shown.first is not null then
-      jsonb_set(shown.first - 'correctAnswer', '{correctOptionId}', 'null'::jsonb)
-        || jsonb_build_object('elements', coalesce((
-          select jsonb_agg(e order by n)
-          from jsonb_array_elements(coalesce(shown.first -> 'elements', '[]'::jsonb)) with ordinality as x (e, n)
-          where e ->> 'containerId' is distinct from 'answer'
-        ), '[]'::jsonb))
-    end
-  from public.presentations p
-  cross join lateral (
-    select count(*)::int as total,
-      (array_agg(s.data order by s.position))[1] as first
-    from public.slides s
-    where s.presentation_id = p.id
-      and (
-        coalesce((s.data ->> 'hidden')::boolean, false) = false
-        or not exists (
-          select 1 from public.slides v
-          where v.presentation_id = p.id and coalesce((v.data ->> 'hidden')::boolean, false) = false
+    (
+      select count(*)::int
+      from public.slides s
+      where s.presentation_id = p.id
+        and (
+          coalesce((s.data ->> 'hidden')::boolean, false) = false
+          or not exists (
+            select 1 from public.slides v
+            where v.presentation_id = p.id and coalesce((v.data ->> 'hidden')::boolean, false) = false
+          )
         )
-      )
-  ) shown
+    ),
+    public.public_first_slide(p.id)
+  from public.presentations p
   where p.id = p_id and p.is_published and p.hidden_at is null;
 $$;
 
@@ -6844,6 +6902,25 @@ GRANT ALL ON FUNCTION "public"."profile_is_visible"("profile_id" "uuid") TO "ser
 REVOKE ALL ON FUNCTION "public"."profile_slug"("name" "text") FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."profile_slug"("name" "text") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."profile_slug"("name" "text") TO "service_role";
+
+
+
+REVOKE ALL ON FUNCTION "public"."public_first_slide"("p_id" "text") FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."public_first_slide"("p_id" "text") TO "service_role";
+
+
+
+REVOKE ALL ON FUNCTION "public"."public_lesson_ids"() FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."public_lesson_ids"() TO "service_role";
+GRANT ALL ON FUNCTION "public"."public_lesson_ids"() TO "anon";
+GRANT ALL ON FUNCTION "public"."public_lesson_ids"() TO "authenticated";
+
+
+
+REVOKE ALL ON FUNCTION "public"."public_lessons"("p_limit" integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."public_lessons"("p_limit" integer) TO "service_role";
+GRANT ALL ON FUNCTION "public"."public_lessons"("p_limit" integer) TO "anon";
+GRANT ALL ON FUNCTION "public"."public_lessons"("p_limit" integer) TO "authenticated";
 
 
 

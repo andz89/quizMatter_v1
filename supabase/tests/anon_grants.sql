@@ -1,7 +1,8 @@
 -- A logged-out visitor (the anon role) may only do what the app's logged-out pages need
 -- (supabase/migrations/20261231001400_anon_grants.sql): read the throwaway email services (sign up) and the
 -- maintenance guard's two columns, and call maintenance_status and check_maintenance, and public_presentation (the
--- public preview of a published presentation, 20261231002200_public_presentation.sql). Everything else is refused by
+-- public preview of a published presentation, 20261231002200_public_presentation.sql), public_lessons and
+-- public_lesson_ids (the public home page and sitemap, 20261231002400_public_lessons.sql). Everything else is refused by
 -- the grants themselves, not only by the row rules. A new table, view, sequence or function must not open to anon
 -- either (this test lists it by name).
 -- Run on a local database with every migration applied:
@@ -47,7 +48,7 @@ begin
   from pg_proc p
   where p.pronamespace = 'public'::regnamespace and p.prorettype <> 'trigger'::regtype
     and has_function_privilege('anon', p.oid, 'execute')
-    and p.proname not in ('maintenance_status', 'check_maintenance', 'public_presentation');
+    and p.proname not in ('maintenance_status', 'check_maintenance', 'public_presentation', 'public_lessons', 'public_lesson_ids');
   if found is not null then raise exception 'FAIL: anon may run: %', found; end if;
 
   -- What it needs is still there.
