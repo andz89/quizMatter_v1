@@ -35,7 +35,8 @@ try {
   // presentation is in public-preview.mjs.)
   const robots = await fetch(`${APP}/robots.txt`, { redirect: "manual" });
   check("/robots.txt opens logged out", robots.status === 200, `${robots.status} ${robots.headers.get("location")}`);
-  for (const path of [`/presentation/${crypto.randomUUID()}/edit`, "/presentation/not-a-uuid", "/presentation/new"]) {
+  // A presentation that isn't published (here: unknown) gets a real redirect from the proxy, as before.
+  for (const path of [`/presentation/${crypto.randomUUID()}`, `/presentation/${crypto.randomUUID()}/edit`, "/presentation/not-a-uuid", "/presentation/new"]) {
     const res = await fetch(`${APP}${path}`, { redirect: "manual" });
     check(
       `${path.replace(/[0-9a-f-]{36}/, "<id>")} logged out is sent to /login`,
