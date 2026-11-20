@@ -7,14 +7,16 @@ import { TEXT_EXTENSIONS } from "@/lib/richText";
 import { useTextRoom } from "@/lib/useHasHiddenText";
 import { HTML_MAX, PLAIN_TEXT_MAX } from "@/lib/schema";
 import { TEXT_LIMIT_MESSAGE, TextLimit } from "@/lib/textLimit";
+import { BlankLines } from "@/lib/blankLines";
 
 // One id, so a teacher holding a key at the limit sees one toast, not a stack.
 const showLimitToast = () => toast.error(TEXT_LIMIT_MESSAGE, { id: "text-limit" });
 
 // Fixed lists (never new objects), so the editor is never rebuilt. The question and answer choices also save their
 // plain text, which has its own limit; text boxes and table cells save only HTML.
-const WITH_TEXT_LIMIT = [...TEXT_EXTENSIONS, TextLimit.configure({ maxText: PLAIN_TEXT_MAX, maxHtml: HTML_MAX, onRefused: showLimitToast })];
-const HTML_LIMIT_ONLY = [...TEXT_EXTENSIONS, TextLimit.configure({ maxText: null, maxHtml: HTML_MAX, onRefused: showLimitToast })];
+// BlankLines joins "___" blanks (display only).
+const WITH_TEXT_LIMIT = [...TEXT_EXTENSIONS, BlankLines, TextLimit.configure({ maxText: PLAIN_TEXT_MAX, maxHtml: HTML_MAX, onRefused: showLimitToast })];
+const HTML_LIMIT_ONLY = [...TEXT_EXTENSIONS, BlankLines, TextLimit.configure({ maxText: null, maxHtml: HTML_MAX, onRefused: showLimitToast })];
 
 const TEXT_DOM_EVENTS = {
   // Paste as plain text only, so colors and fonts from other sites don't come along.

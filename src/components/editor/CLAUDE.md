@@ -191,6 +191,13 @@ box breaks in the middle, and lines past the box's bottom are cut off until the 
 smaller. The editor (`EditableText`, `TextBoxContent`) and the read-only `SlideText` (thumbnails, presenting) wrap
 the same way. Diagram boxes are different: their text still shrinks (see "Diagrams").
 
+**Fill-in blanks ("___") show as one line.** Lexend draws `_` 0.1em narrower than the room it takes, so a row of
+them showed gaps. A run of two or more underscores gets the `qm-blank` class (`globals.css`: `letter-spacing:
+-0.1em`), display only: the editor marks it with the `BlankLines` Tiptap decoration (`src/lib/blankLines.ts`, in
+`useCanvasTextEditor`), `SlideText` and `measureOptions` with `markBlanks` (`src/lib/blanks.ts`). `getHTML()` and the
+saved text never get the span, so no `DATA_VERSION` change. Diagram boxes (a textarea / SVG text) aren't marked.
+Test: `e2e/blank-lines.mjs`.
+
 So a teacher doesn't miss cut-off text, the editor shows a Sunny "+…" (24 px) hanging over the bottom-right corner (a third outside) of any text
 whose letters are cut at its box's bottom (`HiddenTextMark.tsx`, hover says why; on the question, answer choices and
 text boxes a click on it fits the text, see "Option row heights"): the question, answer choices and text boxes

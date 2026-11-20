@@ -251,7 +251,9 @@ data. Spec: `docs/superpowers/specs/2026-10-23-stable-presentation-data-design.m
   up to 20 calls a day; the Privacy Policy promises it too).
 - Drawings: `svgLibrary.tsx`, `flags.tsx`, `kids.tsx`, `solids.tsx`, and the big people drawings `schoolBoy.tsx` /
   `clipartKids.tsx`, which load only when needed (`peopleArt.ts`).
-- Text: `richText.ts` (tiptap setup, safe HTML), `format.ts` (dates, labels).
+- Text: `richText.ts` (tiptap setup, safe HTML), `format.ts` (dates, labels), `blanks.ts` (`blankRuns`,
+  `markBlanks`: "___" blanks joined into one line, display only; tests `blanks.test.ts`) and `blankLines.ts` (the
+  same in the editor, a Tiptap decoration). See `src/components/editor/CLAUDE.md`, "Slide text size".
 - `sameValue.ts`: whether two settings hold the same values in any key order (the database re-sorts saved keys, e.g.
   a fraction comes back as `{parts, whole, shaded}`); `MathToolControls` uses it. Tests: `sameValue.test.ts`.
 - `support.ts`: `SUPPORT_EMAIL` and `FACEBOOK_URL`, the one place each is written (the support address is an alias

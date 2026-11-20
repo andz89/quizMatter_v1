@@ -6,6 +6,7 @@
 import { OPTION_FONT_SIZE, getContainerBounds, getShownOptions } from "./constants";
 import { OPTION_BORDER, OPTION_BOX_EDGES } from "./optionRows";
 import { textToHtml, toSafeHtml } from "./richText";
+import { markBlanks } from "./blanks";
 import type { Option, Slide } from "./schema";
 
 let probe: HTMLDivElement | null = null;
@@ -36,6 +37,7 @@ function textHeight(text: string, html: string | undefined, width: number, fontS
   box.style.whiteSpace = "break-spaces";
   box.style.fontSize = `${fontSize}px`;
   box.innerHTML = (html ? toSafeHtml(html) : textToHtml(text)).replace(/<p([^>]*)><\/p>/g, "<p$1><br></p>");
+  markBlanks(box);
   return box.scrollHeight;
 }
 

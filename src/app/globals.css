@@ -121,6 +121,12 @@ body {
   }
 }
 
+/* Fill-in blanks ("___") on slides: Lexend's "_" is 0.1em narrower than its room, so a row of them shows gaps. This
+   closes them into one line (src/lib/blanks.ts). Display only: the saved text is unchanged. */
+.qm-blank {
+  letter-spacing: -0.1em;
+}
+
 /* Main buttons: a solid violet edge under the button, like a keyboard key, that sinks when pressed. */
 @utility btn-press {
   box-shadow: 0 4px 0 var(--accent-edge);
