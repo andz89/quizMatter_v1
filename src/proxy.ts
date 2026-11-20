@@ -1,7 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { getMaintenanceStatus, MAINTENANCE_HEADER, MAINTENANCE_WORDS } from "@/lib/maintenance";
-import { isPublicPreviewPath } from "@/lib/publicPaths";
+import { isPublicPreviewPath, previewPageId } from "@/lib/publicPaths";
 
 /**
  * Runs before every page request: refreshes the login session (it expires after a while) and sends
@@ -66,7 +66,14 @@ export async function proxy(request: NextRequest) {
     return keepSession(NextResponse.redirect(new URL("/", request.url)));
   }
 
-  if (!isLoggedIn && !isOpenToAll) {
+  // A logged-out visit to a presentation that isn't published (private, hidden, unknown) goes to login at once, a
+  // real redirect as before, not a page that redirects once it loads (the page streams). One small read, only for
+  // logged-out visitors; the page checks again.
+  const previewId = isLoggedIn ? null : previewPageId(path);
+  const isNotPublic =
+    previewId !== null && !(await supabase.rpc("public_presentation", { p_id: previewId })).data?.length;
+
+  if (!isLoggedIn && (!isOpenToAll || isNotPublic)) {
     // Remember the page (e.g. a draft link from Claude) so login can come back to it.
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("next", request.nextUrl.pathname + request.nextUrl.search);
