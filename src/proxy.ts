@@ -66,6 +66,11 @@ export async function proxy(request: NextRequest) {
     return keepSession(NextResponse.redirect(new URL("/", request.url)));
   }
 
+  // The public home (src/app/welcome) is served only at "/", to logged-out visitors (logged in, "/" is the home page
+  // as before). Its own address goes to "/", so it never has two.
+  if (path === "/welcome") return keepSession(NextResponse.redirect(new URL("/", request.url)));
+  if (!isLoggedIn && path === "/") return keepSession(NextResponse.rewrite(new URL("/welcome", request.url), { request }));
+
   // A logged-out visit to a presentation that isn't published (private, hidden, unknown) goes to login at once, a
   // real redirect as before, not a page that redirects once it loads (the page streams). One small read, only for
   // logged-out visitors; the page checks again.

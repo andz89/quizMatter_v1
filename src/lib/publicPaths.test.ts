@@ -15,6 +15,7 @@ test("the site picture and robots.txt are open", () => {
   assert.equal(isPublicPreviewPath("/opengraph-image"), true);
   assert.equal(isPublicPreviewPath("/opengraph-image-1a2b3c"), true);
   assert.equal(isPublicPreviewPath("/robots.txt"), true);
+  assert.equal(isPublicPreviewPath("/sitemap.xml"), true);
 });
 
 test("the presentation page's id is read only from the page itself, not its picture", () => {
@@ -36,6 +37,9 @@ test("everything else still needs a login", () => {
     "/",
     "/admin",
     "/robots.txt/x",
+    "/sitemap.xml/x",
+    // The public home is only served at "/" (the proxy rewrites to it), never at its own address.
+    "/welcome",
   ]) {
     assert.equal(isPublicPreviewPath(path), false, path);
   }
