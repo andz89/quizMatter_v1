@@ -16,7 +16,7 @@
 - Part 1 rules hold for anything anon reads: published and not hidden only, no display names, no answers (`correctOptionId` null, no `correctAnswer`, no `containerId` "answer" elements), no YouTube cover (`showVideoCover={false}`).
 - Hero copy: h1 "Build presentations with quizzes built in"; line "QuizMatter helps teachers make bright, simple lessons and quizzes that kids love to play."; buttons "Sign up free", "Log in"; section "Ready-made lessons from QuizMatter" (8 newest).
 - Title template `%s · QuizMatter`; titles exactly as the spec's table.
-- `public_lessons(p_limit)`: 1–50 else `22023`. Sitemap: 1,000 per read, 50,000 max.
+- `public_lessons(p_limit)`: 1–12 else `22023` (raised from 50 in review: slide size). Sitemap: 1,000 per read, 50,000 max.
 - Docker only for DB tests; design-system classes only.
 
 ## Review Focus

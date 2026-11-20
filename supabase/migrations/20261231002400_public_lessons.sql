@@ -1,5 +1,5 @@
 -- The public home page and the sitemap (docs/superpowers/specs/2026-11-20-public-home-and-seo-design.md).
--- public_lessons(p_limit): the newest published, not hidden QuizMatter lessons for the public home page (logged-out
+-- public_lessons(p_limit, 1–12): the newest published, not hidden QuizMatter lessons for the public home page (logged-out
 -- visitors), with their first slide. public_lesson_ids(): every such lesson's id and last change, for sitemap.xml.
 -- Only QuizMatter lessons: a teacher's shared copy is public to anyone with its link, but never listed.
 -- public_first_slide(p_id) is the one place the "first shown slide, without its answer" rule lives (it was inside
@@ -95,8 +95,10 @@ security definer
 set search_path = ''
 as $$
 begin
-  if p_limit is null or p_limit < 1 or p_limit > 50 then
-    raise exception 'Ask for 1 to 50 lessons.' using errcode = '22023';
+  -- At most 12 (the home page shows 8): one slide may be 2 MB (slides_data_is_small_object), and anyone can call
+  -- this with the public key, so one call can't pull more than about 24 MB.
+  if p_limit is null or p_limit < 1 or p_limit > 12 then
+    raise exception 'Ask for 1 to 12 lessons.' using errcode = '22023';
   end if;
   return query
     select p.id, p.title, p.subject, p.grades, p.updated_at, public.public_first_slide(p.id)

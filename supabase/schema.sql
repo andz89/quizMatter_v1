@@ -3004,8 +3004,10 @@ CREATE OR REPLACE FUNCTION "public"."public_lessons"("p_limit" integer) RETURNS 
     SET "search_path" TO ''
     AS $$
 begin
-  if p_limit is null or p_limit < 1 or p_limit > 50 then
-    raise exception 'Ask for 1 to 50 lessons.' using errcode = '22023';
+  -- At most 12 (the home page shows 8): one slide may be 2 MB (slides_data_is_small_object), and anyone can call
+  -- this with the public key, so one call can't pull more than about 24 MB.
+  if p_limit is null or p_limit < 1 or p_limit > 12 then
+    raise exception 'Ask for 1 to 12 lessons.' using errcode = '22023';
   end if;
   return query
     select p.id, p.title, p.subject, p.grades, p.updated_at, public.public_first_slide(p.id)

@@ -95,7 +95,7 @@ export const getPublicPresentation = cache(async (id: string): Promise<PublicPre
   return toPublicPresentation(id, data?.[0]);
 });
 
-/** The newest QuizMatter lessons (1–50) for the public home page. */
+/** The newest QuizMatter lessons (1–12, the database's limit) for the public home page. */
 export async function getPublicLessons(limit: number): Promise<PublicLesson[]> {
   const { data, error } = await anonClient().rpc("public_lessons", { p_limit: limit });
   if (error) throw error;

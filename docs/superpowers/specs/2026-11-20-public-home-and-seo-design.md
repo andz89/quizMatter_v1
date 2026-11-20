@@ -58,8 +58,8 @@ found on Google and every page to have a proper `<h1>`.
 ### Database: `public_lessons(p_limit int)`
 
 One `security definer` function, `execute` to `anon` and `authenticated`, like `public_presentation`: the newest
-(`updated_at` desc) published, not hidden QuizMatter lessons (`from_admin`), at most `p_limit` (1–50; else
-`22023`), returning `id`, `title`, `subject`, `grades`, `updated_at`, and `first_slide` with the same rules as
+(`updated_at` desc) published, not hidden QuizMatter lessons (`from_admin`), at most `p_limit` (1–12, so one call can't pull
+more than about 24 MB of slides; else `22023`), returning `id`, `title`, `subject`, `grades`, `updated_at`, and `first_slide` with the same rules as
 `public_presentation` (first shown slide, answer removed). No names. `anon_grants.sql` lists it.
 
 The sitemap uses a second, lighter one, `public_lesson_ids()`: every published, not hidden QuizMatter lesson's `id`

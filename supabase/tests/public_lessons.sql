@@ -51,13 +51,13 @@ declare
 begin
   -- Other lessons may exist in the database; only ours are checked, in order.
   select string_agg(id, ',' order by n) into ids
-  from public.public_lessons(50) with ordinality as x (id, title, subject, grades, updated_at, first_slide, n)
+  from public.public_lessons(12) with ordinality as x (id, title, subject, grades, updated_at, first_slide, n)
   where id like 'test-pl-%';
   if ids is distinct from 'test-pl-2,test-pl-1' then
     raise exception 'FAIL: public_lessons should give the published, not hidden lessons, newest first, got %', ids;
   end if;
 
-  select first_slide into slide from public.public_lessons(50) where id = 'test-pl-2';
+  select first_slide into slide from public.public_lessons(12) where id = 'test-pl-2';
   if slide -> 'correctOptionId' is distinct from 'null'::jsonb or slide ? 'correctAnswer'
      or (select string_agg(e ->> 'id', ',') from jsonb_array_elements(slide -> 'elements') e) is distinct from 'q1' then
     raise exception 'FAIL: a lesson''s first slide still carries its answer: %', slide;
@@ -72,9 +72,10 @@ begin
     raise exception 'FAIL: public_lessons(0) should be refused';
   exception when sqlstate '22023' then null;
   end;
+  -- At most 12 (the home page shows 8): one slide may be 2 MB, so a call can't pull more than about 24 MB.
   begin
-    perform public.public_lessons(51);
-    raise exception 'FAIL: public_lessons(51) should be refused';
+    perform public.public_lessons(13);
+    raise exception 'FAIL: public_lessons(13) should be refused';
   exception when sqlstate '22023' then null;
   end;
 
