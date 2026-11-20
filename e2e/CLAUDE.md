@@ -171,10 +171,12 @@ when another is picked), moving into and between boxes (Alt keeps a free picture
   that isn't published gets a real redirect (307) to login, and a presentation's `/edit`, a broken presentation link
   and `/presentation/new` still go to login.
 - `public-preview.mjs`: a published presentation's public preview, logged out: the first shown slide (a hidden first
-  one is skipped), the title as the `<h1>`, the Author, "Filipino · Grade 4 · 1 slide", the login button back to the
-  page and Sign up; `og:title`, the description, `twitter:card`, a full `og:image` address whose picture is a PNG
-  (saved as `shots/public-preview-card.png`: a long title with ñ, cut at 3 lines). A private one, one QuizMatter hid
-  and an unknown one go to login. Logged in, the same link is the normal view page.
+  one is skipped), the title as the `<h1>`, the Author, "Filipino · Grade 4 · 1 slide", no answer in the page, the
+  login button back to the page and Sign up; `og:title`, the description, `twitter:card`, a full `og:image` address
+  whose picture is a PNG (saved as `shots/public-preview-card.png`: a long title with ñ, cut at 3 lines); an unknown
+  id's picture is 404. One with no Author shows no name (never the display name), and its video slide names YouTube
+  without the browser ever asking YouTube. A private one, one QuizMatter hid and an unknown one go to login. Logged
+  in, the same link is the normal view page.
 - `admin-list.mjs`: Admin → Admins as the super admin: every admin with Super admin / Admin and Two-step on / not
   set up (an admin row without an authenticator app); a plain admin gets "page not found" and no menu item.
 - `reports-plain-admin.mjs`: Admin → Reports as a plain admin: a teacher's reported copy has Hide and Delete, a

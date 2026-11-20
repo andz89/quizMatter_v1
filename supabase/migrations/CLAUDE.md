@@ -15,7 +15,8 @@ even if the app has a bug. The app's checks (zod, hidden buttons) are only the f
   and functions no longer open to `anon` by themselves, and `anon` keeps only SELECT on `blocked_email_domains`
   (sign up), SELECT on `maintenance` (`id`, `is_on`), `execute` on `maintenance_status` / `check_maintenance`
   (the maintenance stop) and on `public_presentation` (a published presentation's public preview: title, details,
-  first shown slide; `20261231002200_public_presentation.sql`). A logged-out page that needs something new gets its own `grant … to anon` (and a policy).
+  first shown slide without its answer, never a display name; `20261231002200_public_presentation.sql`, newest
+  `20261231002300_public_presentation_review_fixes.sql`). A logged-out page that needs something new gets its own `grant … to anon` (and a policy).
   A new function is still open to PUBLIC (Postgres's default), so it keeps its `revoke execute … from public, anon`:
   `supabase/tests/anon_grants.sql` fails, naming it, when that's forgotten (or when a table opens to `anon`).
 - A trigger function (returns `trigger`) can't be called from the API: Postgres refuses to run one outside its

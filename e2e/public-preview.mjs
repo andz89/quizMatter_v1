@@ -23,24 +23,33 @@ const slide = (id, question, hidden = false) => ({
   ...(hidden ? { hidden: true } : {}),
 });
 
+const videoSlide = { ...slide("v1", ""), type: "video", embedUrl: "https://www.youtube.com/watch?v=dQw4w9WgXcQ", correctOptionId: null };
+
 // A teacher's published presentation is a shared copy of a private original; its rows go in with the sharing setting.
-const ids = { original: crypto.randomUUID(), copy: crypto.randomUUID(), hiddenOriginal: crypto.randomUUID(), hidden: crypto.randomUUID(), private: crypto.randomUUID() };
+const ids = {
+  original: crypto.randomUUID(), copy: crypto.randomUUID(), hiddenOriginal: crypto.randomUUID(), hidden: crypto.randomUUID(),
+  private: crypto.randomUUID(), videoOriginal: crypto.randomUUID(), video: crypto.randomUUID(),
+};
 // Long, with ñ: the title card must draw it and cut it at 3 lines.
 const title = "Mga Bahagi ng Pangungusap: Ang Simuno at Panaguri sa Bawat Pangungusap na Isinulat ni Niño sa Kanyang Kuwaderno";
 psql(`
   insert into public.presentations (id, owner_id, title) values
     ('${ids.original}', '${teacher.id}', 'Original'),
     ('${ids.hiddenOriginal}', '${teacher.id}', 'Hidden original'),
-    ('${ids.private}', '${teacher.id}', 'Private one');
+    ('${ids.private}', '${teacher.id}', 'Private one'),
+    ('${ids.videoOriginal}', '${teacher.id}', 'Video original');
   select set_config('quizmatter.sharing', 'yes', false);
-  insert into public.presentations (id, owner_id, title, description, subject, grades, shared_from, is_published, shared_at) values
-    ('${ids.copy}', '${teacher.id}', '${title}', 'Simuno at panaguri.', 'Filipino', '{"Grade 4"}', '${ids.original}', true, now()),
-    ('${ids.hidden}', '${teacher.id}', 'Hidden copy', '', '', '{}', '${ids.hiddenOriginal}', true, now());
+  -- The copy has an Author; the video one has none (so no name may show: never the display name).
+  insert into public.presentations (id, owner_id, title, description, subject, grades, author, shared_from, is_published, shared_at) values
+    ('${ids.copy}', '${teacher.id}', '${title}', 'Simuno at panaguri.', 'Filipino', '{"Grade 4"}', 'Gng. Santos', '${ids.original}', true, now()),
+    ('${ids.hidden}', '${teacher.id}', 'Hidden copy', '', '', '{}', '', '${ids.hiddenOriginal}', true, now()),
+    ('${ids.video}', '${teacher.id}', 'Video lesson', '', '', '{}', '', '${ids.videoOriginal}', true, now());
   insert into public.slides (presentation_id, id, position, data) values
     ('${ids.copy}', 's1', 0, $j$${JSON.stringify(slide("s1", "Secret first slide", true))}$j$),
     ('${ids.copy}', 's2', 1, $j$${JSON.stringify(slide("s2", "Ano ang simuno?"))}$j$),
     ('${ids.hidden}', 'h1', 0, $j$${JSON.stringify(slide("h1", "Hidden"))}$j$),
-    ('${ids.private}', 'p1', 0, $j$${JSON.stringify(slide("p1", "Private"))}$j$);
+    ('${ids.private}', 'p1', 0, $j$${JSON.stringify(slide("p1", "Private"))}$j$),
+    ('${ids.video}', 'v1', 0, $j$${JSON.stringify(videoSlide)}$j$);
 `);
 // QuizMatter hides one (as Admin → Reports does).
 const hide = await asUser(admin, `/rest/v1/presentations?id=eq.${ids.hidden}`, {
@@ -52,6 +61,9 @@ check("setup: the admin hid one", hide.ok, `${hide.status} ${JSON.stringify(hide
 try {
   // ─── Logged out ─────────────────────────────────────────────────────────────────────────────────────────────
   const visitor = await browser.newContext();
+  // Every address the visitor's browser asks for (YouTube must never see a logged-out visitor).
+  const asked = [];
+  visitor.on("request", (request) => asked.push(request.url()));
   const page = await visitor.newPage();
   await page.goto(`${APP}/presentation/${ids.copy}`);
   // The page streams (a loading screen first), so wait for its content.
@@ -61,7 +73,10 @@ try {
   check("its h1 is the title", (await page.locator("h1").innerText()) === title, await page.locator("h1").innerText().catch(() => ""));
   check("it shows the first shown slide", await page.getByText("Ano ang simuno?").isVisible());
   check("the hidden first slide isn't shown", (await page.getByText("Secret first slide").count()) === 0);
-  check("it names the author and the details", await page.getByText("By Preview Maker").isVisible());
+  check("it names the Author", await page.getByText("By Gng. Santos").isVisible());
+  // No answer in what the page sends (the database leaves it out; the answer's id would be "s2-b").
+  const answerInPage = new RegExp('correctOptionId\\\\?"\\s*:\\s*\\\\?"s2-b');
+  check("the first slide's answer isn't in the page", !answerInPage.test(await page.content()));
   await page.screenshot({ path: `${SHOTS}public-preview.png`, fullPage: true });
   check("the details line counts shown slides", await page.getByText("Filipino · Grade 4 · 1 slide").isVisible());
   const login = page.getByRole("link", { name: "Log in to see the slide" });
@@ -80,6 +95,19 @@ try {
   const picture = await fetch(`${APP}${imageUrl.pathname}${imageUrl.search}`);
   check("its picture is a PNG, logged out", picture.status === 200 && picture.headers.get("content-type") === "image/png", `${picture.status} ${picture.headers.get("content-type")}`);
   writeFileSync(`${SHOTS}public-preview-card.png`, Buffer.from(await picture.arrayBuffer()));
+
+  const unknownPicture = await fetch(`${APP}/presentation/${crypto.randomUUID()}/opengraph-image`);
+  check("an unknown presentation's picture is 404, not drawn", unknownPicture.status === 404, `${unknownPicture.status}`);
+
+  // No Author: no name at all (a display name is usually a teacher's full name). A video slide shows its plain box.
+  await page.goto(`${APP}/presentation/${ids.video}`);
+  await page.locator("h1").waitFor();
+  await page.getByText("YouTube").first().waitFor({ timeout: 10_000 }).catch(() => {});
+  const mainText = await page.locator("main").innerText();
+  check("with no Author, no name shows", !mainText.includes("By ") && !mainText.includes("Preview Maker"), mainText.slice(0, 200));
+  check("the video slide names YouTube", await page.getByText("YouTube").first().isVisible());
+  const youTubeAsked = asked.filter((url) => /ytimg\.com|youtube\.com/.test(url));
+  check("YouTube is never asked", youTubeAsked.length === 0, youTubeAsked.join(" "));
 
   for (const [name, id] of [["a private presentation", ids.private], ["one QuizMatter hid", ids.hidden], ["an unknown one", crypto.randomUUID()]]) {
     await page.goto(`${APP}/presentation/${id}`);

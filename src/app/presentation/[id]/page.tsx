@@ -23,9 +23,12 @@ import { PublicPresentation } from "./PublicPresentation";
 /**
  * The tags search engines and link previews read (the picture comes from opengraph-image.tsx next to this page).
  * Only a published presentation gets its own; anything else is "QuizMatter" and kept out of search results.
+ * Read only for logged-out visitors (robots are always logged out); logged in, the page keeps the default title and
+ * makes no extra read. getAccount is shared with the page (one lookup per request).
  */
 export async function generateMetadata({ params }: PageProps<"/presentation/[id]">): Promise<Metadata> {
   const { id } = await params;
+  if ((await getAccount()).id) return {};
   const preview = z.uuid().safeParse(id).success ? await getPublicPresentation(id) : null;
   if (!preview) return { title: "QuizMatter", robots: { index: false } };
   const title = preview.title || "Untitled presentation";

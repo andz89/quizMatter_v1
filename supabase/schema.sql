@@ -2962,17 +2962,21 @@ CREATE OR REPLACE FUNCTION "public"."public_presentation"("p_id" "text") RETURNS
     p.subject,
     p.grades,
     p.from_admin,
-    -- The Author text; else "QuizMatter" for a QuizMatter lesson or an admin's presentation; else the owner's display
-    -- name (what publisher_names gives a teacher; never an email).
     coalesce(
       nullif(btrim(p.author), ''),
       case when p.from_admin or exists (select 1 from public.admins a where a.user_id = p.owner_id) then 'QuizMatter' end,
-      (select coalesce(s.display_name, '') from public.user_settings s where s.user_id = p.owner_id),
       ''
     ),
     -- Shown slides, like shownSlides in src/lib/constants.ts: the ones not hidden, or all of them when every one is.
     shown.total,
-    shown.first
+    case when shown.first is not null then
+      jsonb_set(shown.first - 'correctAnswer', '{correctOptionId}', 'null'::jsonb)
+        || jsonb_build_object('elements', coalesce((
+          select jsonb_agg(e order by n)
+          from jsonb_array_elements(coalesce(shown.first -> 'elements', '[]'::jsonb)) with ordinality as x (e, n)
+          where e ->> 'containerId' is distinct from 'answer'
+        ), '[]'::jsonb))
+    end
   from public.presentations p
   cross join lateral (
     select count(*)::int as total,

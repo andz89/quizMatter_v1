@@ -34,7 +34,10 @@ insert into public.slides (presentation_id, id, position, data) values
   ('test-pp-1', 'a1', 0, '{"id": "a1", "type": "blank", "elements": [], "question": "Hidden one", "hidden": true}'),
   ('test-pp-1', 'a2', 1, '{"id": "a2", "type": "blank", "elements": [], "question": "First shown"}'),
   ('test-pp-1', 'a3', 2, '{"id": "a3", "type": "blank", "elements": [], "question": "Second shown"}'),
-  ('test-pp-2', 'b1', 0, '{"id": "b1", "type": "blank", "elements": [], "question": "Run"}'),
+  ('test-pp-2', 'b1', 0, '{"id": "b1", "type": "short-answer", "question": "Run", "correctOptionId": "o2",
+    "correctAnswer": "Tumakbo", "answerType": "canvas", "elements": [
+      {"id": "q1", "assetId": "star", "containerId": null},
+      {"id": "ans1", "assetId": "check", "containerId": "answer"}]}'),
   ('test-pp-3', 'c1', 0, '{"id": "c1", "type": "blank", "elements": [], "question": "One", "hidden": true}'),
   ('test-pp-3', 'c2', 1, '{"id": "c2", "type": "blank", "elements": [], "question": "Two", "hidden": true}'),
   ('test-pp-4', 'd1', 0, '{"id": "d1", "type": "blank", "elements": [], "question": "Lesson"}'),
@@ -63,8 +66,9 @@ begin
      or r.subject is distinct from 'Math' or r.grades is distinct from '{"4","5"}'::text[] or r.from_admin then
     raise exception 'FAIL: p1 details are wrong: %', row_to_json(r);
   end if;
-  if r.author_name is distinct from 'Pp Teacher' then
-    raise exception 'FAIL: with no Author, the name should be the display name, got %', r.author_name;
+  -- A teacher's display name is usually their full name: never on the open web.
+  if r.author_name is distinct from '' then
+    raise exception 'FAIL: with no Author, no name should show (not the display name), got %', r.author_name;
   end if;
   if r.slide_count is distinct from 2 then
     raise exception 'FAIL: p1 should count its 2 shown slides, got %', r.slide_count;
@@ -76,6 +80,16 @@ begin
   select * into r from public.public_presentation('test-pp-2');
   if r.author_name is distinct from 'Ma. Santos' then
     raise exception 'FAIL: the Author text should win, got %', r.author_name;
+  end if;
+  -- No answers: anyone can call this with the public key.
+  if r.first_slide -> 'correctOptionId' is distinct from 'null'::jsonb or r.first_slide ? 'correctAnswer' then
+    raise exception 'FAIL: the first slide still carries its answer: %', r.first_slide;
+  end if;
+  if (select string_agg(e ->> 'id', ',') from jsonb_array_elements(r.first_slide -> 'elements') e) is distinct from 'q1' then
+    raise exception 'FAIL: the answer box''s pictures should be left out, the rest kept: %', r.first_slide -> 'elements';
+  end if;
+  if r.first_slide ->> 'question' is distinct from 'Run' then
+    raise exception 'FAIL: the rest of the slide should stay';
   end if;
 
   select * into r from public.public_presentation('test-pp-3');
@@ -130,7 +144,7 @@ select set_config('request.jwt.claims',
 
 do $$
 begin
-  if (select author_name from public.public_presentation('test-pp-1')) is distinct from 'Pp Teacher' then
+  if (select title from public.public_presentation('test-pp-1')) is distinct from 'Fractions' then
     raise exception 'FAIL: a logged-in teacher should get the same row';
   end if;
 end $$;

@@ -54,16 +54,23 @@ modal grey out.
 - **Public preview** (logged out; spec `docs/superpowers/specs/2026-11-20-public-presentation-preview-design.md`):
   `src/proxy.ts` lets logged-out visitors (and robots: Google, Facebook's link reader) open `/presentation/<uuid>`
   and its picture (`isPublicPreviewPath`, `src/lib/publicPaths.ts`). For the page itself it first asks
-  `public_presentation` (the only read `anon` may make, `20261231002200_public_presentation.sql`: published and not
-  hidden) and sends anything else to `/login?next=…` with a real redirect, as before (the page streams, so its own
-  `redirect` would arrive late; it checks again anyway). `page.tsx` then shows `[id]/PublicPresentation.tsx`
-  (`LoggedOutBar`, the first shown slide, the title as `<h1>`, "By <Author>", subject · grades · slides, the
-  description, "Log in to see …" back to this page and "Sign up free"). Logged in: the normal view page, unchanged.
+  `public_presentation` (the only read `anon` may make, `20261231002200_public_presentation.sql`, newest
+  `20261231002300_public_presentation_review_fixes.sql`: published and not hidden) and sends anything else to
+  `/login?next=…` with a real redirect, as before (the page streams, so its own `redirect` would arrive late; it
+  checks again anyway). What it gives the open web: never a display name (usually a teacher's full name): only the
+  Author text, "QuizMatter" for a lesson with none, else no name; and the first slide without its answer
+  (`correctOptionId`, `correctAnswer`, the answer box's pictures), since anyone can call it with the public key.
+  `page.tsx` then shows `[id]/PublicPresentation.tsx` (`LoggedOutBar`, the first shown slide, the title as `<h1>`,
+  "By <Author>" when there is one, subject · grades · slides, the description, "Log in to see …" back to this page
+  and "Sign up free"). A video slide there shows its plain box (`showVideoCover={false}`, through
+  `FluidSlidePreview` → `SlideStaticView` → `EmbedSlideView`), so YouTube never sees a logged-out visitor.
+  Logged in: the normal view page, unchanged.
   The read is `getPublicPresentation` (`src/lib/publicPresentation.ts`, no login cookies, once per request), also
-  used by `generateMetadata` (title, description, canonical; anything else `noindex`) and
+  used by `generateMetadata` (logged out only: title, description, canonical; anything else `noindex`) and
   `[id]/opengraph-image.tsx`: the QuizMatter title card for shared links (`src/app/ogCard.tsx`, `next/og`, fonts in
-  `src/app/fonts/`; not a picture of the slide, the owner's choice; anything not public gets the site picture,
-  `src/app/opengraph-image.tsx`). `src/app/robots.ts` is `/robots.txt`. The root layout's `metadataBase`
+  `src/app/fonts/ogFonts.ts`; not a picture of the slide, the owner's choice; anything not public is 404 without
+  drawing, so random ids cost almost nothing). The site picture is `src/app/opengraph-image.tsx` (made at build).
+  `src/app/robots.ts` is `/robots.txt`. The root layout's `metadataBase`
   (`https://quizmatter.com`) makes the picture addresses full (`next dev` writes its own host instead). The Share
   card says what the preview shows. Tests: `e2e/public-preview.mjs`, `supabase/tests/public_presentation.sql`.
 - Likes: `[id]/LikeButton.tsx` on a published presentation's view page. Teachers and editors like someone else's

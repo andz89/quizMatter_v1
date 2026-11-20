@@ -185,3 +185,22 @@ Three calls made while building, which change the design above:
   can't be relied on to read files, and checking the built Worker locally would have touched the live database.
 - **The picture is kept for one hour** (`Cache-Control: public, max-age=3600`), not a day: a Worker's answers aren't
   kept in Cloudflare's cache anyway, and a presentation made private shouldn't keep its card long.
+
+## Review fixes (2026-11-20)
+
+From the review of part 1 (the owner chose "all published, Author text only"):
+
+- **No display name in public.** `author_name` is the Author text; "QuizMatter" for a QuizMatter lesson (or an
+  admin's presentation) with none; else empty, and the page, the picture and the description show no name. A
+  teacher's display name is usually their full name (sign up makes it), so it never goes on the open web.
+- **No answers in public.** `first_slide` comes back without `correctOptionId` (null), `correctAnswer`, and the
+  elements in the answer box (`containerId` "answer", `ANSWER_CONTAINER_ID`). Done in the database function, since
+  anyone can call it directly with the public key.
+- **No drawing for nothing.** `/presentation/<id>/opengraph-image` answers 404 for anything not public (made-up ids
+  included), instead of drawing the site picture each time. Private and unknown still look the same.
+- **No YouTube for visitors.** On the public page a video slide shows its plain box with the site's name, not
+  YouTube's cover picture (`showVideoCover={false}` through `FluidSlidePreview` → `SlideStaticView` →
+  `EmbedSlideView`), so YouTube never sees a logged-out visitor.
+- **No extra read when logged in.** `generateMetadata` reads `public_presentation` only for logged-out visitors;
+  logged in, the page keeps the default title, as before this feature.
+- Later (not now): a way for logged-out visitors to report.

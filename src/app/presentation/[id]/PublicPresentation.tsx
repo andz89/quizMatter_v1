@@ -23,7 +23,12 @@ export function PublicPresentation({ presentation }: { presentation: PublicData 
         <div className="border-b border-border-default" style={{ aspectRatio: `${CANVAS_WIDTH} / ${CANVAS_HEIGHT}` }}>
           {firstSlide ? (
             <PeopleArtGate needed={usesPeopleArt([firstSlide])}>
-              <FluidSlidePreview slide={firstSlide} questionNumber={getSlideNumbers([firstSlide]).get(firstSlide.id)} />
+              <FluidSlidePreview
+                slide={firstSlide}
+                questionNumber={getSlideNumbers([firstSlide]).get(firstSlide.id)}
+                // A logged-out visitor's browser never asks YouTube for a video's cover picture.
+                showVideoCover={false}
+              />
             </PeopleArtGate>
           ) : (
             <div className="flex h-full items-center justify-center bg-bg-page text-sm text-text-secondary">No slides yet</div>
