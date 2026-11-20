@@ -137,7 +137,8 @@ export default function PrivacyPage() {
           never your display name), number of slides and first slide (without its answer), on a public preview page and
           in the picture shown when the link is shared (for example on Facebook or Messenger). The other slides, your
           profile and everything else still need a QuizMatter login. A private presentation, or one QuizMatter hid, has
-          no public preview.
+          no public preview. The newest QuizMatter lessons (not teachers’ own presentations) are also shown on
+          QuizMatter’s public home page and listed for search engines.
         </p>
         <p>
           <strong>If you’re an editor:</strong> your name, email and the date show on every QuizMatter lesson you

@@ -14,7 +14,9 @@ even if the app has a bug. The app's checks (zod, hidden buttons) are only the f
 - A logged-out visitor (`anon`) gets nothing by default (`20261231001400_anon_grants.sql`): new tables, sequences
   and functions no longer open to `anon` by themselves, and `anon` keeps only SELECT on `blocked_email_domains`
   (sign up), SELECT on `maintenance` (`id`, `is_on`), `execute` on `maintenance_status` / `check_maintenance`
-  (the maintenance stop) and on `public_presentation` (a published presentation's public preview: title, details,
+  (the maintenance stop), on `public_lessons` / `public_lesson_ids` (the public home's newest QuizMatter lessons and
+  the sitemap, `20261231002400_public_lessons.sql`; the first slide comes from `public_first_slide`, not granted, the
+  one place the "first shown slide without its answer" rule lives) and on `public_presentation` (a published presentation's public preview: title, details,
   first shown slide without its answer, never a display name; `20261231002200_public_presentation.sql`, newest
   `20261231002300_public_presentation_review_fixes.sql`). A logged-out page that needs something new gets its own `grant … to anon` (and a policy).
   A new function is still open to PUBLIC (Postgres's default), so it keeps its `revoke execute … from public, anon`:

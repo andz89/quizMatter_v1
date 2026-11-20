@@ -167,9 +167,15 @@ when another is picked), moving into and between boxes (Alt keeps a free picture
   saved data. Each scenario has its own presentation and page. `ONLY="crop|layers"` runs just the scenarios that
   match; to run tiles add `lists its categories|every tile$` (for example `ONLY="lists its categories|every tile$|every tile: Emoji"`).
 - `proxy.mjs`: an expired session opening /login is refreshed and the redirect keeps the new cookies; `/api/mcp`
-  skips the proxy, `/api/mcp-admin` and `/api/claude-photos` don't. Logged out, `/robots.txt` opens, a presentation
+  skips the proxy, `/api/mcp-admin` and `/api/claude-photos` don't. Logged out, `/robots.txt` and `/sitemap.xml` open, a presentation
   that isn't published gets a real redirect (307) to login, and a presentation's `/edit`, a broken presentation link
   and `/presentation/new` still go to login.
+- `public-home.mjs`: logged out (390 px wide), `/` is the public home and stays at `/` (its h1, one h1, Sign up free,
+  a QuizMatter lesson linking to its preview, no teacher's shared copy, no sideways scroll, its title; screenshot
+  `public-home-phone.png`); `/welcome` itself goes to `/`; `sitemap.xml` lists the lesson and the public pages but
+  not a teacher's copy; `robots.txt` names it; the login and Privacy titles. Logged in: `/` is the normal home, the
+  home and Saved titles, and the editor's one h1. It deletes its lesson itself (deleting an admin moves their
+  lessons to the super admin).
 - `public-preview.mjs`: a published presentation's public preview, logged out: the first shown slide (a hidden first
   one is skipped), the title as the `<h1>`, the Author, "Filipino · Grade 4 · 1 slide", no answer in the page, the
   login button back to the page and Sign up; `og:title`, the description, `twitter:card`, a full `og:image` address

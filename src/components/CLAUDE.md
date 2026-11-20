@@ -26,7 +26,7 @@ notes.
   (not on login, sign up, Forgot password, Set a new password or the email link page), Facebook (`FACEBOOK_URL`) and the support email right. Tablets and phones: centered and stacked, with a short line about
   QuizMatter. A page that should push it to the bottom needs nothing: the body is a column and the footer has `mt-auto`.
 - `Logo.tsx`: the one logo (same drawing as `src/app/icon.svg`; the link picture `src/app/ogCard.tsx` draws the same
-  mark). `LoggedOutBar.tsx`: the top bar for logged-out visitors (logo + Log in) on Privacy, Terms and a
+  mark). `LoggedOutBar.tsx`: the top bar for logged-out visitors (the logo, linking to the public home `/`, + Log in) on the public home, Privacy, Terms and a
   presentation's public preview.
 - `SearchForm.tsx`: the search box with its options panel, used by the home page and Admin → Photos.
 - `ClickPauseNotice.tsx`: the sticky "paused" notice from click limits; in the root layout once.
@@ -84,5 +84,5 @@ notes.
 - `Turnstile.tsx`: Cloudflare's "are you human" check on sign up (with its own retries).
 - `PeopleArtGate.tsx`: holds back a presentation until the big people drawings have downloaded
   (`src/lib/peopleArt.ts`).
-- `LinkifiedText.tsx`: plain text with clickable links. `LoginAbout.tsx`: the About part of the login page.
+- `LinkifiedText.tsx`: plain text with clickable links. `LoginAbout.tsx`: the About part of the login page; its `FEATURES` list is also the public home's feature cards.
 - `DevRequestCounter.tsx`: development only (never on quizmatter.com): counts the app's network requests.
