@@ -1,6 +1,5 @@
-import { readFile } from "node:fs/promises";
-import { join } from "node:path";
 import { ImageResponse } from "next/og";
+import { bricolage800, lexend400, lexend600 } from "./fonts/ogFonts";
 
 /**
  * The QuizMatter title card that link previews (Facebook, Messenger, Viber, Google) show
@@ -17,16 +16,12 @@ const INK = "#1B1530";
 const MUTED = "#756E8E";
 const BORDER = "#E6E1F5";
 
-// Bricolage Grotesque ExtraBold (headings) and Lexend (text), the app's fonts, latin letters (ñ included). Read once
-// per server copy. Files and their licenses: src/app/fonts/.
-const fonts = Promise.all(
-  ["bricolage-grotesque-latin-800-normal.woff", "lexend-latin-400-normal.woff", "lexend-latin-600-normal.woff"].map((file) =>
-    readFile(join(process.cwd(), "src/app/fonts", file)),
-  ),
-);
+// Bricolage Grotesque ExtraBold (headings) and Lexend (text), the app's fonts, latin letters (ñ included), kept in the
+// code (src/app/fonts/ogFonts.ts) since a Worker can't read files. Decoded once per server copy.
+const fonts = [bricolage800, lexend400, lexend600].map((base64) => Buffer.from(base64, "base64"));
 
 export async function ogCard(content: { title: string; byline: string; details: string } | null): Promise<ImageResponse> {
-  const [bricolage, lexend, lexendSemiBold] = await fonts;
+  const [bricolage, lexend, lexendSemiBold] = fonts;
   return new ImageResponse(
     (
       <div
