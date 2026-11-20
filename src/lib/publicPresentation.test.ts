@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { publicDescription, toPublicPresentation, type PublicPresentation } from "./publicPresentation";
+import { publicDescription, toPublicLessons, toPublicPresentation, type PublicPresentation } from "./publicPresentation";
 
 const row = {
   title: "Fractions",
@@ -69,4 +69,22 @@ test("with no description, it says what it is", () => {
   assert.equal(publicDescription(sample), "Fractions by Pp Teacher on QuizMatter: 3 slides.");
   assert.equal(publicDescription({ ...sample, slideCount: 1 }), "Fractions by Pp Teacher on QuizMatter: 1 slide.");
   assert.equal(publicDescription({ ...sample, authorName: "" }), "Fractions on QuizMatter: 3 slides.");
+});
+
+test("lesson rows become cards: camelCase, time in ms, a broken slide as no slide", () => {
+  const lessons = toPublicLessons([
+    { id: "l2", title: "Newer", subject: "Science", grades: [], updated_at: "2026-11-19T00:00:00Z", first_slide: row.first_slide },
+    { id: "l1", title: "Older", subject: "Math", grades: ["Grade 1"], updated_at: "2026-11-18T00:00:00Z", first_slide: { nonsense: 1 } },
+  ]);
+  assert.equal(lessons.length, 2);
+  assert.equal(lessons[0].id, "l2");
+  assert.equal(lessons[0].updatedAt, Date.parse("2026-11-19T00:00:00Z"));
+  assert.equal(lessons[0].firstSlide?.id, "a2");
+  assert.deepEqual(lessons[1].grades, ["Grade 1"]);
+  assert.equal(lessons[1].firstSlide, null);
+});
+
+test("no lesson rows means no cards", () => {
+  assert.deepEqual(toPublicLessons(null), []);
+  assert.deepEqual(toPublicLessons(undefined), []);
 });

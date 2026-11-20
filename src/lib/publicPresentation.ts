@@ -52,14 +52,69 @@ export function publicDescription(p: PublicPresentation): string {
 }
 
 /**
- * Reads the preview, the same for everyone (no login cookies: a plain client with the public anon key), so the
- * page, its metadata and its picture agree. Remembered for one request (React's `cache`). Server only.
+ * A newest QuizMatter lesson for the public home page (`public_lessons`, 20261231002400_public_lessons.sql): no name,
+ * the first shown slide without its answer.
  */
-export const getPublicPresentation = cache(async (id: string): Promise<PublicPresentation | null> => {
-  const supabase = createClient<Database>(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
+export type PublicLesson = {
+  id: string;
+  title: string;
+  subject: string;
+  grades: string[];
+  updatedAt: number;
+  firstSlide: Slide | null;
+};
+
+type LessonRow = Database["public"]["Functions"]["public_lessons"]["Returns"][number];
+
+/** The database rows as cards. A first slide in a broken shape becomes no slide. */
+export function toPublicLessons(rows: unknown): PublicLesson[] {
+  return ((rows ?? []) as LessonRow[]).map((r) => ({
+    id: r.id,
+    title: r.title,
+    subject: r.subject,
+    grades: r.grades,
+    updatedAt: Date.parse(r.updated_at),
+    firstSlide: r.first_slide ? parseSlide(r.first_slide) : null,
+  }));
+}
+
+/**
+ * The same for everyone (no login cookies: a plain client with the public anon key), so every visitor and robot
+ * sees what a logged-out one does. Server only.
+ */
+function anonClient() {
+  return createClient<Database>(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
-  const { data, error } = await supabase.rpc("public_presentation", { p_id: id });
+}
+
+/** Reads the preview, so the page, its metadata and its picture agree. Remembered for one request (React's `cache`). */
+export const getPublicPresentation = cache(async (id: string): Promise<PublicPresentation | null> => {
+  const { data, error } = await anonClient().rpc("public_presentation", { p_id: id });
   if (error) throw error;
   return toPublicPresentation(id, data?.[0]);
 });
+
+/** The newest QuizMatter lessons (1–50) for the public home page. */
+export async function getPublicLessons(limit: number): Promise<PublicLesson[]> {
+  const { data, error } = await anonClient().rpc("public_lessons", { p_limit: limit });
+  if (error) throw error;
+  return toPublicLessons(data);
+}
+
+// A request gives 1,000 rows at most, and a sitemap holds 50,000 addresses at most.
+const SITEMAP_PAGE = 1000;
+const SITEMAP_MAX = 50_000;
+
+/** Every QuizMatter lesson's id and last change, newest first, for sitemap.xml (read 1,000 at a time). */
+export async function getPublicLessonIds(): Promise<{ id: string; updatedAt: number }[]> {
+  const supabase = anonClient();
+  const all: { id: string; updatedAt: number }[] = [];
+  while (all.length < SITEMAP_MAX) {
+    const { data, error } = await supabase.rpc("public_lesson_ids").range(all.length, all.length + SITEMAP_PAGE - 1);
+    if (error) throw error;
+    all.push(...data.map((row) => ({ id: row.id, updatedAt: Date.parse(row.updated_at) })));
+    if (data.length < SITEMAP_PAGE) break;
+  }
+  return all.slice(0, SITEMAP_MAX);
+}
