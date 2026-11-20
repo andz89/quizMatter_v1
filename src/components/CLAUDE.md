@@ -25,7 +25,9 @@ notes.
   checked by address). Computers (`lg`): one row, logo, © and the Privacy / Terms links left, "Keep QuizMatter free"
   (not on login, sign up, Forgot password, Set a new password or the email link page), Facebook (`FACEBOOK_URL`) and the support email right. Tablets and phones: centered and stacked, with a short line about
   QuizMatter. A page that should push it to the bottom needs nothing: the body is a column and the footer has `mt-auto`.
-- `Logo.tsx`: the one logo (same drawing as `src/app/icon.svg`).
+- `Logo.tsx`: the one logo (same drawing as `src/app/icon.svg`; the link picture `src/app/ogCard.tsx` draws the same
+  mark). `LoggedOutBar.tsx`: the top bar for logged-out visitors (logo + Log in) on Privacy, Terms and a
+  presentation's public preview.
 - `SearchForm.tsx`: the search box with its options panel, used by the home page and Admin → Photos.
 - `ClickPauseNotice.tsx`: the sticky "paused" notice from click limits; in the root layout once.
 - Maintenance (root `CLAUDE.md`, "Maintenance"), in the root layout once each: `MaintenanceWatch.tsx` wraps the

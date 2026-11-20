@@ -255,6 +255,13 @@ export function ShareButton() {
             })}
           </div>
 
+          {/* Logged-out visitors (and Google) see a published one's public preview (presentation/[id]/PublicPresentation). */}
+          {canPublish && (
+            <p className="text-[13px] text-text-secondary">
+              Anyone with the link can see its title, author and first slide. The rest needs a QuizMatter login.
+            </p>
+          )}
+
           {(isSharePaused || (!isPublished && isPublishPaused)) && (
             <p className="text-[13px] text-text-secondary">
               {isSharePaused ? "Sharing" : "Publishing"} is paused for a while, because it was switched too often. The

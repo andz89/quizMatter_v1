@@ -66,7 +66,9 @@ export default function TermsPage() {
         <p>
           <strong>When you publish a presentation</strong>, other teachers may view it, present it, save it, make their
           own copy, change it for their teaching, share their copy again and submit it to QuizMatter, as long as they
-          credit you. Copies already made stay when you make yours private or delete it.
+          credit you. Copies already made stay when you make yours private or delete it. Its title, Author and first
+          slide also show on a public preview that anyone with the link, and search engines, can see; the rest needs a
+          QuizMatter login.
         </p>
       </LegalSection>
 

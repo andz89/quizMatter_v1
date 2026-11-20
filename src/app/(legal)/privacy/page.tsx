@@ -22,6 +22,10 @@ export default function PrivacyPage() {
             Other teachers can see your profile, but never your email, contact number, birthday or gender. If you’re an editor, your
             email shows on the QuizMatter lessons you review.
           </li>
+          <li>
+            A presentation you publish has a public preview: anyone with its link, and search engines like Google, can see
+            its title, Author and first slide.
+          </li>
           <li>You can see, fix or delete your information.</li>
           <li>Questions? Email us anytime.</li>
         </ul>
@@ -122,10 +126,17 @@ export default function PrivacyPage() {
       <LegalSection title="4. Who can see your information">
         <p>
           <strong>Other teachers</strong> (only when logged in; QuizMatter’s pages are closed to everyone else, except
-          sign up, log in, forgot password, the links in our emails and these two pages). On your profile page: your display name, your first and last name, your
+          sign up, log in, forgot password, the links in our emails, these two pages and the public previews below). On your profile page: your display name, your first and last name, your
           educational background and your bio (you can hide these three, unless you’re an editor), an editor’s profile photo, the presentations you published, and the QuizMatter lessons you made as
           an editor. Your display name or the Author name shows on the work you share. They never see your email,
           contact number, birthday or gender.
+        </p>
+        <p>
+          <strong>Anyone with the link, and search engines</strong> (like Google), for a presentation you published or a
+          QuizMatter lesson: its title, description, subject, grades, Author (or your display name when the Author is
+          empty), number of slides and first slide, on a public preview page and in the picture shown when the link is
+          shared (for example on Facebook or Messenger). The other slides, your profile and everything else still need a
+          QuizMatter login. A private presentation, or one QuizMatter hid, has no public preview.
         </p>
         <p>
           <strong>If you’re an editor:</strong> your name, email and the date show on every QuizMatter lesson you

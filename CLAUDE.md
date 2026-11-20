@@ -27,7 +27,8 @@ first.
 - `e2e/` **(notes)**: the browser tests (Playwright, already installed): `npm run e2e:dev`, then `node e2e/<test>.mjs`.
 - `src/pages/api/` **(notes)**: Claude's connector (MCP server). Its drafts live in Cloudflare D1 (`d1/migrations`).
 - `src/proxy.ts`: the login check before each page (logged-out visitors may open only login, sign up, Forgot
-  password, the email link (`/auth/confirm`), Privacy and Terms), and the maintenance stop (see "Maintenance" below; `src/app/maintenance/` is
+  password, the email link (`/auth/confirm`), Privacy and Terms, and a published presentation's public preview with
+  its link picture and `/robots.txt`; see `src/app/CLAUDE.md`), and the maintenance stop (see "Maintenance" below; `src/app/maintenance/` is
   its page). `worker.ts` + `wrangler.jsonc`: Cloudflare timers (cleanups). `src/lib/securityHeaders.ts`: the
   security headers `next.config.ts` puts on every response (no framing, https only, …; see `src/lib/CLAUDE.md`).
 - `docs/superpowers/specs/`: the designs of past features. Read the matching one before changing a big feature.
