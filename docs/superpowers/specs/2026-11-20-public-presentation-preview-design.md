@@ -172,3 +172,16 @@ After the preview deploys, check a published link with Facebook's Sharing Debugg
 - Drawing the Q-Check mark in the picture (reuse `Logo.tsx`'s SVG paths; don't redraw it differently).
 - The exact layout of the card and the page, within the design system.
 - The name of the hidden-slide field and the people-art check: follow what the view page and home cards do.
+
+## As built (2026-11-20)
+
+Three calls made while building, which change the design above:
+
+- **The proxy redirects a non-public presentation itself.** The page streams (under `presentation/loading.tsx`), so
+  its own `redirect` arrived as a 200 page that moved to login a moment later. To keep "exactly like today" (a real
+  307 to login), `src/proxy.ts` asks `public_presentation` for a logged-out visit to `/presentation/<uuid>` (one small
+  read, logged-out visitors only). The page still checks again.
+- **The picture's fonts are in the code** (`src/app/fonts/ogFonts.ts`, base64), not files read from disk: a Worker
+  can't be relied on to read files, and checking the built Worker locally would have touched the live database.
+- **The picture is kept for one hour** (`Cache-Control: public, max-age=3600`), not a day: a Worker's answers aren't
+  kept in Cloudflare's cache anyway, and a presentation made private shouldn't keep its card long.

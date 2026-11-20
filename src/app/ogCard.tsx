@@ -89,9 +89,9 @@ export async function ogCard(content: { title: string; byline: string; details: 
         { name: "Lexend", data: lexend, weight: 400, style: "normal" },
         { name: "Lexend", data: lexendSemiBold, weight: 600, style: "normal" },
       ],
-      // A robot asking again costs nothing: an hour in the browser, a day at Cloudflare. A renamed presentation's
-      // card can be a day old.
-      headers: { "Cache-Control": "public, max-age=3600, s-maxage=86400" },
+      // Kept for an hour by whoever fetched it, so a robot asking again costs nothing. A renamed (or newly private)
+      // presentation's card can be an hour old there; Facebook keeps its own copy until its Sharing Debugger re-reads it.
+      headers: { "Cache-Control": "public, max-age=3600" },
     },
   );
 }
