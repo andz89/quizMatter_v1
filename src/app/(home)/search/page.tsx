@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { Suspense } from "react";
 import Link from "next/link";
 import { XIcon } from "lucide-react";
@@ -10,6 +11,8 @@ import type { SubmissionStatus } from "@/lib/submissions";
 import { CARD_COLUMNS, applySearch, draftCard, draftMatches, loadCardContext, myCard, myId, mySharedCopies, mySubmissionStatuses, orderBy, type CardPresentation } from "../cards";
 import { SavableCards } from "../CardGrid";
 import { ShowMore } from "../ShowMore";
+
+export const metadata: Metadata = { title: "Search" };
 
 /** Search results: one mixed list for the chosen "Look in", with the total, 20 at a time ("Show more" adds 20). */
 export default async function SearchPage({ searchParams }: PageProps<"/search">) {

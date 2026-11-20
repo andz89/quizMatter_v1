@@ -3,7 +3,7 @@ import Link from "next/link";
 import { SupportEmail } from "@/components/SupportEmail";
 import { LegalSection, LegalTitle, ShortVersion } from "../LegalParts";
 
-export const metadata: Metadata = { title: "Terms of Use · QuizMatter" };
+export const metadata: Metadata = { title: "Terms of Use" };
 
 // Written to be true to the code (docs/superpowers/specs/2026-10-27-privacy-and-terms-design.md). A change here changes
 // LEGAL_VERSION (src/lib/legal.ts) in the same commit.
@@ -66,7 +66,9 @@ export default function TermsPage() {
         <p>
           <strong>When you publish a presentation</strong>, other teachers may view it, present it, save it, make their
           own copy, change it for their teaching, share their copy again and submit it to QuizMatter, as long as they
-          credit you. Copies already made stay when you make yours private or delete it.
+          credit you. Copies already made stay when you make yours private or delete it. Its title, Author and first
+          slide also show on a public preview that anyone with the link, and search engines, can see; the rest needs a
+          QuizMatter login.
         </p>
       </LegalSection>
 

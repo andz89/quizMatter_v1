@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { LockIcon } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -11,6 +12,8 @@ import { createClient } from "@/lib/supabase/server";
 import { loadCardRows, toSavableCards, type CardPresentation } from "../../(home)/cards";
 import type { PresentationCardData } from "../../PresentationCard";
 import { SavableCardGrid } from "../../SavableCardGrid";
+
+export const metadata: Metadata = { title: "Teacher profile" };
 
 /**
  * A teacher's profile, at /teachers/<link name> (made from their display name): an editor's photo, display name, full

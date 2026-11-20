@@ -2952,6 +2952,127 @@ $$;
 ALTER FUNCTION "public"."profile_slug"("name" "text") OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."public_first_slide"("p_id" "text") RETURNS "jsonb"
+    LANGUAGE "sql" STABLE
+    SET "search_path" TO ''
+    AS $$
+  -- The first slide by position among the shown ones (like shownSlides in src/lib/constants.ts: the ones not
+  -- hidden, or all of them when every one is), without its answer: correctOptionId emptied, correctAnswer left out,
+  -- and the pictures in the answer box (containerId "answer", the app's ANSWER_CONTAINER_ID) left out.
+  -- "hidden" is dropped too: the slide is the public face, never marked "Hidden when presenting".
+  select jsonb_set(f.data - 'correctAnswer' - 'hidden', '{correctOptionId}', 'null'::jsonb)
+    || jsonb_build_object('elements', coalesce((
+      select jsonb_agg(e order by n)
+      from jsonb_array_elements(coalesce(f.data -> 'elements', '[]'::jsonb)) with ordinality as x (e, n)
+      where e ->> 'containerId' is distinct from 'answer'
+    ), '[]'::jsonb))
+  from (
+    select s.data
+    from public.slides s
+    where s.presentation_id = p_id
+      and (
+        coalesce((s.data ->> 'hidden')::boolean, false) = false
+        or not exists (
+          select 1 from public.slides v
+          where v.presentation_id = p_id and coalesce((v.data ->> 'hidden')::boolean, false) = false
+        )
+      )
+    order by s.position
+    limit 1
+  ) f;
+$$;
+
+
+ALTER FUNCTION "public"."public_first_slide"("p_id" "text") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."public_lesson_ids"() RETURNS TABLE("id" "text", "updated_at" timestamp with time zone)
+    LANGUAGE "sql" STABLE SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+  select p.id, p.updated_at
+  from public.presentations p
+  where p.from_admin and p.is_published and p.hidden_at is null
+  order by p.updated_at desc, p.id;
+$$;
+
+
+ALTER FUNCTION "public"."public_lesson_ids"() OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."public_lessons"("p_limit" integer) RETURNS TABLE("id" "text", "title" "text", "subject" "text", "grades" "text"[], "updated_at" timestamp with time zone, "first_slide" "jsonb")
+    LANGUAGE "plpgsql" STABLE SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+begin
+  -- At most 12 (the home page shows 8): one slide may be 2 MB (slides_data_is_small_object), and anyone can call
+  -- this with the public key, so one call can't pull more than about 24 MB.
+  if p_limit is null or p_limit < 1 or p_limit > 12 then
+    raise exception 'Ask for 1 to 12 lessons.' using errcode = '22023';
+  end if;
+  return query
+    select p.id, p.title, p.subject, p.grades, p.updated_at, public.public_first_slide(p.id)
+    from public.presentations p
+    where p.from_admin and p.is_published and p.hidden_at is null
+    order by p.updated_at desc, p.id
+    limit p_limit;
+end;
+$$;
+
+
+ALTER FUNCTION "public"."public_lessons"("p_limit" integer) OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."public_presentation"("p_id" "text") RETURNS TABLE("title" "text", "description" "text", "subject" "text", "grades" "text"[], "from_admin" boolean, "author_name" "text", "slide_count" integer, "first_slide" "jsonb")
+    LANGUAGE "sql" STABLE SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+  select c.title, c.description, c.subject, c.grades, c.from_admin, c.author_name, c.slide_count,
+    public.public_first_slide(p_id)
+  from public.public_presentation_card(p_id) c;
+$$;
+
+
+ALTER FUNCTION "public"."public_presentation"("p_id" "text") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."public_presentation_card"("p_id" "text") RETURNS TABLE("title" "text", "description" "text", "subject" "text", "grades" "text"[], "from_admin" boolean, "author_name" "text", "slide_count" integer)
+    LANGUAGE "sql" STABLE SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+  select
+    p.title,
+    p.description,
+    p.subject,
+    p.grades,
+    p.from_admin,
+    -- The Author text. On an editor's lesson that is the editor's display name (set by the database, on purpose:
+    -- the Privacy Policy says it shows publicly); a teacher's display name never shows.
+    coalesce(
+      nullif(btrim(p.author), ''),
+      case when p.from_admin or exists (select 1 from public.admins a where a.user_id = p.owner_id) then 'QuizMatter' end,
+      ''
+    ),
+    (
+      select count(*)::int
+      from public.slides s
+      where s.presentation_id = p.id
+        and (
+          coalesce((s.data ->> 'hidden')::boolean, false) = false
+          or not exists (
+            select 1 from public.slides v
+            where v.presentation_id = p.id and coalesce((v.data ->> 'hidden')::boolean, false) = false
+          )
+        )
+    )
+  from public.presentations p
+  where p.id = p_id and p.is_published and p.hidden_at is null;
+$$;
+
+
+ALTER FUNCTION "public"."public_presentation_card"("p_id" "text") OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."publish_photos_of_live_presentation"() RETURNS "trigger"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO ''
@@ -6798,6 +6919,39 @@ GRANT ALL ON FUNCTION "public"."profile_is_visible"("profile_id" "uuid") TO "ser
 REVOKE ALL ON FUNCTION "public"."profile_slug"("name" "text") FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."profile_slug"("name" "text") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."profile_slug"("name" "text") TO "service_role";
+
+
+
+REVOKE ALL ON FUNCTION "public"."public_first_slide"("p_id" "text") FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."public_first_slide"("p_id" "text") TO "service_role";
+
+
+
+REVOKE ALL ON FUNCTION "public"."public_lesson_ids"() FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."public_lesson_ids"() TO "service_role";
+GRANT ALL ON FUNCTION "public"."public_lesson_ids"() TO "anon";
+GRANT ALL ON FUNCTION "public"."public_lesson_ids"() TO "authenticated";
+
+
+
+REVOKE ALL ON FUNCTION "public"."public_lessons"("p_limit" integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."public_lessons"("p_limit" integer) TO "service_role";
+GRANT ALL ON FUNCTION "public"."public_lessons"("p_limit" integer) TO "anon";
+GRANT ALL ON FUNCTION "public"."public_lessons"("p_limit" integer) TO "authenticated";
+
+
+
+REVOKE ALL ON FUNCTION "public"."public_presentation"("p_id" "text") FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."public_presentation"("p_id" "text") TO "service_role";
+GRANT ALL ON FUNCTION "public"."public_presentation"("p_id" "text") TO "anon";
+GRANT ALL ON FUNCTION "public"."public_presentation"("p_id" "text") TO "authenticated";
+
+
+
+REVOKE ALL ON FUNCTION "public"."public_presentation_card"("p_id" "text") FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."public_presentation_card"("p_id" "text") TO "service_role";
+GRANT ALL ON FUNCTION "public"."public_presentation_card"("p_id" "text") TO "anon";
+GRANT ALL ON FUNCTION "public"."public_presentation_card"("p_id" "text") TO "authenticated";
 
 
 

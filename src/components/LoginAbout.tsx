@@ -1,6 +1,7 @@
 import { LibraryIcon, MessagesSquareIcon, PresentationIcon, SparklesIcon } from "lucide-react";
 
-const features = [
+/** What QuizMatter offers: the login page's About part and the public home page show the same list. */
+export const FEATURES = [
   { Icon: PresentationIcon, title: "Build slides fast", text: "Make lessons and quizzes in one simple editor. Drag and drop to get slides from other work or presentations." },
   { Icon: SparklesIcon, title: "Made for kids", text: "Bright, playful pictures and clear right/wrong feedback." },
   { Icon: LibraryIcon, title: "1,000+ ready-to-use quizzes", text: "Pick a quiz and play it in class right away." },
@@ -17,7 +18,7 @@ export function LoginAbout() {
       </p>
 
       <ul className="mt-5 flex flex-col gap-4">
-        {features.map(({ Icon, title, text }) => (
+        {FEATURES.map(({ Icon, title, text }) => (
           <li key={title} className="flex items-start gap-3">
             <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-accent-soft text-accent">
               <Icon size={20} />

@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getAccount } from "@/lib/account";
 import { loadMySubmissions } from "@/lib/submissions";
@@ -6,6 +7,8 @@ import { ReviewsTable, type MyReviewRow } from "../../MyReviews";
 import { SubmissionsTable } from "../../MySubmissions";
 import { myId } from "../cards";
 import { Empty, PartLabel } from "../CardGrid";
+
+export const metadata: Metadata = { title: "Reviews & submissions" };
 
 /**
  * "Reviews & submissions" (editors only): my review rounds (open, canceled, and the live presentations I reviewed)

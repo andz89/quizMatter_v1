@@ -88,6 +88,8 @@ export function Editor({
   const keptInBrowser = useEditorStore((s) => s.keptInBrowser);
   const isPresenting = useEditorStore((s) => s.isPresenting);
   const isGridViewOpen = useEditorStore((s) => s.isGridViewOpen);
+  // The page's one h1, for screen readers (the title shows in the top bar's Details instead).
+  const title = useEditorStore((s) => s.presentation.title);
   const isElementsPanelOpen = useEditorStore((s) => s.isElementsPanelOpen);
   const isPhotosPanelOpen = useEditorStore((s) => s.isPhotosPanelOpen);
   const isColorPanelOpen = useEditorStore((s) => s.isColorPanelOpen);
@@ -226,6 +228,7 @@ export function Editor({
 
   return (
     <div className="flex h-screen flex-col">
+      <h1 className="sr-only">{title || "Untitled presentation"}</h1>
       <EditorTopBar />
       <ReviewBanner />
       {sentBackNote && <SentBackBanner note={sentBackNote} hint="Save your changes, then submit it again from Share." />}

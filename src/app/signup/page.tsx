@@ -1,5 +1,8 @@
+import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import { SignUpForm } from "./SignUpForm";
+
+export const metadata: Metadata = { title: "Sign up" };
 
 /**
  * Sign up: a teacher makes their own account (the form is SignUpForm). Reads the throwaway email services from the

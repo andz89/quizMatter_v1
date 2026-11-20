@@ -11,11 +11,20 @@ import { SlideStaticView } from "./SlideStaticView";
  * A slide shrunk to fit its box's width, whatever that width is (a grid changes it with the screen).
  * The box must have the slide's shape (aspect ratio) and hide what overflows.
  */
-export function FluidSlidePreview({ slide, questionNumber }: { slide: Slide; questionNumber?: number }) {
+export function FluidSlidePreview({
+  slide,
+  questionNumber,
+  showVideoCover = true,
+}: {
+  slide: Slide;
+  questionNumber?: number;
+  /** False: a video slide shows its plain box, not the site's cover picture (the public preview: see SlideStaticView). */
+  showVideoCover?: boolean;
+}) {
   return (
     <HiddenSlideMark isHidden={!!slide.hidden}>
       <FluidCanvas>
-        <SlideStaticView slide={slide} questionNumber={questionNumber} />
+        <SlideStaticView slide={slide} questionNumber={questionNumber} showVideoCover={showVideoCover} />
       </FluidCanvas>
     </HiddenSlideMark>
   );

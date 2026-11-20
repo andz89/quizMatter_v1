@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { LinkPending } from "@/components/LinkPending";
@@ -6,6 +7,8 @@ import { badLinkDestination, claimEmail, emailLinkSchema } from "@/lib/emailLink
 import { createClient } from "@/lib/supabase/server";
 import { openEmailLink } from "./actions";
 import { ContinueButton, LogOutButton } from "./ConfirmButtons";
+
+export const metadata: Metadata = { title: "Confirm your email", robots: { index: false } };
 
 /**
  * The link in our two emails opens this (Supabase dashboard → Authentication → Emails, and locally

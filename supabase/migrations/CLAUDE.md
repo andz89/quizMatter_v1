@@ -13,8 +13,13 @@ even if the app has a bug. The app's checks (zod, hidden buttons) are only the f
   `public.is_super_admin()`, `public.is_editor()`). Give `execute` only to `authenticated` (`revoke … from public, anon`).
 - A logged-out visitor (`anon`) gets nothing by default (`20261231001400_anon_grants.sql`): new tables, sequences
   and functions no longer open to `anon` by themselves, and `anon` keeps only SELECT on `blocked_email_domains`
-  (sign up), SELECT on `maintenance` (`id`, `is_on`) and `execute` on `maintenance_status` / `check_maintenance`
-  (the maintenance stop). A logged-out page that needs something new gets its own `grant … to anon` (and a policy).
+  (sign up), SELECT on `maintenance` (`id`, `is_on`), `execute` on `maintenance_status` / `check_maintenance`
+  (the maintenance stop), on `public_lessons` / `public_lesson_ids` (the public home's newest QuizMatter lessons and
+  the sitemap, `20261231002400_public_lessons.sql`; the first slide comes from `public_first_slide`, not granted, the
+  one place the "first shown slide without its answer" rule lives, also without `hidden`) and on `public_presentation` (a published presentation's public preview: title, details,
+  first shown slide without its answer, never a teacher's display name (an editor's shows on their lessons: it is their Author);
+  `20261231002200_public_presentation.sql`, newest `20261231002400_public_lessons.sql`) and `public_presentation_card`
+  (the same without the slide: the proxy's check and the link picture). A logged-out page that needs something new gets its own `grant … to anon` (and a policy).
   A new function is still open to PUBLIC (Postgres's default), so it keeps its `revoke execute … from public, anon`:
   `supabase/tests/anon_grants.sql` fails, naming it, when that's forgotten (or when a table opens to `anon`).
 - A trigger function (returns `trigger`) can't be called from the API: Postgres refuses to run one outside its

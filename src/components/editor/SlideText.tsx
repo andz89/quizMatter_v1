@@ -2,6 +2,7 @@
 
 import { useLayoutEffect, useRef } from "react";
 import { textToHtml, toSafeHtml } from "@/lib/richText";
+import { markBlanks } from "@/lib/blanks";
 
 interface SlideTextProps {
   text: string;
@@ -21,6 +22,8 @@ export function SlideText({ text, html, fontSize, className }: SlideTextProps) {
     if (!ref.current) return;
     // An empty paragraph (a blank line) gets a <br>, as the editor gives it, so it keeps one line of height.
     ref.current.innerHTML = (html ? toSafeHtml(html) : textToHtml(text)).replace(/<p([^>]*)><\/p>/g, "<p$1><br></p>");
+    // "___" blanks join into one line, as in the editor.
+    markBlanks(ref.current);
   }, [text, html]);
 
   return (

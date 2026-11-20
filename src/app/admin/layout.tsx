@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { LinkPending } from "@/components/LinkPending";
@@ -5,6 +6,8 @@ import { NavBar, navLinkClass } from "@/components/NavBar";
 import { getAccount, hasVerifiedFactor } from "@/lib/account";
 import { AdminMenu } from "./AdminMenu";
 import { getTodoCounts } from "./todoCounts";
+
+export const metadata: Metadata = { title: "Admin", robots: { index: false } };
 
 /**
  * Every admin page: a header and a left menu. Anyone who isn't an admin gets "page not found", so teachers

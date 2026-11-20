@@ -137,10 +137,22 @@ interface SlideStaticViewProps {
   fullscreen?: boolean;
   /** Embed slides: true = the live video or slide deck (present mode); false = a light preview. */
   liveEmbed?: boolean;
+  /**
+   * Video slides' light preview: false = the plain box with the site's name, not its cover picture, so the video
+   * site (YouTube) never sees the viewer. The public preview for logged-out visitors uses false.
+   */
+  showVideoCover?: boolean;
 }
 
 /** Read-only, full-size rendering of a slide — used in presentation mode. */
-export function SlideStaticView({ slide, questionNumber, revealAnswer = false, fullscreen = false, liveEmbed = false }: SlideStaticViewProps) {
+export function SlideStaticView({
+  slide,
+  questionNumber,
+  revealAnswer = false,
+  fullscreen = false,
+  liveEmbed = false,
+  showVideoCover = true,
+}: SlideStaticViewProps) {
   // Borders turn see-through instead of going away, so nothing on the slide shifts.
   const lineColor = fullscreen ? "transparent" : "var(--border-default)";
   const sideElements = slide.elements.filter((el) => el.containerId === SIDE_CONTAINER_ID);
@@ -158,7 +170,7 @@ export function SlideStaticView({ slide, questionNumber, revealAnswer = false, f
       {(isMovableQuestion || slide.type === "custom") && questionNumber !== undefined && (
         <QuestionNumberBadge number={questionNumber} count={getItemCount(slide)} fullscreen={fullscreen} atDefaultSpot />
       )}
-      {isEmbedSlide(slide) && <EmbedSlideView slide={slide} kind={slide.type} live={liveEmbed} />}
+      {isEmbedSlide(slide) && <EmbedSlideView slide={slide} kind={slide.type} live={liveEmbed} showCover={showVideoCover} />}
       {!isFreeCanvas(slide) && !isEmbedSlide(slide) && (
         <div
           className={`flex gap-4 rounded-button border border-transparent p-4 ${isMovableQuestion ? "absolute" : "relative shrink-0"}`}

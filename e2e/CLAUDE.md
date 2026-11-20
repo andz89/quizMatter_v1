@@ -125,6 +125,9 @@ Tests that delete data (the announcements ones empty the announcements table) do
 - `hidden-text-mark.mjs`: the "+…" mark on cut-off text: shown on a long question, answer choice and text box,
   never on a table cell, not on text that fits or outside the editable slides; typing past the bottom shows it, undo and making
   the box taller take it away.
+- `blank-lines.mjs`: "___" blanks show as one line: the editor marks them (question, a styled option, a run just
+  typed; a single `_` isn't), the save has no `qm-blank` span, and presenting fullscreen (question, option, an
+  underlined text box, a table cell) and the view page join them the same way.
 - `text-limits.mjs`: pasting past the limit into the question, an answer choice (5,000 characters) and a text box
   (50,000 as HTML, so 10,000 "&" is refused) leaves the text as it was with one toast; up to the limit goes in;
   typing at the limit is refused, deleting works; Ctrl+S saves; the slide name box's `maxlength`.
@@ -164,7 +167,22 @@ when another is picked), moving into and between boxes (Alt keeps a free picture
   saved data. Each scenario has its own presentation and page. `ONLY="crop|layers"` runs just the scenarios that
   match; to run tiles add `lists its categories|every tile$` (for example `ONLY="lists its categories|every tile$|every tile: Emoji"`).
 - `proxy.mjs`: an expired session opening /login is refreshed and the redirect keeps the new cookies; `/api/mcp`
-  skips the proxy, `/api/mcp-admin` and `/api/claude-photos` don't.
+  skips the proxy, `/api/mcp-admin` and `/api/claude-photos` don't. Logged out, `/robots.txt` and `/sitemap.xml` open, a presentation
+  that isn't published gets a real redirect (307) to login, and a presentation's `/edit`, a broken presentation link
+  and `/presentation/new` still go to login.
+- `public-home.mjs`: logged out (390 px wide), `/` is the public home and stays at `/` (its h1, one h1, Sign up free,
+  a QuizMatter lesson linking to its preview, no teacher's shared copy, no sideways scroll, its title; screenshot
+  `public-home-phone.png`); `/welcome` itself goes to `/`; `sitemap.xml` lists the lesson and the public pages but
+  not a teacher's copy; `robots.txt` names it; the login and Privacy titles. Logged in: `/` is the normal home, the
+  home and Saved titles, and the editor's one h1. It deletes its lesson itself (deleting an admin moves their
+  lessons to the super admin).
+- `public-preview.mjs`: a published presentation's public preview, logged out: the first shown slide (a hidden first
+  one is skipped), the title as the `<h1>`, the Author, "Filipino · Grade 4 · 1 slide", no answer in the page, the
+  login button back to the page and Sign up; `og:title`, the description, `twitter:card`, a full `og:image` address
+  whose picture is a PNG (saved as `shots/public-preview-card.png`: a long title with ñ, cut at 3 lines); an unknown
+  id's picture is 404. One with no Author shows no name (never the display name), and its video slide names YouTube
+  without the browser ever asking YouTube. A private one, one QuizMatter hid and an unknown one go to login. Logged
+  in, the same link is the normal view page.
 - `admin-list.mjs`: Admin → Admins as the super admin: every admin with Super admin / Admin and Two-step on / not
   set up (an admin row without an authenticator app); a plain admin gets "page not found" and no menu item.
 - `reports-plain-admin.mjs`: Admin → Reports as a plain admin: a teacher's reported copy has Hide and Delete, a

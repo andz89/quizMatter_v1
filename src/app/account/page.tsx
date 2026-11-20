@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { LinkPending } from "@/components/LinkPending";
 import { NavBar, navLinkClass } from "@/components/NavBar";
@@ -6,6 +7,8 @@ import { profileHref } from "@/lib/profiles";
 import { createClient } from "@/lib/supabase/server";
 import { PasswordForm, PersonalDetailsForm, ProfileForm, ProfileLinks } from "./AccountForms";
 import { ProfilePhotoForm } from "./ProfilePhotoForm";
+
+export const metadata: Metadata = { title: "Account" };
 
 /**
  * Account settings: the profile photo (editors only), display name, personal details (with the bio), password, and

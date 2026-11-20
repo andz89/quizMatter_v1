@@ -1,12 +1,15 @@
+import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { z } from "zod";
 import { LinkPending } from "@/components/LinkPending";
+import { LoggedOutBar } from "@/components/LoggedOutBar";
 import { NavBar, navLinkClass } from "@/components/NavBar";
 import { getAccount } from "@/lib/account";
 import { fetchPresentation } from "@/lib/fetchPresentation";
 import { timeAgo } from "@/lib/format";
 import { loadLessonExtras } from "@/lib/lessons";
+import { getPublicPresentation, publicDescription } from "@/lib/publicPresentation";
 import { DAYS, listOrder } from "@/lib/schema";
 import { createClient } from "@/lib/supabase/server";
 import { usesPeopleArt } from "@/lib/peopleArt";
@@ -15,13 +18,48 @@ import { loadCardRows, toSavableCards } from "../../(home)/cards";
 import type { PresentationCardData } from "../../PresentationCard";
 import type { LessonWeekData } from "./LessonWeek";
 import { PresentationPreview } from "./PresentationPreview";
+import { PublicPresentation } from "./PublicPresentation";
+
+/**
+ * The tags search engines and link previews read (the picture comes from opengraph-image.tsx next to this page).
+ * Only a published presentation gets its own; anything else is "QuizMatter" and kept out of search results.
+ * Read only for logged-out visitors (robots are always logged out); logged in, the page keeps the default title and
+ * makes no extra read. getAccount is shared with the page (one lookup per request).
+ */
+export async function generateMetadata({ params }: PageProps<"/presentation/[id]">): Promise<Metadata> {
+  const { id } = await params;
+  if ((await getAccount()).id) return { title: "Presentation" };
+  const preview = z.uuid().safeParse(id).success ? await getPublicPresentation(id) : null;
+  if (!preview) return { title: { absolute: "QuizMatter" }, robots: { index: false } };
+  const title = preview.title || "Untitled presentation";
+  const description = publicDescription(preview);
+  return {
+    title: { absolute: `${title} · QuizMatter` },
+    description,
+    // A page's openGraph replaces the root layout's, so the site name is given again.
+    openGraph: { type: "article", siteName: "QuizMatter", url: `/presentation/${id}`, title, description },
+    alternates: { canonical: `/presentation/${id}` },
+  };
+}
 
 /** A presentation to look at, not edit: mostly other teachers' published presentations (opened from the home page). */
 export default async function PresentationPage({ params }: PageProps<"/presentation/[id]">) {
   const { id } = await params;
   // A broken link (not an id) would make the database fail; it's simply not found.
   if (!z.uuid().safeParse(id).success) notFound();
-  const [result, account] = await Promise.all([fetchPresentation(id), getAccount()]);
+  const account = await getAccount();
+  // Logged out (a visitor or a robot): a published one's public preview, else login, exactly as before.
+  if (!account.id) {
+    const preview = await getPublicPresentation(id);
+    if (!preview) redirect(`/login?next=${encodeURIComponent(`/presentation/${id}`)}`);
+    return (
+      <>
+        <LoggedOutBar />
+        <PublicPresentation presentation={preview} />
+      </>
+    );
+  }
+  const result = await fetchPresentation(id);
   // Someone else's private presentation is hidden by the database, so it looks like it doesn't exist.
   if (!result) notFound();
   const { presentation } = result;

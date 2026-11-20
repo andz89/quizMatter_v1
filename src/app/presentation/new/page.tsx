@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { LinkPending } from "@/components/LinkPending";
@@ -8,6 +9,8 @@ import { getAccount } from "@/lib/account";
 import { QUIZMATTER_NAME } from "@/lib/schema";
 import { createClient } from "@/lib/supabase/server";
 import { PresentationEditor } from "../[id]/edit/PresentationEditor";
+
+export const metadata: Metadata = { title: "Editor" };
 
 /**
  * Opens a presentation Claude sent through the MCP server (the link /api/mcp hands out) as a new presentation. It

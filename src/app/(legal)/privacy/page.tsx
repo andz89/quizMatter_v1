@@ -4,7 +4,7 @@ import { SupportEmail } from "@/components/SupportEmail";
 import { FACEBOOK_URL } from "@/lib/support";
 import { LegalSection, LegalTitle, ShortVersion } from "../LegalParts";
 
-export const metadata: Metadata = { title: "Privacy Policy · QuizMatter" };
+export const metadata: Metadata = { title: "Privacy Policy" };
 
 // Written to be true to the code (docs/superpowers/specs/2026-10-27-privacy-and-terms-design.md). A change to what the
 // app collects, who sees it, how long it's kept, or which outside service holds it changes this page and LEGAL_VERSION
@@ -20,7 +20,11 @@ export default function PrivacyPage() {
           <li>We never sell your information, and we don’t show ads.</li>
           <li>
             Other teachers can see your profile, but never your email, contact number, birthday or gender. If you’re an editor, your
-            email shows on the QuizMatter lessons you review.
+            email shows on the QuizMatter lessons you review, and your display name shows publicly on the lessons you made.
+          </li>
+          <li>
+            A presentation you publish has a public preview: anyone with its link, and search engines like Google, can see
+            its title, Author and first slide.
           </li>
           <li>You can see, fix or delete your information.</li>
           <li>Questions? Email us anytime.</li>
@@ -122,15 +126,26 @@ export default function PrivacyPage() {
       <LegalSection title="4. Who can see your information">
         <p>
           <strong>Other teachers</strong> (only when logged in; QuizMatter’s pages are closed to everyone else, except
-          sign up, log in, forgot password, the links in our emails and these two pages). On your profile page: your display name, your first and last name, your
+          sign up, log in, forgot password, the links in our emails, these two pages and the public previews below). On your profile page: your display name, your first and last name, your
           educational background and your bio (you can hide these three, unless you’re an editor), an editor’s profile photo, the presentations you published, and the QuizMatter lessons you made as
           an editor. Your display name or the Author name shows on the work you share. They never see your email,
           contact number, birthday or gender.
         </p>
         <p>
+          <strong>Anyone with the link, and search engines</strong> (like Google), for a presentation you published or a
+          QuizMatter lesson: its title, description, subject, grades, the Author you typed (nothing when it’s empty;
+          never your display name, unless you’re an editor: see below), number of slides and first slide (without its answer), on a public preview page and
+          in the picture shown when the link is shared (for example on Facebook or Messenger). The other slides, your
+          profile and everything else still need a QuizMatter login. A private presentation, or one QuizMatter hid, has
+          no public preview. The newest QuizMatter lessons (not teachers’ own presentations) are also shown on
+          QuizMatter’s public home page and listed for search engines.
+        </p>
+        <p>
           <strong>If you’re an editor:</strong> your name, email and the date show on every QuizMatter lesson you
-          review, to every logged-in teacher, and they stay there even after your account is deleted. Your full name,
-          educational background and bio always show on your profile.
+          review, to every logged-in teacher, and they stay there even after your account is deleted. Your display name
+          is the Author of the QuizMatter lessons you made, so it shows with them to anyone, logged in or not: on their
+          public preview pages, in their link pictures, and to search engines like Google. It stays there after your
+          account is deleted. Your full name, educational background and bio always show on your profile.
         </p>
         <p>
           <strong>QuizMatter’s admins</strong> see your email, names, contact number, birthday (as your age), gender

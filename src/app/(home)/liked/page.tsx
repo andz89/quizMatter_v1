@@ -1,9 +1,12 @@
+import type { Metadata } from "next";
 import { Suspense } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { parseShown } from "../../homeSearch";
 import { CARD_COLUMNS, loadCardContext, myId, type CardPresentation } from "../cards";
 import { SavableCards } from "../CardGrid";
 import { ShowMore } from "../ShowMore";
+
+export const metadata: Metadata = { title: "Liked" };
 
 /** "Liked": the presentations I liked (see the presentation_likes migration), newest liked first, 20 at a time ("Show more" adds 20). */
 export default async function LikedPage({ searchParams }: PageProps<"/liked">) {

@@ -135,8 +135,10 @@ function EmbedContent({ kind, embed }: { kind: EmbedKind; embed: Embed }) {
  * don't each load a player. Pictures show as they are, but one from another website waits for a click
  * (ViewerPicture).
  */
-export function EmbedSlideView({ slide, kind, live }: { slide: Slide; kind: EmbedKind; live: boolean }) {
+export function EmbedSlideView({ slide, kind, live, showCover = true }: { slide: Slide; kind: EmbedKind; live: boolean; showCover?: boolean }) {
   const embed = getEmbed(kind, slide.embedUrl);
+  // showCover false (the public preview): no cover picture from the video site, which would see the viewer.
+  const coverUrl = showCover ? embed?.thumbnailUrl : undefined;
   if (embed && (live || kind === "image")) {
     return (
       <EmbedFrame dark={kind !== "image"}>
@@ -146,9 +148,9 @@ export function EmbedSlideView({ slide, kind, live }: { slide: Slide; kind: Embe
   }
   return (
     <EmbedFrame dark={kind === "video"}>
-      {embed?.thumbnailUrl && (
+      {coverUrl && (
         // eslint-disable-next-line @next/next/no-img-element -- a picture from YouTube, not one of ours to optimize.
-        <img src={embed.thumbnailUrl} alt="" className="absolute inset-0 h-full w-full object-cover" />
+        <img src={coverUrl} alt="" className="absolute inset-0 h-full w-full object-cover" />
       )}
       <div
         className={`absolute inset-0 flex flex-col items-center justify-center gap-4 rounded-card ${
@@ -161,7 +163,7 @@ export function EmbedSlideView({ slide, kind, live }: { slide: Slide; kind: Embe
           <EmbedKindIcon kind={kind} size={56} />
         </span>
         {/* The cover picture already shows what it is. */}
-        {!embed?.thumbnailUrl && (
+        {!coverUrl && (
           <span className="text-3xl opacity-70">{embed ? embed.sourceName : KIND_TEXT[kind].empty}</span>
         )}
       </div>

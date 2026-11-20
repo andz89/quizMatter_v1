@@ -7,6 +7,7 @@
  */
 import { FONT_SIZE_RANGE } from "./schema";
 import { isCutOff, largestFittingSize } from "./textRoom";
+import { markBlanks } from "./blanks";
 
 // Word widths are measured at this size, then scaled: a word's width grows with the size.
 const WORD_SIZE = 100;
@@ -82,6 +83,8 @@ function widestWordAtProbeSize(copy: HTMLDivElement, box: HTMLElement): number {
     copy.appendChild(span);
     return span;
   });
+  // "___" blanks measured joined, as the text shows them.
+  markBlanks(copy);
   return spans.reduce((widest, span) => Math.max(widest, span.offsetWidth), 0) * WORD_SLACK;
 }
 

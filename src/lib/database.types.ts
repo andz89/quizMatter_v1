@@ -943,6 +943,29 @@ isOneToOne: false
 "profile_slug":
 { Args: { "name": string }; Returns: string
                            },
+"public_first_slide":
+{ Args: { "p_id": string }; Returns: Json
+                           },
+"public_lesson_ids":
+{ Args: Record<PropertyKey, never>; Returns: {
+              "id": string,"updated_at": string
+            }[]
+                           },
+"public_lessons":
+{ Args: { "p_limit": number }; Returns: {
+              "first_slide": Json,"grades": (string)[],"id": string,"subject": string,"title": string,"updated_at": string
+            }[]
+                           },
+"public_presentation":
+{ Args: { "p_id": string }; Returns: {
+              "author_name": string,"description": string,"first_slide": Json,"from_admin": boolean,"grades": (string)[],"slide_count": number,"subject": string,"title": string
+            }[]
+                           },
+"public_presentation_card":
+{ Args: { "p_id": string }; Returns: {
+              "author_name": string,"description": string,"from_admin": boolean,"grades": (string)[],"slide_count": number,"subject": string,"title": string
+            }[]
+                           },
 "publish_review":
 { Args: { "target_id": string }; Returns: undefined
                            },

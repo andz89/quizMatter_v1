@@ -51,6 +51,33 @@ modal grey out.
   Prev/Next skip hidden slides, like presenting (`shownSlides`; all of them when every slide is hidden), and the
   counter counts only those; the details line still counts every slide, and a copy gets them all. The owner and
   admins (who open it from Reports) see hidden slides too, faded with the eye-off mark (`showHidden`).
+- **Public preview** (logged out; spec `docs/superpowers/specs/2026-11-20-public-presentation-preview-design.md`):
+  `src/proxy.ts` lets logged-out visitors (and robots: Google, Facebook's link reader) open `/presentation/<uuid>`
+  and its picture (`isPublicPreviewPath`, `src/lib/publicPaths.ts`). For the page itself it first asks
+  `public_presentation_card` (the details without the slide, a light read; `public_presentation` is the same plus the
+  first slide; `20261231002200_public_presentation.sql`, newest `20261231002400_public_lessons.sql`: published and
+  not hidden) and sends anything else to
+  `/login?next=…` with a real redirect, as before (the page streams, so its own `redirect` would arrive late; it
+  checks again anyway). What it gives the open web: never a display name (usually a teacher's full name): only the
+  Author text, "QuizMatter" for a lesson with none, else no name. On an editor's lesson the Author is the editor's
+  display name (set by the database), so it shows publicly; the Privacy Policy says so. And the first
+  slide without its answer (`correctOptionId`, `correctAnswer`, the answer box's pictures) or its `hidden` mark,
+  since anyone can call it with the public key.
+  `page.tsx` then shows `[id]/PublicPresentation.tsx` (`LoggedOutBar`, the first shown slide, the title as `<h1>`,
+  "By <Author>" when there is one, subject · grades · slides, the description, "Log in to see …" back to this page
+  ("Log in to see it" for an empty one; the people-art wait fills only the slide box, `PeopleArtGate fill`)
+  and "Sign up free"). A video slide there shows its plain box (`showVideoCover={false}`, through
+  `FluidSlidePreview` → `SlideStaticView` → `EmbedSlideView`), so YouTube never sees a logged-out visitor.
+  Logged in: the normal view page, unchanged.
+  The read is `getPublicPresentation` (`src/lib/publicPresentation.ts`, no login cookies, once per request), also
+  used by `generateMetadata` (logged out only: title, description, canonical, and `openGraph` with `siteName` again,
+  since a page's `openGraph` replaces the layout's; anything else `noindex`, titled `absolute` "QuizMatter").
+  `[id]/opengraph-image.tsx` reads only the card (`getPublicCard`): the QuizMatter title card for shared links (`src/app/ogCard.tsx`, `next/og`, fonts in
+  `src/app/fonts/ogFonts.ts`; not a picture of the slide, the owner's choice; anything not public is 404 without
+  drawing, so random ids cost almost nothing). The site picture is `src/app/opengraph-image.tsx` (made at build).
+  `src/app/robots.ts` is `/robots.txt`. The root layout's `metadataBase`
+  (`https://quizmatter.com`) makes the picture addresses full (`next dev` writes its own host instead). The Share
+  card says what the preview shows. Tests: `e2e/public-preview.mjs`, `supabase/tests/public_presentation.sql`.
 - Likes: `[id]/LikeButton.tsx` on a published presentation's view page. Teachers and editors like someone else's
   (`setPresentationLiked` → `set_liked`, zod first; the `like` click limit); admins and the owner only see the
   count. Who liked what is private (people read only their own likes); everyone sees the count. Database:
@@ -162,7 +189,9 @@ Draft / Shared switch on the presentation itself, and aren't counted.
   (`ConfirmButtons.tsx`, like the account menu) and "Go to home"; the action refuses too, so a link never swaps the
   browser into another account.
 - `login/`: login with plain-English errors, a browser speed bump, a "Forgot password?" link and a "Need help?" line
-  with the support email (`src/components/SupportEmail.tsx`). `src/proxy.ts` sends logged-out people here. Its
+  with the support email (`src/components/SupportEmail.tsx`). `src/proxy.ts` sends logged-out people here (except
+  on the open pages, the public home at `/` and a published presentation's public preview, see "A presentation's pages"
+  and "The public home, sitemap and titles"). Its
   matcher skips only the real static files (`_next/static`, `_next/image`, `favicon.ico`, `icon.svg` and the five
   `.svg` files in `public/`), never a page address that just ends in `.png`; a new file in `public/` must be added there.
   Claude's routes are skipped by their exact name (`api/mcp`, `api/claude-photo`, `.well-known/`), so a route that
@@ -216,13 +245,38 @@ Draft / Shared switch on the presentation itself, and aren't counted.
   box. Plain-English pages written to match the code (spec `docs/superpowers/specs/2026-10-27-privacy-and-terms-design.md`),
   built from `LegalParts.tsx` (`LegalTitle` with "Last updated" from `LEGAL_VERSION`, `ShortVersion`,
   `LegalSection`). Open to logged-out visitors (`src/proxy.ts`), so `layout.tsx` shows
-  the NavBar only when logged in, else a bar with the logo and Log in.
+  the NavBar only when logged in, else `LoggedOutBar` (`src/components/`, the logo and Log in; the public preview uses
+  it too).
 
 ## How a teacher's server action is written
 
 Like `folderActions.ts` and `actions.ts`: `"use server"`, check the input with zod, call the database with the
 server client (`@/lib/supabase/server`), `refresh()` the page's data, and return `null` (worked) or a short message
 (the page shows it in a sonner toast). The database only lets a teacher touch their own things.
+
+## The public home, sitemap and titles
+
+Spec: `docs/superpowers/specs/2026-11-20-public-home-and-seo-design.md`.
+
+- **Public home** (`welcome/page.tsx`): what logged-out visitors and Google see at `/`. `src/proxy.ts` serves it
+  there with a rewrite (the address stays `/`), and sends `/welcome` itself to `/`, so it never has two addresses.
+  Logged in, `/` is the home page as before. It has `LoggedOutBar`, the h1 "Build presentations with quizzes built
+  in", Sign up free / Log in, the four `FEATURES` (shared with the login page's `LoginAbout`) and "Ready-made lessons
+  from QuizMatter": the 8 newest QuizMatter lessons (`getPublicLessons`, the `public_lessons` database function:
+  published, not hidden, first slide without its answer, no names), each a link to its public preview
+  (`welcome/LessonCards.tsx`, no bookmark, like or menu; a video slide without YouTube's cover). If they can't be
+  read, the page shows without them. `force-dynamic` (made on every visit, never frozen at build time) and its own
+  `welcome/loading.tsx`.
+- **Sitemap** (`sitemap.ts`, `/sitemap.xml`, made per request): `/`, sign up, login, Privacy, Terms, and every
+  QuizMatter lesson's preview (`getPublicLessonIds`, 1,000 per read, 50,000 at most). Teachers' own shared
+  presentations are never listed (public by link only: QuizMatter doesn't advertise a teacher's work).
+  `robots.ts` names it.
+- **Titles:** the root layout's template makes a page's short title "Saved · QuizMatter" (no title = "QuizMatter").
+  A new page sets its own (`export const metadata = { title: "…" }`; a client-component page gets a small
+  `layout.tsx` for it, like `login/`, `login/verify/`, `forgot-password/`). Sign-in steps (Forgot password, Set a new
+  password, the email link, Two-step login, Connect Claude) and Admin add `robots: { index: false }`. The public
+  home and a presentation's preview set `absolute` titles. Each page has one `<h1>` (the editor's is screen-reader
+  only, its title, in `Editor`).
 
 ## Other
 

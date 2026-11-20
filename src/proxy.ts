@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { getMaintenanceStatus, MAINTENANCE_HEADER, MAINTENANCE_WORDS } from "@/lib/maintenance";
+import { isPublicPreviewPath, previewPageId } from "@/lib/publicPaths";
 
 /**
  * Runs before every page request: refreshes the login session (it expires after a while) and sends
@@ -43,8 +44,10 @@ export async function proxy(request: NextRequest) {
   const isLoginPage = path === "/login" || path === "/signup" || path === "/forgot-password";
   // The link in the "Confirm signup" and "Reset Password" emails (/auth/confirm, a page whose Continue logs the
   // teacher in): it must open while logged out, and logged in too (it then says to log out first). Privacy and
-  // Terms (the footer's links) can be read before making an account.
-  const isOpenToAll = isLoginPage || path === "/auth/confirm" || path === "/privacy" || path === "/terms";
+  // Terms (the footer's links) can be read before making an account. A presentation's link (and its link picture,
+  // the site picture, robots.txt) opens too: the page shows a published one's public preview, else sends to login.
+  const isOpenToAll =
+    isLoginPage || path === "/auth/confirm" || path === "/privacy" || path === "/terms" || isPublicPreviewPath(path);
 
   const maintenance = await getMaintenanceStatus();
   if (maintenance.isOn) {
@@ -63,7 +66,19 @@ export async function proxy(request: NextRequest) {
     return keepSession(NextResponse.redirect(new URL("/", request.url)));
   }
 
-  if (!isLoggedIn && !isOpenToAll) {
+  // The public home (src/app/welcome) is served only at "/", to logged-out visitors (logged in, "/" is the home page
+  // as before). Its own address goes to "/", so it never has two.
+  if (path === "/welcome") return keepSession(NextResponse.redirect(new URL("/", request.url)));
+  if (!isLoggedIn && path === "/") return keepSession(NextResponse.rewrite(new URL("/welcome", request.url), { request }));
+
+  // A logged-out visit to a presentation that isn't published (private, hidden, unknown) goes to login at once, a
+  // real redirect as before, not a page that redirects once it loads (the page streams). One small read (the card,
+  // never the slide), only for logged-out visitors; the page checks again.
+  const previewId = isLoggedIn ? null : previewPageId(path);
+  const isNotPublic =
+    previewId !== null && !(await supabase.rpc("public_presentation_card", { p_id: previewId })).data?.length;
+
+  if (!isLoggedIn && (!isOpenToAll || isNotPublic)) {
     // Remember the page (e.g. a draft link from Claude) so login can come back to it.
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("next", request.nextUrl.pathname + request.nextUrl.search);
