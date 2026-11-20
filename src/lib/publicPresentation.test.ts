@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { publicDescription, toPublicLessons, toPublicPresentation, type PublicPresentation } from "./publicPresentation";
+import { publicDescription, toPublicCard, toPublicLessons, toPublicPresentation, type PublicPresentation } from "./publicPresentation";
 
 const row = {
   title: "Fractions",
@@ -63,6 +63,20 @@ test("the description is the presentation's own, cut to 160 characters", () => {
   const long = publicDescription({ ...sample, description: "a".repeat(300) });
   assert.ok(long.length <= 160);
   assert.ok(long.endsWith("…"));
+});
+
+test("a long description is cut by whole characters, never in the middle of an emoji", () => {
+  const cut = publicDescription({ ...sample, description: "a".repeat(158) + "😀".repeat(5) });
+  assert.equal(cut, "a".repeat(158) + "😀…");
+});
+
+test("the card is the preview without the slide", () => {
+  const card = toPublicCard("p1", { ...row, first_slide: undefined });
+  assert.ok(card);
+  assert.equal(card.title, "Fractions");
+  assert.equal(card.slideCount, 2);
+  assert.ok(!("firstSlide" in card));
+  assert.equal(toPublicCard("p1", null), null);
 });
 
 test("with no description, it says what it is", () => {

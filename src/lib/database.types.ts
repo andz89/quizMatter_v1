@@ -961,6 +961,11 @@ isOneToOne: false
               "author_name": string,"description": string,"first_slide": Json,"from_admin": boolean,"grades": (string)[],"slide_count": number,"subject": string,"title": string
             }[]
                            },
+"public_presentation_card":
+{ Args: { "p_id": string }; Returns: {
+              "author_name": string,"description": string,"from_admin": boolean,"grades": (string)[],"slide_count": number,"subject": string,"title": string
+            }[]
+                           },
 "publish_review":
 { Args: { "target_id": string }; Returns: undefined
                            },

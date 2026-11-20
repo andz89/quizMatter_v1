@@ -72,11 +72,11 @@ export async function proxy(request: NextRequest) {
   if (!isLoggedIn && path === "/") return keepSession(NextResponse.rewrite(new URL("/welcome", request.url), { request }));
 
   // A logged-out visit to a presentation that isn't published (private, hidden, unknown) goes to login at once, a
-  // real redirect as before, not a page that redirects once it loads (the page streams). One small read, only for
-  // logged-out visitors; the page checks again.
+  // real redirect as before, not a page that redirects once it loads (the page streams). One small read (the card,
+  // never the slide), only for logged-out visitors; the page checks again.
   const previewId = isLoggedIn ? null : previewPageId(path);
   const isNotPublic =
-    previewId !== null && !(await supabase.rpc("public_presentation", { p_id: previewId })).data?.length;
+    previewId !== null && !(await supabase.rpc("public_presentation_card", { p_id: previewId })).data?.length;
 
   if (!isLoggedIn && (!isOpenToAll || isNotPublic)) {
     // Remember the page (e.g. a draft link from Claude) so login can come back to it.

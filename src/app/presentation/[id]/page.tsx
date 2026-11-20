@@ -30,13 +30,14 @@ export async function generateMetadata({ params }: PageProps<"/presentation/[id]
   const { id } = await params;
   if ((await getAccount()).id) return { title: "Presentation" };
   const preview = z.uuid().safeParse(id).success ? await getPublicPresentation(id) : null;
-  if (!preview) return { title: "QuizMatter", robots: { index: false } };
+  if (!preview) return { title: { absolute: "QuizMatter" }, robots: { index: false } };
   const title = preview.title || "Untitled presentation";
   const description = publicDescription(preview);
   return {
     title: { absolute: `${title} · QuizMatter` },
     description,
-    openGraph: { type: "article", title, description },
+    // A page's openGraph replaces the root layout's, so the site name is given again.
+    openGraph: { type: "article", siteName: "QuizMatter", url: `/presentation/${id}`, title, description },
     alternates: { canonical: `/presentation/${id}` },
   };
 }

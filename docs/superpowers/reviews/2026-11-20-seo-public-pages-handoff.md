@@ -119,3 +119,18 @@ On the local Docker Supabase only: `npm run test:sql` (49 of 49 on 2026-11-20), 
 ```
 /code-review high supabase/migrations/20261231002200_public_presentation.sql supabase/migrations/20261231002300_public_presentation_review_fixes.sql supabase/migrations/20261231002400_public_lessons.sql src/proxy.ts src/lib/publicPaths.ts src/lib/publicPresentation.ts src/app/presentation/[id]/page.tsx src/app/presentation/[id]/PublicPresentation.tsx src/app/presentation/[id]/opengraph-image.tsx src/app/ogCard.tsx src/app/opengraph-image.tsx src/app/welcome/page.tsx src/app/welcome/LessonCards.tsx src/app/sitemap.ts src/app/robots.ts src/app/layout.tsx src/components/editor/EmbedSlide.tsx src/components/presentation/SlideStaticView.tsx
 ```
+
+## Review fixes (2026-11-20, after `/code-review high`)
+
+All in the same unpushed migrations, so the deploy order above is unchanged.
+
+- An editor's lesson shows the editor's display name (it is its Author, set by the database). The owner chose to
+  keep that and say so in the Privacy Policy (section 4, "If you're an editor"), rather than hide it.
+- New `public_presentation_card(p_id)`: the details without the slide (granted to anon). The proxy's check and the
+  link picture use it, so a logged-out visit or a prefetch from the public home no longer pulls a 2 MB slide just to
+  check that the page exists. `public_presentation` = the card + `public_first_slide`.
+- `public_first_slide` drops `hidden`, so visitors never see the owner's "Hidden when presenting" mark.
+- `welcome/page.tsx` is `force-dynamic` and has a `loading.tsx`.
+- Smaller ones: the title of a page that isn't public is `absolute` "QuizMatter"; the preview's `openGraph` has
+  `siteName`; "Log in to see it" for 0 slides; `PeopleArtGate fill` (the wait fills only the slide box); the
+  description is cut by whole characters (no split emoji).

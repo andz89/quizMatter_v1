@@ -7,10 +7,14 @@ import { parseSlide, type Slide } from "@/lib/schema";
 /**
  * A published presentation's public preview: what a logged-out visitor (or a robot: Google, Facebook's link reader)
  * may see on its page and in its link picture. From the `public_presentation` database function
- * (20261231002200_public_presentation.sql): only published, not hidden ones; anything else is null.
- * `slideCount` and `firstSlide` follow `shownSlides` (hidden slides are left out, unless every one is hidden).
+ * (20261231002200_public_presentation.sql, newest in 20261231002400_public_lessons.sql): only published, not hidden
+ * ones; anything else is null. `slideCount` and `firstSlide` follow `shownSlides` (hidden slides are left out, unless
+ * every one is hidden).
  */
-export type PublicPresentation = {
+export type PublicPresentation = PublicCard & { firstSlide: Slide | null };
+
+/** The same without the slide (`public_presentation_card`): the light read for the link picture. */
+export type PublicCard = {
   id: string;
   title: string;
   description: string;
@@ -19,15 +23,15 @@ export type PublicPresentation = {
   fromAdmin: boolean;
   authorName: string;
   slideCount: number;
-  firstSlide: Slide | null;
 };
 
+type CardRow = Database["public"]["Functions"]["public_presentation_card"]["Returns"][number];
 type Row = Database["public"]["Functions"]["public_presentation"]["Returns"][number];
 
-/** The database row in the app's shape, or null for none. A first slide in a broken shape becomes no slide. */
-export function toPublicPresentation(id: string, row: unknown): PublicPresentation | null {
+/** The card row in the app's shape, or null for none. */
+export function toPublicCard(id: string, row: unknown): PublicCard | null {
   if (!row) return null;
-  const r = row as Row;
+  const r = row as CardRow;
   return {
     id,
     title: r.title,
@@ -37,16 +41,25 @@ export function toPublicPresentation(id: string, row: unknown): PublicPresentati
     fromAdmin: r.from_admin,
     authorName: r.author_name,
     slideCount: r.slide_count,
-    firstSlide: r.first_slide ? parseSlide(r.first_slide) : null,
   };
+}
+
+/** The database row in the app's shape, or null for none. A first slide in a broken shape becomes no slide. */
+export function toPublicPresentation(id: string, row: unknown): PublicPresentation | null {
+  const card = toPublicCard(id, row);
+  if (!card) return null;
+  const r = row as Row;
+  return { ...card, firstSlide: r.first_slide ? parseSlide(r.first_slide) : null };
 }
 
 const DESCRIPTION_MAX = 160;
 
 /** The page's description for search results and link previews: its own (cut to 160 characters), else a line about it. */
-export function publicDescription(p: PublicPresentation): string {
+export function publicDescription(p: PublicCard): string {
   const own = p.description.trim().replace(/\s+/g, " ");
-  if (own) return own.length <= DESCRIPTION_MAX ? own : `${own.slice(0, DESCRIPTION_MAX - 1).trimEnd()}…`;
+  // Cut by whole characters, so an emoji is never split in two.
+  const chars = Array.from(own);
+  if (own) return chars.length <= DESCRIPTION_MAX ? own : `${chars.slice(0, DESCRIPTION_MAX - 1).join("").trimEnd()}…`;
   const by = p.authorName ? ` by ${p.authorName}` : "";
   return `${p.title}${by} on QuizMatter: ${slideCountLabel(p.slideCount)}.`;
 }
@@ -93,6 +106,13 @@ export const getPublicPresentation = cache(async (id: string): Promise<PublicPre
   const { data, error } = await anonClient().rpc("public_presentation", { p_id: id });
   if (error) throw error;
   return toPublicPresentation(id, data?.[0]);
+});
+
+/** The card only (no slide), for the link picture. Remembered for one request. */
+export const getPublicCard = cache(async (id: string): Promise<PublicCard | null> => {
+  const { data, error } = await anonClient().rpc("public_presentation_card", { p_id: id });
+  if (error) throw error;
+  return toPublicCard(id, data?.[0]);
 });
 
 /** The newest QuizMatter lessons (1–12, the database's limit) for the public home page. */

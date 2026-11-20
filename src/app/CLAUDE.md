@@ -54,20 +54,25 @@ modal grey out.
 - **Public preview** (logged out; spec `docs/superpowers/specs/2026-11-20-public-presentation-preview-design.md`):
   `src/proxy.ts` lets logged-out visitors (and robots: Google, Facebook's link reader) open `/presentation/<uuid>`
   and its picture (`isPublicPreviewPath`, `src/lib/publicPaths.ts`). For the page itself it first asks
-  `public_presentation` (the only read `anon` may make, `20261231002200_public_presentation.sql`, newest
-  `20261231002300_public_presentation_review_fixes.sql`: published and not hidden) and sends anything else to
+  `public_presentation_card` (the details without the slide, a light read; `public_presentation` is the same plus the
+  first slide; `20261231002200_public_presentation.sql`, newest `20261231002400_public_lessons.sql`: published and
+  not hidden) and sends anything else to
   `/login?next=…` with a real redirect, as before (the page streams, so its own `redirect` would arrive late; it
   checks again anyway). What it gives the open web: never a display name (usually a teacher's full name): only the
-  Author text, "QuizMatter" for a lesson with none, else no name; and the first slide without its answer
-  (`correctOptionId`, `correctAnswer`, the answer box's pictures), since anyone can call it with the public key.
+  Author text, "QuizMatter" for a lesson with none, else no name. On an editor's lesson the Author is the editor's
+  display name (set by the database), so it shows publicly; the Privacy Policy says so. And the first
+  slide without its answer (`correctOptionId`, `correctAnswer`, the answer box's pictures) or its `hidden` mark,
+  since anyone can call it with the public key.
   `page.tsx` then shows `[id]/PublicPresentation.tsx` (`LoggedOutBar`, the first shown slide, the title as `<h1>`,
   "By <Author>" when there is one, subject · grades · slides, the description, "Log in to see …" back to this page
+  ("Log in to see it" for an empty one; the people-art wait fills only the slide box, `PeopleArtGate fill`)
   and "Sign up free"). A video slide there shows its plain box (`showVideoCover={false}`, through
   `FluidSlidePreview` → `SlideStaticView` → `EmbedSlideView`), so YouTube never sees a logged-out visitor.
   Logged in: the normal view page, unchanged.
   The read is `getPublicPresentation` (`src/lib/publicPresentation.ts`, no login cookies, once per request), also
-  used by `generateMetadata` (logged out only: title, description, canonical; anything else `noindex`) and
-  `[id]/opengraph-image.tsx`: the QuizMatter title card for shared links (`src/app/ogCard.tsx`, `next/og`, fonts in
+  used by `generateMetadata` (logged out only: title, description, canonical, and `openGraph` with `siteName` again,
+  since a page's `openGraph` replaces the layout's; anything else `noindex`, titled `absolute` "QuizMatter").
+  `[id]/opengraph-image.tsx` reads only the card (`getPublicCard`): the QuizMatter title card for shared links (`src/app/ogCard.tsx`, `next/og`, fonts in
   `src/app/fonts/ogFonts.ts`; not a picture of the slide, the owner's choice; anything not public is 404 without
   drawing, so random ids cost almost nothing). The site picture is `src/app/opengraph-image.tsx` (made at build).
   `src/app/robots.ts` is `/robots.txt`. The root layout's `metadataBase`
@@ -260,7 +265,8 @@ Spec: `docs/superpowers/specs/2026-11-20-public-home-and-seo-design.md`.
   from QuizMatter": the 8 newest QuizMatter lessons (`getPublicLessons`, the `public_lessons` database function:
   published, not hidden, first slide without its answer, no names), each a link to its public preview
   (`welcome/LessonCards.tsx`, no bookmark, like or menu; a video slide without YouTube's cover). If they can't be
-  read, the page shows without them.
+  read, the page shows without them. `force-dynamic` (made on every visit, never frozen at build time) and its own
+  `welcome/loading.tsx`.
 - **Sitemap** (`sitemap.ts`, `/sitemap.xml`, made per request): `/`, sign up, login, Privacy, Terms, and every
   QuizMatter lesson's preview (`getPublicLessonIds`, 1,000 per read, 50,000 at most). Teachers' own shared
   presentations are never listed (public by link only: QuizMatter doesn't advertise a teacher's work).

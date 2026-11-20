@@ -16,9 +16,10 @@ even if the app has a bug. The app's checks (zod, hidden buttons) are only the f
   (sign up), SELECT on `maintenance` (`id`, `is_on`), `execute` on `maintenance_status` / `check_maintenance`
   (the maintenance stop), on `public_lessons` / `public_lesson_ids` (the public home's newest QuizMatter lessons and
   the sitemap, `20261231002400_public_lessons.sql`; the first slide comes from `public_first_slide`, not granted, the
-  one place the "first shown slide without its answer" rule lives) and on `public_presentation` (a published presentation's public preview: title, details,
-  first shown slide without its answer, never a display name; `20261231002200_public_presentation.sql`, newest
-  `20261231002300_public_presentation_review_fixes.sql`). A logged-out page that needs something new gets its own `grant … to anon` (and a policy).
+  one place the "first shown slide without its answer" rule lives, also without `hidden`) and on `public_presentation` (a published presentation's public preview: title, details,
+  first shown slide without its answer, never a teacher's display name (an editor's shows on their lessons: it is their Author);
+  `20261231002200_public_presentation.sql`, newest `20261231002400_public_lessons.sql`) and `public_presentation_card`
+  (the same without the slide: the proxy's check and the link picture). A logged-out page that needs something new gets its own `grant … to anon` (and a policy).
   A new function is still open to PUBLIC (Postgres's default), so it keeps its `revoke execute … from public, anon`:
   `supabase/tests/anon_grants.sql` fails, naming it, when that's forgotten (or when a table opens to `anon`).
 - A trigger function (returns `trigger`) can't be called from the API: Postgres refuses to run one outside its

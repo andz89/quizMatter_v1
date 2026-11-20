@@ -20,7 +20,7 @@ export default function PrivacyPage() {
           <li>We never sell your information, and we don’t show ads.</li>
           <li>
             Other teachers can see your profile, but never your email, contact number, birthday or gender. If you’re an editor, your
-            email shows on the QuizMatter lessons you review.
+            email shows on the QuizMatter lessons you review, and your display name shows publicly on the lessons you made.
           </li>
           <li>
             A presentation you publish has a public preview: anyone with its link, and search engines like Google, can see
@@ -134,7 +134,7 @@ export default function PrivacyPage() {
         <p>
           <strong>Anyone with the link, and search engines</strong> (like Google), for a presentation you published or a
           QuizMatter lesson: its title, description, subject, grades, the Author you typed (nothing when it’s empty;
-          never your display name), number of slides and first slide (without its answer), on a public preview page and
+          never your display name, unless you’re an editor: see below), number of slides and first slide (without its answer), on a public preview page and
           in the picture shown when the link is shared (for example on Facebook or Messenger). The other slides, your
           profile and everything else still need a QuizMatter login. A private presentation, or one QuizMatter hid, has
           no public preview. The newest QuizMatter lessons (not teachers’ own presentations) are also shown on
@@ -142,8 +142,10 @@ export default function PrivacyPage() {
         </p>
         <p>
           <strong>If you’re an editor:</strong> your name, email and the date show on every QuizMatter lesson you
-          review, to every logged-in teacher, and they stay there even after your account is deleted. Your full name,
-          educational background and bio always show on your profile.
+          review, to every logged-in teacher, and they stay there even after your account is deleted. Your display name
+          is the Author of the QuizMatter lessons you made, so it shows with them to anyone, logged in or not: on their
+          public preview pages, in their link pictures, and to search engines like Google. It stays there after your
+          account is deleted. Your full name, educational background and bio always show on your profile.
         </p>
         <p>
           <strong>QuizMatter’s admins</strong> see your email, names, contact number, birthday (as your age), gender

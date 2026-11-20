@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { joinParts, slideCountLabel } from "@/lib/format";
-import { getPublicPresentation } from "@/lib/publicPresentation";
+import { getPublicCard } from "@/lib/publicPresentation";
 import { gradesLabel } from "@/lib/schema";
 import { OG_SIZE, ogCard } from "../../ogCard";
 
@@ -13,7 +13,7 @@ export const contentType = "image/png";
 
 export default async function Image({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const preview = z.uuid().safeParse(id).success ? await getPublicPresentation(id) : null;
+  const preview = z.uuid().safeParse(id).success ? await getPublicCard(id) : null;
   if (!preview) return new Response(null, { status: 404 });
   return ogCard({
     title: preview.title || "Untitled presentation",

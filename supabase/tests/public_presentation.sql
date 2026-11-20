@@ -15,6 +15,8 @@ insert into public.admins (user_id) values ('00000000-0000-4000-8000-0000000000e
 
 -- p1 published, no Author, first slide hidden. p2 published with an Author. p3 published, every slide hidden.
 -- p4 a QuizMatter lesson with no Author. p5 private. p6 published but hidden by an admin.
+-- p7 an editor's lesson (linked by author_id), p8 one from an approved submission whose editor's account is gone
+-- (author_id emptied, the name left as text): both show the editor's name (the Privacy Policy says so).
 -- A teacher's published one is always a shared copy of a private original (the database refuses anything else);
 -- the flag share_presentation sets lets the setup write copies directly.
 select set_config('quizmatter.sharing', 'yes', true);
@@ -29,7 +31,12 @@ insert into public.presentations (id, owner_id, title, description, subject, gra
   ('test-pp-3', '00000000-0000-4000-8000-0000000000e1', 'All hidden', '', '', '{}', '', true, false, null, 'test-pp-o3', now()),
   ('test-pp-4', '00000000-0000-4000-8000-0000000000e2', 'Lesson', '', '', '{}', '', true, true, null, null, null),
   ('test-pp-5', '00000000-0000-4000-8000-0000000000e1', 'Private', '', '', '{}', '', false, false, null, null, null),
-  ('test-pp-6', '00000000-0000-4000-8000-0000000000e1', 'Moderated', '', '', '{}', '', true, false, null, 'test-pp-o6', now());
+  ('test-pp-6', '00000000-0000-4000-8000-0000000000e1', 'Moderated', '', '', '{}', '', true, false, null, 'test-pp-o6', now()),
+  ('test-pp-8', '00000000-0000-4000-8000-0000000000e2', 'Gone editor', '', '', '{}', 'Pp Gone Editor', true, true, null, null, null);
+insert into public.presentations (id, owner_id, title, author, author_id, is_published, from_admin) values
+  ('test-pp-7', '00000000-0000-4000-8000-0000000000e2', 'Editor lesson', 'Pp Viewer', '00000000-0000-4000-8000-0000000000e3', true, true);
+insert into public.presentation_submissions (presentation_id, submitter_id, status, copy_id, title)
+  values (null, null, 'approved', 'test-pp-8', 'Gone editor');
 insert into public.slides (presentation_id, id, position, data) values
   ('test-pp-1', 'a1', 0, '{"id": "a1", "type": "blank", "elements": [], "question": "Hidden one", "hidden": true}'),
   ('test-pp-1', 'a2', 1, '{"id": "a2", "type": "blank", "elements": [], "question": "First shown"}'),
@@ -42,7 +49,9 @@ insert into public.slides (presentation_id, id, position, data) values
   ('test-pp-3', 'c2', 1, '{"id": "c2", "type": "blank", "elements": [], "question": "Two", "hidden": true}'),
   ('test-pp-4', 'd1', 0, '{"id": "d1", "type": "blank", "elements": [], "question": "Lesson"}'),
   ('test-pp-5', 'e1', 0, '{"id": "e1", "type": "blank", "elements": [], "question": "Private"}'),
-  ('test-pp-6', 'f1', 0, '{"id": "f1", "type": "blank", "elements": [], "question": "Moderated"}');
+  ('test-pp-6', 'f1', 0, '{"id": "f1", "type": "blank", "elements": [], "question": "Moderated"}'),
+  ('test-pp-7', 'g1', 0, '{"id": "g1", "type": "blank", "elements": [], "question": "Editor"}'),
+  ('test-pp-8', 'h1', 0, '{"id": "h1", "type": "blank", "elements": [], "question": "Gone"}');
 
 select set_config('quizmatter.sharing', '', true);
 
@@ -97,10 +106,39 @@ begin
     raise exception 'FAIL: with every slide hidden, all count and the first shows (like shownSlides), got % / %',
       r.slide_count, r.first_slide ->> 'id';
   end if;
+  -- The visitor never sees the owner's "Hidden when presenting" mark.
+  if r.first_slide ? 'hidden' then
+    raise exception 'FAIL: the first slide still says it is hidden: %', r.first_slide;
+  end if;
 
   select * into r from public.public_presentation('test-pp-4');
   if r.author_name is distinct from 'QuizMatter' or not r.from_admin then
     raise exception 'FAIL: a QuizMatter lesson with no Author should say QuizMatter, got %', r.author_name;
+  end if;
+
+  -- An editor's lessons show their name (their Author, kept by the database).
+  select * into r from public.public_presentation('test-pp-7');
+  if r.author_name in ('', 'QuizMatter') then
+    raise exception 'FAIL: an editor''s linked lesson should show their name, got %', r.author_name;
+  end if;
+  select * into r from public.public_presentation('test-pp-8');
+  if r.author_name is distinct from 'Pp Gone Editor' then
+    raise exception 'FAIL: a lesson from an approved submission should keep the editor''s name, got %', r.author_name;
+  end if;
+
+  -- The card is the same without the slide, and empty for what isn't public.
+  select * into r from public.public_presentation_card('test-pp-1');
+  if r.title is distinct from 'Fractions' or r.slide_count is distinct from 2 or r.author_name is distinct from '' then
+    raise exception 'FAIL: the card should match the preview: %', row_to_json(r);
+  end if;
+  if (select string_agg(k, ',' order by k) from (
+        select jsonb_object_keys(to_jsonb(x)) k from public.public_presentation_card('test-pp-1') x) j)
+     is distinct from 'author_name,description,from_admin,grades,slide_count,subject,title' then
+    raise exception 'FAIL: the card returns other columns (never the slide)';
+  end if;
+  if exists (select 1 from public.public_presentation_card('test-pp-5'))
+     or exists (select 1 from public.public_presentation_card('test-pp-6')) then
+    raise exception 'FAIL: the card of a private or hidden presentation was readable';
   end if;
 
   if exists (select 1 from public.public_presentation('test-pp-5')) then

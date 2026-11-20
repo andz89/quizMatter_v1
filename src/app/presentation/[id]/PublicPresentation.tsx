@@ -22,7 +22,7 @@ export function PublicPresentation({ presentation }: { presentation: PublicData 
       <article className="overflow-hidden rounded-card border border-border-default bg-bg-surface">
         <div className="border-b border-border-default" style={{ aspectRatio: `${CANVAS_WIDTH} / ${CANVAS_HEIGHT}` }}>
           {firstSlide ? (
-            <PeopleArtGate needed={usesPeopleArt([firstSlide])}>
+            <PeopleArtGate needed={usesPeopleArt([firstSlide])} fill>
               <FluidSlidePreview
                 slide={firstSlide}
                 questionNumber={getSlideNumbers([firstSlide]).get(firstSlide.id)}
@@ -46,7 +46,11 @@ export function PublicPresentation({ presentation }: { presentation: PublicData 
               href={loginHref}
               className="flex items-center justify-center rounded-button bg-accent btn-press px-4 py-2 text-sm font-semibold text-white hover:bg-accent-hover"
             >
-              {slideCount === 1 ? "Log in to see the slide" : `Log in to see all ${slideCount} slides`}
+              {slideCount === 0
+                ? "Log in to see it"
+                : slideCount === 1
+                  ? "Log in to see the slide"
+                  : `Log in to see all ${slideCount} slides`}
               <LinkPending />
             </Link>
             <Link

@@ -16,6 +16,9 @@ export const metadata: Metadata = {
   alternates: { canonical: "/" },
 };
 
+// Made on every visit, never once at build time: the newest lessons (and the maintenance bar) must stay current.
+export const dynamic = "force-dynamic";
+
 const LESSONS_SHOWN = 8;
 
 export default async function WelcomePage() {
