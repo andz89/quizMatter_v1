@@ -194,7 +194,7 @@ the same way. Diagram boxes are different: their text still shrinks (see "Diagra
 **Fill-in blanks ("___") show as one line.** Lexend draws `_` 0.1em narrower than the room it takes, so a row of
 them showed gaps. A run of two or more underscores gets the `qm-blank` class (`globals.css`: `letter-spacing:
 -0.1em`), display only: the editor marks it with the `BlankLines` Tiptap decoration (`src/lib/blankLines.ts`, in
-`useCanvasTextEditor`), `SlideText` and `measureOptions` with `markBlanks` (`src/lib/blanks.ts`). `getHTML()` and the
+`useCanvasTextEditor`), `SlideText`, `measureOptions` and `textFit`'s word widths with `markBlanks` (`src/lib/blanks.ts`). `getHTML()` and the
 saved text never get the span, so no `DATA_VERSION` change. Diagram boxes (a textarea / SVG text) aren't marked.
 Test: `e2e/blank-lines.mjs`.
 

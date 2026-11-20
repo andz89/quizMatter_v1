@@ -30,7 +30,20 @@ await api("/rest/v1/slides", {
           { id: "s1-d", text: "D" },
         ],
         correctOptionId: null,
-        elements: [],
+        elements: [
+          { id: "tb", assetId: "text-box", x: 860, y: 20, width: 380, height: 60, color: "#1B1530", containerId: null, text: { html: "<p>Name: <u>______</u></p>" } },
+          {
+            id: "tbl",
+            assetId: "table",
+            x: 860,
+            y: 90,
+            width: 380,
+            height: 60,
+            color: "#1B1530",
+            containerId: null,
+            table: { rows: [[{ html: "<p>3 x __ = 12</p>" }, { html: "<p>ok</p>" }]] },
+          },
+        ],
         questionHeight: 150,
       },
     },
@@ -93,6 +106,27 @@ try {
   }
   check("the save kept the typed text", json.includes("file_name and __"), json.slice(0, 300));
   check("the saved text has no qm-blank span", !json.includes("qm-blank"));
+
+  // Presenting fullscreen (SlideStaticView → SlideText): every kind of text joins its blanks.
+  await page.locator('button[title="Present (fullscreen)"]').first().click();
+  const shown = page.locator('[aria-hidden="false"]').filter({ hasText: "Before yesterday" }).first();
+  await shown.waitFor();
+  await page.waitForTimeout(1500);
+  const presented = await blanksIn(shown);
+  const texts = presented.map((b) => b.text).sort();
+  check(
+    "presenting marks the question, option, text box (underlined) and table cell blanks",
+    JSON.stringify(texts) === JSON.stringify(["__", "__", "___", "____", "______"]),
+    JSON.stringify(texts)
+  );
+  check(
+    "presenting joins them the same way (about 0.855 of their plain width)",
+    presented.length > 0 && presented.every((b) => Math.abs(b.ratio - 0.855) < 0.02),
+    presented.map((b) => b.ratio.toFixed(3)).join(", ")
+  );
+  await page.screenshot({ path: `${SHOTS}blank-lines-present.png` });
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(500);
 
   // The view page (SlideText) marks them too, the same width as the editor.
   await page.goto(`${APP}/presentation/${presentationId}`, { timeout: 120_000 });
