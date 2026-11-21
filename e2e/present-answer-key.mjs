@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import { chromium } from "playwright";
 import { APP, SHOTS, api, check, deleteTeacher, finish, loggedIn, makeTeacher } from "./lib.mjs";
 
-const TIP_TEXT = "If this slide has a saved answer key, click the check icon here to reveal it.";
+const TIP_TEXT = "If this slide has a saved answer key, click the check icon or press Space to reveal it.";
 
 // Alpha: a choice slide with B correct. Manila: a short-answer slide. Gamma: a choice slide with no answer. Delta: last.
 const teacher = await makeTeacher({ first: "Answer" });
@@ -66,11 +66,12 @@ try {
   await tip.waitFor({ state: "visible" });
   check("tip shows when presenting starts", true);
   const tipBox = await tip.boundingBox();
-  const exitBox = await page.locator('button[title="Exit presentation (Esc)"]').boundingBox();
+  const checkBox = await page.locator('button[title$="(Space)"]').boundingBox();
+  const middle = (box) => box.y + box.height / 2;
   check(
-    "tip sits above the bottom-left buttons, on the left",
-    !!tipBox && !!exitBox && tipBox.y + tipBox.height <= exitBox.y && Math.abs(tipBox.x - exitBox.x) < 2,
-    JSON.stringify({ tipBox, exitBox }),
+    "tip sits right of the bottom-left buttons, in the same row",
+    !!tipBox && !!checkBox && tipBox.x >= checkBox.x + checkBox.width && tipBox.x - (checkBox.x + checkBox.width) < 20 && Math.abs(middle(tipBox) - middle(checkBox)) < 2,
+    JSON.stringify({ tipBox, checkBox }),
   );
   const fadedIn = await page
     .waitForFunction((text) => [...document.querySelectorAll('[role="status"]')].some((el) => el.textContent?.includes(text) && getComputedStyle(el).opacity === "1"), TIP_TEXT, { timeout: 2000 })

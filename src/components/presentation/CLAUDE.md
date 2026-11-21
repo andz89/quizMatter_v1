@@ -19,7 +19,8 @@ Slides drawn without the editor: fullscreen presenting, cards, the view page, re
   25% of the screen = previous slide; hidden slides (the slide's `hidden` field) are skipped by the arrows, Space and
   clicks (`stepPresentation`), but the "Show all slides" grid still opens them; the buttons (bottom left) hide after 3 seconds, except while a live
   video or deck shows (`hasLivePlayer`: a mouse moving over another site's frame never reaches the page);
-  on open, a tip ("If this slide has a saved answer key, click the check icon here to reveal it.") fades in above those buttons, stays
+  on open, a tip ("If this slide has a saved answer key, click the check icon or press Space to reveal it.") fades in
+  to the right of those buttons (same row; it stays when they hide), stays
   6 seconds (`TIP_MS`; its ✕ closes it sooner) and fades out; Space shows / hides the answer key like the check
   button (`AnswerModal` closes on Space too), and on a slide without one goes to the next slide;
   the next 2 slides the arrows go to are drawn hidden so they're ready; a slide change waits at most 400 ms for photos. While open it puts `data-presenting` on `<html>`, so

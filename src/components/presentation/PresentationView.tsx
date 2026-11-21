@@ -291,70 +291,72 @@ export function PresentationView() {
       style={{ background: "var(--text-primary)" }}
       onClick={handleScreenClick}
     >
-      {/* A tip above the bottom-left buttons when the presentation opens. It stays even when the buttons hide. */}
-      {tip !== "gone" && (
-        <div
-          role="status"
-          onClick={(e) => e.stopPropagation()}
-          onTransitionEnd={() => {
-            if (tip === "leaving") setTip("gone");
-          }}
-          className={`absolute bottom-16 left-5 z-10 flex max-w-[calc(100%-40px)] items-center gap-3 rounded-card bg-surface py-3 pl-4 pr-2 text-sm text-text-primary transition-opacity duration-500 ${
-            tip === "shown" ? "opacity-100" : "opacity-0"
-          }`}
-        >
-          <CheckIcon size={18} className="shrink-0 text-accent" />
-          <span>If this slide has a saved answer key, click the check icon here to reveal it.</span>
-          <button
-            type="button"
-            onClick={() => setTip("leaving")}
-            title="Close tip"
-            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-dropdown text-text-secondary hover:bg-accent-soft hover:text-text-primary"
-          >
-            <XIcon size={16} />
-          </button>
-        </div>
-      )}
-
-      {/* Bottom left. Left to right: Exit, All slides, Reveal. Reveal is last, so when it hides the other buttons don't move. */}
-      <div className={`absolute bottom-5 left-5 z-10 flex gap-2 ${buttonsClass}`}>
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            handleExit();
-          }}
-          title="Exit presentation (Esc)"
-          className={roundButtonClass}
-        >
-          <XIcon size={18} />
-        </button>
-
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            setShowAllSlides((v) => !v);
-          }}
-          title={showAllSlides ? "Hide all slides" : "Show all slides"}
-          className={roundButtonClass}
-        >
-          <LayoutGridIcon size={18} />
-        </button>
-
-        {canReveal && !showAllSlides && (
+      {/* Bottom left. Left to right: Exit, All slides, Reveal, then the tip. Reveal is last, so when it hides the other
+          buttons don't move. */}
+      <div className="absolute bottom-5 left-5 z-10 flex max-w-[calc(100%-40px)] items-center gap-2">
+        <div className={`flex shrink-0 gap-2 ${buttonsClass}`}>
           <button
             type="button"
             onClick={(e) => {
               e.stopPropagation();
-              // Choice slides toggle the green highlight; the others open the answer popup.
-              setRevealedSlideId(isChoice && isAnswerShown ? null : slide.id);
+              handleExit();
             }}
-            title={`${hasReveal(slide) ? "Reveal" : isAnswerShown ? "Hide answer" : "Show answer"} (Space)`}
+            title="Exit presentation (Esc)"
             className={roundButtonClass}
           >
-            <CheckIcon size={18} />
+            <XIcon size={18} />
           </button>
+
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowAllSlides((v) => !v);
+            }}
+            title={showAllSlides ? "Hide all slides" : "Show all slides"}
+            className={roundButtonClass}
+          >
+            <LayoutGridIcon size={18} />
+          </button>
+
+          {canReveal && !showAllSlides && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                // Choice slides toggle the green highlight; the others open the answer popup.
+                setRevealedSlideId(isChoice && isAnswerShown ? null : slide.id);
+              }}
+              title={`${hasReveal(slide) ? "Reveal" : isAnswerShown ? "Hide answer" : "Show answer"} (Space)`}
+              className={roundButtonClass}
+            >
+              <CheckIcon size={18} />
+            </button>
+          )}
+        </div>
+
+        {/* A tip next to the buttons when the presentation opens. It stays even when the buttons hide. */}
+        {tip !== "gone" && (
+          <div
+            role="status"
+            onClick={(e) => e.stopPropagation()}
+            onTransitionEnd={() => {
+              if (tip === "leaving") setTip("gone");
+            }}
+            className={`flex min-w-0 items-center gap-3 rounded-card bg-surface py-2 pl-4 pr-2 text-sm text-text-primary transition-opacity duration-500 ${
+              tip === "shown" ? "opacity-100" : "opacity-0"
+            }`}
+          >
+            <span>If this slide has a saved answer key, click the check icon or press Space to reveal it.</span>
+            <button
+              type="button"
+              onClick={() => setTip("leaving")}
+              title="Close tip"
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-dropdown text-text-secondary hover:bg-accent-soft hover:text-text-primary"
+            >
+              <XIcon size={16} />
+            </button>
+          </div>
         )}
       </div>
 
