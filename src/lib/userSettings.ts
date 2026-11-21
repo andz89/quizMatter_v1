@@ -27,7 +27,7 @@ export const DISPLAY_NAME_CHANGE_DAYS = 30;
 // The password rules live in passwords.ts (so `npm test` can load them); kept exported here for the forms.
 export { PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH, passwordSchema };
 
-// The details a teacher gives when they sign up (and can change on the Account page).
+// A teacher's details (names at sign up; the rest optional, on the Account page).
 export const NAME_MAX_LENGTH = 35;
 export const CONTACT_NUMBER_MAX_LENGTH = 20;
 export const EDUCATION_FIELD_MAX_LENGTH = 100;
@@ -60,24 +60,27 @@ export const profileSchema = z.object({
     .trim()
     .min(1, "Enter your last name.")
     .max(NAME_MAX_LENGTH, `Use at most ${NAME_MAX_LENGTH} characters for your last name.`),
-  // e.g. "+63 917 123 4567" or "(02) 8123-4567".
+  // The next five are optional (empty = not given; added on the Account page, never at sign up). Filled in, they
+  // must follow the rules. e.g. "+63 917 123 4567" or "(02) 8123-4567".
   contactNumber: z
     .string()
     .trim()
     .max(CONTACT_NUMBER_MAX_LENGTH, `Use at most ${CONTACT_NUMBER_MAX_LENGTH} characters for your contact number.`)
     .regex(/^[0-9+\-() ]*$/, "A contact number can only have digits, spaces and + - ( ).")
-    .refine((number) => number.replace(/\D/g, "").length >= 7, "Enter a contact number with at least 7 digits."),
-  educationLevel: z.enum(EDUCATION_LEVELS, { error: "Pick your educational background." }),
+    .refine((number) => number === "" || number.replace(/\D/g, "").length >= 7, "Enter a contact number with at least 7 digits."),
+  educationLevel: z.enum(EDUCATION_LEVELS, { error: "Pick your educational background." }).or(z.literal("")),
   educationField: z
     .string()
     .trim()
-    .min(1, "Enter your field or major.")
     .max(EDUCATION_FIELD_MAX_LENGTH, `Use at most ${EDUCATION_FIELD_MAX_LENGTH} characters for your field or major.`),
   // "YYYY-MM-DD", 18 to 100 years old today in the Philippines (the database's check_birth_date, QMAGE, says the same).
   birthDate: z
     .string()
-    .refine((date) => isAllowedBirthDate(date, todayInManila()), "Enter your real birthday. You must be 18 to 100 years old."),
-  gender: z.enum(GENDERS, { error: "Pick your gender." }),
+    .refine(
+      (date) => date === "" || isAllowedBirthDate(date, todayInManila()),
+      "Enter your real birthday. You must be 18 to 100 years old.",
+    ),
+  gender: z.enum(GENDERS, { error: "Pick your gender." }).or(z.literal("")),
   bio: z.string().trim().max(BIO_MAX_LENGTH, `Use at most ${BIO_MAX_LENGTH} characters for your bio.`),
 });
 
@@ -100,13 +103,14 @@ export const AGREE_TERMS_MESSAGE = "Please agree to the Terms of Use and Privacy
 /**
  * The sign up form's rules. blockedDomains: the throwaway email services from the database's blocked_email_domains
  * table (the sign up page reads them on the server), so the form says no at once. The sign up hook checks the same
- * list, so a script can't skip it. Sign up doesn't ask for a bio (added later on the Account page) or a display name
- * (made from the first + last name by handle_new_user, 20261113000000_display_name_rules.sql).
+ * list, so a script can't skip it. Sign up asks only the names (kept short on purpose: spec
+ * docs/superpowers/specs/2026-11-21-shorter-sign-up-design.md); the other details are optional, on the Account page.
+ * The display name is made from the first + last name by handle_new_user (20261113000000_display_name_rules.sql).
  */
 export function signUpSchema(blockedDomains: string[]) {
   const blocked = new Set(blockedDomains);
   return profileSchema
-    .omit({ bio: true })
+    .pick({ firstName: true, lastName: true })
     .extend({
       email: z
         .email("Enter a real email address.")
@@ -177,8 +181,7 @@ export async function saveDisplayName(name: string): Promise<DisplayNameResult> 
  */
 export async function signUp(fields: SignUpFields, captchaToken: string, blockedDomains: string[]) {
   // Checked with zod first (see CLAUDE.md, "Saving Data"): bad data throws here and is never saved.
-  const { email, password, firstName, lastName, contactNumber, educationLevel, educationField, birthDate, gender } =
-    signUpSchema(blockedDomains).parse(fields);
+  const { email, password, firstName, lastName } = signUpSchema(blockedDomains).parse(fields);
   const { error } = await createClient().auth.signUp({
     email,
     password,
@@ -187,11 +190,6 @@ export async function signUp(fields: SignUpFields, captchaToken: string, blocked
       data: {
         first_name: firstName,
         last_name: lastName,
-        contact_number: contactNumber,
-        education_level: educationLevel,
-        education_field: educationField,
-        birth_date: birthDate,
-        gender,
         // Only a ticked box gets past the parse above.
         terms_version: LEGAL_VERSION,
       },
@@ -218,7 +216,8 @@ export async function saveProfile(fields: ProfileFields, visibility: ProfileVisi
     education_level: profile.educationLevel,
     education_field: profile.educationField,
     bio: profile.bio,
-    birth_date: profile.birthDate,
+    // The column is a date: an empty birthday is saved as none.
+    birth_date: profile.birthDate || null,
     gender: profile.gender,
     full_name_public: shown.fullNamePublic,
     education_public: shown.educationPublic,

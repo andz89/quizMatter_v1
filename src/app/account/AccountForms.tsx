@@ -132,7 +132,7 @@ export function ProfileForm({
 }
 
 /**
- * First and last name, contact number, birthday, gender and educational background (given at sign up), and the bio
+ * First and last name (given at sign up), the optional contact number, birthday, gender and educational background, and the bio
  * for the profile page. Plain teachers pick which of the name, background and bio their profile shows ("Show on my profile"); an editor's always show (see 20261215000000_profile_privacy.sql), so
  * they get no checkboxes. The birthday and gender never show.
  */
@@ -234,7 +234,6 @@ export function PersonalDetailsForm({
         <input
           id="contactNumber"
           type="tel"
-          required
           maxLength={CONTACT_NUMBER_MAX_LENGTH}
           autoComplete="tel"
           placeholder="e.g. +63 917 123 4567"
@@ -250,7 +249,6 @@ export function PersonalDetailsForm({
             <input
               id="birthDate"
               type="date"
-              required
               autoComplete="bday"
               min={birthDates.min}
               max={birthDates.max}
@@ -261,10 +259,8 @@ export function PersonalDetailsForm({
           </div>
           <div>
             <label htmlFor="gender" className={labelClass}>Gender</label>
-            <select id="gender" required value={fields.gender} onChange={update("gender")} className={inputClass}>
-              <option value="" disabled>
-                Pick one
-              </option>
+            <select id="gender" value={fields.gender} onChange={update("gender")} className={inputClass}>
+              <option value="">Not set</option>
               {GENDERS.map((gender) => (
                 <option key={gender} value={gender}>
                   {GENDER_LABELS[gender]}
@@ -274,13 +270,20 @@ export function PersonalDetailsForm({
           </div>
         </div>
         <p className="mt-1 text-xs text-text-secondary">Your birthday and gender are private.</p>
+        {/* They used to be asked at sign up, with consent in the agree box; now consent is given here, on save. */}
+        <p className="mt-1 text-xs text-text-secondary">
+          Contact number, birthday, gender and educational background are optional. Saving your birthday, gender or
+          educational background means you agree to QuizMatter keeping them as the{" "}
+          <Link href="/privacy" target="_blank" rel="noopener noreferrer" className="font-semibold text-accent hover:underline">
+            Privacy Policy
+          </Link>{" "}
+          says.
+        </p>
       </div>
       <div>
         <label htmlFor="educationLevel" className={labelClass}>Educational background</label>
-        <select id="educationLevel" required value={fields.educationLevel} onChange={update("educationLevel")} className={inputClass}>
-          <option value="" disabled>
-            Pick one
-          </option>
+        <select id="educationLevel" value={fields.educationLevel} onChange={update("educationLevel")} className={inputClass}>
+          <option value="">Not set</option>
           {EDUCATION_LEVELS.map((level) => (
             <option key={level} value={level}>
               {EDUCATION_LEVEL_LABELS[level]}
@@ -293,7 +296,6 @@ export function PersonalDetailsForm({
         <input
           id="educationField"
           type="text"
-          required
           maxLength={EDUCATION_FIELD_MAX_LENGTH}
           placeholder="e.g. Secondary Education, major in English"
           value={fields.educationField}
