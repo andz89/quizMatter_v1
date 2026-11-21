@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ChangeEvent, type FormEvent, type ReactNode } from "react";
+import { useRef, useState, type ChangeEvent, type FormEvent, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { isAuthError, isAuthRetryableFetchError } from "@supabase/supabase-js";
@@ -132,7 +132,7 @@ export function ProfileForm({
 }
 
 /**
- * First and last name, contact number, birthday, gender and educational background (given at sign up), and the bio
+ * First and last name (given at sign up), the optional contact number, birthday, gender and educational background, and the bio
  * for the profile page. Plain teachers pick which of the name, background and bio their profile shows ("Show on my profile"); an editor's always show (see 20261215000000_profile_privacy.sql), so
  * they get no checkboxes. The birthday and gender never show.
  */
@@ -155,6 +155,8 @@ export function PersonalDetailsForm({
   const isPaused = useIsPaused("settings", "settings_daily");
   // The birthday picker's limits: 18 to 100 years old today.
   const birthDates = birthDateRange(todayInManila());
+  // A half-typed date (e.g. the day erased) reads as "" like an empty box; the browser marks it badInput.
+  const birthDateInput = useRef<HTMLInputElement>(null);
   const isChanged =
     (Object.keys(profile) as (keyof ProfileFields)[]).some((key) => fields[key].trim() !== profile[key]) ||
     (Object.keys(visibility) as (keyof ProfileVisibility)[]).some((key) => shown[key] !== visibility[key]);
@@ -174,6 +176,9 @@ export function PersonalDetailsForm({
 
   const save = async (e: FormEvent) => {
     e.preventDefault();
+    // Without this, saving would quietly remove the saved birthday. Most browsers' own form check already stops a
+    // half-typed date; this is for one that doesn't.
+    if (birthDateInput.current?.validity.badInput) return setError("Enter your full birthday, or clear it.");
     const checked = profileSchema.safeParse(fields);
     if (!checked.success) return setError(checked.error.issues[0].message);
     setError("");
@@ -234,7 +239,6 @@ export function PersonalDetailsForm({
         <input
           id="contactNumber"
           type="tel"
-          required
           maxLength={CONTACT_NUMBER_MAX_LENGTH}
           autoComplete="tel"
           placeholder="e.g. +63 917 123 4567"
@@ -249,8 +253,8 @@ export function PersonalDetailsForm({
             <label htmlFor="birthDate" className={labelClass}>Birthday</label>
             <input
               id="birthDate"
+              ref={birthDateInput}
               type="date"
-              required
               autoComplete="bday"
               min={birthDates.min}
               max={birthDates.max}
@@ -261,10 +265,8 @@ export function PersonalDetailsForm({
           </div>
           <div>
             <label htmlFor="gender" className={labelClass}>Gender</label>
-            <select id="gender" required value={fields.gender} onChange={update("gender")} className={inputClass}>
-              <option value="" disabled>
-                Pick one
-              </option>
+            <select id="gender" value={fields.gender} onChange={update("gender")} className={inputClass}>
+              <option value="">Not set</option>
               {GENDERS.map((gender) => (
                 <option key={gender} value={gender}>
                   {GENDER_LABELS[gender]}
@@ -274,13 +276,20 @@ export function PersonalDetailsForm({
           </div>
         </div>
         <p className="mt-1 text-xs text-text-secondary">Your birthday and gender are private.</p>
+        {/* They used to be asked at sign up, with consent in the agree box; now consent is given here, on save. */}
+        <p className="mt-1 text-xs text-text-secondary">
+          Contact number, birthday, gender and educational background are optional. Saving your birthday, gender or
+          educational background means you agree to QuizMatter keeping them as the{" "}
+          <Link href="/privacy" target="_blank" rel="noopener noreferrer" className="font-semibold text-accent hover:underline">
+            Privacy Policy
+          </Link>{" "}
+          says.
+        </p>
       </div>
       <div>
         <label htmlFor="educationLevel" className={labelClass}>Educational background</label>
-        <select id="educationLevel" required value={fields.educationLevel} onChange={update("educationLevel")} className={inputClass}>
-          <option value="" disabled>
-            Pick one
-          </option>
+        <select id="educationLevel" value={fields.educationLevel} onChange={update("educationLevel")} className={inputClass}>
+          <option value="">Not set</option>
           {EDUCATION_LEVELS.map((level) => (
             <option key={level} value={level}>
               {EDUCATION_LEVEL_LABELS[level]}
@@ -293,7 +302,6 @@ export function PersonalDetailsForm({
         <input
           id="educationField"
           type="text"
-          required
           maxLength={EDUCATION_FIELD_MAX_LENGTH}
           placeholder="e.g. Secondary Education, major in English"
           value={fields.educationField}

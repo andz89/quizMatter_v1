@@ -303,7 +303,12 @@ A refusal raises an error with its own code. The app turns the code into a messa
 - Sign up consent: `20261218000000_terms_consent.sql` (test `supabase/tests/terms_consent.sql`).
   `user_settings.terms_version` / `terms_accepted_at`: which Terms and Privacy Policy version the teacher agreed to
   at sign up, and when. Set only by the newest `handle_new_user` (from the metadata key `terms_version`; empty for an
-  account added from the dashboard); `keep_terms_consent` puts them back on a teacher's own write. Sign up details
+  account added from the dashboard); `keep_terms_consent` puts them back on a teacher's own write.
+  `20261231002500_details_consent.sql` (test `supabase/tests/details_consent.sql`): sign up no longer asks the
+  birthday, gender or educational background, so their consent is kept on the Account page's save:
+  `user_settings.details_consent_version` / `details_consent_at`. `stamp_details_consent` (before insert or update,
+  only a teacher's own write): none of them filled → both empty; a new row with them or a change to one → the sent
+  version (else the kept one) and `now()`; no change → kept as they were. Sign up details
   never stay in `auth.users.raw_user_meta_data`: `handle_new_user` removes them after copying, and
   `strip_sign_up_details` (before update on `auth.users`) keeps them out.
 - Folders: `20261028000000_folders.sql` (the folder limit's lock: `20261210000300_direct_write_limits.sql`).

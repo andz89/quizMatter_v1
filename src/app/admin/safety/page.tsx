@@ -679,16 +679,16 @@ export default async function AdminSafetyPage() {
           }}
         />
         <Item
-          name="Sign up details checked"
+          name="Teacher details checked"
           where="App + database"
-          rule={`First and last name up to ${NAME_MAX_LENGTH} characters each, display name up to ${DISPLAY_NAME_MAX_LENGTH}, contact number 7–${CONTACT_NUMBER_MAX_LENGTH} characters (digits, spaces and + - ( ) only, at least 7 digits), educational background from the list (${EDUCATION_LEVELS.map((level) => EDUCATION_LEVEL_LABELS[level]).join(", ")}) and field or major up to ${EDUCATION_FIELD_MAX_LENGTH}. All required`}
+          rule={`Sign up asks only the first and last name (required, up to ${NAME_MAX_LENGTH} characters each); the display name is up to ${DISPLAY_NAME_MAX_LENGTH}. On the Account page, optional and checked only when filled: contact number up to ${CONTACT_NUMBER_MAX_LENGTH} characters (digits, spaces and + - ( ) only, at least 7 digits), birthday (18 to 100 years old), gender, educational background from the list (${EDUCATION_LEVELS.map((level) => EDUCATION_LEVEL_LABELS[level]).join(", ")}) and field or major up to ${EDUCATION_FIELD_MAX_LENGTH}`}
           sees="A plain message under the form, e.g. “Enter a contact number with at least 7 digits.”"
           more={{
             what: [
               "The sign up form and the Account page check every detail with zod before anything is sent (src/lib/userSettings.ts).",
-              "The database checks the same limits again (the user_settings columns), so details sent straight to Supabase, skipping the app, can't be too long or have a made-up education level: that sign up simply fails.",
+              "The database checks the same limits again (the user_settings columns and the birthday trigger), so details sent straight to Supabase, skipping the app, can't be too long or have a made-up education level: that save simply fails.",
             ],
-            example: "Ana types her contact number as “0917-123-4567”. It has 11 digits and only dashes, so it's accepted.",
+            example: "Ana types her contact number as “0917-123-4567” on the Account page. It has 11 digits and only dashes, so it's accepted. Ben leaves it empty, which is fine too.",
             scenario: "A script sends a sign up with a 10,000-letter “name” to fill the database with junk. The database refuses it, and no account is made.",
           }}
         />

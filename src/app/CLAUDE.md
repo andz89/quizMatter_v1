@@ -120,9 +120,15 @@ Draft / Shared switch on the presentation itself, and aren't counted.
 
 - `account/`: display name (kept 30 days once changed; `display_name` click limit), personal details and bio
   (the `settings` click limit, like the Elements panel's favorite stars), password (`AccountForms.tsx`). Rules and
-  limits: `src/lib/userSettings.ts`. Personal details include the birthday and gender (spec
-  `docs/superpowers/specs/2026-10-30-age-gender-address-design.md`), both required, like at sign up: an account with
-  none (e.g. made in the Supabase dashboard) must fill them in to save. The province and town were removed
+  limits: `src/lib/userSettings.ts`. Personal details include the contact number, birthday, gender and educational
+  background (spec `docs/superpowers/specs/2026-10-30-age-gender-address-design.md`). All four are **optional** and
+  only asked here, never at sign up (spec `docs/superpowers/specs/2026-11-21-shorter-sign-up-design.md`): empty
+  saves (an empty birthday as null), the dropdowns have "Not set", and a filled one still follows its rule. A hint
+  says saving the birthday, gender or background is the teacher's consent (the Privacy Policy says so): `saveProfile`
+  sends `details_consent_version` (`LEGAL_VERSION`), and the database keeps it with its own time only when those
+  details change, and clears both when they're all empty (`stamp_details_consent`,
+  `20261231002500_details_consent.sql`). A half-typed birthday (`validity.badInput`) is refused, never saved as empty.
+  Test: `e2e/account-optional-details.mjs`. The province and town were removed
   (`docs/superpowers/specs/2026-11-01-remove-address-design.md`).
   The Password card asks for the current password, then the new one twice (`changePasswordSchema`,
   `src/lib/passwords.ts`; `changePassword` sends `current_password`). Supabase itself checks it ("require current
@@ -159,19 +165,20 @@ Draft / Shared switch on the presentation itself, and aren't counted.
   subject, then first grade; then "Shared presentations", the ones they published (their shared copies, not hidden,
   last changed first; `teacher_shared_presentations` via `loadSharedPresentationIds` in `src/lib/profiles.ts`).
   Editors can't publish, so only plain teachers have that list. Both lists use `SavableCardGrid.tsx`.
-- `signup/`: `page.tsx` (server) reads the throwaway email services from the database's `blocked_email_domains`
+- `signup/`: kept short on purpose (spec `docs/superpowers/specs/2026-11-21-shorter-sign-up-design.md`): first and
+  last name, email, password twice and the agree box; it sends only the names and `terms_version` as metadata.
+  With no birthday asked, the agree box carries the Terms' age rule: "I'm 18 or older and I agree to …".
+  `page.tsx` (server) reads the throwaway email services from the database's `blocked_email_domains`
   table and gives them to `SignUpForm.tsx` (the form), whose zod check (`signUpSchema(blockedDomains)` in
   `src/lib/userSettings.ts`) refuses them at once. The database's sign up hook checks the same list, so a script
   can't skip it, and it refuses with the same words (`THROWAWAY_EMAIL_MESSAGE`); if the page couldn't read the list,
   the form sends anyway and shows the hook's words (`20261210000400_blocked_email_domains.sql`). Also: Turnstile
   check (`src/components/Turnstile.tsx`), browser speed bumps (`src/lib/browserLimits.ts`), and a limit per
-  internet address in the same hook (`20261108000000_sign_up_limit.sql`). A required agree box ("I agree to the
-  Terms of Use and Privacy Policy…"; its two links open a new tab, so the filled form isn't lost): zod refuses it
-  unticked, and the account saves the agreed version (`LEGAL_VERSION`) and the time in `user_settings`. A hint under
-  educational background (here and on the Account page) says it shows on the profile. Also required: Birthday (a date
-  picker limited to 18–100 years old, `src/lib/age.ts`), and Gender (Male / Female); a hint says the birthday and gender are private.
-  They ride along as metadata like the other details; the database refuses a bad one (`QMAGE` for the birthday) and
-  sign up saves a bad one empty (`20261220000000_age_gender_address.sql`). After sending, "Check your email" says
+  internet address in the same hook (`20261108000000_sign_up_limit.sql`). A required agree box ("I'm 18 or older and
+  I agree to the Terms of Use and Privacy Policy"; its two links open a new tab, so the filled form isn't lost): zod refuses it
+  unticked, and the account saves the agreed version (`LEGAL_VERSION`) and the time in `user_settings`.
+  `handle_new_user` still reads the other details from the metadata if sent (an older open tab) and saves a bad one
+  empty (`20261220000000_age_gender_address.sql`). After sending, "Check your email" says
   "If <email> isn't used yet, we sent a link to it", with links to Log in and Forgot password: Supabase answers the
   same for an email that already has an account (and sends nothing), on purpose, so nobody can find out who has one.
   Keep it that way: never say "this email is already used". The email link opens

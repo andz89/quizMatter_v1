@@ -373,16 +373,28 @@ try {
   await signUp.goto(`${APP}/signup`);
   await signUp.locator("#firstName").fill("Sign");
   await signUp.locator("#lastName").fill("Upper");
-  await signUp.locator("#contactNumber").fill("09171234567");
-  await signUp.locator("#birthDate").fill("1990-05-05");
-  await signUp.locator("#gender").selectOption("female");
-  await signUp.locator("#educationLevel").selectOption("bachelor");
-  await signUp.locator("#educationField").fill("Math");
+  // Sign up asks only the names, email and password (the other details are optional, on the Account page).
+  check(
+    "sign up has no contact number, birthday, gender or education boxes",
+    (await signUp.locator("#contactNumber, #birthDate, #gender, #educationLevel, #educationField").count()) === 0,
+  );
+  check(
+    "the agree box says the teacher is 18 or older",
+    ((await signUp.locator('label[for="agreeTerms"]').textContent()) ?? "").startsWith("I'm 18 or older and I agree"),
+  );
   await signUp.locator("#email").fill(teacher.email);
   await signUp.locator("#password").fill("Sign-up-pass-123");
   await signUp.locator("#confirmPassword").fill("Sign-up-pass-123");
   await signUp.locator("#agreeTerms").check();
+  // What sign up sends: only the names and the agreed version ride along.
+  const sentBody = signUp.waitForRequest("**/auth/v1/signup*").then((request) => request.postDataJSON());
   await signUp.getByRole("button", { name: "Create account" }).click();
+  const metadata = (await sentBody)?.data ?? {};
+  check(
+    "sign up sends only the names and the agreed version",
+    Object.keys(metadata).sort().join(",") === "first_name,last_name,terms_version",
+    JSON.stringify(metadata),
+  );
   const shown = await signUp.getByText("Check your email").waitFor({ timeout: 10000 }).then(() => true, () => false);
   check(
     "sign up says the link was sent only if the email isn't used yet",

@@ -9,15 +9,8 @@ import { Logo } from "@/components/Logo";
 import { Spinner } from "@/components/Spinner";
 import { TopLoadingBar } from "@/components/TopLoadingBar";
 import { Turnstile, type TurnstileStatus } from "@/components/Turnstile";
-import { birthDateRange, todayInManila } from "@/lib/age";
 import { lockedUntil, recordTry, SIGN_UP_ADDRESS_MESSAGE, SIGN_UP_LIMIT, tryAgainAfter } from "@/lib/browserLimits";
 import {
-  CONTACT_NUMBER_MAX_LENGTH,
-  EDUCATION_FIELD_MAX_LENGTH,
-  EDUCATION_LEVEL_LABELS,
-  EDUCATION_LEVELS,
-  GENDER_LABELS,
-  GENDERS,
   NAME_MAX_LENGTH,
   PASSWORD_MAX_LENGTH,
   signUp,
@@ -26,14 +19,11 @@ import {
   type SignUpFields,
 } from "@/lib/userSettings";
 
+// Kept short on purpose: the other details are optional, on the Account page
+// (docs/superpowers/specs/2026-11-21-shorter-sign-up-design.md).
 const emptyFields: SignUpFields = {
   firstName: "",
   lastName: "",
-  contactNumber: "",
-  educationLevel: "",
-  educationField: "",
-  birthDate: "",
-  gender: "",
   email: "",
   password: "",
   confirmPassword: "",
@@ -54,8 +44,6 @@ export function SignUpForm({ blockedDomains }: { blockedDomains: string[] }) {
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const [captchaRound, setCaptchaRound] = useState(0);
   const [captchaStatus, setCaptchaStatus] = useState<TurnstileStatus>("checking");
-  // The birthday picker's limits: 18 to 100 years old today.
-  const birthDates = birthDateRange(todayInManila());
 
   // Back button: the browser may show its saved copy of this page with a used pass. Start over with a fresh check.
   useEffect(() => {
@@ -69,7 +57,7 @@ export function SignUpForm({ blockedDomains }: { blockedDomains: string[] }) {
     return () => window.removeEventListener("pageshow", onPageShow);
   }, []);
 
-  const update = (name: Exclude<keyof SignUpFields, "agreeTerms">) => (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
+  const update = (name: Exclude<keyof SignUpFields, "agreeTerms">) => (e: ChangeEvent<HTMLInputElement>) =>
     setFields((old) => ({ ...old, [name]: e.target.value }));
 
   const createAccount = async (e: FormEvent) => {
@@ -127,7 +115,7 @@ export function SignUpForm({ blockedDomains }: { blockedDomains: string[] }) {
       ) : (
         <form
           onSubmit={createAccount}
-          className="flex w-full max-w-2xl flex-col gap-4 rounded-card border border-border-default bg-bg-surface px-5 py-6"
+          className="flex w-full max-w-lg flex-col gap-4 rounded-card border border-border-default bg-bg-surface px-5 py-6"
         >
           <h1 className="text-base font-extrabold text-text-primary">Create an account</h1>
 
@@ -159,74 +147,6 @@ export function SignUpForm({ blockedDomains }: { blockedDomains: string[] }) {
             </Field>
             <p className="-mt-2 text-xs text-text-secondary sm:col-span-2">
               This is your display name. You can change it once later on the Account page.
-            </p>
-            <Field id="contactNumber" label="Contact number">
-              <input
-                id="contactNumber"
-                type="tel"
-                required
-                maxLength={CONTACT_NUMBER_MAX_LENGTH}
-                autoComplete="tel"
-                placeholder="e.g. +63 917 123 4567"
-                value={fields.contactNumber}
-                onChange={update("contactNumber")}
-                className={inputClass}
-              />
-            </Field>
-            <Field id="birthDate" label="Birthday">
-              <input
-                id="birthDate"
-                type="date"
-                required
-                autoComplete="bday"
-                min={birthDates.min}
-                max={birthDates.max}
-                value={fields.birthDate}
-                onChange={update("birthDate")}
-                className={inputClass}
-              />
-            </Field>
-            <Field id="gender" label="Gender">
-              <select id="gender" required value={fields.gender} onChange={update("gender")} className={inputClass}>
-                <option value="" disabled>
-                  Pick one
-                </option>
-                {GENDERS.map((gender) => (
-                  <option key={gender} value={gender}>
-                    {GENDER_LABELS[gender]}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <p className="-mt-2 text-xs text-text-secondary sm:col-span-2">
-              Your birthday and gender are private.
-            </p>
-            <Field id="educationLevel" label="Educational background">
-              <select id="educationLevel" required value={fields.educationLevel} onChange={update("educationLevel")} className={inputClass}>
-                <option value="" disabled>
-                  Pick one
-                </option>
-                {EDUCATION_LEVELS.map((level) => (
-                  <option key={level} value={level}>
-                    {EDUCATION_LEVEL_LABELS[level]}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field id="educationField" label="Field or major">
-              <input
-                id="educationField"
-                type="text"
-                required
-                maxLength={EDUCATION_FIELD_MAX_LENGTH}
-                placeholder="e.g. Secondary Education, major in English"
-                value={fields.educationField}
-                onChange={update("educationField")}
-                className={inputClass}
-              />
-            </Field>
-            <p className="-mt-2 text-xs text-text-secondary sm:col-span-2">
-              Shows on your profile page, so teachers can see who made the lessons they use.
             </p>
             <Field id="email" label="Email" className="sm:col-span-2">
               <input
@@ -276,7 +196,7 @@ export function SignUpForm({ blockedDomains }: { blockedDomains: string[] }) {
               className="mt-0.5 accent-accent"
             />
             <label htmlFor="agreeTerms" className="text-sm text-text-primary">
-              I agree to the{" "}
+              I&apos;m 18 or older and I agree to the{" "}
               <Link href="/terms" target="_blank" rel="noopener noreferrer" className="font-semibold text-accent hover:underline">
                 Terms of Use
               </Link>{" "}
@@ -284,8 +204,7 @@ export function SignUpForm({ blockedDomains }: { blockedDomains: string[] }) {
               <Link href="/privacy" target="_blank" rel="noopener noreferrer" className="font-semibold text-accent hover:underline">
                 Privacy Policy
               </Link>
-              , including how QuizMatter keeps my birthday and gender (private) and my educational background (shown
-              on my profile).
+              .
             </label>
           </div>
 

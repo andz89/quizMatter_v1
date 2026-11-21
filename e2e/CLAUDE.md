@@ -61,7 +61,8 @@ Tests that delete data (the announcements ones empty the announcements table) do
   page opened) refuses and leaves the link unused, a banned teacher's link → `/login?error=blocked`, and a real
   unconfirmed sign up link (`type=email`, from `generate_link`) → home, confirmed. A failed log out (on the link page and in the account
   menu) says so. Supabase can't be reached at Continue (it stops the local gateway, `supabase_kong_quizBuilder`,
-  for a moment): the page says the link still works, and it does. Last, sign up's "Check your email" words and links
+  for a moment): the page says the link still works, and it does. Last, sign up (no contact number, birthday, gender
+  or education boxes; the agree box says "I'm 18 or older"; it sends only the names and `terms_version`) and its "Check your email" words and links
   (Supabase's sign up answer played back, so no account is made; screenshot `signup-check-email.png`), and the reset
   limit: 3 real emails, the 4th shows the same screen and sends none; an address at 10 requests gets no email, another address does
   (the test adds `cf-connecting-ip` to the page's request, as Cloudflare does). Then Admin → Safety → Password resets
@@ -225,6 +226,11 @@ when another is picked), moving into and between boxes (Alt keeps a free picture
   opens Admin and the pages stay open); `is_admin` is false before and true after; the login page itself goes to the
   verify page after the password and then to the remembered page; a teacher gets "page not found" on the set-up page
   and Admin, and the verify page says there is nothing to check.
+- `account-optional-details.mjs`: Account → Personal details with a new teacher (names only, like sign up): saving
+  with the contact number, birthday, gender and educational background empty works (birthday saved as none, no
+  consent record), a too-short contact number is still refused, filling them in saves (with the consent version
+  and time), a half-typed birthday doesn't save over the saved one, and clearing them ("Not set") saves empty and
+  clears the consent record.
 - `account-password.mjs`: Account → Password. A direct call to Supabase without the current password, or with a
   wrong one, is refused; on the page a mismatch, the same password and a wrong current password each get their
   words, and the right one changes it (new password in, old out, the browser stays logged in).

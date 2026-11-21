@@ -4269,6 +4269,35 @@ $$;
 ALTER FUNCTION "public"."slide_photo_srcs"("data" "jsonb") OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."stamp_details_consent"() RETURNS "trigger"
+    LANGUAGE "plpgsql"
+    SET "search_path" TO ''
+    AS $$
+begin
+  if current_user <> 'authenticated' then
+    return new;
+  end if;
+
+  if new.birth_date is null and new.gender = '' and new.education_level = '' and new.education_field = '' then
+    new.details_consent_version := null;
+    new.details_consent_at := null;
+  elsif tg_op = 'INSERT'
+      or (new.birth_date, new.gender, new.education_level, new.education_field)
+        is distinct from (old.birth_date, old.gender, old.education_level, old.education_field) then
+    -- An update that doesn't send the version carries the old one in `new`.
+    new.details_consent_at := now();
+  else
+    new.details_consent_version := old.details_consent_version;
+    new.details_consent_at := old.details_consent_at;
+  end if;
+  return new;
+end;
+$$;
+
+
+ALTER FUNCTION "public"."stamp_details_consent"() OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."start_review"("target_id" "text") RETURNS "void"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO ''
@@ -5150,8 +5179,11 @@ CREATE TABLE IF NOT EXISTS "public"."user_settings" (
     "terms_accepted_at" timestamp with time zone,
     "birth_date" "date",
     "gender" "text" DEFAULT ''::"text" NOT NULL,
+    "details_consent_version" "text",
+    "details_consent_at" timestamp with time zone,
     CONSTRAINT "user_settings_bio_check" CHECK (("char_length"("bio") <= 300)),
     CONSTRAINT "user_settings_contact_number_check" CHECK (("length"("contact_number") <= 20)),
+    CONSTRAINT "user_settings_details_consent_version_check" CHECK (("char_length"("details_consent_version") <= 20)),
     CONSTRAINT "user_settings_display_name_check" CHECK (("length"("display_name") <= 80)),
     CONSTRAINT "user_settings_display_name_has_link" CHECK ((("display_name" = ''::"text") OR ("public"."profile_slug"("display_name") <> ''::"text"))),
     CONSTRAINT "user_settings_education_field_check" CHECK (("length"("education_field") <= 100)),
@@ -5725,6 +5757,10 @@ CREATE OR REPLACE TRIGGER "user_settings_display_name_guard" BEFORE INSERT OR DE
 
 
 CREATE OR REPLACE TRIGGER "user_settings_keep_terms_consent" BEFORE INSERT OR UPDATE ON "public"."user_settings" FOR EACH ROW EXECUTE FUNCTION "public"."keep_terms_consent"();
+
+
+
+CREATE OR REPLACE TRIGGER "user_settings_stamp_details_consent" BEFORE INSERT OR UPDATE ON "public"."user_settings" FOR EACH ROW EXECUTE FUNCTION "public"."stamp_details_consent"();
 
 
 
@@ -7147,6 +7183,12 @@ GRANT ALL ON FUNCTION "public"."share_presentation"("target_id" "text") TO "serv
 REVOKE ALL ON FUNCTION "public"."slide_photo_srcs"("data" "jsonb") FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."slide_photo_srcs"("data" "jsonb") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."slide_photo_srcs"("data" "jsonb") TO "service_role";
+
+
+
+REVOKE ALL ON FUNCTION "public"."stamp_details_consent"() FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."stamp_details_consent"() TO "authenticated";
+GRANT ALL ON FUNCTION "public"."stamp_details_consent"() TO "service_role";
 
 
 

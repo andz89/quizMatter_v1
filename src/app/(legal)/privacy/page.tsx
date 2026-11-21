@@ -52,22 +52,25 @@ export default function PrivacyPage() {
         </p>
         <p>
           <strong>Your profile.</strong> Your first and last name, and your display name (made from them, and you can
-          change it later). They show on your profile page and on the work you share. Your contact number, so QuizMatter
-          can reach you about your account; only QuizMatter’s admins see it. A short bio, if you write one.
+          change it later). They show on your profile page and on the work you share. Your contact number, if you add
+          one on the Account page (it’s optional), so QuizMatter can reach you about your account; only QuizMatter’s
+          admins see it. A short bio, if you write one.
         </p>
         <p>
-          <strong>Your birthday and gender.</strong> You must give them to make an account (you must be 18 to 100 years
-          old). The law calls age and gender <em>sensitive personal information</em> (Section 3(l)), so we ask for your
-          clear consent when you sign up (Section 13(a)). Why we ask: to know who uses QuizMatter, and to count teachers
-          by age group and gender. Only you and QuizMatter’s admins see them; they never show on your profile.
+          <strong>Your birthday and gender</strong>, if you add them. They’re optional: sign up doesn’t ask for them,
+          and you can add, change or remove them on the Account page (a birthday must say you’re 18 to 100 years old).
+          The law calls age and gender <em>sensitive personal information</em> (Section 3(l)), so we keep them only with
+          your clear consent, which you give when you save them there (Section 13(a)). Why we ask: to know who uses
+          QuizMatter, and to count teachers by age group and gender. Only you and QuizMatter’s admins see them; they
+          never show on your profile.
         </p>
         <p>
-          <strong>Your educational background</strong> (your level, like a master’s degree, and your field or major).
-          You must give it to make an account. The law calls it <em>sensitive personal information</em> (Section 3(l)),
-          so we ask for your clear consent when you sign up (Section 13(a)). Why we ask: teachers share lessons on
+          <strong>Your educational background</strong> (your level, like a master’s degree, and your field or major),
+          if you add it. It’s optional: sign up doesn’t ask for it, and you can add, change or remove it on the Account
+          page. The law calls it <em>sensitive personal information</em> (Section 3(l)), so we keep it only with your
+          clear consent, which you give when you save it there (Section 13(a)). Why we ask: teachers share lessons on
           QuizMatter, so other teachers can see the background of the person who made them. It shows on your profile
-          page. You can change it on the Account page, and you can hide it from your profile page (“Show on my
-          profile”), unless you’re an editor. To remove it completely, delete your account.
+          page, and you can hide it from your profile page (“Show on my profile”), unless you’re an editor.
         </p>
         <p>
           <strong>Your profile photo</strong> (editors only, and only if you add one). It shows on your profile page,
@@ -86,7 +89,9 @@ export default function PrivacyPage() {
         </p>
         <p>
           <strong>Your agreement.</strong> Which version of the Terms of Use and this Privacy Policy you agreed to at
-          sign up, and when.
+          sign up, and when. If you add your birthday, gender or educational background, also which version of this
+          Privacy Policy was in place when you last saved a change to them, and when (if you remove them all, this
+          record goes too).
         </p>
         <p>
           <strong>Safety records.</strong> The internet address you sign up or ask for a password reset from (to stop
