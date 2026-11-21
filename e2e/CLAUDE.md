@@ -111,7 +111,7 @@ Tests that delete data (the announcements ones empty the announcements table) do
   saved cell's `fill` back (none for a plain cell).
 - `claude-text-fit.mjs`: Claude's connector and text that never shrinks: the format says so and that option rows are
   sized by their text; Claude's own 90 px options under its own 160 px strip and a question too long for its
-  `questionHeight` are reported as cut off; with the size left out, the options keep 56 px, the strip makes room, and
+  `questionHeight` are reported as cut off; with the size left out, the options keep 45 px, the strip makes room, and
   the draft opens with no "+…".
 - `claude-number-fixes.mjs`: Claude's connector pulls slips into range instead of refusing: a 12 px and an 8 px
   tall arrow, a 10 px table text, a "stripHeight" of 600 and a "questionHeight" of 400 are built (the last two named

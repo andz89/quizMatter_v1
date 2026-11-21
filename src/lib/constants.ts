@@ -60,9 +60,9 @@ export const SLIDE_DRAG_MIME = "application/x-quizbuilder-slide";
 
 // The font size (px) each kind of text shows at when the user hasn't chosen one. Text never shrinks: too-long
 // text goes onto new lines and what's past the box's bottom is cut off. Text boxes match the question box.
-export const QUESTION_FONT_SIZE = 48;
-export const OPTION_FONT_SIZE = 56;
-export const TEXT_BOX_FONT_SIZE = 48;
+export const QUESTION_FONT_SIZE = 45;
+export const OPTION_FONT_SIZE = 45;
+export const TEXT_BOX_FONT_SIZE = 45;
 // Text color when none is set.
 export const DEFAULT_TEXT_COLOR = "#1F1F1F";
 
