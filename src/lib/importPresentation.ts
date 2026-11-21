@@ -942,6 +942,7 @@ Arrows that point at part of a picture ("callouts", blank, title and custom slid
 - send_presentation replies with a layout report: every box's size, and where each text and picture landed, in the same px as "position". Lines starting with "!" point out things to check: pictures that wrapped to more rows or shrank a lot, pictures on top of text, text that will probably be cut off, text that's hard to read on what's behind it.
 - Send the presentation first with "final": false. The user sees it as "Checking…" and can't open it yet. Check the report against what you meant, and fix anything that's off (e.g. give "position" with the numbers you want). You can check again the same way.
 - Then send it with "final": true and the "draftId" you got. That turns the checking version into the finished presentation and gives you the link for the user.
+- If the report needs no changes, leave out "slides" in that final send (just "final": true and the "draftId"): it finishes the checked version as it is, so you don't write every slide again. If you changed anything, send all the slides.
 
 === Answers and Reveal (short-answer, custom, blank and title slides) ===
 
@@ -998,7 +999,8 @@ JSON Schema:
 
 /** Everything Claude needs to write a recipe: short notes and the JSON Schema with every allowed value. */
 export function getClaudeFormat(): string {
-  return CLAUDE_NOTES + JSON.stringify(z.toJSONSchema(presentationRecipeSchema, { io: "input" }), null, 2);
+  // On one line: the same schema, about 40% fewer characters for Claude to read.
+  return CLAUDE_NOTES + JSON.stringify(z.toJSONSchema(presentationRecipeSchema, { io: "input" }));
 }
 
 // ---------------------------------------------------------------------------------------------

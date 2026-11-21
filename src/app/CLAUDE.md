@@ -26,7 +26,8 @@ The pages teachers use outside the editor. Other folders here have their own not
   From QuizMatter sends one request per subject (`bySubjectChip`): its exact count and its first 5 cards; a picked
   subject (or `subject=none`, the "No subject" row's See all) is paged with `ShowMore` like Other teachers. Liked reads
   my `presentation_likes` rows (newest liked first, paged by the database) with each presentation embedded.
-  `CardGrid.tsx` lays them out and handles Present from a card.
+  `CardGrid.tsx` lays them out and handles Present from a card. Its subject chips show `subjectChipLabel`
+  (`schema.ts`): shorter words for a long subject ("ESP/GMRC"); the saved subject and the link keep the full name.
 - `PresentationCard.tsx`: one card. `PresentationCardMenu.tsx`: its ⋮ menu (Edit, Present, Delete; the super admin: Move
   to QuizMatter; editors: Submit to QuizMatter). `SaveCardButton.tsx`: the bookmark on other people's cards.
   `LikeCardButton.tsx`: the heart with the like count, left of the bookmark (teachers and editors, someone else's

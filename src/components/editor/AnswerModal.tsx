@@ -20,7 +20,11 @@ export function AnswerModal({ slide, onClose }: AnswerModalProps) {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       e.stopPropagation();
-      if (e.key === "Escape") onClose();
+      // Space closes it too: while presenting, Space shows and hides the answer key.
+      if (e.key === "Escape" || e.key === " ") {
+        e.preventDefault();
+        onClose();
+      }
     };
     window.addEventListener("keydown", handleKeyDown, true);
     return () => window.removeEventListener("keydown", handleKeyDown, true);

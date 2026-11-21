@@ -4,7 +4,7 @@ import { useState, type ReactNode } from "react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { useEditorStore } from "@/lib/store";
-import { OTHER_CHOICE, SUBJECTS, isOtherSubject } from "@/lib/schema";
+import { OTHER_CHOICE, SUBJECTS, isOtherSubject, subjectChipLabel } from "@/lib/schema";
 import { PresentationCard, type PresentationCardData } from "../PresentationCard";
 import { DraggableCard } from "../MyFolders";
 
@@ -190,7 +190,7 @@ export function SubjectChips({
             picked === id ? "bg-accent-soft text-accent" : "text-text-secondary hover:text-text-primary"
           }`}
         >
-          {id || "All"}
+          {id ? subjectChipLabel(id) : "All"}
           <span className="text-[11px]">{count}</span>
         </button>
       ))}

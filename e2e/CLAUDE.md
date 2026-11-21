@@ -81,6 +81,11 @@ Tests that delete data (the announcements ones empty the announcements table) do
 - `hidden-slides.mjs`: hide a slide, save, present (→ / ← skip it), the all-slides grid, then publish it: on the view
   page another teacher's Prev/Next skip it (counter "2 / 2", details still "3 slides"), the owner and an admin see it
   faded; show it again.
+- `present-answer-key.mjs`: presenting fullscreen. The tip ("If this slide has a saved answer key…") shows above the
+  bottom-left buttons, fades in, outlasts the buttons' 3 seconds and is gone after about 6; its ✕ fades it out sooner
+  without changing the slide. Space shows and hides a choice slide's ✓ and opens and closes a short-answer slide's
+  answer popup (Escape closes it too, still presenting); on a slide with no answer key Space goes to the next slide;
+  the check button's hover text ends with "(Space)".
 - `add-slide-menu.mjs`: the slide's + and the workspace's Add slide have no "Embed image" (the other 8 types stay),
   and an image slide saved before still opens with its picture. Outside the editor that picture (from another
   website) isn't asked for: the view page names the website, and presenting loads it only after "Show picture".
@@ -112,6 +117,9 @@ Tests that delete data (the announcements ones empty the announcements table) do
   tall arrow, a 10 px table text, a "stripHeight" of 600 and a "questionHeight" of 400 are built (the last two named
   in the layout report as lowered); the format still shows the 20 px minimum; a font size that isn't a number is
   still refused.
+- `claude-finish-draft.mjs`: Claude's connector finishes a checked draft with `final: true`, its `draftId` and no
+  `slides` (the link, its slide count and title; `details` sent with it replace the draft's); no slides with
+  `final: false`, without a `draftId`, or for an unknown draft is refused; the format's schema is on one line.
 - `option-rows.mjs`: option row heights. The "+…" and grow marks sit outside their box, not cut off (above the box, right
   edges lined up; a small text box at the slide's top edge gets it under, one at the right edge still above). No slide has a Fit rows to text button; a line between list rows trades room
   and changes no text size (one undo puts it back); Shuffle keeps a list row with its option; text far too big stays
