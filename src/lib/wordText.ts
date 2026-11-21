@@ -85,7 +85,7 @@ function writeMathPart(part: MathPart, parent: MathPart | undefined): string {
 /**
  * One line per paragraph (`<w:p>`), split again at line breaks (`<w:br/>`, `<w:cr/>`). Only `<w:t>` (and an
  * equation's `<m:t>`) holds text (settings and field codes don't); a tab before a choice's letter starts a new line
- * (two choices side by side, `NEXT_CHOICE`), any other tab is a space, a non-breaking hyphen a "-",
+ * (two choices side by side, `splitChoices`), any other tab is a space, a non-breaking hyphen a "-",
  * a `<w:sym>` its character (`symbolText`). Equations become plain text: x², H₂O, x^(ab), (x+1)/2, ³√8, [a], ∑ᵢ₌₁ⁿi.
  * A paragraph inside another (a text box) is its own line, listed after the line it sits in. Word writes each text
  * box twice (`mc:Choice` and an older `mc:Fallback` copy): the copy is skipped. Spaces are tidied and empty lines
@@ -145,7 +145,7 @@ export function wordLines(xml: string): string[] {
   }
 
   return lines
-    .flatMap((line) => line.split(NEXT_CHOICE))
+    .flatMap(splitChoices)
     .map((line) => line.replace(/\s+/g, " ").trim())
     .filter(Boolean);
 }
@@ -165,9 +165,25 @@ export function stripItemMark(line: string): string {
 /** A choice's letter at the start of a line ("A.", "c)", "(b)"); group 1 is the letter. */
 const CHOICE_MARK = /^\s*\(?([A-Ea-e])[.)]\s/;
 
-/** Where a row with two choices side by side splits: a tab or a wide gap (3+ spaces) before the next choice's
- * letter ("A. Acute angle ⇥ C. Obtuse angle"). A tab anywhere else is a space. */
-const NEXT_CHOICE = /(?:\t|[ \u00a0]{3,})+(?=\(?[A-Ea-e][.)]\s)/;
+/**
+ * A row with two choices side by side as two lines ("A. Acute angle ⇥ C. Obtuse angle"): it splits at a gap of
+ * spaces and tabs that holds a tab or 3+ spaces and comes right before a choice's letter. Any other gap stays (a tab
+ * is a space later). Each gap is looked at once, so long runs of spaces read at once. (One pattern like
+ * /(?:\t|[ ]{3,})+(?=…)/ tries every way to split a run of spaces and froze the tab on a line with 30 spaces.)
+ */
+function splitChoices(line: string): string[] {
+  const parts: string[] = [];
+  let start = 0;
+  for (const gap of line.matchAll(/[\t \u00a0]+/g)) {
+    const end = gap.index + gap[0].length;
+    if (/\t|[ \u00a0]{3}/.test(gap[0]) && /^\(?[A-Ea-e][.)]\s/.test(line.slice(end, end + 5))) {
+      parts.push(line.slice(start, gap.index));
+      start = end;
+    }
+  }
+  parts.push(line.slice(start));
+  return parts;
+}
 
 /** A line that starts a numbered exam item: "1. …", "12) …", or with a blank for the answer first, "____ 1. …". */
 const QUESTION_LINE = /^\s*(?:_{2,}\s*)?\d{1,3}[.)]\s+\S/;

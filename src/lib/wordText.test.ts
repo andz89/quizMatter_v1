@@ -153,3 +153,11 @@ test("suggestItems puts lettered choices in A–D order (two columns read A, C, 
   // Without a letter on each, the order stays as read.
   assert.deepEqual(suggestItems(["1. Q", "Dog", "Cat"]), [{ question: 0, options: [1, 2] }]);
 });
+
+test("long runs of spaces and tabs read at once (no freeze)", { timeout: 2000 }, () => {
+  const run = " ".repeat(5000);
+  const tabs = "</w:t><w:tab/><w:t>".repeat(2000);
+  assert.deepEqual(wordLines(`<w:p><w:r><w:t xml:space="preserve">Score:${run}x</w:t></w:r></w:p>`), ["Score: x"]);
+  assert.deepEqual(wordLines(`<w:p><w:r><w:t>Name:${tabs}Date</w:t></w:r></w:p>`), ["Name: Date"]);
+  assert.deepEqual(wordLines(`<w:p><w:r><w:t xml:space="preserve">A. One${run}C. Three</w:t></w:r></w:p>`), ["A. One", "C. Three"]);
+});

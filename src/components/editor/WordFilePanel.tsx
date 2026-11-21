@@ -58,7 +58,10 @@ export function WordFilePanel() {
     if (!file) return;
     setIsReading(true);
     setError(null);
-    const result = await readWordFile(file);
+    // The browser can refuse to read a file (e.g. one still syncing or locked): say so instead of spinning forever.
+    const result = await readWordFile(file).catch(() => ({
+      error: "Couldn't read this file. Close it in Word, then try again.",
+    }));
     setIsReading(false);
     if ("error" in result) {
       setError(result.error);
