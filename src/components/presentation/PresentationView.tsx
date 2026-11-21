@@ -18,6 +18,8 @@ const HIDE_BUTTONS_AFTER_MS = 3000;
 const PRELOAD_SLIDES = 2;
 // The longest a slide change waits for the new slide's photos before its effect starts anyway.
 const MAX_WAIT_MS = 400;
+// The tip about the check button shows this long after the presentation opens (unless closed sooner).
+const TIP_MS = 6000;
 // Starts fast and slows down at the end.
 const EASE_OUT: [number, number, number, number] = [0.22, 1, 0.36, 1];
 
@@ -61,6 +63,8 @@ export function PresentationView() {
   const [revealedSlideId, setRevealedSlideId] = useState<string | null>(null);
   const [showButtons, setShowButtons] = useState(true);
   const [showAllSlides, setShowAllSlides] = useState(false);
+  // The tip fades in ("entering" → "shown"), fades out ("leaving") and is then removed ("gone").
+  const [tip, setTip] = useState<"entering" | "shown" | "leaving" | "gone">("entering");
   const currentThumbRef = useRef<HTMLButtonElement>(null);
   // Remember the last slide shown: it stays under the new slide while the slide effect plays (cleared when the
   // effect ends), and tells "Slide" which way to come from.
@@ -183,7 +187,11 @@ export function PresentationView() {
         if (e.key === "Escape") setShowAllSlides(false);
         return;
       }
-      if (e.key === "ArrowRight" || e.key === "ArrowDown" || e.key === " ") {
+      // Space shows or hides the answer key, like the check button. A slide without one: Space goes on, as before.
+      if (e.key === " " && canReveal && slide) {
+        e.preventDefault();
+        setRevealedSlideId(isAnswerShown ? null : slide.id);
+      } else if (e.key === "ArrowRight" || e.key === "ArrowDown" || e.key === " ") {
         e.preventDefault();
         nextSlide();
       } else if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
@@ -195,7 +203,7 @@ export function PresentationView() {
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [nextSlide, prevSlide, exitPresentation, showAllSlides]);
+  }, [nextSlide, prevSlide, exitPresentation, showAllSlides, canReveal, isAnswerShown, slide]);
 
   // Opening the grid scrolls to the slide being shown, so the teacher finds their place.
   useEffect(() => {
@@ -214,6 +222,16 @@ export function PresentationView() {
     return () => {
       clearTimeout(timer);
       window.removeEventListener("mousemove", handleMouseMove);
+    };
+  }, []);
+
+  // The tip fades in on the next frame (so the fade plays) and starts fading out after TIP_MS.
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => setTip("shown"));
+    const timer = setTimeout(() => setTip((t) => (t === "gone" ? t : "leaving")), TIP_MS);
+    return () => {
+      cancelAnimationFrame(frame);
+      clearTimeout(timer);
     };
   }, []);
 
@@ -273,6 +291,31 @@ export function PresentationView() {
       style={{ background: "var(--text-primary)" }}
       onClick={handleScreenClick}
     >
+      {/* A tip above the bottom-left buttons when the presentation opens. It stays even when the buttons hide. */}
+      {tip !== "gone" && (
+        <div
+          role="status"
+          onClick={(e) => e.stopPropagation()}
+          onTransitionEnd={() => {
+            if (tip === "leaving") setTip("gone");
+          }}
+          className={`absolute bottom-16 left-5 z-10 flex max-w-[calc(100%-40px)] items-center gap-3 rounded-card bg-surface py-3 pl-4 pr-2 text-sm text-text-primary transition-opacity duration-500 ${
+            tip === "shown" ? "opacity-100" : "opacity-0"
+          }`}
+        >
+          <CheckIcon size={18} className="shrink-0 text-accent" />
+          <span>If this slide has a saved answer key, click the check icon here to reveal it.</span>
+          <button
+            type="button"
+            onClick={() => setTip("leaving")}
+            title="Close tip"
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-dropdown text-text-secondary hover:bg-accent-soft hover:text-text-primary"
+          >
+            <XIcon size={16} />
+          </button>
+        </div>
+      )}
+
       {/* Bottom left. Left to right: Exit, All slides, Reveal. Reveal is last, so when it hides the other buttons don't move. */}
       <div className={`absolute bottom-5 left-5 z-10 flex gap-2 ${buttonsClass}`}>
         <button
@@ -307,7 +350,7 @@ export function PresentationView() {
               // Choice slides toggle the green highlight; the others open the answer popup.
               setRevealedSlideId(isChoice && isAnswerShown ? null : slide.id);
             }}
-            title={hasReveal(slide) ? "Reveal" : isChoice && isAnswerShown ? "Hide answer" : "Show answer"}
+            title={`${hasReveal(slide) ? "Reveal" : isAnswerShown ? "Hide answer" : "Show answer"} (Space)`}
             className={roundButtonClass}
           >
             <CheckIcon size={18} />
