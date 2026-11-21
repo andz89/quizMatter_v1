@@ -2,10 +2,10 @@
 
 import type { ReactNode } from "react";
 import { useEditorStore } from "@/lib/store";
-import { BookOpenIcon, ImageIcon, PaintBucketIcon, ShapesIcon, SparklesIcon } from "lucide-react";
+import { BookOpenIcon, FileTextIcon, ImageIcon, PaintBucketIcon, ShapesIcon, SparklesIcon } from "lucide-react";
 
 /**
- * Canva-style narrow icon bar: "Elements", "Photos", "Background", "Effects" and "Presentations" expand their sidebar panels.
+ * Canva-style narrow icon bar: "Elements", "Photos", "Background", "Effects", "Presentations" and "Word file" expand their sidebar panels.
  */
 export function IconRail() {
   const isElementsPanelOpen = useEditorStore((s) => s.isElementsPanelOpen);
@@ -18,6 +18,8 @@ export function IconRail() {
   const toggleEffectsPanel = useEditorStore((s) => s.toggleEffectsPanel);
   const isPresentationsPanelOpen = useEditorStore((s) => s.isPresentationsPanelOpen);
   const togglePresentationsPanel = useEditorStore((s) => s.togglePresentationsPanel);
+  const isWordPanelOpen = useEditorStore((s) => s.isWordPanelOpen);
+  const toggleWordPanel = useEditorStore((s) => s.toggleWordPanel);
 
   return (
     <aside className="flex w-24 shrink-0 flex-col gap-0.5 overflow-y-auto border-r border-border-default bg-bg-surface px-1 py-3">
@@ -35,6 +37,9 @@ export function IconRail() {
       </RailButton>
       <RailButton label="Presentations" title="Slides from published presentations" active={isPresentationsPanelOpen} onClick={togglePresentationsPanel}>
         <BookOpenIcon size={22} />
+      </RailButton>
+      <RailButton label="Word file" title="Drag lines from a Word file onto your slides" active={isWordPanelOpen} onClick={toggleWordPanel}>
+        <FileTextIcon size={22} />
       </RailButton>
     </aside>
   );

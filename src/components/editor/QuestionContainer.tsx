@@ -14,6 +14,7 @@ import {
   getQuestionBox,
 } from "@/lib/constants";
 import { clamp } from "@/lib/geometry";
+import { droppedTextHtml } from "@/lib/wordText";
 import { useElementDropTarget } from "@/lib/useElementDropTarget";
 import { EditableText } from "./EditableText";
 import { SvgElementItem } from "./SvgElementItem";
@@ -70,6 +71,8 @@ export function QuestionContainer({
   const { isDragOver, dropHandlers } = useElementDropTarget(
     slide.id,
     QUESTION_CONTAINER_ID,
+    // A line dragged from the Word file panel becomes the question.
+    (text) => updateQuestion(slide.id, text, droppedTextHtml(slide.questionHtml, text)),
   );
 
   const isSelected = isContainerSelected || isDragOver || isElementDragOver;

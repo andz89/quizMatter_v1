@@ -63,3 +63,12 @@ export function wordLines(xml: string): string[] {
 export function stripItemMark(line: string): string {
   return line.replace(/^\s*(?:\(\s*(?:\d{1,3}|[a-zA-Z])\s*\)|(?:\d{1,3}|[a-zA-Z])[.)])\s+/, "").trim();
 }
+
+/**
+ * A box's new text after a line is dropped on it: the line replaces the text, but the box's first paragraph keeps
+ * its settings (alignment, line height), so a centered question stays centered.
+ */
+export function droppedTextHtml(oldHtml: string | undefined, text: string): string {
+  const open = /^<p(?:\s[^>]*)?>/.exec(oldHtml ?? "")?.[0] ?? "<p>";
+  return `${open}${text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</p>`;
+}

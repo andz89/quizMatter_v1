@@ -19,6 +19,10 @@ export const ANSWER_CONTAINER_ID = "answer";
 // dataTransfer type used to drag an element asset from the Elements panel onto a question/option box.
 export const ELEMENT_DRAG_MIME = "application/x-quizbuilder-element";
 
+// dataTransfer type used to drag a line from the Word file panel onto a question or answer box. Only our own type
+// (never text/plain), so the box's own text editor doesn't also paste it.
+export const TEXT_DRAG_MIME = "application/x-quizbuilder-text";
+
 // Cloudflare Turnstile (the "are you human?" check on the login page). Not secret: the browser needs it. Its secret
 // key lives in Supabase (Authentication → Attack Protection). The widget allows quizmatter.com and localhost.
 export const TURNSTILE_SITE_KEY = "0x4AAAAAAFMCLNaW53rxyTQZ";

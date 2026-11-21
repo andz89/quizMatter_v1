@@ -52,8 +52,18 @@ editor / view / review, and renders `Editor.tsx`, which calls `store.loadPresent
   `ElementSvg` draws it, `TextBoxContent` is a text box, `DiagramBoxEditor` / `DiagramBoxButtons` are diagrams,
   `TableContent.tsx` is a table (see "Tables").
 - Side panels (all use the `side-panel` class, sideways rows use `ScrollRow`): `ElementsPanel`, `PhotosPanel`,
-  `ColorPanel`, `BackgroundPanel`, `EffectsPanel`, `PresentationsPanel`. They stay open after you add something
-  (don't auto-close them).
+  `ColorPanel`, `BackgroundPanel`, `EffectsPanel`, `PresentationsPanel`, `WordFilePanel`. They stay open after you
+  add something (don't auto-close them).
+- **Word file panel** (`WordFilePanel`, the rail's "Word file"; spec
+  `docs/superpowers/specs/2026-11-21-word-file-panel-design.md`): a teacher opens a `.docx` (`readWordFile`,
+  `src/lib/wordFile.ts`, read in the browser only: never uploaded or saved, so no Privacy Policy line) and sees its
+  text one line per piece (`wordLines`; pictures left out; at most `WORD_LINES_MAX`), each with Copy. A line is
+  dragged under `TEXT_DRAG_MIME` (only our own type, so the box's Tiptap doesn't also paste it) onto a question box
+  or answer choice: `useElementDropTarget`'s `onTextDrop` (given only by `QuestionContainer` and `OptionCard`)
+  removes a leading "1." / "a)" (`stripItemMark`), refuses a line over `PLAIN_TEXT_MAX` (`TEXT_LIMIT_MESSAGE`), and
+  replaces the box's text keeping its first paragraph's settings (`droppedTextHtml`), through `updateQuestion` /
+  `updateOption` (one undo step). The list is `wordFile` in the store: kept while the panel is closed, gone on reload.
+  Test: `e2e/word-file.mjs`.
 - **Slides from other presentations** (`PresentationsPanel`): published presentations (not this one or its shared
   copy) in a row per subject, plus a Saved tab. Opening one refuses a presentation saved by newer app code
   (`isNewerThanApp`, the `QMOLD` words) and leaves out a slide that doesn't parse. A click on a slide adds a copy right

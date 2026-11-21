@@ -4,6 +4,7 @@ import { useSortable } from "@dnd-kit/sortable";
 import { useEditorStore, selectedIdsOn } from "@/lib/store";
 import { OPTION_FONT_SIZE, OPTION_LABELS, getContainerBounds, type BoxLayout } from "@/lib/constants";
 import { useElementDropTarget } from "@/lib/useElementDropTarget";
+import { droppedTextHtml } from "@/lib/wordText";
 import { EditableText } from "./EditableText";
 import { SvgElementItem } from "./SvgElementItem";
 import { GroupSelectionOverlay } from "./GroupSelectionOverlay";
@@ -31,7 +32,10 @@ export function OptionCard({ slideId, option, index, isCorrect, elements, box }:
   const selectContainer = useEditorStore((s) => s.selectContainer);
 
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: option.id });
-  const { isDragOver, dropHandlers } = useElementDropTarget(slideId, option.id);
+  const { isDragOver, dropHandlers } = useElementDropTarget(slideId, option.id, (text) =>
+    // A line dragged from the Word file panel becomes this choice's text.
+    updateOption(slideId, option.id, text, droppedTextHtml(option.html, text)),
+  );
   const isElementDragOver = useEditorStore((s) => s.dragOverContainerId === option.id);
 
   const isSelectedContainer = isContainerSelected || isDragOver || isElementDragOver;

@@ -125,6 +125,9 @@ export type LayerMove = "forward" | "backward" | "front" | "back";
 // table's cell backgrounds (the picked cells, or every cell).
 export type ColorPanelTarget = "fill" | "border" | "boxFill" | "boxBorder" | "boxText" | "cellFill";
 
+/** The Word file open in the Word file panel: its name and lines (`more`: the file had more than are listed). */
+export type WordFile = { name: string; lines: string[]; more: boolean };
+
 /**
  * Changes which elements draw on top. Later in the list = drawn on top, and only elements in the same
  * box can overlap, so each box is reordered on its own. The selection (plus its group members) moves as
@@ -586,6 +589,14 @@ interface EditorState {
   isPresentationsPanelOpen: boolean;
   togglePresentationsPanel: () => void;
   closePresentationsPanel: () => void;
+
+  // The Word file panel lists a .docx's lines, to drag onto question and answer boxes. The file stays in this tab
+  // (never uploaded or saved); the list is kept while the panel is closed.
+  isWordPanelOpen: boolean;
+  toggleWordPanel: () => void;
+  closeWordPanel: () => void;
+  wordFile: WordFile | null;
+  setWordFile: (wordFile: WordFile | null) => void;
 
   // Which box a placed element is currently being dragged over, while it's being moved from a
   // different box — drives that box's "drop here" highlight. Not part of presentation data.
@@ -1775,6 +1786,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         isBackgroundPanelOpen: next ? false : state.isBackgroundPanelOpen,
         isEffectsPanelOpen: next ? false : state.isEffectsPanelOpen,
         isPresentationsPanelOpen: next ? false : state.isPresentationsPanelOpen,
+        isWordPanelOpen: next ? false : state.isWordPanelOpen,
         isPhotosPanelOpen: next ? false : state.isPhotosPanelOpen,
       };
     }),
@@ -1791,6 +1803,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         isBackgroundPanelOpen: next ? false : state.isBackgroundPanelOpen,
         isEffectsPanelOpen: next ? false : state.isEffectsPanelOpen,
         isPresentationsPanelOpen: next ? false : state.isPresentationsPanelOpen,
+        isWordPanelOpen: next ? false : state.isWordPanelOpen,
       };
     }),
   closePhotosPanel: () => set({ isPhotosPanelOpen: false }),
@@ -1808,6 +1821,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         isBackgroundPanelOpen: next ? false : state.isBackgroundPanelOpen,
         isEffectsPanelOpen: next ? false : state.isEffectsPanelOpen,
         isPresentationsPanelOpen: next ? false : state.isPresentationsPanelOpen,
+        isWordPanelOpen: next ? false : state.isWordPanelOpen,
         isPhotosPanelOpen: next ? false : state.isPhotosPanelOpen,
       };
     }),
@@ -1823,6 +1837,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         isBackgroundPanelOpen: next ? false : state.isBackgroundPanelOpen,
         isEffectsPanelOpen: next ? false : state.isEffectsPanelOpen,
         isPresentationsPanelOpen: next ? false : state.isPresentationsPanelOpen,
+        isWordPanelOpen: next ? false : state.isWordPanelOpen,
         isPhotosPanelOpen: next ? false : state.isPhotosPanelOpen,
       };
     }),
@@ -1837,6 +1852,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         isColorPanelOpen: next ? false : state.isColorPanelOpen,
         isEffectsPanelOpen: next ? false : state.isEffectsPanelOpen,
         isPresentationsPanelOpen: next ? false : state.isPresentationsPanelOpen,
+        isWordPanelOpen: next ? false : state.isWordPanelOpen,
         isPhotosPanelOpen: next ? false : state.isPhotosPanelOpen,
       };
     }),
@@ -1852,6 +1868,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         isColorPanelOpen: next ? false : state.isColorPanelOpen,
         isBackgroundPanelOpen: next ? false : state.isBackgroundPanelOpen,
         isPresentationsPanelOpen: next ? false : state.isPresentationsPanelOpen,
+        isWordPanelOpen: next ? false : state.isWordPanelOpen,
         isPhotosPanelOpen: next ? false : state.isPhotosPanelOpen,
       };
     }),
@@ -1868,9 +1885,28 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         isBackgroundPanelOpen: next ? false : state.isBackgroundPanelOpen,
         isEffectsPanelOpen: next ? false : state.isEffectsPanelOpen,
         isPhotosPanelOpen: next ? false : state.isPhotosPanelOpen,
+        isWordPanelOpen: next ? false : state.isWordPanelOpen,
       };
     }),
   closePresentationsPanel: () => set({ isPresentationsPanelOpen: false }),
+
+  isWordPanelOpen: false,
+  toggleWordPanel: () =>
+    set((state) => {
+      const next = !state.isWordPanelOpen;
+      return {
+        isWordPanelOpen: next,
+        isElementsPanelOpen: next ? false : state.isElementsPanelOpen,
+        isColorPanelOpen: next ? false : state.isColorPanelOpen,
+        isBackgroundPanelOpen: next ? false : state.isBackgroundPanelOpen,
+        isEffectsPanelOpen: next ? false : state.isEffectsPanelOpen,
+        isPresentationsPanelOpen: next ? false : state.isPresentationsPanelOpen,
+        isPhotosPanelOpen: next ? false : state.isPhotosPanelOpen,
+      };
+    }),
+  closeWordPanel: () => set({ isWordPanelOpen: false }),
+  wordFile: null,
+  setWordFile: (wordFile) => set({ wordFile }),
 
   dragOverContainerId: null,
   setDragOverContainerId: (containerId) => set({ dragOverContainerId: containerId }),

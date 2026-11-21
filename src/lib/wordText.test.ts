@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { stripItemMark, wordLines } from "./wordText";
+import { droppedTextHtml, stripItemMark, wordLines } from "./wordText";
 
 const p = (text: string) => `<w:p><w:r><w:t>${text}</w:t></w:r></w:p>`;
 
@@ -50,4 +50,10 @@ test("stripItemMark keeps text that only looks like a mark", () => {
   assert.equal(stripItemMark("1.5 kg"), "1.5 kg");
   assert.equal(stripItemMark("A cat"), "A cat");
   assert.equal(stripItemMark("2.Dog"), "2.Dog");
+});
+
+test("droppedTextHtml keeps the box's paragraph settings and escapes the text", () => {
+  assert.equal(droppedTextHtml(`<p style="text-align: center">Old <b>q</b></p>`, "a < b"), `<p style="text-align: center">a &lt; b</p>`);
+  assert.equal(droppedTextHtml(undefined, "Dog & cat"), "<p>Dog &amp; cat</p>");
+  assert.equal(droppedTextHtml("", "Dog"), "<p>Dog</p>");
 });
