@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { droppedTextHtml, stripItemMark, wordLines } from "./wordText";
+import { PICKED_LINES_MAX, droppedTextHtml, pickedSlideTexts, stripItemMark, wordLines } from "./wordText";
 
 const p = (text: string) => `<w:p><w:r><w:t>${text}</w:t></w:r></w:p>`;
 
@@ -56,4 +56,15 @@ test("droppedTextHtml keeps the box's paragraph settings and escapes the text", 
   assert.equal(droppedTextHtml(`<p style="text-align: center">Old <b>q</b></p>`, "a < b"), `<p style="text-align: center">a &lt; b</p>`);
   assert.equal(droppedTextHtml(undefined, "Dog & cat"), "<p>Dog &amp; cat</p>");
   assert.equal(droppedTextHtml("", "Dog"), "<p>Dog</p>");
+});
+
+test("pickedSlideTexts: first ticked is the question, the rest A–D in click order, marks removed", () => {
+  const lines = ["1. What gas?", "a. Oxygen", "b. Carbon dioxide", "c. Nitrogen", "d. Helium"];
+  assert.deepEqual(pickedSlideTexts(lines, [0, 2, 1]), { question: "What gas?", options: ["Carbon dioxide", "Oxygen", "", ""] });
+  assert.deepEqual(pickedSlideTexts(lines, [0, 1, 2, 3, 4]), {
+    question: "What gas?",
+    options: ["Oxygen", "Carbon dioxide", "Nitrogen", "Helium"],
+  });
+  assert.deepEqual(pickedSlideTexts(lines, []), { question: "", options: ["", "", "", ""] });
+  assert.equal(PICKED_LINES_MAX, 5);
 });

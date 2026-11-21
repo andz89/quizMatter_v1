@@ -95,6 +95,28 @@ try {
   const anyOxygen = (await slide.innerText()).includes("Oxygen");
   check("a line dropped outside the boxes changes nothing", unchanged && !anyOxygen);
 
+  // Ticking lines: the first ticked is the question, the next ones A, B… in click order.
+  const tick = (n) => line(n).getByRole("checkbox").click();
+  const preview = page.locator("[data-word-preview]");
+  await tick(0);
+  check("one tick shows the preview with the question, and no Add button yet",
+    (await preview.innerText()).includes("What gas do plants take in?") &&
+      (await page.getByRole("button", { name: "Add as a new slide" }).count()) === 0);
+  await tick(2);
+  await tick(1);
+  const previewText = await preview.innerText();
+  check("the preview puts the 2nd tick in A and the 3rd in B", /A\s*Carbon dioxide/.test(previewText) && /B\s*Oxygen/.test(previewText), previewText);
+  await page.getByRole("button", { name: "Add as a new slide" }).click();
+  check("Add makes a second slide", await waitFor(async () => (await page.locator("[data-slide-id]").count()) === 2));
+  const added = page.locator("[data-slide-id]").nth(1);
+  const addedText = await added.innerText();
+  check(
+    "the new slide has the question and A, B in click order",
+    addedText.includes("What gas do plants take in?") && addedText.indexOf("Carbon dioxide") < addedText.indexOf("Oxygen") && !addedText.includes("b. "),
+    addedText,
+  );
+  check("the ticks are cleared after adding", (await preview.count()) === 0);
+
   await page.getByRole("button", { name: "Elements" }).click();
   await page.getByRole("button", { name: "Word file" }).click();
   check("closing and opening the panel keeps the list", (await page.locator("[data-word-line]").count()) === 3);

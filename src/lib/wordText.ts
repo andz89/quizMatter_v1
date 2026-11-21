@@ -72,3 +72,15 @@ export function droppedTextHtml(oldHtml: string | undefined, text: string): stri
   const open = /^<p(?:\s[^>]*)?>/.exec(oldHtml ?? "")?.[0] ?? "<p>";
   return `${open}${text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</p>`;
 }
+
+/** At most this many lines are ticked for a new slide: the question and answers A–D. */
+export const PICKED_LINES_MAX = 5;
+
+/**
+ * Where ticked lines go on a new question slide (and its preview): the first ticked is the question, the next ones
+ * answers A–D, in the order they were ticked (`picked` holds line numbers), without their item marks.
+ */
+export function pickedSlideTexts(lines: string[], picked: number[]): { question: string; options: [string, string, string, string] } {
+  const texts = picked.slice(0, PICKED_LINES_MAX).map((i) => stripItemMark(lines[i] ?? ""));
+  return { question: texts[0] ?? "", options: [texts[1] ?? "", texts[2] ?? "", texts[3] ?? "", texts[4] ?? ""] };
+}

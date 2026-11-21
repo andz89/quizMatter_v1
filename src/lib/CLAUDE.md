@@ -258,7 +258,7 @@ data. Spec: `docs/superpowers/specs/2026-10-23-stable-presentation-data-design.m
   `wordFile.ts` (`readWordFile`, `readWordBytes`) unzips only `word/document.xml` with `fflate`, in the browser
   (20 MB at most, `.docx` only, `WORD_FILE_ERROR`). `wordText.ts` (no imports): `wordLines` (one line per paragraph
   and line break, only `<w:t>` text, a text box's `mc:Fallback` copy skipped, nested paragraphs their own line),
-  `stripItemMark`, `droppedTextHtml`, `WORD_LINES_MAX` (2,000). Tests: `wordText.test.ts`, `wordFile.test.ts`.
+  `stripItemMark`, `droppedTextHtml`, `pickedSlideTexts` + `PICKED_LINES_MAX` (ticked lines → question and A–D), `WORD_LINES_MAX` (2,000). Tests: `wordText.test.ts`, `wordFile.test.ts`.
 - `sameValue.ts`: whether two settings hold the same values in any key order (the database re-sorts saved keys, e.g.
   a fraction comes back as `{parts, whole, shaded}`); `MathToolControls` uses it. Tests: `sameValue.test.ts`.
 - `support.ts`: `SUPPORT_EMAIL` and `FACEBOOK_URL`, the one place each is written (the support address is an alias

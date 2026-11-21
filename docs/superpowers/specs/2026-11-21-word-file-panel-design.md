@@ -21,6 +21,14 @@ choice. The teacher decides where every line goes, so the app never has to guess
 - A line longer than the question / choice limit (`PLAIN_TEXT_MAX`) is not dropped: toast `TEXT_LIMIT_MESSAGE`.
 - "Open another file" replaces the list.
 
+## Tick lines to make a slide (added 2026-11-21)
+
+- Each line has a checkbox. Ticking shows a "New slide" preview at the top of the panel (it stays in view while the
+  list scrolls): the first ticked line is the question, the next ones A, B, C, D, in the order they were ticked
+  (item marks removed). Each ticked line shows its Q / A–D badge. At most 5 ticks; Clear unticks all.
+- From 2 ticks, "Add as a new slide" adds a choice slide with those texts after the active slide (the slide limit
+  applies), toasts "Slide added" and clears the ticks.
+
 ## Rules
 
 - **The file never leaves the browser.** It's read on the teacher's computer, never uploaded or saved. Nothing new

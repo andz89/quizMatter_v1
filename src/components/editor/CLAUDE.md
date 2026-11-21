@@ -63,6 +63,10 @@ editor / view / review, and renders `Editor.tsx`, which calls `store.loadPresent
   removes a leading "1." / "a)" (`stripItemMark`), refuses a line over `PLAIN_TEXT_MAX` (`TEXT_LIMIT_MESSAGE`), and
   replaces the box's text keeping its first paragraph's settings (`droppedTextHtml`), through `updateQuestion` /
   `updateOption` (one undo step). The list is `wordFile` in the store: kept while the panel is closed, gone on reload.
+  Each line also has a checkbox: ticked lines (at most `PICKED_LINES_MAX`, 5) fill a "New slide" preview at the top
+  (`pickedSlideTexts`: the first ticked is the question, the next ones A–D in click order, marks removed); from 2
+  ticks, "Add as a new slide" adds a choice slide after the active one (`insertSlides`, which keeps the slide limit)
+  and clears the ticks (component state, so closing the panel clears them too).
   Test: `e2e/word-file.mjs`.
 - **Slides from other presentations** (`PresentationsPanel`): published presentations (not this one or its shared
   copy) in a row per subject, plus a Saved tab. Opening one refuses a presentation saved by newer app code
