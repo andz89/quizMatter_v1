@@ -687,6 +687,12 @@ export const SUBJECTS = [
   "Mother Tongue",
 ] as const;
 
+// Shorter words for a subject chip on the home pages. Only the words shown change: the saved subject stays the same.
+const SUBJECT_CHIP_LABELS: Record<string, string> = {
+  "Edukasyon sa Pagpapakatao (ESP/GMRC)": "ESP/GMRC",
+};
+export const subjectChipLabel = (subject: string) => SUBJECT_CHIP_LABELS[subject] ?? subject;
+
 // The school terms, weeks and days a teacher picks from. A presentation may also have its own ("Other").
 export const TERMS = Array.from({ length: 3 }, (_, i) => `Term ${i + 1}`);
 export const WEEKS = Array.from({ length: 20 }, (_, i) => `Week ${i + 1}`);
