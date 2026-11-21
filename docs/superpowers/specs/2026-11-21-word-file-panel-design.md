@@ -28,6 +28,8 @@ choice. The teacher decides where every line goes, so the app never has to guess
   numbered line, are its choices. At least 2 choices (true / false counts). The question row gets Create, which adds
   that item as a choice slide after the active one and then shows "Added" (a click adds it again).
 - The "____" blank in front of a number is removed from the question like the number is.
+- Word's automatic numbering (the list buttons) isn't in the text: it's read from `word/numbering.xml` and written in
+  front of each line ("1.", "a)"), so suggestions and the mark removal work on those exams too.
 - Choices in two columns ("A. … ⇥ C. …" on one row, or a table) are split at a tab or wide gap before a letter, and
   a suggestion puts lettered choices in A–D order.
 

@@ -74,7 +74,7 @@ editor / view / review, and renders `Editor.tsx`, which calls `store.loadPresent
   whose words show on hover (Open another file, Show / Hide suggestions with the count found, ⓘ for the help text),
   so the list keeps the room. Before a file is open: the big "Open a Word file" button and its help line.
   "Show suggestions" (off until clicked; off again for a new file) colors each item `suggestItems` finds: a
-  numbered line ("1.", "2)", "____ 3.") as the question (violet row) and the lines under it, up to 4 and stopping at
+  numbered line ("1.", "2)", "____ 3.", or numbered by Word's list button, read from `numbering.xml`) as the question (violet row) and the lines under it, up to 4 and stopping at
   the next numbered line, as its choices (violet edge, indented; lettered ones in A–D order, since two columns read A, C, B, D); 2
   choices at least. The question row's Create adds
   that item like Add as a new slide, then says "Added" (Mint; a click adds it again).

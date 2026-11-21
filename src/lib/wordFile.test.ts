@@ -28,3 +28,13 @@ test("a text part too big once unzipped is refused before it's unzipped", () => 
   const huge = "<w:p><w:r><w:t>" + "a".repeat(WORD_TEXT_MAX_BYTES) + "</w:t></w:r></w:p>";
   assert.deepEqual(readWordBytes(docx(huge)), { error: WORD_FILE_TOO_BIG });
 });
+
+test("Word's automatic numbering comes from numbering.xml", () => {
+  const numbering = `<w:numbering><w:abstractNum w:abstractNumId="0"><w:lvl w:ilvl="0"><w:start w:val="1"/><w:numFmt w:val="decimal"/><w:lvlText w:val="%1."/></w:lvl></w:abstractNum><w:num w:numId="1"><w:abstractNumId w:val="0"/></w:num></w:numbering>`;
+  const listP = (t: string) => `<w:p><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="1"/></w:numPr></w:pPr><w:r><w:t>${t}</w:t></w:r></w:p>`;
+  const bytes = zipSync({
+    "word/document.xml": strToU8(`<w:document><w:body>${listP("First")}${listP("Second")}</w:body></w:document>`),
+    "word/numbering.xml": strToU8(numbering),
+  });
+  assert.deepEqual(readWordBytes(bytes), { lines: ["1. First", "2. Second"], more: false });
+});

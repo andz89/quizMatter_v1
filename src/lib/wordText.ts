@@ -82,16 +82,118 @@ function writeMathPart(part: MathPart, parent: MathPart | undefined): string {
   }
 }
 
+/** One level of a Word list: its number style (`decimal`, `lowerLetter`, `bullet`…), its text ("%1.", "(%1)",
+ * "%1.%2.") and the number it starts at. */
+type ListLevel = { format: string; text: string; start: number };
+
+/** Word's lists (`word/numbering.xml`): each list (`numId`) and its levels by depth (`ilvl`). */
+export type Numbering = Map<string, ListLevel[]>;
+
+/**
+ * Reads `word/numbering.xml`: each `w:num` (a list a paragraph points to) gets the levels of its `w:abstractNum`,
+ * with a `w:startOverride` (Word's "Restart numbering") applied.
+ */
+export function parseNumbering(xml: string): Numbering {
+  const abstract = new Map<string, ListLevel[]>();
+  const lists: { id: string; abstractId: string; starts: Map<number, number> }[] = [];
+  let abstractLevels: ListLevel[] | null = null;
+  let level: ListLevel | null = null;
+  let list: (typeof lists)[number] | null = null;
+  let overrideLevel = -1;
+
+  for (const [tag, closing, name] of xml.matchAll(/<(\/?)([\w:]+)[^>]*>/g)) {
+    if (closing) {
+      if (name === "w:abstractNum") abstractLevels = null;
+      else if (name === "w:lvl") level = null;
+      else if (name === "w:num") list = null;
+      continue;
+    }
+    if (name === "w:abstractNum") {
+      abstractLevels = [];
+      abstract.set(attr(tag, "w:abstractNumId") ?? "", abstractLevels);
+    } else if (name === "w:lvl" && abstractLevels) {
+      level = { format: "decimal", text: "", start: 1 };
+      abstractLevels[Number(attr(tag, "w:ilvl") ?? 0)] = level;
+    } else if (level && name === "w:start") {
+      level.start = Number(attr(tag, "w:val") ?? 1) || 0;
+    } else if (level && name === "w:numFmt") {
+      level.format = attr(tag, "w:val") ?? "decimal";
+    } else if (level && name === "w:lvlText") {
+      level.text = attr(tag, "w:val") ?? "";
+    } else if (name === "w:num") {
+      list = { id: attr(tag, "w:numId") ?? "", abstractId: "", starts: new Map() };
+      lists.push(list);
+    } else if (list && name === "w:abstractNumId") {
+      list.abstractId = attr(tag, "w:val") ?? "";
+    } else if (list && name === "w:lvlOverride") {
+      overrideLevel = Number(attr(tag, "w:ilvl") ?? -1);
+    } else if (list && name === "w:startOverride") {
+      list.starts.set(overrideLevel, Number(attr(tag, "w:val") ?? 1) || 0);
+    }
+  }
+
+  const numbering: Numbering = new Map();
+  for (const { id, abstractId, starts } of lists) {
+    const levels = abstract.get(abstractId);
+    if (levels) numbering.set(id, levels.map((l, i) => (l && starts.has(i) ? { ...l, start: starts.get(i)! } : l)));
+  }
+  return numbering;
+}
+
+const ROMAN: [number, string][] = [
+  [1000, "m"], [900, "cm"], [500, "d"], [400, "cd"], [100, "c"], [90, "xc"],
+  [50, "l"], [40, "xl"], [10, "x"], [9, "ix"], [5, "v"], [4, "iv"], [1, "i"],
+];
+
+/** A list number in its style: 3 → "3", "c", "C", "iii", "III"; 27 → "aa" (Word repeats the letter). */
+function formatNumber(n: number, format: string): string {
+  if (format === "lowerLetter" || format === "upperLetter") {
+    const letter = String.fromCharCode(97 + ((n - 1) % 26)).repeat(Math.floor((n - 1) / 26) + 1);
+    return format === "upperLetter" ? letter.toUpperCase() : letter;
+  }
+  if ((format === "lowerRoman" || format === "upperRoman") && n > 0 && n < 4000) {
+    let rest = n;
+    let roman = "";
+    for (const [value, digits] of ROMAN) for (; rest >= value; rest -= value) roman += digits;
+    return format === "upperRoman" ? roman.toUpperCase() : roman;
+  }
+  return String(n);
+}
+
+/**
+ * Counts Word's list numbers as the document goes, like Word: each list (`numId`) keeps a count per depth, and a
+ * new item at one depth starts the deeper ones over ("1." then "a)", "b)", then "2." then "a)" again). Bullets and
+ * "none" give no text. Returns the number's text ("1.", "a)", "(I)") or "".
+ */
+function listCounter(numbering: Numbering | undefined) {
+  const counts = new Map<string, number[]>();
+  return (numId: string, depth: number): string => {
+    const levels = numbering?.get(numId);
+    const level = levels?.[depth];
+    if (!levels || !level) return "";
+    const count = counts.get(numId) ?? [];
+    count[depth] = count[depth] === undefined ? level.start : count[depth] + 1;
+    count.length = depth + 1;
+    counts.set(numId, count);
+    if (level.format === "bullet" || level.format === "none") return "";
+    return level.text.replace(/%(\d)/g, (_, k: string) => {
+      const i = Number(k) - 1;
+      return formatNumber(count[i] ?? levels[i]?.start ?? 1, levels[i]?.format ?? "decimal");
+    });
+  };
+}
+
 /**
  * One line per paragraph (`<w:p>`), split again at line breaks (`<w:br/>`, `<w:cr/>`). Only `<w:t>` (and an
  * equation's `<m:t>`) holds text (settings and field codes don't); a tab before a choice's letter starts a new line
  * (two choices side by side, `splitChoices`), any other tab is a space, a non-breaking hyphen a "-",
  * a `<w:sym>` its character (`symbolText`). Equations become plain text: x², H₂O, x^(ab), (x+1)/2, ³√8, [a], ∑ᵢ₌₁ⁿi.
- * A paragraph inside another (a text box) is its own line, listed after the line it sits in. Word writes each text
+ * With `numbering` (`parseNumbering`), Word's automatic list numbers ("1.", "a)") are written in front of the text,
+ * since Word keeps them out of it. A paragraph inside another (a text box) is its own line, listed after the line it sits in. Word writes each text
  * box twice (`mc:Choice` and an older `mc:Fallback` copy): the copy is skipped. Spaces are tidied and empty lines
  * dropped.
  */
-export function wordLines(xml: string): string[] {
+export function wordLines(xml: string, numbering?: Numbering): string[] {
   const lines: string[] = [];
   // Each open paragraph: the line it's writing (a slot in `lines`, so an outer paragraph keeps its place before
   // a text box's lines).
@@ -100,6 +202,11 @@ export function wordLines(xml: string): string[] {
   const parts: MathPart[] = [];
   let inText = 0;
   let inFallback = 0;
+  // Word's list number of the paragraph being read (its list and depth, from <w:numPr>), written in front of its
+  // text when its settings (<w:pPr>) end. A tracked change's old settings (<w:pPrChange>) are skipped.
+  const listNumber = listCounter(numbering);
+  let list = { numId: "", depth: 0 };
+  let inOldSettings = 0;
 
   const add = (text: string) => {
     if (parts.length) parts[parts.length - 1].text += text;
@@ -114,6 +221,8 @@ export function wordLines(xml: string): string[] {
     }
     if (name === "mc:Fallback" && !selfClosing) inFallback += closing ? -1 : 1;
     if (inFallback > 0) continue;
+    if (name === "w:pPrChange" && !selfClosing) inOldSettings += closing ? -1 : 1;
+    if (inOldSettings > 0) continue;
     const top = parts[parts.length - 1];
 
     if (MATH_PARTS.has(name) && !selfClosing) {
@@ -125,12 +234,20 @@ export function wordLines(xml: string): string[] {
     } else if (name === "w:p" && !selfClosing) {
       if (closing) open.pop();
       else open.push(lines.push("") - 1);
+      list = { numId: "", depth: 0 };
+    } else if (name === "w:pPr" && closing) {
+      const number = list.numId && list.numId !== "0" ? listNumber(list.numId, list.depth) : "";
+      if (number) add(`${number} `);
     } else if ((name === "w:t" || name === "m:t") && !selfClosing) {
       inText += closing ? -1 : 1;
     } else if (closing) {
       continue;
     } else if (name === "w:tab") {
       add("\t");
+    } else if (name === "w:numId") {
+      list.numId = attr(tag, "w:val") ?? "";
+    } else if (name === "w:ilvl") {
+      list.depth = Number(attr(tag, "w:val") ?? 0) || 0;
     } else if (name === "w:noBreakHyphen") {
       add("-");
     } else if (name === "w:sym") {

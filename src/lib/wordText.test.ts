@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { PICKED_LINES_MAX, droppedTextHtml, pickedSlideTexts, stripItemMark, suggestItems, wordLines } from "./wordText";
+import { PICKED_LINES_MAX, droppedTextHtml, parseNumbering, pickedSlideTexts, stripItemMark, suggestItems, wordLines } from "./wordText";
 
 const p = (text: string) => `<w:p><w:r><w:t>${text}</w:t></w:r></w:p>`;
 
@@ -160,4 +160,62 @@ test("long runs of spaces and tabs read at once (no freeze)", { timeout: 2000 },
   assert.deepEqual(wordLines(`<w:p><w:r><w:t xml:space="preserve">Score:${run}x</w:t></w:r></w:p>`), ["Score: x"]);
   assert.deepEqual(wordLines(`<w:p><w:r><w:t>Name:${tabs}Date</w:t></w:r></w:p>`), ["Name: Date"]);
   assert.deepEqual(wordLines(`<w:p><w:r><w:t xml:space="preserve">A. One${run}C. Three</w:t></w:r></w:p>`), ["A. One", "C. Three"]);
+});
+
+// Word's own numbering (the list buttons): the numbers live in numbering.xml, not in the text.
+const NUMBERING = `<w:numbering>
+  <w:abstractNum w:abstractNumId="0">
+    <w:lvl w:ilvl="0"><w:start w:val="1"/><w:numFmt w:val="decimal"/><w:lvlText w:val="%1."/></w:lvl>
+    <w:lvl w:ilvl="1"><w:start w:val="1"/><w:numFmt w:val="lowerLetter"/><w:lvlText w:val="%2)"/></w:lvl>
+  </w:abstractNum>
+  <w:abstractNum w:abstractNumId="1">
+    <w:lvl w:ilvl="0"><w:start w:val="1"/><w:numFmt w:val="upperLetter"/><w:lvlText w:val="%1."/></w:lvl>
+  </w:abstractNum>
+  <w:abstractNum w:abstractNumId="2">
+    <w:lvl w:ilvl="0"><w:numFmt w:val="bullet"/><w:lvlText w:val="•"/></w:lvl>
+  </w:abstractNum>
+  <w:abstractNum w:abstractNumId="3">
+    <w:lvl w:ilvl="0"><w:start w:val="1"/><w:numFmt w:val="upperRoman"/><w:lvlText w:val="(%1)"/></w:lvl>
+  </w:abstractNum>
+  <w:num w:numId="1"><w:abstractNumId w:val="0"/></w:num>
+  <w:num w:numId="2"><w:abstractNumId w:val="1"/></w:num>
+  <w:num w:numId="3"><w:abstractNumId w:val="1"/><w:lvlOverride w:ilvl="0"><w:startOverride w:val="1"/></w:lvlOverride></w:num>
+  <w:num w:numId="4"><w:abstractNumId w:val="2"/></w:num>
+  <w:num w:numId="5"><w:abstractNumId w:val="0"/><w:lvlOverride w:ilvl="0"><w:startOverride w:val="5"/></w:lvlOverride></w:num>
+  <w:num w:numId="6"><w:abstractNumId w:val="3"/></w:num>
+</w:numbering>`;
+const np = (numId: string, ilvl: string, text: string) =>
+  `<w:p><w:pPr><w:pStyle w:val="ListParagraph"/><w:numPr><w:ilvl w:val="${ilvl}"/><w:numId w:val="${numId}"/></w:numPr></w:pPr><w:r><w:t>${text}</w:t></w:r></w:p>`;
+
+test("Word's automatic numbering is written in front of the text", () => {
+  const numbering = parseNumbering(NUMBERING);
+  const xml =
+    np("1", "0", "What is 2+2?") + np("1", "1", "Three") + np("1", "1", "Four") +
+    np("1", "0", "What is 3+3?") + np("1", "1", "Six") +
+    np("2", "0", "Red") + np("2", "0", "Blue") + np("3", "0", "Green") +
+    np("4", "0", "A bullet") + np("0", "0", "No list") + np("5", "0", "Fifth") + np("6", "0", "Roman") +
+    `<w:p><w:r><w:t>Plain</w:t></w:r></w:p>`;
+  assert.deepEqual(wordLines(xml, numbering), [
+    "1. What is 2+2?", "a) Three", "b) Four",
+    "2. What is 3+3?", "a) Six",
+    "A. Red", "B. Blue", "A. Green",
+    "A bullet", "No list", "5. Fifth", "(I) Roman",
+    "Plain",
+  ]);
+  // Without numbering.xml the text is read as before.
+  assert.deepEqual(wordLines(np("1", "0", "Hi")), ["Hi"]);
+});
+
+test("an old numbering kept by tracked changes isn't counted", () => {
+  const numbering = parseNumbering(NUMBERING);
+  const xml =
+    `<w:p><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="1"/></w:numPr>` +
+    `<w:pPrChange><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="2"/></w:numPr></w:pPr></w:pPrChange></w:pPr>` +
+    `<w:r><w:t>Q</w:t></w:r></w:p>`;
+  assert.deepEqual(wordLines(xml, numbering), ["1. Q"]);
+});
+
+test("suggestions find questions numbered by Word's list button", () => {
+  const lines = wordLines(np("1", "0", "What is 2+2?") + np("1", "1", "Three") + np("1", "1", "Four"), parseNumbering(NUMBERING));
+  assert.deepEqual(suggestItems(lines), [{ question: 0, options: [1, 2] }]);
 });
