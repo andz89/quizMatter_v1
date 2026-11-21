@@ -270,3 +270,7 @@ when another is picked), moving into and between boxes (Alt keeps a free picture
   in, and back onto the panel (nothing); a click adds after the active slide; one undo takes it out. A drop from newer
   app code or one that isn't a slide is refused with words. Saved: the order shown, new ids, a picture still in its
   own answer box, the source untouched.
+- `word-file.mjs`: the editor's Word file panel. A .docx made in the test (`fflate`) lists one piece per line (an
+  empty line skipped), an old `.doc` is refused with words, Copy copies the line as it is, lines dragged onto the
+  question box and answer B replace their text without "1." / "b.", Undo brings B back, a line dropped on the slide
+  outside the boxes changes nothing, and the list stays after closing and opening the panel.
