@@ -81,8 +81,8 @@ Tests that delete data (the announcements ones empty the announcements table) do
 - `hidden-slides.mjs`: hide a slide, save, present (→ / ← skip it), the all-slides grid, then publish it: on the view
   page another teacher's Prev/Next skip it (counter "2 / 2", details still "3 slides"), the owner and an admin see it
   faded; show it again.
-- `present-answer-key.mjs`: presenting fullscreen. The tip ("If this slide has a saved answer key…") shows above the
-  bottom-left buttons, fades in, outlasts the buttons' 3 seconds and is gone after about 6; its ✕ fades it out sooner
+- `present-answer-key.mjs`: presenting fullscreen. The tip ("If this slide has a saved answer key…") shows right of
+  the bottom-left buttons in the same row, fades in, outlasts the buttons' 3 seconds and is gone after about 6; its ✕ fades it out sooner
   without changing the slide. Space shows and hides a choice slide's ✓ and opens and closes a short-answer slide's
   answer popup (Escape closes it too, still presenting); on a slide with no answer key Space goes to the next slide;
   the check button's hover text ends with "(Space)".
