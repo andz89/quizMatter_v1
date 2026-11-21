@@ -58,11 +58,14 @@ editor / view / review, and renders `Editor.tsx`, which calls `store.loadPresent
   `docs/superpowers/specs/2026-11-21-word-file-panel-design.md`): a teacher opens a `.docx` (`readWordFile`,
   `src/lib/wordFile.ts`, read in the browser only: never uploaded or saved, so no Privacy Policy line) and sees its
   text one line per piece (`wordLines`; pictures left out; at most `WORD_LINES_MAX`), each with Copy. A line is
-  dragged under `TEXT_DRAG_MIME` (only our own type, so the box's Tiptap doesn't also paste it) onto a question box
-  or answer choice: `useElementDropTarget`'s `onTextDrop` (given only by `QuestionContainer` and `OptionCard`)
-  removes a leading "1." / "a)" (`stripItemMark`), refuses a line over `PLAIN_TEXT_MAX` (`TEXT_LIMIT_MESSAGE`), and
-  replaces the box's text keeping its first paragraph's settings (`droppedTextHtml`), through `updateQuestion` /
-  `updateOption` (one undo step). The list is `wordFile` in the store: kept while the panel is closed, gone on reload.
+  dragged under `TEXT_DRAG_MIME` (only our own type: ProseMirror's drop reads only plain text, HTML or links, so the
+  box's Tiptap lets it through) onto a question box or answer choice (`useElementDropTarget`'s `onTextDrop`, given
+  only by `QuestionContainer` and `OptionCard`). Touch screens can't drag: a tap on a line's handle holds it (store
+  `heldWordLine`, a "Tap a box" note; Escape or Cancel lets go; closing the panel too), every box is tinted, and the
+  box's `onClickCapture` takes the next tap. Both end in the store's `putLineInBox`: it removes a leading "1." / "a)"
+  / "II." (`stripItemMark`), refuses a line over `PLAIN_TEXT_MAX` (`TEXT_LIMIT_MESSAGE`), and replaces the box's text
+  keeping its first paragraph's settings (`droppedTextHtml`), through `updateQuestion` / `updateOption` (one undo
+  step). The list is `wordFile` in the store: kept while the panel is closed, gone on reload.
   Each line also has a checkbox: ticked lines (at most `PICKED_LINES_MAX`, 5) fill a "New slide" preview at the top
   (`pickedSlideTexts`: the first ticked is the question, the next ones A–D in click order, marks removed); from 2
   ticks, "Add as a new slide" adds a choice slide after the active one (`insertSlides`, which keeps the slide limit)

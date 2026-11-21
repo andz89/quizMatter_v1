@@ -18,37 +18,127 @@ function decode(text: string): string {
   });
 }
 
+// Small raised / lowered characters for equations (x², H₂O); anything else is written ^(…) / _(…).
+const RAISED: Record<string, string> = {
+  "0": "⁰", "1": "¹", "2": "²", "3": "³", "4": "⁴", "5": "⁵", "6": "⁶", "7": "⁷", "8": "⁸", "9": "⁹",
+  "+": "⁺", "-": "⁻", "−": "⁻", "=": "⁼", "(": "⁽", ")": "⁾", n: "ⁿ", i: "ⁱ",
+};
+const LOWERED: Record<string, string> = {
+  "0": "₀", "1": "₁", "2": "₂", "3": "₃", "4": "₄", "5": "₅", "6": "₆", "7": "₇", "8": "₈", "9": "₉",
+  "+": "₊", "-": "₋", "−": "₋", "=": "₌", "(": "₍", ")": "₎", a: "ₐ", e: "ₑ", o: "ₒ", x: "ₓ", n: "ₙ", i: "ᵢ",
+};
+
+// The Symbol font's letters and signs (Word's Insert → Symbol), by their place in the font.
+const SYMBOL_FONT: Record<string, string> = {
+  a: "α", b: "β", g: "γ", d: "δ", e: "ε", z: "ζ", h: "η", q: "θ", i: "ι", k: "κ", l: "λ", m: "μ", n: "ν", x: "ξ",
+  o: "ο", p: "π", r: "ρ", s: "σ", t: "τ", u: "υ", f: "φ", c: "χ", y: "ψ", w: "ω",
+  G: "Γ", D: "Δ", Q: "Θ", L: "Λ", X: "Ξ", P: "Π", S: "Σ", F: "Φ", Y: "Ψ", W: "Ω",
+  "´": "×", "¸": "÷", "±": "±", "£": "≤", "³": "≥", "¹": "≠", "Ö": "√", "¥": "∞",
+  "°": "°", "®": "→", "¬": "←", "»": "≈", "·": "•", "×": "·", "¢": "′", "²": "″",
+};
+
+/** Text that needs brackets to stay one piece next to ^, _, / or √ ("x+1" → "(x+1)"). */
+const group = (text: string) => (text.length <= 1 || /^[\p{L}\p{N}.]+$/u.test(text) ? text : `(${text})`);
+/** Raised (x²) or lowered (H₂O) text: small characters when each has one, else "^(ab)" / "_(ab)". */
+const shift = (text: string, map: Record<string, string>, mark: string) =>
+  !text
+    ? ""
+    : [...text].every((c) => map[c])
+      ? [...text].map((c) => map[c]).join("")
+      : `${mark}${[...text].length > 1 ? `(${text})` : text}`;
+
+/** A character from Word's Insert → Symbol (`<w:sym>`): the Symbol font's Greek letters and signs, plain
+ * characters from normal fonts, nothing for picture fonts (Wingdings…), whose characters mean nothing as text. */
+function symbolText(font: string, hex: string): string {
+  const code = parseInt(hex, 16);
+  if (!Number.isFinite(code)) return "";
+  const low = String.fromCharCode(code & 0xff);
+  if (/^symbol$/i.test(font)) return SYMBOL_FONT[low] ?? "";
+  if (/wingdings|webdings|dingbat/i.test(font) || (code >= 0xf000 && code <= 0xf0ff)) return "";
+  return String.fromCodePoint(code);
+}
+
+const attr = (tag: string, name: string) => {
+  const value = new RegExp(`\\s${name}="([^"]*)"`).exec(tag)?.[1];
+  return value === undefined ? undefined : decode(value);
+};
+
+// The equation parts whose text is gathered first, then written as one (x², 1/2, √9, (a), ∑…).
+const MATH_PARTS = new Set(["m:sup", "m:sub", "m:num", "m:den", "m:deg", "m:rad", "m:d", "m:nary"]);
+type MathPart = { name: string; text: string; deg?: string; begin?: string; end?: string; sign?: string };
+
+function writeMathPart(part: MathPart, parent: MathPart | undefined): string {
+  switch (part.name) {
+    case "m:sup": return shift(part.text, RAISED, "^");
+    case "m:sub": return shift(part.text, LOWERED, "_");
+    case "m:num": return `${group(part.text)}/`;
+    case "m:den": return group(part.text);
+    case "m:deg":
+      if (parent?.name === "m:rad") parent.deg = part.text;
+      return "";
+    case "m:rad": return `${part.deg ? shift(part.deg, RAISED, "^") : ""}√${group(part.text)}`;
+    case "m:d": return `${part.begin ?? "("}${part.text}${part.end ?? ")"}`;
+    default: return `${part.sign ?? "∫"}${part.text}`; // m:nary: a sum, product or integral
+  }
+}
+
 /**
- * One line per paragraph (`<w:p>`), split again at line breaks (`<w:br/>`, `<w:cr/>`). Only `<w:t>` holds text
- * (settings and field codes don't); a tab is a space. A paragraph inside another (a text box) is its own line,
- * listed after the line it sits in. Word writes each text box twice (`mc:Choice` and an older `mc:Fallback`
- * copy): the copy is skipped. Spaces are tidied and empty lines dropped.
+ * One line per paragraph (`<w:p>`), split again at line breaks (`<w:br/>`, `<w:cr/>`). Only `<w:t>` (and an
+ * equation's `<m:t>`) holds text (settings and field codes don't); a tab is a space, a non-breaking hyphen a "-",
+ * a `<w:sym>` its character (`symbolText`). Equations become plain text: x², H₂O, x^(ab), (x+1)/2, ³√8, [a], ∑ᵢ₌₁ⁿi.
+ * A paragraph inside another (a text box) is its own line, listed after the line it sits in. Word writes each text
+ * box twice (`mc:Choice` and an older `mc:Fallback` copy): the copy is skipped. Spaces are tidied and empty lines
+ * dropped.
  */
 export function wordLines(xml: string): string[] {
   const lines: string[] = [];
   // Each open paragraph: the line it's writing (a slot in `lines`, so an outer paragraph keeps its place before
   // a text box's lines).
   const open: number[] = [];
+  // Equation parts being gathered, innermost last.
+  const parts: MathPart[] = [];
   let inText = 0;
   let inFallback = 0;
 
+  const add = (text: string) => {
+    if (parts.length) parts[parts.length - 1].text += text;
+    else if (open.length) lines[open[open.length - 1]] += text;
+  };
+
   for (const match of xml.matchAll(/<(\/?)([\w:]+)[^>]*?(\/?)>|([^<]+)/g)) {
-    const [, closing, name, selfClosing, text] = match;
+    const [tag, closing, name, selfClosing, text] = match;
     if (text !== undefined) {
-      if (inText > 0 && inFallback === 0 && open.length) lines[open[open.length - 1]] += decode(text);
+      if (inText > 0 && inFallback === 0) add(decode(text));
       continue;
     }
     if (name === "mc:Fallback" && !selfClosing) inFallback += closing ? -1 : 1;
     if (inFallback > 0) continue;
+    const top = parts[parts.length - 1];
 
-    if (name === "w:p" && !selfClosing) {
+    if (MATH_PARTS.has(name) && !selfClosing) {
+      if (!closing) parts.push({ name, text: "" });
+      else if (top?.name === name) {
+        parts.pop();
+        add(writeMathPart(top, parts[parts.length - 1]));
+      }
+    } else if (name === "w:p" && !selfClosing) {
       if (closing) open.pop();
       else open.push(lines.push("") - 1);
-    } else if (name === "w:t" && !selfClosing) {
+    } else if ((name === "w:t" || name === "m:t") && !selfClosing) {
       inText += closing ? -1 : 1;
-    } else if (name === "w:tab" && open.length && !closing) {
-      lines[open[open.length - 1]] += " ";
-    } else if ((name === "w:br" || name === "w:cr") && open.length && !closing) {
+    } else if (closing) {
+      continue;
+    } else if (name === "w:tab") {
+      add(" ");
+    } else if (name === "w:noBreakHyphen") {
+      add("-");
+    } else if (name === "w:sym") {
+      add(symbolText(attr(tag, "w:font") ?? "", attr(tag, "w:char") ?? ""));
+    } else if ((name === "m:begChr" || name === "m:endChr") && top?.name === "m:d") {
+      top[name === "m:begChr" ? "begin" : "end"] = attr(tag, "m:val") ?? "";
+    } else if (name === "m:chr" && top?.name === "m:nary") {
+      top.sign = attr(tag, "m:val") ?? "";
+    } else if ((name === "w:br" || name === "w:cr") && open.length && !parts.length) {
       open[open.length - 1] = lines.push("") - 1;
     }
   }
@@ -57,11 +147,12 @@ export function wordLines(xml: string): string[] {
 }
 
 /**
- * A line without its leading item number or letter ("1.", "12)", "a.", "B)", "(c)", "(3)") and the space after
- * it: the answer boxes already show A–D. Without the space it isn't a mark ("1.5 kg", "2.Dog").
+ * A line without its leading item number, letter or Roman numeral ("1.", "12)", "a.", "B)", "(c)", "(3)", "II.",
+ * "iv)") and the space after it: the answer boxes already show A–D. Without the space it isn't a mark ("1.5 kg",
+ * "2.Dog"); "Mr." isn't a Roman numeral.
  */
 export function stripItemMark(line: string): string {
-  return line.replace(/^\s*(?:\(\s*(?:\d{1,3}|[a-zA-Z])\s*\)|(?:\d{1,3}|[a-zA-Z])[.)])\s+/, "").trim();
+  return line.replace(/^\s*(?:\(\s*(?:\d{1,3}|[a-zA-Z]|[ivxlc]{2,6}|[IVXLC]{2,6})\s*\)|(?:\d{1,3}|[a-zA-Z]|[ivxlc]{2,6}|[IVXLC]{2,6})[.)])\s+/, "").trim();
 }
 
 /**

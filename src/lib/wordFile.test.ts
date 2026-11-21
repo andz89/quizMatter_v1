@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { strToU8, zipSync } from "fflate";
-import { readWordBytes, WORD_FILE_ERROR } from "./wordFile";
+import { readWordBytes, WORD_FILE_ERROR, WORD_FILE_TOO_BIG, WORD_TEXT_MAX_BYTES } from "./wordFile";
 import { WORD_LINES_MAX } from "./wordText";
 
 const docx = (body: string) =>
@@ -22,4 +22,9 @@ test("lists at most WORD_LINES_MAX lines and says there were more", () => {
 test("a file that isn't a Word file gives the error", () => {
   assert.deepEqual(readWordBytes(new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8])), { error: WORD_FILE_ERROR });
   assert.deepEqual(readWordBytes(zipSync({ "a.txt": strToU8("hi") })), { error: WORD_FILE_ERROR });
+});
+
+test("a text part too big once unzipped is refused before it's unzipped", () => {
+  const huge = "<w:p><w:r><w:t>" + "a".repeat(WORD_TEXT_MAX_BYTES) + "</w:t></w:r></w:p>";
+  assert.deepEqual(readWordBytes(docx(huge)), { error: WORD_FILE_TOO_BIG });
 });

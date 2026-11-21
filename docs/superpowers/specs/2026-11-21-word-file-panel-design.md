@@ -21,6 +21,16 @@ choice. The teacher decides where every line goes, so the app never has to guess
 - A line longer than the question / choice limit (`PLAIN_TEXT_MAX`) is not dropped: toast `TEXT_LIMIT_MESSAGE`.
 - "Open another file" replaces the list.
 
+## Review fixes (2026-11-21)
+
+- Equations are read as plain text (x², H₂O, (x+1)/2, ³√8, brackets, ∑ / ∫), plus the non-breaking hyphen and
+  Insert → Symbol's Greek letters and math signs (picture fonts like Wingdings give nothing).
+- Touch screens: tap a line's handle, then tap a box (works with a mouse too). Escape or Cancel lets go.
+- Roman numerals ("II.", "iv)", "(xii)") are removed like "1." and "a.".
+- The text part's unzipped size is checked (20 MB) before unzipping.
+- A drop on a box being typed in: ProseMirror only reads plain text, HTML or links from a drop, so our own drag
+  type passes through to the box.
+
 ## Tick lines to make a slide (added 2026-11-21)
 
 - Each line has a checkbox. Ticking shows a "New slide" preview at the top of the panel (it stays in view while the

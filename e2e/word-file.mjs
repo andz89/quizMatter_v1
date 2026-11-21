@@ -95,6 +95,18 @@ try {
   const anyOxygen = (await slide.innerText()).includes("Oxygen");
   check("a line dropped outside the boxes changes nothing", unchanged && !anyOxygen);
 
+  // Touch screens: tap a line's handle, then tap a box.
+  const optionC = page.locator('[data-slide-id="s1"] [data-container-id="s1-c"]');
+  await line(1).getByRole("button", { name: "Pick up this line, then tap a box" }).click();
+  check("tapping the handle shows the Tap a box note", await page.locator("[data-word-held]").isVisible());
+  await optionC.click();
+  check("a tap on answer C puts the line there, without its letter", await waitFor(async () => (await optionC.innerText()).includes("Oxygen") && !(await optionC.innerText()).includes("a. ")));
+  check("the note is gone after placing", (await page.locator("[data-word-held]").count()) === 0);
+  await line(1).getByRole("button", { name: "Pick up this line, then tap a box" }).click();
+  await page.keyboard.press("Escape");
+  check("Escape lets go of the held line and keeps the panel open",
+    (await page.locator("[data-word-held]").count()) === 0 && (await page.locator("[data-word-line]").count()) === 3);
+
   // Ticking lines: the first ticked is the question, the next ones A, B… in click order.
   const tick = (n) => line(n).getByRole("checkbox").click();
   const preview = page.locator("[data-word-preview]");

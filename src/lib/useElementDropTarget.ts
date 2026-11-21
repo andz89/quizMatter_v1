@@ -3,18 +3,16 @@ import { toast } from "sonner";
 import { useEditorStore } from "./store";
 import { ELEMENT_DRAG_MIME, PHOTO_DRAG_MIME, TEXT_DRAG_MIME } from "./constants";
 import { addPhotoToSlide, checkCanUpload, uploadPhoto } from "./photos";
-import { PLAIN_TEXT_MAX, photoSchema } from "./schema";
+import { photoSchema } from "./schema";
 import { PHOTO_ID } from "./svgLibrary";
-import { TEXT_LIMIT_MESSAGE } from "./textLimit";
-import { stripItemMark } from "./wordText";
 
 /**
  * Drag-enter/leave/drop handlers that turn a container into a drop target for an element asset
  * dragged from the Elements panel, a photo from the Photos panel, or photo files dragged from the computer. `isDragOver` drives the hover highlight while something compatible
  * is being dragged over it; a depth counter (rather than a plain boolean) keeps that highlight stable
  * while the pointer moves across the container's own children, which fire their own drag-leave/enter.
- * With `onTextDrop` (question and answer boxes), a line from the Word file panel is taken too: its leading item
- * mark ("1.", "a)") is removed and the box's text is replaced with it.
+ * With `onTextDrop` (question and answer boxes), a line from the Word file panel is taken too (the box passes it
+ * to the store's `putLineInBox`).
  */
 export function useElementDropTarget(slideId: string, containerId: string | null, onTextDrop?: (text: string) => void) {
   const addElement = useEditorStore((s) => s.addElement);
@@ -52,9 +50,7 @@ export function useElementDropTarget(slideId: string, containerId: string | null
           e.stopPropagation();
           dragDepth.current = 0;
           setIsDragOver(false);
-          const text = stripItemMark(line);
-          if (text.length > PLAIN_TEXT_MAX) toast.error(TEXT_LIMIT_MESSAGE, { id: "text-limit" });
-          else if (text) onTextDrop(text);
+          onTextDrop(line);
           return;
         }
         const assetId = e.dataTransfer.getData(ELEMENT_DRAG_MIME);

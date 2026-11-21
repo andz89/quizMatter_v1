@@ -4,7 +4,6 @@ import { useSortable } from "@dnd-kit/sortable";
 import { useEditorStore, selectedIdsOn } from "@/lib/store";
 import { OPTION_FONT_SIZE, OPTION_LABELS, getContainerBounds, type BoxLayout } from "@/lib/constants";
 import { useElementDropTarget } from "@/lib/useElementDropTarget";
-import { droppedTextHtml } from "@/lib/wordText";
 import { EditableText } from "./EditableText";
 import { SvgElementItem } from "./SvgElementItem";
 import { GroupSelectionOverlay } from "./GroupSelectionOverlay";
@@ -24,6 +23,9 @@ interface OptionCardProps {
 
 export function OptionCard({ slideId, option, index, isCorrect, elements, box }: OptionCardProps) {
   const updateOption = useEditorStore((s) => s.updateOption);
+  const putLineInBox = useEditorStore((s) => s.putLineInBox);
+  // A Word file line picked up with a tap waits for a tap on a box (touch screens).
+  const isHoldingLine = useEditorStore((s) => s.heldWordLine !== null);
   const setCorrectOption = useEditorStore((s) => s.setCorrectOption);
   const zoom = useEditorStore((s) => s.zoom);
   // Only this box's own yes/no, so a click on another box doesn't redraw this one.
@@ -32,9 +34,9 @@ export function OptionCard({ slideId, option, index, isCorrect, elements, box }:
   const selectContainer = useEditorStore((s) => s.selectContainer);
 
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: option.id });
-  const { isDragOver, dropHandlers } = useElementDropTarget(slideId, option.id, (text) =>
+  const { isDragOver, dropHandlers } = useElementDropTarget(slideId, option.id, (line) =>
     // A line dragged from the Word file panel becomes this choice's text.
-    updateOption(slideId, option.id, text, droppedTextHtml(option.html, text)),
+    putLineInBox(slideId, option.id, line),
   );
   const isElementDragOver = useEditorStore((s) => s.dragOverContainerId === option.id);
 
@@ -51,7 +53,7 @@ export function OptionCard({ slideId, option, index, isCorrect, elements, box }:
 
   // No border or fill by default — only while selected or while something is dragged onto it.
   const borderColor = isSelectedContainer ? "var(--accent)" : "transparent";
-  const background = isDragOver || isElementDragOver ? "color-mix(in srgb, var(--accent) 8%, transparent)" : undefined;
+  const background = isDragOver || isElementDragOver || isHoldingLine ? "color-mix(in srgb, var(--accent) 8%, transparent)" : undefined;
 
   return (
     <div
@@ -59,6 +61,13 @@ export function OptionCard({ slideId, option, index, isCorrect, elements, box }:
       data-container-id={option.id}
       // Shift+click selects more boxes, to change their text together.
       onClick={(e) => selectContainer(option.id, slideId, e.shiftKey)}
+      onClickCapture={(e) => {
+        const line = useEditorStore.getState().heldWordLine;
+        if (line === null) return;
+        e.preventDefault();
+        e.stopPropagation();
+        putLineInBox(slideId, option.id, line);
+      }}
       {...dropHandlers}
       className="group group/box relative rounded-button border p-[5px] transition-colors"
       style={{

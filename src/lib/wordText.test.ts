@@ -68,3 +68,43 @@ test("pickedSlideTexts: first ticked is the question, the rest A–D in click or
   assert.deepEqual(pickedSlideTexts(lines, []), { question: "", options: ["", "", "", ""] });
   assert.equal(PICKED_LINES_MAX, 5);
 });
+
+const m = (text: string) => `<m:r><m:t>${text}</m:t></m:r>`;
+const mathLine = (math: string) => wordLines(`<w:p><m:oMath>${math}</m:oMath></w:p>`)[0];
+
+test("equations are read: powers, small numbers below, fractions, roots, brackets, sums", () => {
+  assert.equal(
+    wordLines(`<w:p><w:r><w:t xml:space="preserve">Solve </w:t></w:r><m:oMath><m:sSup><m:e>${m("x")}</m:e><m:sup>${m("2")}</m:sup></m:sSup>${m("+2=6")}</m:oMath></w:p>`)[0],
+    "Solve x²+2=6",
+  );
+  assert.equal(mathLine(`<m:sSup><m:e>${m("x")}</m:e><m:sup>${m("ab")}</m:sup></m:sSup>`), "x^(ab)");
+  assert.equal(mathLine(`${m("H")}<m:sSub><m:e></m:e><m:sub>${m("2")}</m:sub></m:sSub>${m("O")}`), "H₂O");
+  assert.equal(mathLine(`<m:f><m:num>${m("1")}</m:num><m:den>${m("2")}</m:den></m:f>`), "1/2");
+  assert.equal(mathLine(`<m:f><m:num>${m("x+1")}</m:num><m:den>${m("2")}</m:den></m:f>`), "(x+1)/2");
+  assert.equal(mathLine(`<m:rad><m:radPr><m:degHide m:val="1"/></m:radPr><m:deg/><m:e>${m("9")}</m:e></m:rad>`), "√9");
+  assert.equal(mathLine(`<m:rad><m:deg>${m("3")}</m:deg><m:e>${m("8")}</m:e></m:rad>`), "³√8");
+  assert.equal(mathLine(`<m:d><m:dPr><m:begChr m:val="["/><m:endChr m:val="]"/></m:dPr><m:e>${m("a")}</m:e></m:d>`), "[a]");
+  assert.equal(mathLine(`<m:d><m:e>${m("a+b")}</m:e></m:d>`), "(a+b)");
+  assert.equal(
+    mathLine(`<m:nary><m:naryPr><m:chr m:val="∑"/></m:naryPr><m:sub>${m("i=1")}</m:sub><m:sup>${m("n")}</m:sup><m:e>${m("i")}</m:e></m:nary>`),
+    "∑ᵢ₌₁ⁿi",
+  );
+  assert.equal(mathLine(`<m:nary><m:sub>${m("0")}</m:sub><m:sup>${m("1")}</m:sup><m:e>${m("x")}</m:e></m:nary>`), "∫₀¹x");
+});
+
+test("hyphens and symbols are read", () => {
+  assert.equal(wordLines(`<w:p><w:r><w:t>well</w:t><w:noBreakHyphen/><w:t>known</w:t><w:softHyphen/></w:r></w:p>`)[0], "well-known");
+  assert.equal(
+    wordLines(`<w:p><w:r><w:sym w:font="Symbol" w:char="F061"/><w:t xml:space="preserve"> </w:t><w:sym w:font="Symbol" w:char="F0B4"/><w:t xml:space="preserve"> </w:t><w:sym w:font="Symbol" w:char="F044"/></w:r></w:p>`)[0],
+    "α × Δ",
+  );
+  assert.equal(wordLines(`<w:p><w:r><w:sym w:font="Wingdings" w:char="F0FC"/><w:t>Done</w:t></w:r></w:p>`)[0], "Done");
+  assert.equal(wordLines(`<w:p><w:r><w:sym w:font="Arial" w:char="00E9"/></w:r></w:p>`)[0], "é");
+});
+
+test("stripItemMark removes Roman numerals too", () => {
+  assert.equal(stripItemMark("II. Intro"), "Intro");
+  assert.equal(stripItemMark("iv) Dog"), "Dog");
+  assert.equal(stripItemMark("(xii) Dog"), "Dog");
+  assert.equal(stripItemMark("Mr. Smith"), "Mr. Smith");
+});

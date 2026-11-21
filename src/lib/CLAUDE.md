@@ -256,8 +256,11 @@ data. Spec: `docs/superpowers/specs/2026-10-23-stable-presentation-data-design.m
   same in the editor, a Tiptap decoration). See `src/components/editor/CLAUDE.md`, "Slide text size".
 - `wordText.ts` / `wordFile.ts`: the editor's Word file panel (see `src/components/editor/CLAUDE.md`).
   `wordFile.ts` (`readWordFile`, `readWordBytes`) unzips only `word/document.xml` with `fflate`, in the browser
-  (20 MB at most, `.docx` only, `WORD_FILE_ERROR`). `wordText.ts` (no imports): `wordLines` (one line per paragraph
-  and line break, only `<w:t>` text, a text box's `mc:Fallback` copy skipped, nested paragraphs their own line),
+  (20 MB at most, and its text part 20 MB unzipped, checked from the zip's list before unzipping; `.docx` only,
+  `WORD_FILE_ERROR`). `wordText.ts` (no imports): `wordLines` (one line per paragraph
+  and line break, only `<w:t>` text, a text box's `mc:Fallback` copy skipped, nested paragraphs their own line; equations as plain text: x², H₂O,
+  (x+1)/2, ³√8, [a], ∑ᵢ₌₁ⁿi; the non-breaking hyphen; Insert → Symbol's Greek letters and math signs, nothing for
+  Wingdings),
   `stripItemMark`, `droppedTextHtml`, `pickedSlideTexts` + `PICKED_LINES_MAX` (ticked lines → question and A–D), `WORD_LINES_MAX` (2,000). Tests: `wordText.test.ts`, `wordFile.test.ts`.
 - `sameValue.ts`: whether two settings hold the same values in any key order (the database re-sorts saved keys, e.g.
   a fraction comes back as `{parts, whole, shaded}`); `MathToolControls` uses it. Tests: `sameValue.test.ts`.

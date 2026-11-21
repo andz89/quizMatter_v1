@@ -17,7 +17,8 @@ const DOCX_TYPES = ".docx,application/vnd.openxmlformats-officedocument.wordproc
 
 /**
  * Sidebar panel that opens a Word file (.docx) in this tab and lists its text, one line per piece. A line is
- * dragged onto a question or answer box (`useElementDropTarget`'s text drop), or copied. Ticked lines fill a
+ * dragged onto a question or answer box (`useElementDropTarget`'s text drop), or (touch screens) tapped by its
+ * handle and then put in by a tap on a box (the store's `heldWordLine`), or copied. Ticked lines fill a
  * preview of a new question slide (the first ticked is the question, the next ones A–D, `pickedSlideTexts`), and
  * "Add as a new slide" adds it after the active slide. The file is never uploaded or saved; the list stays in the
  * store while the panel is closed (the ticks don't).
@@ -27,6 +28,8 @@ export function WordFilePanel() {
   const wordFile = useEditorStore((s) => s.wordFile);
   const setWordFile = useEditorStore((s) => s.setWordFile);
   const insertSlides = useEditorStore((s) => s.insertSlides);
+  const heldWordLine = useEditorStore((s) => s.heldWordLine);
+  const setHeldWordLine = useEditorStore((s) => s.setHeldWordLine);
   const inputRef = useRef<HTMLInputElement>(null);
   const [isReading, setIsReading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -35,11 +38,17 @@ export function WordFilePanel() {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (isPanelEscape(e)) closeWordPanel();
+      if (!isPanelEscape(e)) return;
+      // Escape first lets go of a held line, then closes the panel.
+      if (useEditorStore.getState().heldWordLine !== null) setHeldWordLine(null);
+      else closeWordPanel();
     };
     window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [closeWordPanel]);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      setHeldWordLine(null);
+    };
+  }, [closeWordPanel, setHeldWordLine]);
 
   const openFile = async (file: File | undefined) => {
     if (!file) return;
@@ -145,6 +154,22 @@ export function WordFilePanel() {
 
       {error && <p className="rounded-dropdown bg-danger-soft px-3 py-2 text-xs text-danger-strong">{error}</p>}
 
+      {heldWordLine !== null && (
+        <div
+          data-word-held
+          className="sticky top-0 z-20 flex items-center justify-between gap-2 rounded-card border border-accent bg-accent-soft px-3 py-2 text-xs font-semibold text-accent"
+        >
+          Tap a question or answer box to put this line there.
+          <button
+            type="button"
+            onClick={() => setHeldWordLine(null)}
+            className="shrink-0 rounded-dropdown px-2 py-0.5 hover:bg-bg-surface"
+          >
+            Cancel
+          </button>
+        </div>
+      )}
+
       {preview && picked.length > 0 && (
         <section
           data-word-preview
@@ -207,12 +232,22 @@ export function WordFilePanel() {
                     e.dataTransfer.setData(TEXT_DRAG_MIME, line);
                     e.dataTransfer.effectAllowed = "copy";
                   }}
-                  title="Drag onto a question or an answer choice"
+                  title="Drag onto a question or an answer choice, or tap the handle and then a box"
                   className={`group flex cursor-grab items-start gap-1.5 rounded-dropdown border bg-bg-surface py-1.5 pl-1 pr-1.5 text-sm text-text-primary hover:border-accent active:cursor-grabbing ${
-                    place !== -1 ? "border-accent" : "border-border-default"
+                    place !== -1 || line === heldWordLine ? "border-accent" : "border-border-default"
                   }`}
                 >
-                  <GripVerticalIcon size={14} className="mt-0.5 shrink-0 text-text-secondary" />
+                  <button
+                    type="button"
+                    onClick={() => setHeldWordLine(line === heldWordLine ? null : line)}
+                    aria-label="Pick up this line, then tap a box"
+                    aria-pressed={line === heldWordLine}
+                    className={`flex h-6 w-5 shrink-0 items-center justify-center rounded-dropdown ${
+                      line === heldWordLine ? "bg-accent text-white" : "text-text-secondary hover:bg-accent-soft hover:text-accent"
+                    }`}
+                  >
+                    <GripVerticalIcon size={14} />
+                  </button>
                   <label className="flex min-w-0 flex-1 cursor-pointer items-start gap-1.5">
                     <input
                       type="checkbox"

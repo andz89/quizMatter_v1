@@ -51,7 +51,9 @@ import { newTable, type TableCellSpot } from "./table";
 import { fitIntoRow, gridRowNeeds, shareOut } from "./optionRows";
 import { measureOptionNeeds } from "./measureOptions";
 import type { Photo, PresentationDetails, Presentation, ReviewerFields, Slide, SlideType, SvgElement } from "./schema";
-import { MAX_ITEM_COUNT, MAX_SLIDES, TOO_MANY_SLIDES_MESSAGE } from "./schema";
+import { MAX_ITEM_COUNT, MAX_SLIDES, PLAIN_TEXT_MAX, TOO_MANY_SLIDES_MESSAGE } from "./schema";
+import { TEXT_LIMIT_MESSAGE } from "./textLimit";
+import { droppedTextHtml, stripItemMark } from "./wordText";
 
 type ElementPatch = Partial<Omit<SvgElement, "id" | "assetId">>;
 
@@ -597,6 +599,13 @@ interface EditorState {
   closeWordPanel: () => void;
   wordFile: WordFile | null;
   setWordFile: (wordFile: WordFile | null) => void;
+  // A line picked up with a tap on its handle (for touch screens, where dragging doesn't work): the next tap on a
+  // question or answer box puts it there (putLineInBox). null = nothing held.
+  heldWordLine: string | null;
+  setHeldWordLine: (line: string | null) => void;
+  // Puts a Word file line in a question box or answer choice (a drop or a tap): its leading "1." / "a)" removed, the
+  // box's text replaced (keeping its first paragraph's settings). A line over PLAIN_TEXT_MAX is refused with a toast.
+  putLineInBox: (slideId: string, boxId: string, line: string) => void;
 
   // Which box a placed element is currently being dragged over, while it's being moved from a
   // different box — drives that box's "drop here" highlight. Not part of presentation data.
@@ -1904,9 +1913,28 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         isPhotosPanelOpen: next ? false : state.isPhotosPanelOpen,
       };
     }),
-  closeWordPanel: () => set({ isWordPanelOpen: false }),
+  closeWordPanel: () => set({ isWordPanelOpen: false, heldWordLine: null }),
   wordFile: null,
   setWordFile: (wordFile) => set({ wordFile }),
+  heldWordLine: null,
+  setHeldWordLine: (line) => set({ heldWordLine: line }),
+  putLineInBox: (slideId, boxId, line) => {
+    set({ heldWordLine: null });
+    const text = stripItemMark(line);
+    if (!text) return;
+    if (text.length > PLAIN_TEXT_MAX) {
+      toast.error(TEXT_LIMIT_MESSAGE, { id: "text-limit" });
+      return;
+    }
+    const slide = get().presentation.slides.find((s) => s.id === slideId);
+    if (!slide) return;
+    if (boxId === QUESTION_CONTAINER_ID) {
+      get().updateQuestion(slideId, text, droppedTextHtml(slide.questionHtml, text));
+      return;
+    }
+    const option = slide.options.find((o) => o.id === boxId);
+    if (option) get().updateOption(slideId, boxId, text, droppedTextHtml(option.html, text));
+  },
 
   dragOverContainerId: null,
   setDragOverContainerId: (containerId) => set({ dragOverContainerId: containerId }),
