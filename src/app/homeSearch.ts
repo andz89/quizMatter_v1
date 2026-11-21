@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { DAYS, GRADES, OTHER_CHOICE, SUBJECTS, TERMS, WEEKS } from "@/lib/schema";
-import { SEARCH_MAX_LENGTH, WITHIN, firstValues, optionIds, searchQuery, withinSince } from "@/lib/search";
+import { SEARCH_MAX_LENGTH, WITHIN, firstValues, isOneWord, optionIds, searchQuery, withinSince } from "@/lib/search";
 
 // The home page's search lives in the page link (e.g. /?q=fractions&grade=Grade+3), so Back and shared links
 // bring the same search back. The server reads it and asks the database; this file is shared by both sides.
@@ -46,7 +46,9 @@ const homeSearchSchema = z.object({
   // "Includes the words": each word found somewhere in the title, subject, term, week, day, curriculum, learning competency,
   // author or tags, in any order.
   q: text,
-  title: text,
+  // The main search box: any of these words in the title, or a grade it names (titleSearchMatches / titleFilter in
+  // src/lib/search.ts). One word isn't accepted (it needs at least two): the box refuses it, a link drops it.
+  title: z.string().trim().max(SEARCH_MAX_LENGTH).refine((title) => !isOneWord(title)).catch(""),
   // A list subject, or "Other" for every subject not on the list.
   subject: z.union([z.enum(SUBJECTS), z.literal(OTHER_CHOICE), z.literal("")]).catch(""),
   author: text,

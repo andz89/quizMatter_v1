@@ -264,6 +264,13 @@ when another is picked), moving into and between boxes (Alt keeps a free picture
   Facebook for its box's real width, and Alt+click on a top bar's in-app link is left to the browser.
 - `announcements-pages.mjs`: announcements put straight in the table, checked on the home, saved, liked, search,
   account and editor pages, at desktop and phone width.
+- `search-options-modal.mjs`: the home search. The options open as a modal and the search bar hides meanwhile (no
+  Title row), Escape and ✕ close it, one word in the bar is refused with words, the bar's search uses the title
+  (named in the heading), Enter in a modal field and the footer's Search both search with the options only (no title
+  in the link, the bar emptied, a one-word bar not refused), the bar's ✕ goes home with the title and options
+  cleared, no console errors, and Admin → Photos' modal keeps its box's text (one photo row added with `psql` and
+  removed after, since its box shows only with photos), and at 390 px the modal fits
+  (screenshots `search-options-modal.png`, `search-options-modal-phone.png`).
 - `slide-drag.mjs`: the editor's Presentations panel. Another teacher's shared copy (made with `psql` and the
   `quizmatter.sharing` setting, since its slides change only through sharing); its slides dragged onto my slide (after
   it), the top half of slide 1 (before it), an answer box, the gap under the last slide (end), a question just typed

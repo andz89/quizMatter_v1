@@ -3,7 +3,9 @@
 import { useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { DAYS, GRADES, OTHER_CHOICE, SUBJECTS, TERMS, WEEKS } from "@/lib/schema";
+import { toast } from "sonner";
 import { SearchField, SearchForm, SearchSelect, SearchTextInput } from "@/components/SearchForm";
+import { isOneWord, ONE_WORD_MESSAGE } from "@/lib/search";
 import { DEFAULT_SEARCH, homeSearchQuery, LOOK_IN, PAGE_SIZE, parseHomeSearch, SORTS, WITHIN, type HomeSearch } from "../homeSearch";
 
 /** Keyed by the address, so Back puts that page's search back in the box. */
@@ -25,19 +27,29 @@ function SearchBox({ search }: { search: HomeSearch }) {
 
   return (
     <SearchForm
-      query={values.q}
-      onQueryChange={(q) => set({ q })}
-      placeholder="Search presentations"
-      hasOptions={homeSearchQuery({ ...values, q: "" }) !== ""}
+      // The main box searches by title. The modal has no Title row, so its Search empties the title and searches
+      // with the options only (optionsClearQuery); "Includes the words" (q) is one of them.
+      optionsClearQuery
+      query={values.title}
+      onQueryChange={(title) => set({ title })}
+      placeholder="Search by title (2 or more words)"
+      hasOptions={homeSearchQuery({ ...values, title: "" }) !== ""}
       isPending={isPending}
       // The top line and spinner show at once, and stay until the server sends the results.
-      onSearch={(q) => startTransition(() => router.push(`/search${homeSearchQuery({ ...values, q, shown: PAGE_SIZE })}`, { scroll: false }))}
+      onSearch={(title) => {
+        // One word matches far too many titles: it needs at least two ("Grade 4 exam").
+        if (isOneWord(title)) return void toast.error(ONE_WORD_MESSAGE, { id: "one-word" });
+        startTransition(() => router.push(`/search${homeSearchQuery({ ...values, title, shown: PAGE_SIZE })}`, { scroll: false }));
+      }}
       onClear={() => setValues(DEFAULT_SEARCH)}
+      // The box's ✕ leaves the search (every option too) and goes home, like the results' "Clear search": searching
+      // again without the title showed a list nobody asked for.
+      onClearText={() => {
+        setValues(DEFAULT_SEARCH);
+        startTransition(() => router.push("/", { scroll: false }));
+      }}
       className="mx-auto mb-10 max-w-xl"
     >
-      <SearchField label="Title">
-        <SearchTextInput value={values.title} onChange={(title) => set({ title })} />
-      </SearchField>
       <SearchField label="Subject">
         <SearchSelect
           value={values.subject}

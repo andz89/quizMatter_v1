@@ -28,7 +28,13 @@ notes.
 - `Logo.tsx`: the one logo (same drawing as `src/app/icon.svg`; the link picture `src/app/ogCard.tsx` draws the same
   mark). `LoggedOutBar.tsx`: the top bar for logged-out visitors (the logo, linking to the public home `/`, + Log in) on the public home, Privacy, Terms and a
   presentation's public preview.
-- `SearchForm.tsx`: the search box with its options panel, used by the home page and Admin → Photos.
+- `SearchForm.tsx`: the search box with its options in a `Modal` ("Search options"), used by the home page and Admin
+  → Photos. While the modal is open the box hides (`invisible`, keeping its room); the modal's Search keeps the box's
+  text, except with `optionsClearQuery` (the home page, whose modal has no Title row): it empties the box and
+  searches with the options only. The box's ✕ empties it and searches again, or calls `onClearText` instead (the home
+  page: leaves the search and goes home, like "Clear search"). The modal is portalled outside
+  the page's form, so it has its own form (Enter in any field searches; the footer's Search points at it by id).
+  Test: `e2e/search-options-modal.mjs`.
 - `ClickPauseNotice.tsx`: the sticky "paused" notice from click limits; in the root layout once.
 - Maintenance (root `CLAUDE.md`, "Maintenance"), in the root layout once each: `MaintenanceWatch.tsx` wraps the
   browser's fetch and sends an open tab to `/maintenance` on a maintenance refusal (not on `/maintenance` or

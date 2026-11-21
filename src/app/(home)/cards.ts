@@ -5,7 +5,7 @@ import type { DraftSummary } from "@/lib/drafts";
 import { loadPublisherNames } from "@/lib/publishers";
 import { creditLines, detailsLabel, joinParts, slideCountLabel, timeAgo } from "@/lib/format";
 import { DAYS, GRADES, OTHER_CHOICE, SUBJECTS, TERMS, WEEKS, gradesTitle, isOtherDay, isOtherGrade, isOtherSubject, isOtherTerm, isOtherWeek, parseSlide } from "@/lib/schema";
-import { contains, searchWords } from "@/lib/search";
+import { contains, searchWords, titleFilter, titleSearchMatches } from "@/lib/search";
 import { loadMySubmissions, type SubmissionStatus } from "@/lib/submissions";
 import type { PresentationCardData } from "../PresentationCard";
 import { changedSince, NO_SUBJECT, type HomeSearch } from "../homeSearch";
@@ -58,7 +58,9 @@ export function applySearch<Q extends PresentationQuery>(query: Q, search: HomeS
   // search_text: every searched detail as one line of text (see the presentation_search_text migration). Each
   // word must be in it somewhere, in any order: "adding fractions" finds "Fractions: adding and subtracting".
   for (const word of searchWords(search.q)) query = query.ilike("search_text", contains(word)) as Q;
-  if (search.title) query = query.ilike("title", contains(search.title)) as Q;
+  // The main box: any of the words in the title, or a named grade (titleFilter). A second or() is ANDed with Look in's.
+  const byTitle = titleFilter(search.title, GRADES);
+  if (byTitle) query = query.or(byTitle) as Q;
   if (search.subject === OTHER_CHOICE) query = query.neq("subject", "").not("subject", "in", inList(SUBJECTS)) as Q;
   else if (search.subject) query = query.eq("subject", search.subject) as Q;
   if (search.author) query = query.ilike("author", contains(search.author)) as Q;
@@ -96,7 +98,7 @@ export function draftMatches(draft: DraftSummary, search: HomeSearch, since: num
   const details = `${draft.title} ${draft.subject} ${draft.term} ${draft.week} ${draft.day} ${draft.curriculum} ${draft.learningCompetency} ${draft.tags}`;
   return (
     searchWords(search.q).every((word) => has(details, word)) &&
-    has(draft.title, search.title) &&
+    titleSearchMatches(draft, search.title, GRADES) &&
     (search.subject === OTHER_CHOICE ? isOtherSubject(draft.subject) : !search.subject || draft.subject === search.subject) &&
     (search.grade === OTHER_CHOICE ? draft.grades.some(isOtherGrade) : !search.grade || draft.grades.includes(search.grade)) &&
     (search.term === OTHER_CHOICE ? isOtherTerm(draft.term) : !search.term || draft.term === search.term) &&

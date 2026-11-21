@@ -59,7 +59,8 @@ export default async function SearchPage({ searchParams }: PageProps<"/search">)
       <div className="mb-6 flex items-center gap-3">
         <div className="mr-auto min-w-0">
           <h2 className="truncate text-lg font-extrabold text-text-primary">
-            {search.q ? `Results for “${search.q}”` : "Search results"}
+            {/* The main box's title words; else a link with only "Includes the words". */}
+            {search.title || search.q ? `Results for “${search.title || search.q}”` : "Search results"}
           </h2>
           <p className="text-[13px] text-text-secondary">{total === 1 ? "1 result" : `${total} results`}</p>
         </div>
