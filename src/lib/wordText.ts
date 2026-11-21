@@ -84,7 +84,8 @@ function writeMathPart(part: MathPart, parent: MathPart | undefined): string {
 
 /**
  * One line per paragraph (`<w:p>`), split again at line breaks (`<w:br/>`, `<w:cr/>`). Only `<w:t>` (and an
- * equation's `<m:t>`) holds text (settings and field codes don't); a tab is a space, a non-breaking hyphen a "-",
+ * equation's `<m:t>`) holds text (settings and field codes don't); a tab before a choice's letter starts a new line
+ * (two choices side by side, `NEXT_CHOICE`), any other tab is a space, a non-breaking hyphen a "-",
  * a `<w:sym>` its character (`symbolText`). Equations become plain text: x², H₂O, x^(ab), (x+1)/2, ³√8, [a], ∑ᵢ₌₁ⁿi.
  * A paragraph inside another (a text box) is its own line, listed after the line it sits in. Word writes each text
  * box twice (`mc:Choice` and an older `mc:Fallback` copy): the copy is skipped. Spaces are tidied and empty lines
@@ -129,7 +130,7 @@ export function wordLines(xml: string): string[] {
     } else if (closing) {
       continue;
     } else if (name === "w:tab") {
-      add(" ");
+      add("\t");
     } else if (name === "w:noBreakHyphen") {
       add("-");
     } else if (name === "w:sym") {
@@ -143,7 +144,10 @@ export function wordLines(xml: string): string[] {
     }
   }
 
-  return lines.map((line) => line.replace(/\s+/g, " ").trim()).filter(Boolean);
+  return lines
+    .flatMap((line) => line.split(NEXT_CHOICE))
+    .map((line) => line.replace(/\s+/g, " ").trim())
+    .filter(Boolean);
 }
 
 /**
@@ -158,6 +162,13 @@ export function stripItemMark(line: string): string {
     .trim();
 }
 
+/** A choice's letter at the start of a line ("A.", "c)", "(b)"); group 1 is the letter. */
+const CHOICE_MARK = /^\s*\(?([A-Ea-e])[.)]\s/;
+
+/** Where a row with two choices side by side splits: a tab or a wide gap (3+ spaces) before the next choice's
+ * letter ("A. Acute angle ⇥ C. Obtuse angle"). A tab anywhere else is a space. */
+const NEXT_CHOICE = /(?:\t|[ \u00a0]{3,})+(?=\(?[A-Ea-e][.)]\s)/;
+
 /** A line that starts a numbered exam item: "1. …", "12) …", or with a blank for the answer first, "____ 1. …". */
 const QUESTION_LINE = /^\s*(?:_{2,}\s*)?\d{1,3}[.)]\s+\S/;
 
@@ -167,7 +178,8 @@ export type SuggestedItem = { question: number; options: number[] };
 /**
  * The Word file panel's suggestions: each numbered line is a question, and the lines after it, up to 4 and
  * stopping at the next question, are its answer choices. An item needs at least 2 choices (true / false), so a
- * numbered line in the directions or a question with one line under it isn't suggested.
+ * numbered line in the directions or a question with one line under it isn't suggested. Lettered choices are put in
+ * A–D order (two columns side by side read A, C, B, D).
  */
 export function suggestItems(lines: string[]): SuggestedItem[] {
   const items: SuggestedItem[] = [];
@@ -175,7 +187,13 @@ export function suggestItems(lines: string[]): SuggestedItem[] {
     if (!QUESTION_LINE.test(line)) return;
     const options: number[] = [];
     for (let i = question + 1; i < lines.length && options.length < 4 && !QUESTION_LINE.test(lines[i]); i++) options.push(i);
-    if (options.length >= 2) items.push({ question, options });
+    if (options.length < 2) return;
+    // Two columns read A, C, B, D: when each choice has its own letter, they go in A–D order.
+    const letters = options.map((i) => CHOICE_MARK.exec(lines[i])?.[1].toLowerCase());
+    if (letters.every(Boolean) && new Set(letters).size === letters.length) {
+      options.sort((a, b) => letters[options.indexOf(a)]!.localeCompare(letters[options.indexOf(b)]!));
+    }
+    items.push({ question, options });
   });
   return items;
 }

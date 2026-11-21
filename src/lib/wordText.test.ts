@@ -138,3 +138,18 @@ test("stripItemMark removes a blank before the number", () => {
   assert.equal(stripItemMark("_____2) The sun"), "The sun");
   assert.equal(stripItemMark("____ is the capital"), "____ is the capital");
 });
+
+test("two choices on one row (a tab or a wide gap before the next letter) become two lines", () => {
+  const xml =
+    `<w:p><w:r><w:t>A. Acute angle</w:t><w:tab/><w:tab/><w:t>C. Obtuse angle</w:t></w:r></w:p>` +
+    `<w:p><w:r><w:t xml:space="preserve">B. Right angle      D. Straight angle</w:t></w:r></w:p>` +
+    `<w:p><w:r><w:t>Name</w:t><w:tab/><w:t>Date</w:t></w:r></w:p>`;
+  assert.deepEqual(wordLines(xml), ["A. Acute angle", "C. Obtuse angle", "B. Right angle", "D. Straight angle", "Name Date"]);
+});
+
+test("suggestItems puts lettered choices in A–D order (two columns read A, C, B, D)", () => {
+  const lines = ["1. What kind of angle?", "A. Acute angle", "C. Obtuse angle", "B. Right angle", "D. Straight angle"];
+  assert.deepEqual(suggestItems(lines), [{ question: 0, options: [1, 3, 2, 4] }]);
+  // Without a letter on each, the order stays as read.
+  assert.deepEqual(suggestItems(["1. Q", "Dog", "Cat"]), [{ question: 0, options: [1, 2] }]);
+});

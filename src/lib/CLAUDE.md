@@ -259,7 +259,7 @@ data. Spec: `docs/superpowers/specs/2026-10-23-stable-presentation-data-design.m
   (20 MB at most, and its text part 20 MB unzipped, checked from the zip's list before unzipping; `.docx` only,
   `WORD_FILE_ERROR`). `wordText.ts` (no imports): `wordLines` (one line per paragraph
   and line break, only `<w:t>` text, a text box's `mc:Fallback` copy skipped, nested paragraphs their own line; equations as plain text: x², H₂O,
-  (x+1)/2, ³√8, [a], ∑ᵢ₌₁ⁿi; the non-breaking hyphen; Insert → Symbol's Greek letters and math signs, nothing for
+  (x+1)/2, ³√8, [a], ∑ᵢ₌₁ⁿi; the non-breaking hyphen; two choices side by side (a tab or 3+ spaces before "C.") split into two lines; Insert → Symbol's Greek letters and math signs, nothing for
   Wingdings),
   `stripItemMark`, `droppedTextHtml`, `pickedSlideTexts` + `PICKED_LINES_MAX` (ticked lines → question and A–D), `suggestItems` (numbered lines and up to 4
   lines under each, for Show suggestions; `stripItemMark` also removes a "____" blank in front of a number), `WORD_LINES_MAX` (2,000). Tests: `wordText.test.ts`, `wordFile.test.ts`.

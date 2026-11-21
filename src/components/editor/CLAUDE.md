@@ -75,7 +75,8 @@ editor / view / review, and renders `Editor.tsx`, which calls `store.loadPresent
   so the list keeps the room. Before a file is open: the big "Open a Word file" button and its help line.
   "Show suggestions" (off until clicked; off again for a new file) colors each item `suggestItems` finds: a
   numbered line ("1.", "2)", "____ 3.") as the question (violet row) and the lines under it, up to 4 and stopping at
-  the next numbered line, as its choices (violet edge, indented); 2 choices at least. The question row's Create adds
+  the next numbered line, as its choices (violet edge, indented; lettered ones in A–D order, since two columns read A, C, B, D); 2
+  choices at least. The question row's Create adds
   that item like Add as a new slide, then says "Added" (Mint; a click adds it again).
   Test: `e2e/word-file.mjs`.
 - **Slides from other presentations** (`PresentationsPanel`): published presentations (not this one or its shared
