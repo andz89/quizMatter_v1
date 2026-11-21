@@ -68,7 +68,7 @@ export const profileSchema = z.object({
     .max(CONTACT_NUMBER_MAX_LENGTH, `Use at most ${CONTACT_NUMBER_MAX_LENGTH} characters for your contact number.`)
     .regex(/^[0-9+\-() ]*$/, "A contact number can only have digits, spaces and + - ( ).")
     .refine((number) => number === "" || number.replace(/\D/g, "").length >= 7, "Enter a contact number with at least 7 digits."),
-  educationLevel: z.enum(EDUCATION_LEVELS, { error: "Pick your educational background." }).or(z.literal("")),
+  educationLevel: z.enum(["", ...EDUCATION_LEVELS], { error: "Pick your educational background." }),
   educationField: z
     .string()
     .trim()
@@ -80,7 +80,7 @@ export const profileSchema = z.object({
       (date) => date === "" || isAllowedBirthDate(date, todayInManila()),
       "Enter your real birthday. You must be 18 to 100 years old.",
     ),
-  gender: z.enum(GENDERS, { error: "Pick your gender." }).or(z.literal("")),
+  gender: z.enum(["", ...GENDERS], { error: "Pick your gender." }),
   bio: z.string().trim().max(BIO_MAX_LENGTH, `Use at most ${BIO_MAX_LENGTH} characters for your bio.`),
 });
 
@@ -97,8 +97,10 @@ export type ProfileVisibility = z.infer<typeof profileVisibilitySchema>;
 // (hook_before_user_created, 20261210000400_blocked_email_domains.sql) refuses with the same words.
 export const THROWAWAY_EMAIL_MESSAGE = "Please use your real email address (school or personal), not a throwaway one.";
 
-// The refusal for an unticked agree box on the sign up form.
-export const AGREE_TERMS_MESSAGE = "Please agree to the Terms of Use and Privacy Policy to make an account.";
+// The refusal for an unticked agree box on the sign up form. The box also says the teacher is 18 or older (the Terms'
+// age rule; sign up asks no birthday).
+export const AGREE_TERMS_MESSAGE =
+  "Please confirm you're 18 or older and agree to the Terms of Use and Privacy Policy to make an account.";
 
 /**
  * The sign up form's rules. blockedDomains: the throwaway email services from the database's blocked_email_domains
@@ -172,11 +174,11 @@ export async function saveDisplayName(name: string): Promise<DisplayNameResult> 
 }
 
 /**
- * Makes a new account. Supabase emails a link to confirm it; the teacher can log in only after clicking it. The
- * details ride along as user metadata, and the handle_new_user trigger (20261113000000_display_name_rules.sql) copies
- * them into user_settings (with the agreed version, terms_version, and the time) and makes the display name from the
- * first + last name, then removes them from the metadata (newest: 20261227000000_remove_address.sql: the
- * birthday and gender, no address). If the email already has an account, Supabase answers the same way and sends nothing, so strangers can't find out who has one.
+ * Makes a new account. Supabase emails a link to confirm it; the teacher can log in only after clicking it. Only the
+ * first and last name and the agreed version (terms_version) ride along as user metadata; the handle_new_user
+ * trigger (newest: 20261227000000_remove_address.sql) copies them into user_settings (with the time), makes the
+ * display name from the names, then removes them from the metadata. If the email already has an account, Supabase
+ * answers the same way and sends nothing, so strangers can't find out who has one.
  * blockedDomains: the throwaway email services (see signUpSchema). Throws if it fails.
  */
 export async function signUp(fields: SignUpFields, captchaToken: string, blockedDomains: string[]) {
@@ -218,6 +220,10 @@ export async function saveProfile(fields: ProfileFields, visibility: ProfileVisi
     bio: profile.bio,
     // The column is a date: an empty birthday is saved as none.
     birth_date: profile.birthDate || null,
+    // Saving the birthday, gender or educational background is the teacher's consent (the hint above Save says so).
+    // The database keeps this version, with its own time, only when those details change, and clears both when
+    // they're all empty (stamp_details_consent, 20261231002500_details_consent.sql).
+    details_consent_version: LEGAL_VERSION,
     gender: profile.gender,
     full_name_public: shown.fullNamePublic,
     education_public: shown.educationPublic,

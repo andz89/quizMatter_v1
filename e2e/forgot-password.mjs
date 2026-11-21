@@ -378,6 +378,10 @@ try {
     "sign up has no contact number, birthday, gender or education boxes",
     (await signUp.locator("#contactNumber, #birthDate, #gender, #educationLevel, #educationField").count()) === 0,
   );
+  check(
+    "the agree box says the teacher is 18 or older",
+    ((await signUp.locator('label[for="agreeTerms"]').textContent()) ?? "").startsWith("I'm 18 or older and I agree"),
+  );
   await signUp.locator("#email").fill(teacher.email);
   await signUp.locator("#password").fill("Sign-up-pass-123");
   await signUp.locator("#confirmPassword").fill("Sign-up-pass-123");

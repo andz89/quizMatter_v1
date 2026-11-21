@@ -89,7 +89,9 @@ export default function PrivacyPage() {
         </p>
         <p>
           <strong>Your agreement.</strong> Which version of the Terms of Use and this Privacy Policy you agreed to at
-          sign up, and when.
+          sign up, and when. If you add your birthday, gender or educational background, also which version of this
+          Privacy Policy was in place when you last saved a change to them, and when (if you remove them all, this
+          record goes too).
         </p>
         <p>
           <strong>Safety records.</strong> The internet address you sign up or ask for a password reset from (to stop

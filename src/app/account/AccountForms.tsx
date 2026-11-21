@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ChangeEvent, type FormEvent, type ReactNode } from "react";
+import { useRef, useState, type ChangeEvent, type FormEvent, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { isAuthError, isAuthRetryableFetchError } from "@supabase/supabase-js";
@@ -155,6 +155,8 @@ export function PersonalDetailsForm({
   const isPaused = useIsPaused("settings", "settings_daily");
   // The birthday picker's limits: 18 to 100 years old today.
   const birthDates = birthDateRange(todayInManila());
+  // A half-typed date (e.g. the day erased) reads as "" like an empty box; the browser marks it badInput.
+  const birthDateInput = useRef<HTMLInputElement>(null);
   const isChanged =
     (Object.keys(profile) as (keyof ProfileFields)[]).some((key) => fields[key].trim() !== profile[key]) ||
     (Object.keys(visibility) as (keyof ProfileVisibility)[]).some((key) => shown[key] !== visibility[key]);
@@ -174,6 +176,9 @@ export function PersonalDetailsForm({
 
   const save = async (e: FormEvent) => {
     e.preventDefault();
+    // Without this, saving would quietly remove the saved birthday. Most browsers' own form check already stops a
+    // half-typed date; this is for one that doesn't.
+    if (birthDateInput.current?.validity.badInput) return setError("Enter your full birthday, or clear it.");
     const checked = profileSchema.safeParse(fields);
     if (!checked.success) return setError(checked.error.issues[0].message);
     setError("");
@@ -248,6 +253,7 @@ export function PersonalDetailsForm({
             <label htmlFor="birthDate" className={labelClass}>Birthday</label>
             <input
               id="birthDate"
+              ref={birthDateInput}
               type="date"
               autoComplete="bday"
               min={birthDates.min}

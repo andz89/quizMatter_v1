@@ -196,7 +196,7 @@ export function SignUpForm({ blockedDomains }: { blockedDomains: string[] }) {
               className="mt-0.5 accent-accent"
             />
             <label htmlFor="agreeTerms" className="text-sm text-text-primary">
-              I agree to the{" "}
+              I&apos;m 18 or older and I agree to the{" "}
               <Link href="/terms" target="_blank" rel="noopener noreferrer" className="font-semibold text-accent hover:underline">
                 Terms of Use
               </Link>{" "}

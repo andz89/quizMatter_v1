@@ -15,8 +15,20 @@ only, so they don't belong at sign up.
 ## Non-goals
 
 - No "finish your profile" reminder after sign up (they're optional).
-- No database change: `user_settings` already takes them empty (`''` / null birthday), `handle_new_user` already
-  saves missing ones empty, and `check_birth_date` skips a null birthday.
+- The details themselves need no database change: `user_settings` already takes them empty (`''` / null birthday),
+  `handle_new_user` already saves missing ones empty, and `check_birth_date` skips a null birthday.
+
+## Added after the code review
+
+- **Age:** sign up asks no birthday now, so the agree box carries the Terms' 18+ rule: "I'm 18 or older and I agree
+  to the Terms of Use and Privacy Policy." (`AGREE_TERMS_MESSAGE` says the same).
+- **Consent record** (`20261231002500_details_consent.sql`): the birthday, gender and educational background are
+  sensitive, and their consent used to ride on the sign up agree box. Now `saveProfile` sends
+  `details_consent_version` (`LEGAL_VERSION`) and the `stamp_details_consent` trigger keeps it with the database's
+  time when those details change (a teacher can't rewrite it), and clears both when they're all empty. The Privacy
+  Policy's "Your agreement" says so.
+- **Half-typed birthday:** a date box with only part of a date reads as empty; the Account page refuses it
+  (`validity.badInput`) instead of saving the birthday as removed.
 
 ## Approaches
 
