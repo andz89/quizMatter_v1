@@ -42,6 +42,9 @@ export type AdminPresentationRow = {
 
 type Sort = "updatedAt" | "createdAt";
 
+// Rows shown at first, and how many more each "Show more" adds.
+const PAGE_SIZE = 10;
+
 const SORTS: { id: Sort; label: string }[] = [
   { id: "updatedAt", label: "Last changed" },
   { id: "createdAt", label: "Newest" },
@@ -60,6 +63,7 @@ const COLUMNS =
 export function AdminPresentations({ rows }: { rows: AdminPresentationRow[] }) {
   const [sort, setSort] = useState<Sort>("updatedAt");
   const [search, setSearch] = useState("");
+  const [limit, setLimit] = useState(PAGE_SIZE);
 
   const query = search.trim().toLowerCase();
   const shown = rows
@@ -79,7 +83,10 @@ export function AdminPresentations({ rows }: { rows: AdminPresentationRow[] }) {
               key={id}
               type="button"
               aria-pressed={sort === id}
-              onClick={() => setSort(id)}
+              onClick={() => {
+                setSort(id);
+                setLimit(PAGE_SIZE);
+              }}
               className={`rounded-button px-3 py-1.5 text-sm transition-colors ${
                 sort === id
                   ? "bg-bg-surface font-semibold text-text-primary shadow-[0_0_0_1px_var(--border-default)]"
@@ -98,7 +105,10 @@ export function AdminPresentations({ rows }: { rows: AdminPresentationRow[] }) {
           <input
             type="search"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setLimit(PAGE_SIZE);
+            }}
             placeholder="Search presentations"
             aria-label="Search presentations"
             className="w-full rounded-input border border-border-default bg-bg-surface py-2 pr-3 pl-9 text-sm text-text-primary outline-none placeholder:text-text-secondary focus:border-text-secondary"
@@ -137,7 +147,7 @@ export function AdminPresentations({ rows }: { rows: AdminPresentationRow[] }) {
             </p>
           </div>
         ) : (
-          shown.map((row) => (
+          shown.slice(0, limit).map((row) => (
             <Row
               key={row.id}
               row={row}
@@ -148,6 +158,22 @@ export function AdminPresentations({ rows }: { rows: AdminPresentationRow[] }) {
           ))
         )}
       </div>
+
+      {/* Every row is already loaded, so "Show more" only reveals 10 more (no waiting, no spinner). */}
+      {shown.length > limit && (
+        <div className="mt-6 flex flex-col items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setLimit(limit + PAGE_SIZE)}
+            className="rounded-button border border-border-default bg-bg-surface px-4 py-2 text-sm font-semibold text-text-primary hover:bg-bg-page"
+          >
+            Show more
+          </button>
+          <p className="text-[13px] text-text-secondary">
+            Showing {limit} of {shown.length}
+          </p>
+        </div>
+      )}
     </>
   );
 }
