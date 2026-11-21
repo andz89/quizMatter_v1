@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { PICKED_LINES_MAX, droppedTextHtml, pickedSlideTexts, stripItemMark, wordLines } from "./wordText";
+import { PICKED_LINES_MAX, droppedTextHtml, pickedSlideTexts, stripItemMark, suggestItems, wordLines } from "./wordText";
 
 const p = (text: string) => `<w:p><w:r><w:t>${text}</w:t></w:r></w:p>`;
 
@@ -107,4 +107,34 @@ test("stripItemMark removes Roman numerals too", () => {
   assert.equal(stripItemMark("iv) Dog"), "Dog");
   assert.equal(stripItemMark("(xii) Dog"), "Dog");
   assert.equal(stripItemMark("Mr. Smith"), "Mr. Smith");
+});
+
+test("suggestItems: a numbered line (or ____ 1.) and the next lines up to 4, stopping at the next question", () => {
+  const lines = [
+    "Directions: Choose the best answer.",
+    "1. What gas do plants take in?",
+    "a. Oxygen",
+    "b. Carbon dioxide",
+    "c. Nitrogen",
+    "d. Helium",
+    "____ 2. The sun is a star.",
+    "a. True",
+    "b. False",
+    "3) Only one choice",
+    "a. Lonely",
+    "4. Five lines follow",
+    "a", "b", "c", "d", "e",
+  ];
+  assert.deepEqual(suggestItems(lines), [
+    { question: 1, options: [2, 3, 4, 5] },
+    { question: 6, options: [7, 8] },
+    { question: 11, options: [12, 13, 14, 15] },
+  ]);
+  assert.deepEqual(suggestItems(["a. no question", "b. here"]), []);
+});
+
+test("stripItemMark removes a blank before the number", () => {
+  assert.equal(stripItemMark("____ 2. The sun is a star."), "The sun is a star.");
+  assert.equal(stripItemMark("_____2) The sun"), "The sun");
+  assert.equal(stripItemMark("____ is the capital"), "____ is the capital");
 });

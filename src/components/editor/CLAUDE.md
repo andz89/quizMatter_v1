@@ -70,6 +70,10 @@ editor / view / review, and renders `Editor.tsx`, which calls `store.loadPresent
   (`pickedSlideTexts`: the first ticked is the question, the next ones A–D in click order, marks removed); from 2
   ticks, "Add as a new slide" adds a choice slide after the active one (`insertSlides`, which keeps the slide limit)
   and clears the ticks (component state, so closing the panel clears them too).
+  "Show suggestions" (off until clicked; off again for a new file) colors each item `suggestItems` finds: a
+  numbered line ("1.", "2)", "____ 3.") as the question (violet row) and the lines under it, up to 4 and stopping at
+  the next numbered line, as its choices (violet edge, indented); 2 choices at least. The question row's Create adds
+  that item like Add as a new slide, then says "Added" (Mint; a click adds it again).
   Test: `e2e/word-file.mjs`.
 - **Slides from other presentations** (`PresentationsPanel`): published presentations (not this one or its shared
   copy) in a row per subject, plus a Saved tab. Opening one refuses a presentation saved by newer app code

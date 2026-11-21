@@ -275,4 +275,5 @@ when another is picked), moving into and between boxes (Alt keeps a free picture
   question box and answer B replace their text without "1." / "b.", Undo brings B back, a line dropped on the slide
   outside the boxes changes nothing, tapping a line's handle then answer C puts it there (Escape lets go of a
   held line), ticking lines fills the New slide preview in click order (Add shows from 2
-  ticks) and Add as a new slide adds that slide and clears the ticks, and the list stays after closing and opening the panel.
+  ticks) and Add as a new slide adds that slide and clears the ticks, Show suggestions colors the numbered question and its
+  choices and Create adds it (then "Added"), Hide takes the colors away, and the list stays after closing and opening the panel.

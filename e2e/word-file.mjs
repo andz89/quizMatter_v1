@@ -129,6 +129,18 @@ try {
   );
   check("the ticks are cleared after adding", (await preview.count()) === 0);
 
+  // Suggestions: the numbered question and the lines under it, colored, with Create.
+  check("no suggestion colors before Show suggestions", (await page.locator("[data-suggested]").count()) === 0);
+  await page.getByRole("button", { name: "Show suggestions" }).click();
+  check("Show suggestions colors the question and its 2 choices",
+    (await page.locator('[data-suggested="question"]').count()) === 1 && (await page.locator('[data-suggested="option"]').count()) === 2);
+  const slidesBefore = await page.locator("[data-slide-id]").count();
+  await page.locator('[data-suggested="question"]').getByRole("button", { name: "Create" }).click();
+  check("Create adds the suggested item as a slide", await waitFor(async () => (await page.locator("[data-slide-id]").count()) === slidesBefore + 1));
+  check("its button then says Added", (await page.locator('[data-suggested="question"]').getByRole("button", { name: "Added" }).count()) === 1);
+  await page.getByRole("button", { name: "Hide suggestions" }).click();
+  check("Hide suggestions takes the colors away", (await page.locator("[data-suggested]").count()) === 0);
+
   await page.getByRole("button", { name: "Elements" }).click();
   await page.getByRole("button", { name: "Word file" }).click();
   check("closing and opening the panel keeps the list", (await page.locator("[data-word-line]").count()) === 3);

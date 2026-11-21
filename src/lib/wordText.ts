@@ -149,10 +149,35 @@ export function wordLines(xml: string): string[] {
 /**
  * A line without its leading item number, letter or Roman numeral ("1.", "12)", "a.", "B)", "(c)", "(3)", "II.",
  * "iv)") and the space after it: the answer boxes already show A–D. Without the space it isn't a mark ("1.5 kg",
- * "2.Dog"); "Mr." isn't a Roman numeral.
+ * "2.Dog"); "Mr." isn't a Roman numeral. A blank for the answer in front of the mark ("____ 1.") goes too; a blank
+ * with no mark after it is part of the text ("____ is the capital").
  */
 export function stripItemMark(line: string): string {
-  return line.replace(/^\s*(?:\(\s*(?:\d{1,3}|[a-zA-Z]|[ivxlc]{2,6}|[IVXLC]{2,6})\s*\)|(?:\d{1,3}|[a-zA-Z]|[ivxlc]{2,6}|[IVXLC]{2,6})[.)])\s+/, "").trim();
+  return line
+    .replace(/^\s*(?:_{2,}\s*)?(?:\(\s*(?:\d{1,3}|[a-zA-Z]|[ivxlc]{2,6}|[IVXLC]{2,6})\s*\)|(?:\d{1,3}|[a-zA-Z]|[ivxlc]{2,6}|[IVXLC]{2,6})[.)])\s+/, "")
+    .trim();
+}
+
+/** A line that starts a numbered exam item: "1. …", "12) …", or with a blank for the answer first, "____ 1. …". */
+const QUESTION_LINE = /^\s*(?:_{2,}\s*)?\d{1,3}[.)]\s+\S/;
+
+/** A suggested exam item: the question's line number and its answer choices' (up to 4). */
+export type SuggestedItem = { question: number; options: number[] };
+
+/**
+ * The Word file panel's suggestions: each numbered line is a question, and the lines after it, up to 4 and
+ * stopping at the next question, are its answer choices. An item needs at least 2 choices (true / false), so a
+ * numbered line in the directions or a question with one line under it isn't suggested.
+ */
+export function suggestItems(lines: string[]): SuggestedItem[] {
+  const items: SuggestedItem[] = [];
+  lines.forEach((line, question) => {
+    if (!QUESTION_LINE.test(line)) return;
+    const options: number[] = [];
+    for (let i = question + 1; i < lines.length && options.length < 4 && !QUESTION_LINE.test(lines[i]); i++) options.push(i);
+    if (options.length >= 2) items.push({ question, options });
+  });
+  return items;
 }
 
 /**

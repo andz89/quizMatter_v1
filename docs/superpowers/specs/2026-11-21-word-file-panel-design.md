@@ -21,6 +21,14 @@ choice. The teacher decides where every line goes, so the app never has to guess
 - A line longer than the question / choice limit (`PLAIN_TEXT_MAX`) is not dropped: toast `TEXT_LIMIT_MESSAGE`.
 - "Open another file" replaces the list.
 
+## Suggestions (added 2026-11-21)
+
+- A "Show suggestions" button (off until clicked) colors the items the app finds: a line starting with a number
+  ("1.", "2)", or a blank first, "____ 3.") is a question; the lines under it, up to 4 and stopping at the next
+  numbered line, are its choices. At least 2 choices (true / false counts). The question row gets Create, which adds
+  that item as a choice slide after the active one and then shows "Added" (a click adds it again).
+- The "____" blank in front of a number is removed from the question like the number is.
+
 ## Review fixes (2026-11-21)
 
 - Equations are read as plain text (x², H₂O, (x+1)/2, ³√8, brackets, ∑ / ∫), plus the non-breaking hyphen and

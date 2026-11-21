@@ -261,7 +261,8 @@ data. Spec: `docs/superpowers/specs/2026-10-23-stable-presentation-data-design.m
   and line break, only `<w:t>` text, a text box's `mc:Fallback` copy skipped, nested paragraphs their own line; equations as plain text: x², H₂O,
   (x+1)/2, ³√8, [a], ∑ᵢ₌₁ⁿi; the non-breaking hyphen; Insert → Symbol's Greek letters and math signs, nothing for
   Wingdings),
-  `stripItemMark`, `droppedTextHtml`, `pickedSlideTexts` + `PICKED_LINES_MAX` (ticked lines → question and A–D), `WORD_LINES_MAX` (2,000). Tests: `wordText.test.ts`, `wordFile.test.ts`.
+  `stripItemMark`, `droppedTextHtml`, `pickedSlideTexts` + `PICKED_LINES_MAX` (ticked lines → question and A–D), `suggestItems` (numbered lines and up to 4
+  lines under each, for Show suggestions; `stripItemMark` also removes a "____" blank in front of a number), `WORD_LINES_MAX` (2,000). Tests: `wordText.test.ts`, `wordFile.test.ts`.
 - `sameValue.ts`: whether two settings hold the same values in any key order (the database re-sorts saved keys, e.g.
   a fraction comes back as `{parts, whole, shaded}`); `MathToolControls` uses it. Tests: `sameValue.test.ts`.
 - `support.ts`: `SUPPORT_EMAIL` and `FACEBOOK_URL`, the one place each is written (the support address is an alias
