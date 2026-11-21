@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { useEditorStore } from "./store";
-import { ELEMENT_DRAG_MIME, PHOTO_DRAG_MIME } from "./constants";
+import { ELEMENT_DRAG_MIME, PHOTO_DRAG_MIME, TEXT_DRAG_MIME } from "./constants";
 import { addPhotoToSlide, checkCanUpload, uploadPhoto } from "./photos";
 import { photoSchema } from "./schema";
 import { PHOTO_ID } from "./svgLibrary";
@@ -11,15 +11,19 @@ import { PHOTO_ID } from "./svgLibrary";
  * dragged from the Elements panel, a photo from the Photos panel, or photo files dragged from the computer. `isDragOver` drives the hover highlight while something compatible
  * is being dragged over it; a depth counter (rather than a plain boolean) keeps that highlight stable
  * while the pointer moves across the container's own children, which fire their own drag-leave/enter.
+ * With `onTextDrop` (question and answer boxes), a line from the Word file panel is taken too (the box passes it
+ * to the store's `putLineInBox`).
  */
-export function useElementDropTarget(slideId: string, containerId: string | null) {
+export function useElementDropTarget(slideId: string, containerId: string | null, onTextDrop?: (text: string) => void) {
   const addElement = useEditorStore((s) => s.addElement);
   const zoom = useEditorStore((s) => s.zoom);
   const dragDepth = useRef(0);
   const [isDragOver, setIsDragOver] = useState(false);
 
   const isElementDrag = (e: React.DragEvent) =>
-    [ELEMENT_DRAG_MIME, PHOTO_DRAG_MIME, "Files"].some((type) => e.dataTransfer.types.includes(type));
+    [ELEMENT_DRAG_MIME, PHOTO_DRAG_MIME, "Files", ...(onTextDrop ? [TEXT_DRAG_MIME] : [])].some((type) =>
+      e.dataTransfer.types.includes(type),
+    );
 
   return {
     isDragOver,
@@ -40,6 +44,15 @@ export function useElementDropTarget(slideId: string, containerId: string | null
         if (dragDepth.current === 0) setIsDragOver(false);
       },
       onDrop: (e: React.DragEvent) => {
+        const line = onTextDrop ? e.dataTransfer.getData(TEXT_DRAG_MIME) : "";
+        if (onTextDrop && line) {
+          e.preventDefault();
+          e.stopPropagation();
+          dragDepth.current = 0;
+          setIsDragOver(false);
+          onTextDrop(line);
+          return;
+        }
         const assetId = e.dataTransfer.getData(ELEMENT_DRAG_MIME);
         const photoJson = e.dataTransfer.getData(PHOTO_DRAG_MIME);
         // Anything that isn't a photo is still dropped here (so the browser doesn't open it), and

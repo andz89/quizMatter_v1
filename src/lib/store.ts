@@ -51,7 +51,9 @@ import { newTable, type TableCellSpot } from "./table";
 import { fitIntoRow, gridRowNeeds, shareOut } from "./optionRows";
 import { measureOptionNeeds } from "./measureOptions";
 import type { Photo, PresentationDetails, Presentation, ReviewerFields, Slide, SlideType, SvgElement } from "./schema";
-import { MAX_ITEM_COUNT, MAX_SLIDES, TOO_MANY_SLIDES_MESSAGE } from "./schema";
+import { MAX_ITEM_COUNT, MAX_SLIDES, PLAIN_TEXT_MAX, TOO_MANY_SLIDES_MESSAGE } from "./schema";
+import { TEXT_LIMIT_MESSAGE } from "./textLimit";
+import { droppedTextHtml, stripItemMark } from "./wordText";
 
 type ElementPatch = Partial<Omit<SvgElement, "id" | "assetId">>;
 
@@ -124,6 +126,9 @@ export type LayerMove = "forward" | "backward" | "front" | "back";
 // squares/rectangles), a diagram box's background, border or text (the picked box, or every box), or a
 // table's cell backgrounds (the picked cells, or every cell).
 export type ColorPanelTarget = "fill" | "border" | "boxFill" | "boxBorder" | "boxText" | "cellFill";
+
+/** The Word file open in the Word file panel: its name and lines (`more`: the file had more than are listed). */
+export type WordFile = { name: string; lines: string[]; more: boolean };
 
 /**
  * Changes which elements draw on top. Later in the list = drawn on top, and only elements in the same
@@ -586,6 +591,21 @@ interface EditorState {
   isPresentationsPanelOpen: boolean;
   togglePresentationsPanel: () => void;
   closePresentationsPanel: () => void;
+
+  // The Word file panel lists a .docx's lines, to drag onto question and answer boxes. The file stays in this tab
+  // (never uploaded or saved); the list is kept while the panel is closed.
+  isWordPanelOpen: boolean;
+  toggleWordPanel: () => void;
+  closeWordPanel: () => void;
+  wordFile: WordFile | null;
+  setWordFile: (wordFile: WordFile | null) => void;
+  // A line picked up with a tap on its handle (for touch screens, where dragging doesn't work): the next tap on a
+  // question or answer box puts it there (putLineInBox). null = nothing held.
+  heldWordLine: string | null;
+  setHeldWordLine: (line: string | null) => void;
+  // Puts a Word file line in a question box or answer choice (a drop or a tap): its leading "1." / "a)" removed, the
+  // box's text replaced (keeping its first paragraph's settings). A line over PLAIN_TEXT_MAX is refused with a toast.
+  putLineInBox: (slideId: string, boxId: string, line: string) => void;
 
   // Which box a placed element is currently being dragged over, while it's being moved from a
   // different box — drives that box's "drop here" highlight. Not part of presentation data.
@@ -1775,6 +1795,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         isBackgroundPanelOpen: next ? false : state.isBackgroundPanelOpen,
         isEffectsPanelOpen: next ? false : state.isEffectsPanelOpen,
         isPresentationsPanelOpen: next ? false : state.isPresentationsPanelOpen,
+        isWordPanelOpen: next ? false : state.isWordPanelOpen,
         isPhotosPanelOpen: next ? false : state.isPhotosPanelOpen,
       };
     }),
@@ -1791,6 +1812,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         isBackgroundPanelOpen: next ? false : state.isBackgroundPanelOpen,
         isEffectsPanelOpen: next ? false : state.isEffectsPanelOpen,
         isPresentationsPanelOpen: next ? false : state.isPresentationsPanelOpen,
+        isWordPanelOpen: next ? false : state.isWordPanelOpen,
       };
     }),
   closePhotosPanel: () => set({ isPhotosPanelOpen: false }),
@@ -1808,6 +1830,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         isBackgroundPanelOpen: next ? false : state.isBackgroundPanelOpen,
         isEffectsPanelOpen: next ? false : state.isEffectsPanelOpen,
         isPresentationsPanelOpen: next ? false : state.isPresentationsPanelOpen,
+        isWordPanelOpen: next ? false : state.isWordPanelOpen,
         isPhotosPanelOpen: next ? false : state.isPhotosPanelOpen,
       };
     }),
@@ -1823,6 +1846,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         isBackgroundPanelOpen: next ? false : state.isBackgroundPanelOpen,
         isEffectsPanelOpen: next ? false : state.isEffectsPanelOpen,
         isPresentationsPanelOpen: next ? false : state.isPresentationsPanelOpen,
+        isWordPanelOpen: next ? false : state.isWordPanelOpen,
         isPhotosPanelOpen: next ? false : state.isPhotosPanelOpen,
       };
     }),
@@ -1837,6 +1861,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         isColorPanelOpen: next ? false : state.isColorPanelOpen,
         isEffectsPanelOpen: next ? false : state.isEffectsPanelOpen,
         isPresentationsPanelOpen: next ? false : state.isPresentationsPanelOpen,
+        isWordPanelOpen: next ? false : state.isWordPanelOpen,
         isPhotosPanelOpen: next ? false : state.isPhotosPanelOpen,
       };
     }),
@@ -1852,6 +1877,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         isColorPanelOpen: next ? false : state.isColorPanelOpen,
         isBackgroundPanelOpen: next ? false : state.isBackgroundPanelOpen,
         isPresentationsPanelOpen: next ? false : state.isPresentationsPanelOpen,
+        isWordPanelOpen: next ? false : state.isWordPanelOpen,
         isPhotosPanelOpen: next ? false : state.isPhotosPanelOpen,
       };
     }),
@@ -1868,9 +1894,47 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         isBackgroundPanelOpen: next ? false : state.isBackgroundPanelOpen,
         isEffectsPanelOpen: next ? false : state.isEffectsPanelOpen,
         isPhotosPanelOpen: next ? false : state.isPhotosPanelOpen,
+        isWordPanelOpen: next ? false : state.isWordPanelOpen,
       };
     }),
   closePresentationsPanel: () => set({ isPresentationsPanelOpen: false }),
+
+  isWordPanelOpen: false,
+  toggleWordPanel: () =>
+    set((state) => {
+      const next = !state.isWordPanelOpen;
+      return {
+        isWordPanelOpen: next,
+        isElementsPanelOpen: next ? false : state.isElementsPanelOpen,
+        isColorPanelOpen: next ? false : state.isColorPanelOpen,
+        isBackgroundPanelOpen: next ? false : state.isBackgroundPanelOpen,
+        isEffectsPanelOpen: next ? false : state.isEffectsPanelOpen,
+        isPresentationsPanelOpen: next ? false : state.isPresentationsPanelOpen,
+        isPhotosPanelOpen: next ? false : state.isPhotosPanelOpen,
+      };
+    }),
+  closeWordPanel: () => set({ isWordPanelOpen: false, heldWordLine: null }),
+  wordFile: null,
+  setWordFile: (wordFile) => set({ wordFile }),
+  heldWordLine: null,
+  setHeldWordLine: (line) => set({ heldWordLine: line }),
+  putLineInBox: (slideId, boxId, line) => {
+    set({ heldWordLine: null });
+    const text = stripItemMark(line);
+    if (!text) return;
+    if (text.length > PLAIN_TEXT_MAX) {
+      toast.error(TEXT_LIMIT_MESSAGE, { id: "text-limit" });
+      return;
+    }
+    const slide = get().presentation.slides.find((s) => s.id === slideId);
+    if (!slide) return;
+    if (boxId === QUESTION_CONTAINER_ID) {
+      get().updateQuestion(slideId, text, droppedTextHtml(slide.questionHtml, text));
+      return;
+    }
+    const option = slide.options.find((o) => o.id === boxId);
+    if (option) get().updateOption(slideId, boxId, text, droppedTextHtml(option.html, text));
+  },
 
   dragOverContainerId: null,
   setDragOverContainerId: (containerId) => set({ dragOverContainerId: containerId }),

@@ -37,6 +37,7 @@
     "@tiptap/extension-underline": "^3.31.3",
     "@tiptap/pm": "^3.31.3",
     "@tiptap/react": "^3.31.3",
+    "fflate": "^0.8.3",
     "image-size": "^2.0.4",
     "lucide-react": "^1.48.0",
     "motion": "^13.4.6",

@@ -254,6 +254,17 @@ data. Spec: `docs/superpowers/specs/2026-10-23-stable-presentation-data-design.m
 - Text: `richText.ts` (tiptap setup, safe HTML), `format.ts` (dates, labels), `blanks.ts` (`blankRuns`,
   `markBlanks`: "___" blanks joined into one line, display only; tests `blanks.test.ts`) and `blankLines.ts` (the
   same in the editor, a Tiptap decoration). See `src/components/editor/CLAUDE.md`, "Slide text size".
+- `wordText.ts` / `wordFile.ts`: the editor's Word file panel (see `src/components/editor/CLAUDE.md`).
+  `wordFile.ts` (`readWordFile`, `readWordBytes`) unzips only `word/document.xml` and `word/numbering.xml` with `fflate`, in the browser
+  (20 MB at most, and its text part 20 MB unzipped, checked from the zip's list before unzipping; `.docx` only,
+  `WORD_FILE_ERROR`). `wordText.ts` (no imports): `wordLines` (one line per paragraph
+  and line break, only `<w:t>` text, a text box's `mc:Fallback` copy skipped, nested paragraphs their own line; equations as plain text: x², H₂O,
+  (x+1)/2, ³√8, [a], ∑ᵢ₌₁ⁿi; the non-breaking hyphen; two choices side by side (a tab or 3+ spaces before "C.") split into two lines; Insert → Symbol's Greek letters and math signs, nothing for
+  Wingdings),
+  `parseNumbering` (Word's list button numbers: `wordLines` writes "1.", "a)", "(I)" in front of a list paragraph,
+  counting per list and depth like Word, restarts and start values kept, bullets left out, a tracked change's old
+  numbering skipped), `stripItemMark`, `droppedTextHtml`, `pickedSlideTexts` + `PICKED_LINES_MAX` (ticked lines → question and A–D), `suggestItems` (numbered lines and up to 4
+  lines under each, for Show suggestions; `stripItemMark` also removes a "____" blank in front of a number), `WORD_LINES_MAX` (2,000). Tests: `wordText.test.ts`, `wordFile.test.ts`.
 - `sameValue.ts`: whether two settings hold the same values in any key order (the database re-sorts saved keys, e.g.
   a fraction comes back as `{parts, whole, shaded}`); `MathToolControls` uses it. Tests: `sameValue.test.ts`.
 - `support.ts`: `SUPPORT_EMAIL` and `FACEBOOK_URL`, the one place each is written (the support address is an alias

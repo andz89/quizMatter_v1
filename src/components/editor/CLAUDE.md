@@ -52,8 +52,33 @@ editor / view / review, and renders `Editor.tsx`, which calls `store.loadPresent
   `ElementSvg` draws it, `TextBoxContent` is a text box, `DiagramBoxEditor` / `DiagramBoxButtons` are diagrams,
   `TableContent.tsx` is a table (see "Tables").
 - Side panels (all use the `side-panel` class, sideways rows use `ScrollRow`): `ElementsPanel`, `PhotosPanel`,
-  `ColorPanel`, `BackgroundPanel`, `EffectsPanel`, `PresentationsPanel`. They stay open after you add something
-  (don't auto-close them).
+  `ColorPanel`, `BackgroundPanel`, `EffectsPanel`, `PresentationsPanel`, `WordFilePanel`. They stay open after you
+  add something (don't auto-close them).
+- **Word file panel** (`WordFilePanel`, the rail's "Word file"; spec
+  `docs/superpowers/specs/2026-11-21-word-file-panel-design.md`): a teacher opens a `.docx` (`readWordFile`,
+  `src/lib/wordFile.ts`, read in the browser only: never uploaded or saved, so no Privacy Policy line) and sees its
+  text one line per piece (`wordLines`; pictures left out; at most `WORD_LINES_MAX`), each with Copy. A line is
+  dragged under `TEXT_DRAG_MIME` (only our own type: ProseMirror's drop reads only plain text, HTML or links, so the
+  box's Tiptap lets it through) onto a question box or answer choice (`useElementDropTarget`'s `onTextDrop`, given
+  only by `QuestionContainer` and `OptionCard`). Touch screens can't drag: a tap on a line's handle holds it (store
+  `heldWordLine`, a "Tap a box" note; Escape or Cancel lets go; closing the panel too), every box is tinted, and the
+  box's `onClickCapture` takes the next tap. Both end in the store's `putLineInBox`: it removes a leading "1." / "a)"
+  / "II." (`stripItemMark`), refuses a line over `PLAIN_TEXT_MAX` (`TEXT_LIMIT_MESSAGE`), and replaces the box's text
+  keeping its first paragraph's settings (`droppedTextHtml`), through `updateQuestion` / `updateOption` (one undo
+  step). The list is `wordFile` in the store: kept while the panel is closed, gone on reload.
+  Each line also has a checkbox: ticked lines (at most `PICKED_LINES_MAX`, 5) fill a "New slide" preview card that floats beside the panel, at its top, over the slides
+  (`pickedSlideTexts`: the first ticked is the question, the next ones A–D in click order, marks removed); from 2
+  ticks, "Add as a new slide" adds a choice slide after the active one (`insertSlides`, which keeps the slide limit)
+  and clears the ticks (component state, so closing the panel clears them too).
+  Layout: only the list of lines scrolls; above it, once a file is open, one row holds the file name and icon buttons
+  whose words show on hover (Open another file, Show / Hide suggestions with the count found, ⓘ for the help text),
+  so the list keeps the room. Before a file is open: the big "Open a Word file" button and its help line.
+  "Show suggestions" (off until clicked; off again for a new file) colors each item `suggestItems` finds: a
+  numbered line ("1.", "2)", "____ 3.", or numbered by Word's list button, read from `numbering.xml`) as the question (violet row) and the lines under it, up to 4 and stopping at
+  the next numbered line, as its choices (violet edge, indented; lettered ones in A–D order, since two columns read A, C, B, D); 2
+  choices at least. The question row's Create adds
+  that item like Add as a new slide, then says "Added" (Mint; a click adds it again).
+  Test: `e2e/word-file.mjs`.
 - **Slides from other presentations** (`PresentationsPanel`): published presentations (not this one or its shared
   copy) in a row per subject, plus a Saved tab. Opening one refuses a presentation saved by newer app code
   (`isNewerThanApp`, the `QMOLD` words) and leaves out a slide that doesn't parse. A click on a slide adds a copy right

@@ -209,13 +209,13 @@ try {
   await mark6.click();
   await page.waitForTimeout(400);
   const fitted = Number.parseFloat(await fontSize("s6-a"));
-  check("the click makes that option's text smaller", fitted < 56, String(fitted));
+  check("the click makes that option's text smaller", fitted < 45, String(fitted));
   check("then all of it shows (no +…)", (await option("s6-a").locator(MARK).count()) === 0);
   check("only that option changed", JSON.stringify(await Promise.all(["s6-b", "s6-c", "s6-d"].map(fontSize))) === JSON.stringify(others6));
   await page.waitForTimeout(1200);
   await page.keyboard.press("Control+z");
   await page.waitForTimeout(400);
-  check("one undo puts the size back", (await fontSize("s6-a")) === "56px", await fontSize("s6-a"));
+  check("one undo puts the size back", (await fontSize("s6-a")) === "45px", await fontSize("s6-a"));
 
   // ─── The same for the question ───────────────────────────────────────────────────────────────────────────
   await item("s7").scrollIntoViewIfNeeded();

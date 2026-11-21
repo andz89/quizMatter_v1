@@ -111,7 +111,7 @@ Tests that delete data (the announcements ones empty the announcements table) do
   saved cell's `fill` back (none for a plain cell).
 - `claude-text-fit.mjs`: Claude's connector and text that never shrinks: the format says so and that option rows are
   sized by their text; Claude's own 90 px options under its own 160 px strip and a question too long for its
-  `questionHeight` are reported as cut off; with the size left out, the options keep 56 px, the strip makes room, and
+  `questionHeight` are reported as cut off; with the size left out, the options keep 45 px, the strip makes room, and
   the draft opens with no "+…".
 - `claude-number-fixes.mjs`: Claude's connector pulls slips into range instead of refusing: a 12 px and an 8 px
   tall arrow, a 10 px table text, a "stripHeight" of 600 and a "questionHeight" of 400 are built (the last two named
@@ -264,9 +264,23 @@ when another is picked), moving into and between boxes (Alt keeps a free picture
   Facebook for its box's real width, and Alt+click on a top bar's in-app link is left to the browser.
 - `announcements-pages.mjs`: announcements put straight in the table, checked on the home, saved, liked, search,
   account and editor pages, at desktop and phone width.
+- `search-options-modal.mjs`: the home search. The options open as a modal and the search bar hides meanwhile (no
+  Title row), Escape and ✕ close it, one word in the bar is refused with words, the bar's search uses the title
+  (named in the heading), Enter in a modal field and the footer's Search both search with the options only (no title
+  in the link, the bar emptied, a one-word bar not refused), the bar's ✕ goes home with the title and options
+  cleared, no console errors, and Admin → Photos' modal keeps its box's text (one photo row added with `psql` and
+  removed after, since its box shows only with photos), and at 390 px the modal fits
+  (screenshots `search-options-modal.png`, `search-options-modal-phone.png`).
 - `slide-drag.mjs`: the editor's Presentations panel. Another teacher's shared copy (made with `psql` and the
   `quizmatter.sharing` setting, since its slides change only through sharing); its slides dragged onto my slide (after
   it), the top half of slide 1 (before it), an answer box, the gap under the last slide (end), a question just typed
   in, and back onto the panel (nothing); a click adds after the active slide; one undo takes it out. A drop from newer
   app code or one that isn't a slide is refused with words. Saved: the order shown, new ids, a picture still in its
   own answer box, the source untouched.
+- `word-file.mjs`: the editor's Word file panel. A .docx made in the test (`fflate`) lists one piece per line (an
+  empty line skipped), an old `.doc` is refused with words, Copy copies the line as it is, lines dragged onto the
+  question box and answer B replace their text without "1." / "b.", Undo brings B back, a line dropped on the slide
+  outside the boxes changes nothing, tapping a line's handle then answer C puts it there (Escape lets go of a
+  held line), ticking lines fills the New slide preview in click order (Add shows from 2
+  ticks) and Add as a new slide adds that slide and clears the ticks, Show suggestions colors the numbered question and its
+  choices and Create adds it (then "Added"), Hide takes the colors away, and the list stays after closing and opening the panel.

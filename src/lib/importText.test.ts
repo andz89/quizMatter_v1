@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { getContainerBounds, DEFAULT_QUESTION_HEIGHT, OPTION_FONT_SIZE } from "@/lib/constants";
+import { getContainerBounds, DEFAULT_QUESTION_HEIGHT } from "@/lib/constants";
 import { LINE_HEIGHT_PER_PX, OPTION_TEXT_PADDING, QUESTION_PADDING, optionNeedFor, questionHeightFor, tooLong } from "./importText";
 
 // A "list" slide with a picture strip: its option rows are the shortest the app makes (76 px).
@@ -8,8 +8,8 @@ const shortRow = getContainerBounds("o1", { type: "multiple-choice", layout: "li
 
 test("one line taller than its box is too long (a list row under a picture strip)", () => {
   const room = { width: shortRow.width - OPTION_TEXT_PADDING, height: shortRow.height - OPTION_TEXT_PADDING };
-  assert.equal(tooLong("Paris", room, OPTION_FONT_SIZE), true);
-  assert.equal(tooLong("Paris", { width: 500, height: 200 }, OPTION_FONT_SIZE), false);
+  assert.equal(tooLong("Paris", room, 56), true);
+  assert.equal(tooLong("Paris", { width: 500, height: 200 }, 56), false);
 });
 
 test("text that only fits if every line is filled to the last letter counts as too long", () => {

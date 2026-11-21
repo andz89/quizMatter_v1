@@ -65,7 +65,7 @@ try {
     check("the draft shows no cut-off text", marks === 0, `${marks} marks`);
     const size = await page.locator("[data-container-id]").filter({ hasText: "Moon" }).locator('[style*="font-size"]').first()
       .evaluate((el) => getComputedStyle(el).fontSize);
-    check("the options keep the default size (56 px)", size === "56px", size);
+    check("the options keep the default size (45 px)", size === "45px", size);
     await page.screenshot({ path: SHOTS + "claude-text-fit.png" });
   } else {
     check("send_presentation gives a draft link", false, sent.text.slice(0, 200));

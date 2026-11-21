@@ -49,6 +49,9 @@ export function QuestionContainer({
   questionNumber?: number;
 }) {
   const updateQuestion = useEditorStore((s) => s.updateQuestion);
+  const putLineInBox = useEditorStore((s) => s.putLineInBox);
+  // A Word file line picked up with a tap waits for a tap on a box (touch screens).
+  const isHoldingLine = useEditorStore((s) => s.heldWordLine !== null);
   const setQuestionHeight = useEditorStore((s) => s.setQuestionHeight);
   const setQuestionBox = useEditorStore((s) => s.setQuestionBox);
   const zoom = useEditorStore((s) => s.zoom);
@@ -70,6 +73,8 @@ export function QuestionContainer({
   const { isDragOver, dropHandlers } = useElementDropTarget(
     slide.id,
     QUESTION_CONTAINER_ID,
+    // A line dragged from the Word file panel becomes the question.
+    (line) => putLineInBox(slide.id, QUESTION_CONTAINER_ID, line),
   );
 
   const isSelected = isContainerSelected || isDragOver || isElementDragOver;
@@ -170,6 +175,13 @@ export function QuestionContainer({
         onClick={(e) =>
           selectContainer(QUESTION_CONTAINER_ID, slide.id, e.shiftKey)
         }
+        onClickCapture={(e) => {
+          const line = useEditorStore.getState().heldWordLine;
+          if (line === null) return;
+          e.preventDefault();
+          e.stopPropagation();
+          putLineInBox(slide.id, QUESTION_CONTAINER_ID, line);
+        }}
         {...dropHandlers}
         // A resize handle's drag reaches these through bubbling too (it holds the pointer itself).
         {...(isMovable && {
@@ -192,7 +204,7 @@ export function QuestionContainer({
               }),
           borderColor: isSelected ? "var(--accent)" : "transparent",
           background:
-            isDragOver || isElementDragOver
+            isDragOver || isElementDragOver || isHoldingLine
               ? "color-mix(in srgb, var(--accent) 5%, transparent)"
               : undefined,
         }}
