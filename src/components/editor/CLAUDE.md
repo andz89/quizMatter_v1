@@ -70,6 +70,9 @@ editor / view / review, and renders `Editor.tsx`, which calls `store.loadPresent
   (`pickedSlideTexts`: the first ticked is the question, the next ones A–D in click order, marks removed); from 2
   ticks, "Add as a new slide" adds a choice slide after the active one (`insertSlides`, which keeps the slide limit)
   and clears the ticks (component state, so closing the panel clears them too).
+  Layout: only the list of lines scrolls; above it, once a file is open, one row holds the file name and icon buttons
+  whose words show on hover (Open another file, Show / Hide suggestions with the count found, ⓘ for the help text),
+  so the list keeps the room. Before a file is open: the big "Open a Word file" button and its help line.
   "Show suggestions" (off until clicked; off again for a new file) colors each item `suggestItems` finds: a
   numbered line ("1.", "2)", "____ 3.") as the question (violet row) and the lines under it, up to 4 and stopping at
   the next numbered line, as its choices (violet edge, indented); 2 choices at least. The question row's Create adds

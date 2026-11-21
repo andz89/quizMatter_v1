@@ -11,7 +11,7 @@ import { readWordFile } from "@/lib/wordFile";
 import { PICKED_LINES_MAX, WORD_LINES_MAX, droppedTextHtml, pickedSlideTexts, suggestItems } from "@/lib/wordText";
 import { Spinner } from "@/components/Spinner";
 import { PanelLabel } from "./PanelControls";
-import { CheckIcon, CopyIcon, FileTextIcon, GripVerticalIcon, LightbulbIcon, PlusIcon, XIcon } from "lucide-react";
+import { CheckIcon, CopyIcon, FileTextIcon, FileUpIcon, GripVerticalIcon, InfoIcon, LightbulbIcon, PlusIcon, XIcon } from "lucide-react";
 
 const DOCX_TYPES = ".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 
@@ -122,9 +122,10 @@ export function WordFilePanel() {
   return (
     <div
       data-keep-container-selection="true"
-      className="flex shrink-0 flex-col gap-4 overflow-y-auto border-r border-border-default bg-bg-surface side-panel"
+      // Only the list of lines scrolls: the buttons, the preview and the help above it stay in place.
+      className="flex shrink-0 flex-col gap-4 overflow-hidden border-r border-border-default bg-bg-surface side-panel"
     >
-      <div className="flex items-center justify-between">
+      <div className="flex shrink-0 items-center justify-between">
         <h2 className="text-[15px] font-extrabold text-text-primary">Word file</h2>
         <button
           type="button"
@@ -149,32 +150,30 @@ export function WordFilePanel() {
       />
 
       {!wordFile && (
-        <p className="text-xs text-text-secondary">
+        <p className="shrink-0 text-xs text-text-secondary">
           Open your exam in Word format (.docx). Then drag each line onto a question or an answer choice. The file stays
           on your computer.
         </p>
       )}
 
-      <button
-        type="button"
-        disabled={isReading}
-        onClick={() => inputRef.current?.click()}
-        className={
-          wordFile
-            ? "flex items-center justify-center gap-2 rounded-button border border-border-default px-4 py-2 text-sm font-semibold text-text-primary hover:bg-bg-page disabled:opacity-50"
-            : "flex items-center justify-center gap-2 rounded-button bg-accent btn-press px-4 py-2 text-sm font-semibold text-white hover:bg-accent-hover disabled:opacity-50"
-        }
-      >
-        {isReading ? <Spinner size={16} /> : <FileTextIcon size={16} />}
-        {wordFile ? "Open another file" : "Open a Word file"}
-      </button>
+      {!wordFile && (
+        <button
+          type="button"
+          disabled={isReading}
+          onClick={() => inputRef.current?.click()}
+          className="flex shrink-0 items-center justify-center gap-2 rounded-button bg-accent btn-press px-4 py-2 text-sm font-semibold text-white hover:bg-accent-hover disabled:opacity-50"
+        >
+          {isReading ? <Spinner size={16} /> : <FileTextIcon size={16} />}
+          Open a Word file
+        </button>
+      )}
 
-      {error && <p className="rounded-dropdown bg-danger-soft px-3 py-2 text-xs text-danger-strong">{error}</p>}
+      {error && <p className="shrink-0 rounded-dropdown bg-danger-soft px-3 py-2 text-xs text-danger-strong">{error}</p>}
 
       {heldWordLine !== null && (
         <div
           data-word-held
-          className="sticky top-0 z-20 flex items-center justify-between gap-2 rounded-card border border-accent bg-accent-soft px-3 py-2 text-xs font-semibold text-accent"
+          className="flex shrink-0 items-center justify-between gap-2 rounded-card border border-accent bg-accent-soft px-3 py-2 text-xs font-semibold text-accent"
         >
           Tap a question or answer box to put this line there.
           <button
@@ -190,7 +189,7 @@ export function WordFilePanel() {
       {preview && picked.length > 0 && (
         <section
           data-word-preview
-          className="sticky top-0 z-10 flex flex-col gap-2 rounded-card border border-accent bg-accent-soft p-3"
+          className="flex shrink-0 flex-col gap-2 rounded-card border border-accent bg-accent-soft p-3"
         >
           <div className="flex items-center justify-between">
             <PanelLabel>New slide</PanelLabel>
@@ -224,40 +223,52 @@ export function WordFilePanel() {
       )}
 
       {wordFile && (
-        <section className="flex flex-col gap-2">
-          <p className="truncate text-xs font-semibold text-text-secondary" title={wordFile.name}>
-            {wordFile.name}
-          </p>
-          {wordFile.more && (
-            <p className="text-xs text-text-secondary">Showing the first {WORD_LINES_MAX.toLocaleString()} lines.</p>
-          )}
-          {wordFile.lines.length === 0 && <p className="text-xs text-text-secondary">This file has no text.</p>}
-          {wordFile.lines.length > 0 && (
-            <button
-              type="button"
-              aria-pressed={showSuggestions}
-              onClick={() => setShowSuggestions((on) => !on)}
-              className={`flex items-center justify-center gap-2 rounded-button border px-3 py-1.5 text-xs font-semibold ${
-                showSuggestions ? "border-accent bg-accent-soft text-accent" : "border-border-default text-text-primary hover:bg-bg-page"
-              }`}
+        <section className="flex min-h-0 flex-1 flex-col gap-2">
+          {/* One row: the file name and icon buttons (their words show on hover), so the list keeps the room. */}
+          <div className="flex shrink-0 items-center gap-1">
+            <FileTextIcon size={14} className="shrink-0 text-text-secondary" />
+            <p className="min-w-0 flex-1 truncate text-xs font-semibold text-text-secondary" title={wordFile.name}>
+              {wordFile.name}
+            </p>
+            <IconButton label="Open another file" disabled={isReading} onClick={() => inputRef.current?.click()}>
+              {isReading ? <Spinner size={14} /> : <FileUpIcon size={16} />}
+            </IconButton>
+            {wordFile.lines.length > 0 && (
+              <IconButton
+                label={showSuggestions ? "Hide suggestions" : "Show suggestions"}
+                title={
+                  showSuggestions
+                    ? `Hide suggestions (${suggestions.count} ${suggestions.count === 1 ? "question" : "questions"} found)`
+                    : "Show suggestions: each numbered line and the lines under it (up to 4) as one question, with Create"
+                }
+                isOn={showSuggestions}
+                onClick={() => setShowSuggestions((on) => !on)}
+              >
+                <LightbulbIcon size={16} />
+                {showSuggestions && (
+                  <span className="absolute -right-1 -top-1 min-w-4 rounded-dropdown bg-accent px-1 text-center text-[10px] font-bold leading-4 text-white">
+                    {suggestions.count}
+                  </span>
+                )}
+              </IconButton>
+            )}
+            <span
+              tabIndex={0}
+              title="Tick a question and its answer choices to make a slide, drag a line onto a box, or tap a line's handle and then a box. Show suggestions finds numbered questions for you."
+              aria-label="How to use this panel"
+              className="flex h-8 w-8 shrink-0 cursor-help items-center justify-center rounded-dropdown text-text-secondary hover:bg-bg-page"
             >
-              <LightbulbIcon size={14} />
-              {showSuggestions ? "Hide suggestions" : "Show suggestions"}
-            </button>
+              <InfoIcon size={16} />
+            </span>
+          </div>
+          {wordFile.more && (
+            <p className="shrink-0 text-xs text-text-secondary">Showing the first {WORD_LINES_MAX.toLocaleString()} lines.</p>
           )}
-          {showSuggestions && (
-            <p className="text-xs text-text-secondary">
-              {suggestions.count === 0
-                ? "No numbered questions found. Tick lines or drag them instead."
-                : `Found ${suggestions.count} ${suggestions.count === 1 ? "question" : "questions"}: a numbered line and the lines under it (up to 4). Check each one, then click Create.`}
-            </p>
+          {wordFile.lines.length === 0 && <p className="shrink-0 text-xs text-text-secondary">This file has no text.</p>}
+          {showSuggestions && suggestions.count === 0 && (
+            <p className="shrink-0 text-xs text-text-secondary">No numbered questions found. Tick lines or drag them instead.</p>
           )}
-          {wordFile.lines.length > 0 && picked.length === 0 && !showSuggestions && (
-            <p className="text-xs text-text-secondary">
-              Tick a question and its answer choices to make a slide, or drag a line onto a box.
-            </p>
-          )}
-          <ul className="flex flex-col gap-1.5">
+          <ul data-word-lines className="-mr-2 flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto pr-2 [scrollbar-gutter:stable] [scrollbar-width:thin]">
             {wordFile.lines.map((line, i) => {
               const place = picked.indexOf(i);
               const suggestion = suggestions.byLine.get(i);
@@ -345,5 +356,39 @@ function PreviewBox({ label, text }: { label: string; text: string }) {
         {text || "—"}
       </span>
     </div>
+  );
+}
+
+/** A small icon button in the file row; its words show on hover (`title`) and to screen readers (`label`). */
+function IconButton({
+  label,
+  title = label,
+  isOn,
+  disabled = false,
+  onClick,
+  children,
+}: {
+  label: string;
+  title?: string;
+  // Set only for a switch (Show suggestions): it then reads as pressed or not.
+  isOn?: boolean;
+  disabled?: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      aria-pressed={isOn}
+      title={title}
+      disabled={disabled}
+      onClick={onClick}
+      className={`relative flex h-8 w-8 shrink-0 items-center justify-center rounded-dropdown disabled:opacity-50 ${
+        isOn ? "bg-accent-soft text-accent" : "text-text-primary hover:bg-bg-page"
+      }`}
+    >
+      {children}
+    </button>
   );
 }
