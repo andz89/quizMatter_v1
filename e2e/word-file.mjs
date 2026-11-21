@@ -1,0 +1,107 @@
+// The editor's Word file panel: open a .docx, see one line per piece, copy a line, drag lines onto the question box
+// and an answer choice (the "1." / "b." marks are removed, the drop replaces the text, Undo brings it back), a line
+// dropped on the slide outside the boxes changes nothing, and a file that isn't a .docx is refused.
+import { randomUUID } from "node:crypto";
+import { strToU8, zipSync } from "fflate";
+import { chromium } from "playwright";
+import { APP, SHOTS, api, check, deleteTeacher, finish, loggedIn, makeTeacher } from "./lib.mjs";
+
+const p = (text) => `<w:p><w:r><w:t xml:space="preserve">${text}</w:t></w:r></w:p>`;
+const docx = Buffer.from(
+  zipSync({
+    "word/document.xml": strToU8(
+      `<?xml version="1.0"?><w:document><w:body>${p("1. What gas do plants take in?")}<w:p/>${p("a. Oxygen")}${p("b. Carbon dioxide")}</w:body></w:document>`,
+    ),
+  }),
+);
+
+const teacher = await makeTeacher({ first: "Word" });
+const id = randomUUID();
+await api("/rest/v1/presentations", {
+  method: "POST",
+  body: JSON.stringify({ id, owner_id: teacher.id, title: "Word test", data_version: 6 }),
+});
+await api("/rest/v1/slides", {
+  method: "POST",
+  body: JSON.stringify([
+    {
+      presentation_id: id, id: "s1", position: 0,
+      data: {
+        id: "s1", type: "choice", question: "Old question", layout: "grid", elements: [], questionHeight: 100, correctOptionId: null,
+        options: ["a", "b", "c", "d"].map((o) => ({ id: `s1-${o}`, text: `Old ${o.toUpperCase()}` })),
+      },
+    },
+  ]),
+});
+
+const browser = await chromium.launch();
+const context = await loggedIn(browser, teacher, { width: 1600, height: 1000 }, { permissions: ["clipboard-read", "clipboard-write"] });
+const page = await context.newPage();
+page.setDefaultTimeout(60_000);
+const errors = [];
+page.on("pageerror", (e) => errors.push(e.message));
+
+const question = page.locator('[data-slide-id="s1"] [data-container-id="question"]');
+const optionB = page.locator('[data-slide-id="s1"] [data-container-id="s1-b"]');
+const line = (n) => page.locator("[data-word-line]").nth(n);
+const waitFor = async (fn) => {
+  for (let i = 0; i < 40; i++) {
+    if (await fn()) return true;
+    await page.waitForTimeout(100);
+  }
+  return false;
+};
+
+try {
+  await page.goto(`${APP}/presentation/${id}/edit`, { timeout: 120_000 });
+  await question.waitFor();
+  await page.getByRole("button", { name: "Word file" }).click();
+
+  await page.locator("[data-word-file-input]").setInputFiles({ name: "exam.doc", mimeType: "application/msword", buffer: Buffer.from("old") });
+  check("an old .doc is refused with the words", await page.getByText("save it as .docx in Word first").isVisible());
+
+  await page.locator("[data-word-file-input]").setInputFiles({
+    name: "exam.docx",
+    mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    buffer: docx,
+  });
+  await line(0).waitFor();
+  const lines = await page.locator("[data-word-line]").allTextContents();
+  check(
+    "one piece per line, empty line skipped",
+    JSON.stringify(lines) === JSON.stringify(["1. What gas do plants take in?", "a. Oxygen", "b. Carbon dioxide"]),
+    JSON.stringify(lines),
+  );
+
+  await line(1).getByRole("button", { name: "Copy" }).click();
+  check("Copy copies the line as it is", (await page.evaluate(() => navigator.clipboard.readText())) === "a. Oxygen");
+
+  await line(0).dragTo(question);
+  check("the question becomes the dropped line, without its number", await waitFor(async () => (await question.innerText()).includes("What gas do plants take in?") && !(await question.innerText()).includes("Old question")));
+  check("the question has no leading 1.", !(await question.innerText()).includes("1. What"));
+
+  await line(2).dragTo(optionB);
+  check("answer B becomes the dropped line, without its letter", await waitFor(async () => (await optionB.innerText()).includes("Carbon dioxide") && !(await optionB.innerText()).includes("Old B")));
+  check("answer B has no leading b.", !(await optionB.innerText()).includes("b. Carbon"));
+  await page.screenshot({ path: `${SHOTS}/word-file.png` });
+
+  await page.locator('button[title="Undo (Ctrl+Z)"]').click();
+  check("Undo brings answer B back", await waitFor(async () => (await optionB.innerText()).includes("Old B")));
+
+  const slide = page.locator('[data-slide-id="s1"]');
+  await line(1).dragTo(slide, { targetPosition: { x: 8, y: 8 } });
+  await page.waitForTimeout(300);
+  const unchanged = (await question.innerText()).includes("What gas") && (await optionB.innerText()).includes("Old B");
+  const anyOxygen = (await slide.innerText()).includes("Oxygen");
+  check("a line dropped outside the boxes changes nothing", unchanged && !anyOxygen);
+
+  await page.getByRole("button", { name: "Elements" }).click();
+  await page.getByRole("button", { name: "Word file" }).click();
+  check("closing and opening the panel keeps the list", (await page.locator("[data-word-line]").count()) === 3);
+
+  check("no page errors", errors.length === 0, errors.join(" | "));
+} finally {
+  await browser.close();
+  await deleteTeacher(teacher);
+}
+finish();
