@@ -18,7 +18,8 @@
    would look like "log in again" to Claude). On Allow and on Deny, `answerConsent` sends the browser only to
    Claude's sites (else `NOT_CLAUDE_MESSAGE`), so the page is never an open redirect.
 2. **The tools:**
-   - `get_presentation_format`: the recipe format (`getClaudeFormat()` in `src/lib/importPresentation.ts`).
+   - `get_presentation_format`: the recipe format (`getClaudeFormat()` in `src/lib/importPresentation.ts`): the
+     rules in words, then the JSON Schema on one line (about 40% fewer characters than pretty-printed; same content).
    - `read_presentation`: reads a saved presentation as a reference: only the admin's own, other teachers' published
      copies (`sharedFrom`) and QuizMatter ones (`fromAdmin`), never one an admin hid (`isHidden` from
      `loadPresentation`). An admin may open any presentation, but anything else
@@ -40,6 +41,12 @@
    - `send_presentation`: `buildSlides` turns the recipe into real slides and checks them (the recipe schema, then
      `slideProblems` in `schema.ts` runs `slideSchema` on each built slide, so a too-long text is caught now like a
      save would). Problems go back to Claude as a report to fix. If all is well, it saves a **draft** (`src/lib/drafts.ts`) and gives a link.
+     **Finishing without the slides:** `slides` is optional. A final send (`final: true`) with a `draftId` and no
+     `slides` finishes that checked draft as it is (`getDraft`, then `replaceDraft` without `checking`; `details`, if
+     sent, replace the draft's), so a long presentation isn't written out a second time (tokens). No layout report
+     then: Claude got it at the check. No slides with `final: false` or without a `draftId`, or a draft that's gone
+     (saved or expired), is an error. Test: `e2e/claude-finish-draft.mjs`. Spec:
+     `docs/superpowers/specs/2026-11-21-claude-fewer-tokens-design.md`.
    - The old names (`…_lesson…`, `…_quiz…`) still work, because old chats keep the tool list they started with.
 3. **Drafts:** they live in Cloudflare D1 (`d1/migrations`; `0004_indexes.sql` indexes drafts by owner and time,
    and both tables by time, for the expiry deletes), not Supabase, and last 24 hours. A new D1 migration is applied

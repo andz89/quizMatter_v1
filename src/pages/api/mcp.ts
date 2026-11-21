@@ -5,7 +5,7 @@ import type { Database } from "@/lib/database.types";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { z } from "zod";
 import { buildSlides, getClaudeFormat, claudeDetailsSchema } from "@/lib/importPresentation";
-import { replaceDraft, saveDraft } from "@/lib/drafts";
+import { getDraft, replaceDraft, saveDraft } from "@/lib/drafts";
 import { loadPresentation } from "@/lib/fetchPresentation";
 import { PHOTO_MAX_SIDE, thumbnailUrl } from "@/lib/constants";
 import { findOrCreateCategory, removeUnusedNewCategory } from "@/lib/photoCategories";
@@ -269,10 +269,16 @@ function createServer(appUrl: string, userId: string, supabase: SupabaseClient<D
           "where every box, text and picture landed. " +
           'Send it first with final: false to check: the user sees it as "Checking…" and can\'t open it yet, and you get the report and a draftId. ' +
           "Fix anything that's off (you can check again), then send the final version with final: true and that draftId. " +
+          "If the report needs no changes, leave out slides in the final send: final: true and the draftId finish the checked version. " +
           "The final send returns the link for the user, which opens the presentation in the editor; nothing is saved until they click Save.",
         inputSchema: {
           details: claudeDetailsSchema.optional().describe("About the presentation as a whole."),
-          slides: z.array(z.unknown()).describe("The slides array, in the format from get_presentation_format."),
+          slides: z
+            .array(z.unknown())
+            .optional()
+            .describe(
+              "The slides array, in the format from get_presentation_format. Leave it out only to finish a checked draft unchanged (final: true and its draftId).",
+            ),
           // Chats that started before checking existed don't send it, so they still get a finished presentation.
           final: z
             .boolean()
@@ -284,7 +290,27 @@ function createServer(appUrl: string, userId: string, supabase: SupabaseClient<D
             ),
         },
       },
-      async ({ details = {}, slides, final, draftId }) => {
+      async ({ details, slides, final, draftId }) => {
+        const finalIntro = (title: string, slideCount: number, id: string) => [
+          `Sent the final version of "${title}" (${slideCount} slides). Give the user this link: ${appUrl}/presentation/new?draft=${id}`,
+          "It opens the presentation in the editor; nothing is saved until they click Save. The link works for 24 hours.",
+        ];
+        // No slides: finish the checked draft as it is, so a long presentation isn't written out a second time.
+        // Its slides were checked when it was sent; Claude already has their layout report.
+        if (slides === undefined) {
+          const refuse = (text: string) => ({ isError: true, content: [{ type: "text" as const, text }] });
+          if (!final || draftId === undefined) {
+            return refuse('Send "slides". Only a final send (final: true) with the draftId of a checked draft may leave them out.');
+          }
+          const gone = `Draft ${draftId} is gone: the user already saved it, or it expired. Send the slides again (final: true, no draftId) to make a new one.`;
+          const draft = await getDraft(draftId, userId);
+          if (!draft) return refuse(gone);
+          const finished = { details: details ?? draft.details, slides: draft.slides };
+          if (!(await replaceDraft(draftId, finished, userId))) return refuse(gone);
+          const text = finalIntro(finished.details.title || "Untitled presentation", finished.slides.length, draftId).join("\n");
+          return { content: [{ type: "text", text }] };
+        }
+        details ??= {};
         // Built here to catch mistakes while Claude can still fix them, and for the layout report. The editor builds
         // the slides again from the same recipe (same positions).
         const result = buildSlides({ slides });
@@ -310,14 +336,12 @@ function createServer(appUrl: string, userId: string, supabase: SupabaseClient<D
               ]
             : [];
         const intro = final
-          ? [
-              `Sent the final version of "${title}" (${slides.length} slides). Give the user this link: ${appUrl}/presentation/new?draft=${id}`,
-              "It opens the presentation in the editor; nothing is saved until they click Save. The link works for 24 hours.",
-            ]
+          ? finalIntro(title, slides.length, id)
           : [
               `Sent "${title}" (${slides.length} slides) for checking. The user sees it as "Checking…" and can't open it yet; there's no link for them.`,
               'Check the report below. Fix anything that isn\'t how you meant it (e.g. with "position", sizes or shorter text), then call send_presentation',
-              `with final: true and draftId "${id}". If you don't within 10 minutes, the user sees it as "Not finished" and can open this version.`,
+              `with final: true and draftId "${id}" and the fixed slides. If nothing needs fixing, leave out "slides": that finishes this version as it is.`,
+              `If you don't within 10 minutes, the user sees it as "Not finished" and can open this version.`,
             ];
         const text = [
           ...newDraftNote,
