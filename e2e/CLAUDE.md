@@ -194,6 +194,9 @@ when another is picked), moving into and between boxes (Alt keeps a free picture
   in, the same link is the normal view page.
 - `admin-list.mjs`: Admin → Admins as the super admin: every admin with Super admin / Admin and Two-step on / not
   set up (an admin row without an authenticator app); a plain admin gets "page not found" and no menu item.
+- `admin-presentations-paging.mjs`: Admin → Presentations with 23 QuizMatter presentations: 10 rows at first
+  ("Showing 10 of 23"), Show more adds 10 until all show and the button goes, a search (Enter) finds one by its
+  subject in the database and drops `shown`, Newest puts the newest made first, and `?shown=15` falls back to 10.
 - `reports-plain-admin.mjs`: Admin → Reports as a plain admin: a teacher's reported copy has Hide and Delete, a
   reported QuizMatter lesson has neither and says why.
 - `submissions.mjs`: Submit to QuizMatter from start to end. An editor submits from the card's ⋮ menu (an empty

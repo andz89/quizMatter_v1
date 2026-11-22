@@ -6,42 +6,62 @@ import { getAccount } from "@/lib/account";
 import { listDrafts, type DraftSummary } from "@/lib/drafts";
 import { detailsLabel, timeAgo } from "@/lib/format";
 import { QUIZMATTER_NAME, gradesTitle, parseSlide } from "@/lib/schema";
+import { contains, searchWords } from "@/lib/search";
 import { createClient } from "@/lib/supabase/server";
+import { ShowMore } from "../../(home)/ShowMore";
 import { NewPresentationButton } from "../../PresentationListButtons";
 import { getTodoCounts } from "../todoCounts";
 import { AdminPresentations, type AdminPresentationRow } from "./AdminPresentations";
+import { ADMIN_LIST_MAX, ADMIN_LIST_STEP, parseAdminList } from "./listParams";
 import type { ApprovedReviewer } from "./ReviewersModal";
 
 /**
  * Admin → Presentations: the QuizMatter presentations I made. Shared ones go to every teacher's home page
- * ("From QuizMatter"); drafts only I see.
+ * ("From QuizMatter"); drafts only I see. The search, sort and row count live in the page link (`listParams.ts`),
+ * so only the rows shown are read: 10 at first, "Show more" adds 10.
  */
-export default async function AdminPresentationsPage() {
+export default async function AdminPresentationsPage({ searchParams }: PageProps<"/admin/presentations">) {
   const account = await getAccount();
   // The layout checks too, but a layout doesn't run again on every request, so the page checks next to its data.
   if (!account.isAdmin) notFound();
+  const list = parseAdminList(await searchParams);
   const supabase = await createClient();
-  const [drafts, { data, error }, reviews, reviewers, todo] = await Promise.all([
+
+  let query = supabase
+    .from("presentations")
+    .select(
+      "id, title, grades, subject, term, week, day, is_published, created_at, updated_at, slides(count), first_slide:slides(data, position)",
+      { count: "exact" },
+    )
+    .eq("from_admin", true)
+    .eq("owner_id", account.id);
+  // search_text: every searched detail as one line of text (see the presentation_search_text migration). Each word
+  // must be in it somewhere, in any order, like the home page's "Includes the words".
+  for (const word of searchWords(list.q)) query = query.ilike("search_text", contains(word));
+  const [drafts, { data, error, count }, todo] = await Promise.all([
     listDrafts(account.id),
-    supabase
-      .from("presentations")
-      .select("id, title, grades, subject, term, week, day, is_published, created_at, updated_at, slides(count), first_slide:slides(data, position)")
-      .eq("from_admin", true)
-      .eq("owner_id", account.id)
-      .order("updated_at", { ascending: false })
+    query
+      .order(list.sort === "newest" ? "created_at" : "updated_at", { ascending: false })
+      .order("id")
       .order("position", { referencedTable: "first_slide" })
-      .limit(1, { referencedTable: "first_slide" }),
-    // Admins can read every review row (see the presentation_reviews migration).
-    supabase.from("presentation_reviews").select("presentation_id, status, open_to_all"),
-    // Everyone whose review an admin published, with the admin who approved it (the Review column).
-    supabase.rpc("admin_reviewers"),
+      .limit(1, { referencedTable: "first_slide" })
+      .range(0, list.shown - 1),
     // Review rounds and editors' submissions waiting for an admin: the menu's numbers (the same cached call).
     getTodoCounts(),
   ]);
   if (error) throw error;
+  if (todo.error) throw todo.error;
+
+  // Review details only for the rows shown (a request returns 1,000 rows at most, so never read them all).
+  const ids = data.map((presentation) => presentation.id);
+  const [reviews, reviewers] = await Promise.all([
+    // Admins can read every review row (see the presentation_reviews migration).
+    supabase.from("presentation_reviews").select("presentation_id, status, open_to_all").in("presentation_id", ids),
+    // Everyone whose review an admin published, with the admin who approved it (the Review column).
+    supabase.rpc("admin_reviewers").in("presentation_id", ids),
+  ]);
   if (reviews.error) throw reviews.error;
   if (reviewers.error) throw reviewers.error;
-  if (todo.error) throw todo.error;
   const reviewById = new Map(reviews.data.map((row) => [row.presentation_id as string, row as ReviewRow]));
   const reviewersById = new Map<string, ApprovedReviewer[]>();
   for (const row of reviewers.data as AdminReviewerRow[]) {
@@ -84,7 +104,11 @@ export default async function AdminPresentationsPage() {
         {account.isSuperAdmin && <NewPresentationButton author={QUIZMATTER_NAME} fromAdmin />}
       </div>
 
-      <AdminPresentations rows={buildRows(data, drafts, reviewById, reviewersById)} />
+      <AdminPresentations
+        rows={buildRows(data, drafts.filter((draft) => draftMatches(draft, list.q)), reviewById, reviewersById)}
+        list={list}
+      />
+      <ShowMore shown={list.shown} total={count ?? 0} step={ADMIN_LIST_STEP} max={ADMIN_LIST_MAX} />
     </>
   );
 }
@@ -120,7 +144,17 @@ type SavedPresentation = {
   first_slide: { data: unknown }[];
 };
 
-/** The QuizMatter presentations, and Claude's drafts that aren't saved yet (an admin's become QuizMatter ones). */
+/** A Claude draft isn't in the database yet, so the search's words are checked here, on the same details. */
+function draftMatches(draft: DraftSummary, q: string): boolean {
+  const details =
+    `${draft.title} ${draft.subject} ${draft.term} ${draft.week} ${draft.day} ${draft.curriculum} ${draft.learningCompetency} ${draft.tags}`.toLowerCase();
+  return searchWords(q).every((word) => details.includes(word.toLowerCase()));
+}
+
+/**
+ * Claude's drafts that aren't saved yet (an admin's become QuizMatter ones) on top, newest first: they expire in a
+ * few days, so there are only a few. Then this page of QuizMatter presentations, in the database's order.
+ */
 function buildRows(
   presentations: SavedPresentation[],
   drafts: DraftSummary[],
@@ -144,8 +178,6 @@ function buildRows(
       isOpenToAll: false,
       reviewers: [],
       slideCount: draft.slideCount,
-      createdAt: draft.createdAt,
-      updatedAt: draft.createdAt,
       createdLabel: timeAgo(draft.createdAt, now),
       updatedLabel: timeAgo(draft.createdAt, now),
     }));
@@ -165,8 +197,6 @@ function buildRows(
       isOpenToAll: review?.open_to_all === true,
       reviewers: reviewersById.get(presentation.id) ?? [],
       slideCount: presentation.slides[0]?.count ?? 0,
-      createdAt,
-      updatedAt,
       createdLabel: timeAgo(createdAt, now),
       updatedLabel: timeAgo(updatedAt, now),
     };
