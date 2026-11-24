@@ -28,7 +28,8 @@ The pages teachers use outside the editor. Other folders here have their own not
   my `presentation_likes` rows (newest liked first, paged by the database) with each presentation embedded.
   `CardGrid.tsx` lays them out and handles Present from a card. Its subject chips show `subjectChipLabel`
   (`schema.ts`): shorter words for a long subject ("ESP/GMRC"); the saved subject and the link keep the full name.
-- `PresentationCard.tsx`: one card. `PresentationCardMenu.tsx`: its ⋮ menu (Edit, Present, Delete; the super admin: Move
+- `PresentationCard.tsx`: one card (my own opens the editor in a new tab; someone else's opens the presentation
+  modal, see "A presentation's pages"). `PresentationCardMenu.tsx`: its ⋮ menu (Edit, Present, Delete; the super admin: Move
   to QuizMatter; editors: Submit to QuizMatter). `SaveCardButton.tsx`: the bookmark on other people's cards.
   `LikeCardButton.tsx`: the heart with the like count, left of the bookmark (teachers and editors, someone else's
   presentation; `likes` in `CARD_COLUMNS`, my likes in `loadCardContext`). Where I can't like (admins), the count
@@ -46,12 +47,38 @@ modal grey out.
 
 ## A presentation's pages: `presentation/`
 
-- `[id]/page.tsx`: the view page (mostly other teachers' published ones): `PresentationPreview.tsx` with Prev/Next,
-  "Make a copy" (saves a private copy and opens it, remembering `copied_from`; an editor's copy gets them as
-  Author), Save (bookmark), and `ReportButton.tsx` (goes to Admin → Reports). Actions in `[id]/actions.ts`.
-  Prev/Next skip hidden slides, like presenting (`shownSlides`; all of them when every slide is hidden), and the
-  counter counts only those; the details line still counts every slide, and a copy gets them all. The owner and
-  admins (who open it from Reports) see hidden slides too, faded with the eye-off mark (`showHidden`).
+- **Presentation modal** (spec `docs/superpowers/specs/2026-11-25-presentation-modal-design.md`): logged in, a
+  card of someone else's presentation (`opensInModal`, set by `toSavableCard` in `(home)/cards.ts`: every home tab,
+  search, profiles, "More like this") and a "This week's lessons" row open it in a modal over the page, not a new
+  tab. `PresentationModal.tsx` (`PresentationModalProvider`, in the root layout) holds it; `openPresentation.ts`
+  (`useOpenOnClick`) is what the links call: a plain click opens the modal, Ctrl/Shift/middle click still follows the
+  link (the full page in a new tab). Its data comes from the `openPresentation` action (zod first, read only), the
+  same `loadPresentationView` the page uses. **The address never changes**: a reload just reloads the page behind it
+  (the user's choice). Opening adds one history entry with the same address, so Back closes it (the `popstate`
+  listener is added once, with `useEffectEvent`: re-added on every render it missed Back); ✕, Escape and a click
+  outside close it through `history.back()`. It closes by itself when the page changes (a link inside it, Make a
+  copy). A Save or Like inside marks it changed, and the page behind is refreshed after it closes. While a box opened
+  from it (Report) is on top, Escape closes only that box (it counts the `[role="dialog"]`s). A suggestion or lesson
+  clicked inside swaps the modal (no new history entry). My own cards and Claude's drafts still open the editor in a
+  new tab. Test: `e2e/presentation-modal.mjs`.
+- `[id]/page.tsx`: the full page, for a presentation opened by its link (a shared link, Admin → Reports, My
+  submissions, a new tab). Logged in it draws the same `[id]/PresentationDetails.tsx` as the modal, without the box.
+  `[id]/loadView.ts` (`loadPresentationView`, server) reads everything both need: `fetchPresentation`, This week's
+  lessons, `showHidden`, `canLike`, `waitingSince`, and the "View more by" person (`maker`: the lesson's editor, else
+  the publisher with a profile).
+- `[id]/PresentationDetails.tsx` is laid out like Canva's template preview: left, the big slide, Present, Prev /
+  `n / total` / Next, and a sideways strip of every slide (each picture drawn only once it scrolls near, `LazySlide`,
+  since a presentation can have 100); right, labels (QuizMatter, Reviewed, Under review, Sent to QuizMatter), the
+  title (`h1` on the page, `h2` in the modal), the details line, tags, "View more by <name>", then **Make a copy**
+  (main button; my own: Edit; saves a private copy and opens it, remembering `copied_from`; an editor's copy gets them
+  as Author), Save (bookmark), Like, Share (a touch screen gets its share menu, a computer copies
+  `<site>/presentation/<id>`, "Link copied."; only on a published one) and Report (`ReportButton.tsx iconOnly`, goes
+  to Admin → Reports); editors' Review / Update this lesson / Continue review under them; then the credit lines, the
+  details and This week's lessons. Below: `[id]/MoreLikeThis.tsx`. Phones get one column. Actions in
+  `[id]/actions.ts`. The strip and Prev/Next skip hidden slides, like presenting (`shownSlides`; all of them when
+  every slide is hidden), and the counter counts only those; the details line still counts every slide, and a copy
+  gets them all. The owner and admins (who open it from Reports) see hidden slides too, faded with the eye-off mark
+  (`showHidden`). ← / → change the slide, except while typing or presenting.
 - **Public preview** (logged out; spec `docs/superpowers/specs/2026-11-20-public-presentation-preview-design.md`):
   `src/proxy.ts` lets logged-out visitors (and robots: Google, Facebook's link reader) open `/presentation/<uuid>`
   and its picture (`isPublicPreviewPath`, `src/lib/publicPaths.ts`). For the page itself it first asks
@@ -69,7 +96,7 @@ modal grey out.
   ("Log in to see it" for an empty one; the people-art wait fills only the slide box, `PeopleArtGate fill`)
   and "Sign up free"). A video slide there shows its plain box (`showVideoCover={false}`, through
   `FluidSlidePreview` → `SlideStaticView` → `EmbedSlideView`), so YouTube never sees a logged-out visitor.
-  Logged in: the normal view page, unchanged.
+  Logged in: the full page (`PresentationDetails`), as below.
   The read is `getPublicPresentation` (`src/lib/publicPresentation.ts`, no login cookies, once per request), also
   used by `generateMetadata` (logged out only: title, description, canonical, and `openGraph` with `siteName` again,
   since a page's `openGraph` replaces the layout's; anything else `noindex`, titled `absolute` "QuizMatter").
@@ -86,9 +113,10 @@ modal grey out.
 - On a live QuizMatter presentation the view page also shows, from `src/lib/lessons.ts` (database:
   `lesson_extras`, one call): `[id]/LessonWeek.tsx`, "This week's lessons by <editor>" (the same editor's
   lessons with the same subject, term and week and a grade in common, every day and version; curriculum ignored) and
-  "See all <editor>'s presentations" (their profile); and `[id]/Suggestions.tsx`, "You may also like" (up to 6 with
-  the same subject and a grade in common, most saved first). The maker is the editor of the approved submission
-  (`copy_id`), never the Author text. Lessons an admin made get only the suggestions. Suggestion and profile cards
+  "See all <editor>'s presentations" (their profile); and `[id]/MoreLikeThis.tsx`, "More like this": a "Show more
+  like this" button first (so opening one stays light), which calls `loadMoreLikeThis` and shows up to 6 with the
+  same subject and a grade in common, most saved first. The maker is the editor of the approved submission
+  (`copy_id`), never the Author text. Lessons an admin made get only "More like this". Its cards and profile cards
   use `SavableCardGrid.tsx` (the bookmark works there too).
 - `[id]/edit/page.tsx`: decides who gets what: my own → editor; locked by review or submission → view; my review →
   the editor in review mode, or `ReviewSubmittedView` once submitted. `PresentationEditor.tsx` loads the editor

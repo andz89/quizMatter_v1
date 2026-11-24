@@ -26,12 +26,15 @@ export function LikeButton({
   likeCount: countAtStart,
   isLiked: likedAtStart,
   canLike,
+  onChange,
   className,
 }: {
   presentationId: string;
   likeCount: number;
   isLiked: boolean;
   canLike: boolean;
+  // After a like or unlike was saved (the modal then refreshes the page behind it when it closes).
+  onChange?: () => void;
   className: string;
 }) {
   const router = useRouter();
@@ -65,6 +68,7 @@ export function LikeButton({
     if (status === "done") {
       setIsLiked(!isLiked);
       setLikeCount((count) => Math.max(count + (isLiked ? -1 : 1), 0));
+      onChange?.();
       toast.success(isLiked ? "Like removed." : "Liked.");
     } else if (status === "paused") {
       pauseFeature("like", pausedUntil!);

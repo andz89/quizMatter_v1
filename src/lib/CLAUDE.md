@@ -136,7 +136,7 @@
   `youtube.test.ts`. `photos.tsx`'s `fetchYouTubeCard` asks `/api/announcement-youtube` for the card, and
   `uploadAnnouncementPhoto` returns a photo attachment.
 - `reviews.ts` (reviewer's saves) / `reviewStatus.ts` (reads), `submissions.ts` (Submit to QuizMatter reads).
-- `lessons.ts`: reads for "This week's lessons", "You may also like" and an editor's profile list (only ids; see `src/app/CLAUDE.md`).
+- `lessons.ts`: reads for "This week's lessons", "More like this" and an editor's profile list (only ids; see `src/app/CLAUDE.md`).
 - `folders.ts`, `userSettings.ts`, `profiles.ts`, `account.ts` (`getAccount`: who is logged in, `isAdmin` /
   `isSuperAdmin` (true only after the second step), `adminRole` (membership: 'super' / 'admin' / 'none', from
   `admin_membership`), and `hasVerifiedFactor()` (asks Supabase whether the account has a verified authenticator app)).

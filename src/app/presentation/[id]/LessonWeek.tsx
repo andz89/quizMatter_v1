@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 import { UserIcon } from "lucide-react";
 import { CANVAS_WIDTH, CANVAS_HEIGHT, getSlideNumbers } from "@/lib/constants";
@@ -6,15 +8,17 @@ import { parseSlide } from "@/lib/schema";
 import { LinkPending } from "@/components/LinkPending";
 import { FluidSlidePreview } from "@/components/presentation/FluidSlidePreview";
 import type { CardPresentation } from "../../(home)/cards";
+import { useOpenOnClick } from "../../openPresentation";
 
 /** The editor's lessons for one week (sorted, the viewed one included), and who made them (see the lesson_week migration). */
 export type LessonWeekData = { editorName: string; editorSlug: string; lessons: CardPresentation[] };
 
 /**
  * "This week's lessons by <editor>": every lesson of the week (all versions), the one I'm on marked, then a link to
- * the editor's profile. Only the link shows when there's no other lesson that week.
+ * the editor's profile. Only the link shows when there's no other lesson that week. A lesson opens in the modal.
  */
 export function LessonWeek({ week, currentId }: { week: LessonWeekData; currentId: string }) {
+  const openOnClick = useOpenOnClick();
   const hasList = week.lessons.length > 1;
   if (!hasList && !week.editorSlug) return null;
   return (
@@ -32,7 +36,7 @@ export function LessonWeek({ week, currentId }: { week: LessonWeekData; currentI
                   {lesson.id === currentId ? (
                     row
                   ) : (
-                    <Link href={`/presentation/${lesson.id}`} className="group block">
+                    <Link href={`/presentation/${lesson.id}`} onClick={(e) => openOnClick(e, lesson.id)} className="group block">
                       {row}
                       <LinkPending />
                     </Link>

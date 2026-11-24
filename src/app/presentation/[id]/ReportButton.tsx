@@ -8,8 +8,19 @@ import { Spinner } from "@/components/Spinner";
 import { REPORT_REASON_LABELS, type ReportReason } from "@/lib/schema";
 import { reportPresentation } from "./actions";
 
-/** "Report" on another teacher's presentation: pick a reason, add a note if you like, and the admins get it. */
-export function ReportButton({ presentationId, className }: { presentationId: string; className: string }) {
+/**
+ * "Report" on another teacher's presentation: pick a reason, add a note if you like, and the admins get it.
+ * `iconOnly`: just the flag (its name in the tooltip).
+ */
+export function ReportButton({
+  presentationId,
+  iconOnly = false,
+  className,
+}: {
+  presentationId: string;
+  iconOnly?: boolean;
+  className: string;
+}) {
   const [isOpen, setIsOpen] = useState(false);
   const [reason, setReason] = useState<ReportReason | null>(null);
   const [note, setNote] = useState("");
@@ -29,9 +40,15 @@ export function ReportButton({ presentationId, className }: { presentationId: st
 
   return (
     <>
-      <button type="button" onClick={() => setIsOpen(true)} className={`inline-flex items-center gap-2 ${className}`}>
+      <button
+        type="button"
+        onClick={() => setIsOpen(true)}
+        title="Report"
+        aria-label="Report"
+        className={`inline-flex items-center gap-2 ${className}`}
+      >
         <FlagIcon size={16} />
-        Report
+        {!iconOnly && "Report"}
       </button>
 
       {isOpen && (

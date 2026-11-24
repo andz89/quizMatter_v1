@@ -185,6 +185,12 @@ when another is picked), moving into and between boxes (Alt keeps a free picture
   not a teacher's copy; `robots.txt` names it; the login and Privacy titles. Logged in: `/` is the normal home, the
   home and Saved titles, and the editor's one h1. It deletes its lesson itself (deleting an admin moves their
   lessons to the super admin).
+- `presentation-modal.mjs`: a card on From QuizMatter opens the modal in the same tab with the address unchanged
+  (first slide, tags, Make a copy), the strip and → change the slide, Escape in Report closes only that box, Share
+  copies the link, "Show more like this" loads a card that swaps the modal, Escape / Back close it and stay on the
+  list, a reload has no modal, Save inside works (the Saved tab has it), the link itself is the full page with the
+  same layout and its slide drawn, Make a copy opens the editor with the modal gone, and at 390 px it fits
+  (screenshots `presentation-modal.png`, `presentation-page.png`, `presentation-modal-phone.png`).
 - `public-preview.mjs`: a published presentation's public preview, logged out: the first shown slide (a hidden first
   one is skipped), the title as the `<h1>`, the Author, "Filipino · Grade 4 · 1 slide", no answer in the page, the
   login button back to the page and Sign up; `og:title`, the description, `twitter:card`, a full `og:image` address

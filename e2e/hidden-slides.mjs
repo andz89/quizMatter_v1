@@ -140,7 +140,7 @@ try {
       if (await next.isDisabled()) break;
       await next.click();
     }
-    const result = { counter: await counter.textContent(), seen: seen.join(", "), details: await view.locator("main header p").first().textContent() };
+    const result = { counter: await counter.textContent(), seen: seen.join(", "), details: await view.locator("main h1 + p").first().textContent() };
     await view.close();
     return result;
   }
