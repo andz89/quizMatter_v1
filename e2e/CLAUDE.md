@@ -141,6 +141,9 @@ Tests that delete data (the announcements ones empty the announcements table) do
   after saving and opening again and after undo, the save keeps them, and presenting fullscreen and the view page
   show them (their text and their `white-space`). Tabs and Windows line ends (`\r\n`), in new text and in text saved
   before: `src/lib/richText.test.ts`.
+- `text-case.mjs`: the text bar's Change case (Aa) on a question: Sentence case on all the text while typing with
+  nothing selected (a bolded "th" stays bold), UPPERCASE on selected words only, Capitalize Each Word across a bold
+  split, one undo per pick, lowercase on a picked box, saved.
 - `text-limits.mjs`: pasting past the limit into the question, an answer choice (5,000 characters) and a text box
   (50,000 as HTML, so 10,000 "&" is refused) leaves the text as it was with one toast; up to the limit goes in;
   typing at the limit is refused, deleting works; Ctrl+S saves; the slide name box's `maxlength`.
@@ -196,8 +199,12 @@ when another is picked), moving into and between boxes (Alt keeps a free picture
   opening one again sends no server request (remembered), a reload has no modal, Save inside works (the card behind shows it at once, the Saved tab has it; removed and saved again
   there, the card stays), the link
   itself is the full page with the same layout and its slide drawn, a modal over that page takes → alone and Present
-  shows one view, Back while presenting ends it (the next modal still closes), Make a copy opens the editor with the
-  modal gone and its Back entry gone (`history.length` +1 only), and at 390 px it fits
+  shows one view, Back while presenting ends it (the next modal still closes), Make a copy (double-clicked) opens one
+  new tab that becomes the editor with exactly one copy while the modal stays open, opening that copy link again
+  makes no second copy, a copy link from outside (no ticket) makes none, one of a missing presentation says so, and
+  a presentation made private while its modal is open: the copy tab says so (Go home) and the modal hears it and
+  closes,
+  and at 390 px it fits
   (screenshots `presentation-modal.png`, `presentation-page.png`, `presentation-modal-phone.png`).
 - `public-preview.mjs`: a published presentation's public preview, logged out: the first shown slide (a hidden first
   one is skipped), the title as the `<h1>`, the Author, "Filipino · Grade 4 · 1 slide", no answer in the page, the

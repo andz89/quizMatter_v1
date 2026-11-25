@@ -3,8 +3,9 @@
 // ✕ close it and a reload just reloads the list. "Show more like this" loads cards inside it, and one of them swaps
 // the modal. Escape in the Report box closes only that box. A link to /presentation/<id> is the full page, same layout.
 // Saving in the modal updates the card behind at once; over the full page only the modal hears the arrow keys and
-// shows Present; Back while presenting ends it; leaving through Make a copy needs one Back to return. Opening one
-// again shows the remembered copy without asking the server.
+// shows Present; Back while presenting ends it; Make a copy (even double-clicked) opens one new tab that becomes the
+// editor with one copy, opening that copy link again makes no second one, and a copy link from outside makes none,
+// and the modal stays. Opening one again shows the remembered copy without asking the server.
 import { chromium } from "playwright";
 import { APP, SHOTS, check, deleteTeacher, finish, loggedIn, makeTeacher, psql } from "./lib.mjs";
 
@@ -190,17 +191,58 @@ try {
   await anyDialog.first().waitFor({ state: "detached", timeout: 5_000 }).catch(() => {});
   check("…and the next modal still closes with Escape", (await anyDialog.count()) === 0);
 
-  // Make a copy from the modal opens the editor and the modal is gone.
+  // Make a copy, double-clicked: one new tab that makes one copy and becomes the editor with it; the modal stays.
+  const copyCount = () => psql(`select count(*) from public.presentations where copied_from = '${ids.a}' and owner_id = '${viewer.id}'`);
   await page.goto(`${APP}/quizmatter`);
   await page.locator("a", { hasText: titles.a }).first().waitFor({ timeout: 30_000 });
-  const historyBefore = await page.evaluate(() => history.length);
   await openA();
-  await dialog.getByRole("button", { name: "Make a copy" }).click();
-  await page.waitForURL(/\/presentation\/[^/]+\/edit$/, { timeout: 30_000 });
-  await page.waitForTimeout(500);
-  check("Make a copy opens the editor, the modal is gone", (await page.getByRole("dialog", { name: titles.a }).count()) === 0, page.url());
-  const historyAfter = await page.evaluate(() => history.length);
-  check("the modal's Back entry is gone (one Back returns to the list)", historyAfter === historyBefore + 1, `${historyBefore} → ${historyAfter}`);
+  const tabsBefore = context.pages().length;
+  const [copyTab] = await Promise.all([
+    context.waitForEvent("page"),
+    dialog.getByRole("button", { name: "Make a copy" }).dblclick(),
+  ]);
+  const copyLink = copyTab.url();
+  await copyTab.waitForURL(/\/presentation\/[^/]+\/edit$/, { timeout: 30_000 });
+  await copyTab.getByText("First question A").first().waitFor({ timeout: 30_000 });
+  check("Make a copy opens a new tab with the copy in the editor", new URL(copyTab.url()).pathname !== `/presentation/${ids.a}/edit`, copyTab.url());
+  check("…a double-click opens only one tab", context.pages().length === tabsBefore + 1, `${context.pages().length - tabsBefore}`);
+  check("…and the modal stays open in the first tab", (await dialog.isVisible()) && new URL(page.url()).pathname === "/quizmatter", page.url());
+  check("…and it made exactly one copy", copyCount() === "1", copyCount());
+
+  // The same copy link again (a reload or a restored tab): it opens that copy, no second one.
+  await copyTab.goto(copyLink);
+  await copyTab.waitForURL(/\/presentation\/[^/]+\/edit$/, { timeout: 30_000 });
+  check("opening the copy link again makes no second copy", copyCount() === "1", copyCount());
+  await copyTab.close();
+
+  // A copy link from outside (no ticket from the button): no copy, and it says so.
+  const outsideTab = await context.newPage();
+  await outsideTab.goto(`${APP}/presentation/${ids.a}/copy?as=${crypto.randomUUID()}`);
+  await outsideTab.getByText("only works from the Make a copy button").waitFor({ timeout: 20_000 });
+  check("a copy link from outside makes no copy", copyCount() === "1", copyCount());
+  await outsideTab.goto(`${APP}/presentation/${crypto.randomUUID()}/copy?as=${crypto.randomUUID()}`);
+  check(
+    "a copy link of a presentation that isn't there says so",
+    await outsideTab.getByText("can't be copied").waitFor({ timeout: 20_000 }).then(() => true, () => false),
+  );
+  await outsideTab.close();
+
+  // B goes private while its modal is open: the copy tab says so, and the first tab's modal hears it and closes.
+  await page.keyboard.press("Escape");
+  await anyDialog.first().waitFor({ state: "detached" });
+  await page.locator("a", { hasText: titles.b }).first().click();
+  const privateB = page.getByRole("dialog", { name: titles.b });
+  await privateB.getByRole("heading", { name: titles.b }).waitFor({ timeout: 20_000 });
+  psql(`update public.presentations set is_published = false where id = '${ids.b}'`);
+  const [refusedTab] = await Promise.all([
+    context.waitForEvent("page"),
+    privateB.getByRole("button", { name: "Make a copy" }).click(),
+  ]);
+  await refusedTab.getByText("can't be copied").waitFor({ timeout: 30_000 });
+  check("a now-private one: the copy tab says so, with a way home", await refusedTab.getByRole("link", { name: "Go home" }).isVisible());
+  await refusedTab.close();
+  await privateB.waitFor({ state: "detached", timeout: 20_000 }).catch(() => {});
+  check("…and the first tab's modal hears it and closes", (await privateB.count()) === 0);
 
   await context.close();
 

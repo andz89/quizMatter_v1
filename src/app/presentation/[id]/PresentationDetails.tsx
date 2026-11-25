@@ -6,16 +6,13 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { BookmarkIcon, CheckIcon, ChevronLeftIcon, ChevronRightIcon, ClipboardCheckIcon, EyeIcon, Share2Icon } from "lucide-react";
 import { CANVAS_WIDTH, CANVAS_HEIGHT, getSlideNumbers, shownSlides } from "@/lib/constants";
-import { createId } from "@/lib/id";
 import { creditLines, detailsLabel, formatDay, joinParts, slideCountLabel } from "@/lib/format";
-import { REFUSALS, SaveRefusedError, saveErrorMessage, savePresentationToDb } from "@/lib/presentations";
+import { SaveRefusedError, saveErrorMessage } from "@/lib/presentations";
 import { startReview } from "@/lib/reviews";
-import { loadReviewStatus } from "@/lib/reviewStatus";
-import { createClient } from "@/lib/supabase/client";
 import { profileHref } from "@/lib/profiles";
-import { DETAIL_MAX_LENGTH, gradesTitle, isNewerThanApp, isWebLink, type Slide } from "@/lib/schema";
+import { gradesTitle, isWebLink, type Slide } from "@/lib/schema";
 import { SUBMISSION_LABELS } from "@/lib/submissions";
-import { pauseFeature, pausedUntilFromError, useIsPaused } from "@/lib/clickLimits";
+import { pauseFeature, useIsPaused } from "@/lib/clickLimits";
 import { useEditorStore } from "@/lib/store";
 import { LinkPending } from "@/components/LinkPending";
 import { LinkifiedText } from "@/components/LinkifiedText";
@@ -30,6 +27,7 @@ import {
   usePresentationChanges,
   usePresentationModal,
 } from "../../openPresentation";
+import { copyPageHref, useCopyResults } from "./copy/copyTicket";
 import { LessonWeek } from "./LessonWeek";
 import { LikeButton } from "./LikeButton";
 import { MoreLikeThis } from "./MoreLikeThis";
@@ -41,7 +39,7 @@ import type { PresentationViewData } from "./loadView";
  * A presentation to look at, laid out like Canva's template preview: the big slide and a strip of every slide on the
  * left; the title, details and buttons on the right; "More like this" below. Drawn on its page (`/presentation/<id>`)
  * and in the modal a card opens (`inModal`, src/app/PresentationModal.tsx).
- * "Make a copy" saves a private copy for me and opens it in the editor. Save bookmarks someone else's presentation to
+ * "Make a copy" opens a new tab that saves a private copy for me and shows it in the editor (MakeCopyButton). Save bookmarks someone else's presentation to
  * my "Saved" row, the heart likes it (teachers and editors; everyone sees the count), Share copies its link, Report
  * sends it to the admins. Editors can review a shared QuizMatter presentation ("Review"; its own editor gets "Update
  * this lesson", see the author_updates migration); while it's under review nobody can copy it and its owner can't
@@ -53,7 +51,6 @@ import type { PresentationViewData } from "./loadView";
 export function PresentationDetails({ view, inModal = false }: { view: PresentationViewData; inModal?: boolean }) {
   const { presentation, isMine, review, reviewers, waitingSince } = view;
   const router = useRouter();
-  const [isCopying, setIsCopying] = useState(false);
   const [isSaved, setIsSaved] = useState(view.isSaved);
   const [isSaving, setIsSaving] = useState(false);
   const [isStartingReview, setIsStartingReview] = useState(false);
@@ -95,58 +92,11 @@ export function PresentationDetails({ view, inModal = false }: { view: Presentat
   // It changed since it opened (private, under review): show it as it is now.
   const reload = () => (inModal && modal ? modal.open(presentation.id, { fresh: true }) : router.refresh());
 
-  const makeCopy = async () => {
-    setIsCopying(true);
-    // It may have gone private (or hidden), or under review, since it opened.
-    try {
-      const supabase = createClient();
-      // The database hides someone else's private presentation, so finding nothing means it's private now.
-      const { data: stillVisible, error } = await supabase.from("presentations").select("id, data_version").eq("id", presentation.id).maybeSingle();
-      if (!error && !stillVisible) {
-        setIsCopying(false);
-        // The modal loads it again for real: it says it isn't available, closes, and forgets its remembered copy.
-        if (inModal && modal) {
-          modal.open(presentation.id, { fresh: true });
-          return;
-        }
-        toast.error("This presentation is private now, so it can't be copied.");
-        router.refresh();
-        return;
-      }
-      // Saved by newer app code than this tab runs: copying it here would drop fields this tab doesn't know.
-      if (stillVisible && isNewerThanApp(stillVisible.data_version)) {
-        toast.error(REFUSALS.QMOLD);
-        setIsCopying(false);
-        return;
-      }
-      if ((await loadReviewStatus(supabase, presentation.id)).isLocked) {
-        toast.error("This presentation is under review, so it can't be copied right now.");
-        setIsCopying(false);
-        reload();
-        return;
-      }
-    } catch {
-      // The check failed (connection): the copy below fails too and says so.
-    }
-    const now = Date.now();
-    // Slide ids can stay: a slide's id only has to be unique inside its own presentation.
-    // "Copy of …" so it's easy to tell apart from the original. `author` stays: it credits who wrote the content
-    // (an editor's copy gets the editor as Author from the database instead, see the editor_author_and_copy_source
-    // migration, which also keeps where it was copied from for the admin's Submissions page).
-    const title = `Copy of ${presentation.title || "Untitled presentation"}`.slice(0, DETAIL_MAX_LENGTH.title);
-    const copy = { ...presentation, id: createId(), title, isPublished: false, fromAdmin: false, createdAt: now, updatedAt: now };
-    try {
-      await savePresentationToDb(copy, { copiedFrom: presentation.id });
-      // isCopying stays true, so the spinner and top line keep showing until the editor opens (the modal closes then).
-      goTo(`/presentation/${copy.id}/edit`);
-    } catch (error) {
-      // Paused: the button greys out and the notice at the bottom says until when.
-      const pausedUntil = pausedUntilFromError(error as { code?: string; details?: string });
-      if (pausedUntil) pauseFeature("create", pausedUntil);
-      else toast.error(saveErrorMessage(error, "make a copy"));
-      setIsCopying(false);
-    }
-  };
+  // Make a copy's tab couldn't copy it: grey out the button here too (the daily pause), or show it as it is now.
+  useCopyResults(presentation.id, (result) => {
+    if (result.kind === "paused" && result.pausedUntil) pauseFeature("create", result.pausedUntil);
+    else if (result.kind !== "paused") reload();
+  });
 
   const beginReview = async () => {
     setIsStartingReview(true);
@@ -318,22 +268,7 @@ export function PresentationDetails({ view, inModal = false }: { view: Presentat
                 </Link>
               )
             ) : (
-              <button
-                type="button"
-                onClick={makeCopy}
-                disabled={isCopying || review.isLocked || isCopyPaused}
-                title={
-                  review.isLocked
-                    ? "Under review: it can be copied once QuizMatter publishes the review."
-                    : isCopyPaused
-                      ? "You've made the most new presentations for today. It works again at midnight."
-                      : undefined
-                }
-                className={`flex-1 ${mainButtonClass}`}
-              >
-                {isCopying && <Spinner size={14} />}
-                {isCopying ? "Copying…" : "Make a copy"}
-              </button>
+              <MakeCopyButton presentationId={presentation.id} isLocked={review.isLocked} isPaused={isCopyPaused} />
             )}
             {!isMine && (
               <button
@@ -440,10 +375,46 @@ export function PresentationDetails({ view, inModal = false }: { view: Presentat
 
       {view.hasMoreLikeThis && <MoreLikeThis presentationId={presentation.id} />}
 
-      {(isCopying || isStartingReview) && <TopLoadingBar />}
+      {isStartingReview && <TopLoadingBar />}
     </div>
   );
 }
+
+/**
+ * "Make a copy": opens a new tab (`/presentation/<id>/copy`, MakeCopy) that makes my private copy and then shows it
+ * in the editor, so this page or modal stays as it is. The click leaves a one-time ticket for the copy's new id
+ * (copyTicket.ts) and greys the button out for a few seconds, so a double-click opens one tab, not two copies.
+ * Greyed out while it's under review or new presentations are paused for today (the "create" click limit).
+ */
+function MakeCopyButton({ presentationId, isLocked, isPaused }: { presentationId: string; isLocked: boolean; isPaused: boolean }) {
+  const [isOpening, setIsOpening] = useState(false);
+  const open = () => {
+    setIsOpening(true);
+    setTimeout(() => setIsOpening(false), COPY_WAIT_MS);
+    // At once, inside the click: a tab opened later (after a wait) is blocked by the browser.
+    window.open(copyPageHref(presentationId), "_blank", "noopener");
+  };
+  return (
+    <button
+      type="button"
+      onClick={open}
+      disabled={isLocked || isPaused || isOpening}
+      title={
+        isLocked
+          ? "Under review: it can be copied once QuizMatter publishes the review."
+          : isPaused
+            ? "You've made the most new presentations for today. It works again at midnight."
+            : "Opens your copy in a new tab"
+      }
+      className={`flex-1 ${mainButtonClass}`}
+    >
+      Make a copy
+    </button>
+  );
+}
+
+// After a click, Make a copy waits this long before it can open another tab.
+const COPY_WAIT_MS = 4000;
 
 /** QuizMatter, Reviewed, Under review, Sent to QuizMatter: small pills above the title. */
 function Labels({ view }: { view: PresentationViewData }) {

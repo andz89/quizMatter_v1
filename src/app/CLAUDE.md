@@ -59,7 +59,7 @@ modal grey out.
   outside close it through `history.back()` (`backPendingRef` marks that Back as ours: a card clicked before it's done
   gets its entry once it is, so the new modal isn't closed by it). A click outside does nothing in the first 500 ms
   (`OPEN_GRACE_MS`, the Modal's `onOutsideClick`), so a double-click's second click doesn't close it. Going to another page from inside it (a plain click on a link that isn't
-  a presentation's, caught by `onClickCapture`; Make a copy and Review through `leave`) first takes that entry away
+  a presentation's, caught by `onClickCapture`; Review through `leave`) first takes that entry away
   with `history.back()`, then opens the page (a tick later, after Next's own Back handling), so one Back returns to
   the list; the top line shows meanwhile. It closes by itself when the page changes. The browser's Back while
   presenting also ends presenting and fullscreen (`stopPresenting`). Save and Like (in the modal, on a card, in
@@ -80,7 +80,7 @@ modal grey out.
   the modal loads it again (`open(id, { fresh: true })`: gone, it says so, closes and isn't remembered). **It remembers** the last 10 presentations opened for 5 minutes
   (the one opened longest ago is forgotten first; `REMEMBER_COUNT` / `REMEMBER_MS`, only in that tab's memory; another page or a reload starts empty), so opening
   one again shows at once without asking the server; a Save or Like updates the remembered copy too. Make a copy
-  still checks the server first. My own cards and Claude's drafts still open the editor in a new tab. Test:
+  opens a new tab, which checks the server first. My own cards and Claude's drafts still open the editor in a new tab. Test:
   `e2e/presentation-modal.mjs`.
 - `[id]/page.tsx`: the full page, for a presentation opened by its link (a shared link, Admin → Reports, My
   submissions, a new tab). Logged in it draws the same `[id]/PresentationDetails.tsx` as the modal, without the box.
@@ -91,8 +91,17 @@ modal grey out.
   `n / total` / Next, and a sideways strip of every slide (each picture drawn only once it scrolls near, `LazySlide`,
   since a presentation can have 100); right, labels (QuizMatter, Reviewed, Under review, Sent to QuizMatter), the
   title (`h1` on the page, `h2` in the modal), the details line, tags, "View more by <name>", then **Make a copy**
-  (main button; my own: Edit; saves a private copy and opens it, remembering `copied_from`; an editor's copy gets them
-  as Author), Save (bookmark), Like, Share (a touch screen gets its share menu, a computer copies
+  (main button; my own: Edit; it opens a new tab, `[id]/copy/page.tsx` + `MakeCopy.tsx`, so the modal or page stays.
+  The click picks the copy's new id and leaves a one-time ticket for it in localStorage (`[id]/copy/copyTicket.ts`),
+  opens `/presentation/<id>/copy?as=<new id>` at once (`window.open` inside the click, so it isn't blocked) and greys
+  the button out for 4 s, so a double-click opens one tab. The server reads only the presentation, its review status
+  and data version (private, under review or newer app code: refused there). The tab shows the Spinner and "Making
+  your copy…", opens the copy if it's already there (a reload or a restored tab: never a second copy), saves only
+  with the ticket (another site's link to `/copy` makes nothing), under that id (zod first, remembering
+  `copied_from`; an editor's copy gets them as Author), then replaces itself with the editor. A refusal or the daily
+  "create" pause is said there (a link back, or home when it's private now) and sent to the first tab
+  (`sendCopyResult` / `useCopyResults`, a `storage` event), which greys out its button or loads the presentation
+  again; greyed out while under review or paused), Save (bookmark), Like, Share (a touch screen gets its share menu, a computer copies
   `<site>/presentation/<id>`, "Link copied."; only on a published one) and Report (`ReportButton.tsx iconOnly`, goes
   to Admin → Reports); editors' Review / Update this lesson / Continue review under them; then the credit lines, the
   details and This week's lessons. Below: `[id]/MoreLikeThis.tsx`. Phones get one column. Actions in
