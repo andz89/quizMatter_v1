@@ -3,7 +3,8 @@
 // ✕ close it and a reload just reloads the list. "Show more like this" loads cards inside it, and one of them swaps
 // the modal. Escape in the Report box closes only that box. A link to /presentation/<id> is the full page, same layout.
 // Saving in the modal updates the card behind at once; over the full page only the modal hears the arrow keys and
-// shows Present; Back while presenting ends it; leaving through Make a copy needs one Back to return.
+// shows Present; Back while presenting ends it; leaving through Make a copy needs one Back to return. Opening one
+// again shows the remembered copy without asking the server.
 import { chromium } from "playwright";
 import { APP, SHOTS, check, deleteTeacher, finish, loggedIn, makeTeacher, psql } from "./lib.mjs";
 
@@ -94,8 +95,17 @@ try {
   await anyDialog.first().waitFor({ state: "detached" });
   check("Escape closes it, back on the list", new URL(page.url()).pathname === "/quizmatter", page.url());
 
-  // Back closes it too, and stays on the list.
+  // Opening one again within 5 minutes shows the remembered copy: no request to the server.
+  let serverCalls = 0;
+  const countCalls = (request) => {
+    if (request.headers()["next-action"]) serverCalls++;
+  };
+  page.on("request", countCalls);
   await openA();
+  page.off("request", countCalls);
+  check("opening it again sends no request", serverCalls === 0, `${serverCalls}`);
+
+  // Back closes it too, and stays on the list.
   await page.goBack();
   await anyDialog.first().waitFor({ state: "detached" });
   check("Back closes it and stays on the list", new URL(page.url()).pathname === "/quizmatter", page.url());

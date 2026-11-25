@@ -83,7 +83,7 @@ export function PresentationDetails({ view, inModal = false }: { view: Presentat
   // Another page: from the modal, through it (so one Back returns to the list behind).
   const goTo = (href: string) => (inModal && modal ? modal.leave(href) : router.push(href));
   // It changed since it opened (private, under review): show it as it is now.
-  const reload = () => (inModal && modal ? modal.open(presentation.id) : router.refresh());
+  const reload = () => (inModal && modal ? modal.open(presentation.id, { fresh: true }) : router.refresh());
 
   const makeCopy = async () => {
     setIsCopying(true);

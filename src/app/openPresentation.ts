@@ -4,8 +4,8 @@ import { createContext, useContext, useEffect, useEffectEvent, type MouseEvent }
 
 /** What the presentation modal (PresentationModalProvider, src/app/PresentationModal.tsx) gives the pages. */
 export type PresentationModalApi = {
-  // Opens someone else's presentation in the modal.
-  open: (id: string) => void;
+  // Opens someone else's presentation in the modal. `fresh` skips the remembered copy (it changed since it opened).
+  open: (id: string, options?: { fresh?: boolean }) => void;
   // The modal is showing: the page behind leaves the arrow keys and presenting to it.
   isOpen: boolean;
   // Goes to another page from inside the modal (Make a copy, a profile link), taking the modal's Back entry away

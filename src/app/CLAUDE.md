@@ -68,7 +68,10 @@ modal grey out.
   presenting to it (`isOpen`: `PresentationDetails`' page copy and `PresentingView` in `(home)/CardGrid.tsx` don't
   show their own view, `PresentDraftButton showView`), so one key moves one slide. A suggestion or lesson clicked
   inside swaps the modal (no new history entry); if it changed since it opened (private, under review), the modal
-  loads it again. My own cards and Claude's drafts still open the editor in a new tab. Test:
+  loads it again (`open(id, { fresh: true })`). **It remembers** the last 10 presentations opened for 5 minutes
+  (`REMEMBER_COUNT` / `REMEMBER_MS`, only in that tab's memory; another page or a reload starts empty), so opening
+  one again shows at once without asking the server; a Save or Like updates the remembered copy too. Make a copy
+  still checks the server first. My own cards and Claude's drafts still open the editor in a new tab. Test:
   `e2e/presentation-modal.mjs`.
 - `[id]/page.tsx`: the full page, for a presentation opened by its link (a shared link, Admin → Reports, My
   submissions, a new tab). Logged in it draws the same `[id]/PresentationDetails.tsx` as the modal, without the box.

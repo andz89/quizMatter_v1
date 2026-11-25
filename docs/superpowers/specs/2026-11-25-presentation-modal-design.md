@@ -60,7 +60,9 @@ Canva's template preview, and closing it puts the teacher back where they were.
   saved/liked change signal. Going to another page from inside it takes its Back entry away first, so one Back
   returns to the list. A Save or Like updates every card of it at once and refreshes the list when it closes. While
   a box opened from it (Report) is on top, Escape closes only that box. While it's open, the page under it leaves the
-  arrow keys and presenting to it, and the browser's Back while presenting ends presenting too.
+  arrow keys and presenting to it, and the browser's Back while presenting ends presenting too. It remembers the
+  last 10 presentations opened for 5 minutes (that tab only; another page or a reload forgets them), so opening one
+  again shows at once with no server request.
 - `PresentationCard`: a card with `opensInModal` (set by `toSavableCard`) has no `target="_blank"`; a plain click
   opens the modal.
 - No database change, no new package.

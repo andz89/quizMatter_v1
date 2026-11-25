@@ -18,6 +18,14 @@ import { PresentationModalContext, usePresentationChanges } from "./openPresenta
 // A presentation's own address: those links open in the modal (useOpenOnClick), not as a page.
 const PRESENTATION_PATH = /^\/presentation\/[^/]+$/;
 
+// The last presentations opened are remembered for a short while, so clicking one again shows it at once without
+// asking the server. Only in this tab's memory; another page (or a reload) starts empty.
+const REMEMBER_COUNT = 10;
+const REMEMBER_MS = 5 * 60 * 1000;
+// Only called on a click (open), never while drawing.
+const clockNow = () => Date.now();
+const isRecent = (at: number) => clockNow() - at < REMEMBER_MS;
+
 /** Presenting ends (and fullscreen with it) when the modal goes away under it (the browser's Back). */
 function stopPresenting() {
   const store = useEditorStore.getState();
@@ -53,9 +61,19 @@ export function PresentationModalProvider({ children }: { children: ReactNode })
   const refreshAfterBackRef = useRef(false);
   // Our own Back from `leave` is on its way: that page opens once it's done.
   const leaveToRef = useRef<string | null>(null);
+  // The remembered presentations, oldest first (see REMEMBER_COUNT).
+  const rememberedRef = useRef(new Map<string, { view: PresentationViewData; at: number }>());
 
-  usePresentationChanges(() => {
+  usePresentationChanges(({ id, isSaved, isLiked, likeCount }) => {
     if (shown) changedRef.current = true;
+    // A remembered copy keeps the newest Save / Like, so opening it again shows them right.
+    const remembered = rememberedRef.current.get(id);
+    if (!remembered) return;
+    const view = { ...remembered.view };
+    if (isSaved !== undefined) view.isSaved = isSaved;
+    if (isLiked !== undefined) view.isLiked = isLiked;
+    if (likeCount !== undefined) view.likeCount = likeCount;
+    remembered.view = view;
   });
 
   const hide = () => {
@@ -102,17 +120,25 @@ export function PresentationModalProvider({ children }: { children: ReactNode })
     hasEntryRef.current = false;
     changedRef.current = false;
     leaveToRef.current = null;
+    rememberedRef.current.clear();
     stopPresenting();
     setIsLeaving(false);
     hide();
   }, [pathname]);
 
-  const open = async (id: string) => {
+  const open = async (id: string, { fresh = false }: { fresh?: boolean } = {}) => {
     const request = ++requestRef.current;
     if (!hasEntryRef.current) {
       window.history.pushState(null, "", window.location.href);
       hasEntryRef.current = true;
     }
+    const remembered = rememberedRef.current;
+    const kept = remembered.get(id);
+    if (kept && !fresh && isRecent(kept.at)) {
+      setShown({ id, view: kept.view });
+      return;
+    }
+    remembered.delete(id);
     setShown({ id, view: null });
     let view: PresentationViewData | null | undefined;
     try {
@@ -126,6 +152,9 @@ export function PresentationModalProvider({ children }: { children: ReactNode })
       close();
       return;
     }
+    remembered.set(id, { view, at: clockNow() });
+    // Only the newest few (a Map keeps the order they were added).
+    if (remembered.size > REMEMBER_COUNT) remembered.delete(remembered.keys().next().value!);
     setShown({ id, view });
   };
 

@@ -137,6 +137,8 @@ Tests that delete data (the announcements ones empty the announcements table) do
 - `blank-lines.mjs`: "___" blanks show as one line: the editor marks them (question, a styled option, a run just
   typed; a single `_` isn't), the save has no `qm-blank` span, and presenting fullscreen (question, option, an
   underlined text box, a table cell) and the view page join them the same way.
+- `text-spaces.mjs`: spaces typed on purpose in a text box (a run of them, and at a line's start) stay in the editor
+  after saving and opening again, and on the view page.
 - `text-limits.mjs`: pasting past the limit into the question, an answer choice (5,000 characters) and a text box
   (50,000 as HTML, so 10,000 "&" is refused) leaves the text as it was with one toast; up to the limit goes in;
   typing at the limit is refused, deleting works; Ctrl+S saves; the slide name box's `maxlength`.
@@ -188,7 +190,7 @@ when another is picked), moving into and between boxes (Alt keeps a free picture
 - `presentation-modal.mjs`: a card on From QuizMatter opens the modal in the same tab with the address unchanged
   (first slide, tags, Make a copy), the strip and → change the slide, Escape in Report closes only that box, Share
   copies the link, "Show more like this" loads a card that swaps the modal, Escape / Back close it and stay on the
-  list, a reload has no modal, Save inside works (the card behind shows it at once, the Saved tab has it), the link
+  list, opening one again sends no server request (remembered), a reload has no modal, Save inside works (the card behind shows it at once, the Saved tab has it), the link
   itself is the full page with the same layout and its slide drawn, a modal over that page takes → alone and Present
   shows one view, Back while presenting ends it (the next modal still closes), Make a copy opens the editor with the
   modal gone and its Back entry gone (`history.length` +1 only), and at 390 px it fits
