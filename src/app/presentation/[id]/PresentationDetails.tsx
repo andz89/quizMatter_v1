@@ -24,7 +24,7 @@ import { TopLoadingBar } from "@/components/TopLoadingBar";
 import { FluidSlidePreview } from "@/components/presentation/FluidSlidePreview";
 import { PresentDraftButton } from "@/components/presentation/PresentDraftButton";
 import { SAVE_ERRORS } from "../../SaveCardButton";
-import { announcePresentationChange, usePresentationModal } from "../../openPresentation";
+import { announcePresentationChange, usePresentationChanges, usePresentationModal } from "../../openPresentation";
 import { LessonWeek } from "./LessonWeek";
 import { LikeButton } from "./LikeButton";
 import { MoreLikeThis } from "./MoreLikeThis";
@@ -55,6 +55,10 @@ export function PresentationDetails({ view, inModal = false }: { view: Presentat
   const [slideIndex, setSlideIndex] = useState(0);
   const isPresenting = useEditorStore((s) => s.isPresenting);
   const modal = usePresentationModal();
+  // Saved or removed elsewhere (the same presentation in the modal over this page, a card).
+  usePresentationChanges((change) => {
+    if (change.id === presentation.id && change.isSaved !== undefined) setIsSaved(change.isSaved);
+  });
   // The page under an open modal: the modal is the one in use.
   const isBehindModal = !inModal && !!modal?.isOpen;
   // The slides the strip and Prev/Next go through (the details line still counts them all).
@@ -95,7 +99,8 @@ export function PresentationDetails({ view, inModal = false }: { view: Presentat
       if (!error && !stillVisible) {
         toast.error("This presentation is private now, so it can't be copied.");
         setIsCopying(false);
-        reload();
+        // The page loads again (and says it's gone); the modal just stays, the toast said why.
+        if (!inModal) router.refresh();
         return;
       }
       // Saved by newer app code than this tab runs: copying it here would drop fields this tab doesn't know.
@@ -145,9 +150,11 @@ export function PresentationDetails({ view, inModal = false }: { view: Presentat
       // isStartingReview stays true, so the spinner and top line keep showing until the editor opens.
       goTo(`/presentation/${presentation.id}/edit`);
     } catch (error) {
-      toast.error(error instanceof SaveRefusedError ? "Someone else just started reviewing this." : saveErrorMessage(error, "start the review"));
+      const startedByOther = error instanceof SaveRefusedError;
+      toast.error(startedByOther ? "Someone else just started reviewing this." : saveErrorMessage(error, "start the review"));
       setIsStartingReview(false);
-      reload();
+      // Only when it really changed (under review now); a lost connection would just fail again.
+      if (startedByOther) reload();
     }
   };
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { HeartIcon } from "lucide-react";
 import { toast } from "sonner";
@@ -8,7 +8,7 @@ import { Spinner } from "@/components/Spinner";
 import { REFUSALS } from "@/lib/presentations";
 import { pauseFeature, useIsPaused } from "@/lib/clickLimits";
 import { setPresentationLiked } from "./actions";
-import { announcePresentationChange } from "../../openPresentation";
+import { announcePresentationChange, usePresentationChanges } from "../../openPresentation";
 
 // What to tell the user when liking failed (also used by the card's heart, LikeCardButton).
 export const LIKE_ERRORS = {
@@ -38,7 +38,16 @@ export function LikeButton({
   const router = useRouter();
   const [likeCount, setLikeCount] = useState(countAtStart);
   const [isLiked, setIsLiked] = useState(likedAtStart);
+  // The newest count, also after a change elsewhere while a click waited for the server.
+  const countRef = useRef(countAtStart);
   const [isPending, setIsPending] = useState(false);
+  // Liked or unliked elsewhere (the same presentation in the modal over this page, a card).
+  usePresentationChanges((change) => {
+    if (change.id !== presentationId || change.isLiked === undefined || change.likeCount === undefined) return;
+    countRef.current = change.likeCount;
+    setIsLiked(change.isLiked);
+    setLikeCount(change.likeCount);
+  });
   const isPaused = useIsPaused("like");
   const label = likeCount === 1 ? "1 like" : `${likeCount} likes`;
 
@@ -64,10 +73,8 @@ export function LikeButton({
     }
     const { status, pausedUntil } = result;
     if (status === "done") {
-      const count = Math.max(likeCount + (isLiked ? -1 : 1), 0);
-      setIsLiked(!isLiked);
-      setLikeCount(count);
-      // The card of it behind the modal shows it too.
+      const count = Math.max(countRef.current + (isLiked ? -1 : 1), 0);
+      // Sets this heart and every other one of it on the page (the listener above).
       announcePresentationChange({ id: presentationId, isLiked: !isLiked, likeCount: count });
       toast.success(isLiked ? "Like removed." : "Liked.");
     } else if (status === "paused") {

@@ -61,7 +61,7 @@ export function PresentationModalProvider({ children }: { children: ReactNode })
   const refreshAfterBackRef = useRef(false);
   // Our own Back from `leave` is on its way: that page opens once it's done.
   const leaveToRef = useRef<string | null>(null);
-  // The remembered presentations, oldest first (see REMEMBER_COUNT).
+  // The remembered presentations, the one opened longest ago first (see REMEMBER_COUNT).
   const rememberedRef = useRef(new Map<string, { view: PresentationViewData; at: number }>());
 
   usePresentationChanges(({ id, isSaved, isLiked, likeCount }) => {
@@ -81,8 +81,10 @@ export function PresentationModalProvider({ children }: { children: ReactNode })
     setShown(null);
     setNestedOpen(false);
   };
+  // A tick later, after Next's own Back handling (its popstate listener runs after ours and would undo it).
+  const refreshSoon = () => setTimeout(() => router.refresh(), 0);
   const refreshIfChanged = () => {
-    if (changedRef.current) router.refresh();
+    if (changedRef.current) refreshSoon();
     changedRef.current = false;
   };
 
@@ -98,7 +100,7 @@ export function PresentationModalProvider({ children }: { children: ReactNode })
     }
     if (refreshAfterBackRef.current) {
       refreshAfterBackRef.current = false;
-      router.refresh();
+      refreshSoon();
     }
     if (!hasEntryRef.current) return;
     hasEntryRef.current = false;
@@ -135,6 +137,9 @@ export function PresentationModalProvider({ children }: { children: ReactNode })
     const remembered = rememberedRef.current;
     const kept = remembered.get(id);
     if (kept && !fresh && isRecent(kept.at)) {
+      // Opened again: it becomes the newest, so the one opened longest ago is forgotten first.
+      remembered.delete(id);
+      remembered.set(id, kept);
       setShown({ id, view: kept.view });
       return;
     }
@@ -178,12 +183,15 @@ export function PresentationModalProvider({ children }: { children: ReactNode })
       close();
       return;
     }
-    setIsLeaving(true);
+    // Only the search words change (same page): the pathname effect won't see it, so the modal goes now.
+    const samePage = target.pathname === window.location.pathname;
+    if (samePage) hide();
+    else setIsLeaving(true);
     if (!hasEntryRef.current) {
       router.push(href);
       return;
     }
-    // The modal stays (with its spinners) until the new page opens; the pathname effect then hides it.
+    // Another page: the modal stays (with its spinners) until it opens; the pathname effect then hides it.
     hasEntryRef.current = false;
     changedRef.current = false;
     leaveToRef.current = href;

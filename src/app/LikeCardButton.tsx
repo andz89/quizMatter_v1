@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { HeartIcon } from "lucide-react";
 import { toast } from "sonner";
@@ -29,11 +29,14 @@ export function LikeCardButton({
   const router = useRouter();
   const [likeCount, setLikeCount] = useState(countAtStart);
   const [isLiked, setIsLiked] = useState(likedAtStart);
+  // The newest count, also after a change elsewhere while a click waited for the server.
+  const countRef = useRef(countAtStart);
   const [isPending, startTransition] = useTransition();
   const isPaused = useIsPaused("like");
   // Liked or unliked elsewhere (the presentation modal, the same card in another grid): this heart shows it too.
   usePresentationChanges((change) => {
     if (change.id !== presentationId || change.isLiked === undefined || change.likeCount === undefined) return;
+    countRef.current = change.likeCount;
     setIsLiked(change.isLiked);
     setLikeCount(change.likeCount);
   });
@@ -61,7 +64,7 @@ export function LikeCardButton({
       }
       toast.success(isLiked ? "Like removed." : "Liked.");
       // Sets this heart and every other one of it on the page (the listener above).
-      announcePresentationChange({ id: presentationId, isLiked: !isLiked, likeCount: Math.max(likeCount + (isLiked ? -1 : 1), 0) });
+      announcePresentationChange({ id: presentationId, isLiked: !isLiked, likeCount: Math.max(countRef.current + (isLiked ? -1 : 1), 0) });
     });
 
   return (

@@ -139,7 +139,14 @@ export function SavableCards({
 }) {
   const [removedIds, setRemovedIds] = useState<Set<string>>(new Set());
   const { savedIds, onSavedChange } = useSavedIds(cards, (card, isSaved) => {
-    if (removeOnUnsave && !isSaved) setRemovedIds((ids) => new Set(ids).add(card.id));
+    if (!removeOnUnsave) return;
+    // Saved again (e.g. in the modal, right after removing it): it comes back.
+    setRemovedIds((ids) => {
+      const next = new Set(ids);
+      if (isSaved) next.delete(card.id);
+      else next.add(card.id);
+      return next;
+    });
   });
   return (
     <>

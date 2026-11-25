@@ -129,6 +129,17 @@ try {
   await page.goto(`${APP}/saved`);
   check("Save in the modal works", await page.locator("a", { hasText: titles.a }).first().isVisible({ timeout: 20_000 }));
 
+  // On Saved: remove it in the modal, then save it again: the card behind comes back.
+  await openA();
+  await dialog.getByRole("button", { name: "Remove from Saved" }).click();
+  await page.getByText("Removed from Saved.").waitFor();
+  await dialog.getByRole("button", { name: "Save to your home page" }).click();
+  await page.getByText("Saved. Find it").waitFor();
+  await dialog.getByRole("button", { name: "Close" }).click();
+  await anyDialog.first().waitFor({ state: "detached" });
+  await page.waitForTimeout(1_000);
+  check("removed then saved again: the Saved card stays", (await page.locator("a", { hasText: titles.a }).count()) >= 1);
+
   // The full page: a link to it (shared link, reload of the page itself).
   await page.goto(`${APP}/presentation/${ids.a}`);
   await page.locator("h1", { hasText: titles.a }).waitFor({ timeout: 20_000 });

@@ -62,14 +62,16 @@ modal grey out.
   the list; the top line shows meanwhile. It closes by itself when the page changes. The browser's Back while
   presenting also ends presenting and fullscreen (`stopPresenting`). Save and Like (in the modal, on a card, in
   `LikeButton` / `SaveCardButton` / `LikeCardButton`) call `announcePresentationChange`: every card of it on the page
-  (`useSavedIds`, `SavableCardGrid`, `LikeCardButton`, via `usePresentationChanges`) shows it at once, and the page
-  behind is refreshed after the modal closes. While Report is on top (`useNestedDialog`), the modal's `canClose` is
+  (`useSavedIds`, `SavableCardGrid`, `LikeCardButton`, and the full page's own Save and `LikeButton`, via
+  `usePresentationChanges`; on Saved, a card removed and saved again comes back) shows it at once, and the page
+  behind is refreshed after the modal closes (a tick later, like the push after `leave`, so Next's Back handling
+  doesn't undo it). A link inside that changes only the search words of the same page closes the modal at once. While Report is on top (`useNestedDialog`), the modal's `canClose` is
   off, so Escape and a click outside close only that box. While it's open, the page under it leaves the arrow keys and
   presenting to it (`isOpen`: `PresentationDetails`' page copy and `PresentingView` in `(home)/CardGrid.tsx` don't
   show their own view, `PresentDraftButton showView`), so one key moves one slide. A suggestion or lesson clicked
-  inside swaps the modal (no new history entry); if it changed since it opened (private, under review), the modal
-  loads it again (`open(id, { fresh: true })`). **It remembers** the last 10 presentations opened for 5 minutes
-  (`REMEMBER_COUNT` / `REMEMBER_MS`, only in that tab's memory; another page or a reload starts empty), so opening
+  inside swaps the modal (no new history entry); if it went under review since it opened (a refused copy, or someone
+  else started reviewing it), the modal loads it again (`open(id, { fresh: true })`). **It remembers** the last 10 presentations opened for 5 minutes
+  (the one opened longest ago is forgotten first; `REMEMBER_COUNT` / `REMEMBER_MS`, only in that tab's memory; another page or a reload starts empty), so opening
   one again shows at once without asking the server; a Save or Like updates the remembered copy too. Make a copy
   still checks the server first. My own cards and Claude's drafts still open the editor in a new tab. Test:
   `e2e/presentation-modal.mjs`.
