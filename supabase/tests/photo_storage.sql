@@ -147,9 +147,15 @@ create function pg_temp.fill(target uuid, n int) returns void language sql as $$
 $$;
 select pg_temp.fill('00000000-0000-4000-8000-0000000005a1', 24);
 
--- Over the limit: refused, nothing written.
+-- Over the limit: photo_upload_fits says no (asked before the click limit counts), reserve refuses, nothing written.
 do $$
 begin
+  if public.photo_upload_fits('00000000-0000-4000-8000-0000000005a1', pg_temp.f('c'), 2096153) then
+    raise exception 'FAIL: photo_upload_fits let an upload past 50 MB through';
+  end if;
+  if not public.photo_upload_fits('00000000-0000-4000-8000-0000000005a1', pg_temp.f('c'), 2096152) then
+    raise exception 'FAIL: photo_upload_fits refused an upload that fits exactly';
+  end if;
   perform public.reserve_photo_upload('00000000-0000-4000-8000-0000000005a1', pg_temp.f('c'), 2096153);
   raise exception 'FAIL: an upload past 50 MB was accepted';
 exception when sqlstate 'QMSTO' then null;
@@ -250,6 +256,14 @@ do $$
 begin
   perform public.photo_storage_used('00000000-0000-4000-8000-0000000005a2');
   raise exception 'FAIL: a teacher called photo_storage_used';
+exception when insufficient_privilege then null;
+end;
+$$;
+
+do $$
+begin
+  perform public.photo_upload_fits('00000000-0000-4000-8000-0000000005a1', 'x', 1);
+  raise exception 'FAIL: a teacher called photo_upload_fits';
 exception when insufficient_privilege then null;
 end;
 $$;
@@ -395,8 +409,8 @@ update public.photo_uploads set bytes = 2097152, size_known = false
 where src = pg_temp.f('a');
 do $$
 begin
-  if array(select public.photo_uploads_unknown_sizes() order by 1) <> array[pg_temp.f('a')] then
-    raise exception 'FAIL: unknown sizes: %', array(select public.photo_uploads_unknown_sizes());
+  if public.photo_uploads_unknown_sizes() <> jsonb_build_array(pg_temp.f('a')) then
+    raise exception 'FAIL: unknown sizes: %', public.photo_uploads_unknown_sizes();
   end if;
 end;
 $$;
@@ -404,7 +418,7 @@ select public.set_photo_upload_sizes(jsonb_build_object(pg_temp.f('a'), 1234));
 do $$
 begin
   if exists (select 1 from public.photo_uploads where src = pg_temp.f('a') and (bytes <> 1234 or not size_known))
-    or exists (select public.photo_uploads_unknown_sizes()) then
+    or public.photo_uploads_unknown_sizes() <> '[]'::jsonb then
     raise exception 'FAIL: set_photo_upload_sizes did not fix the size';
   end if;
 end;

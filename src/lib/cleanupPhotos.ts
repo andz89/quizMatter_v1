@@ -43,23 +43,26 @@ export async function cleanupPhotos(env: CleanupEnv) {
   console.log(`Photo cleanup: checked ${checked} files, deleted ${keys.length}.`, keys);
 
   // Photos uploaded before the storage limit count as 2 MB until their real size is known (photo_uploads): send the
-  // sizes this listing just saw. After the first run the list is empty. A failure is only logged: the deletes are done.
+  // sizes this listing just saw (a file no longer in R2 gets 1 byte, so it leaves the list). After the first run the
+  // list is empty. A failure is only logged: the deletes are done.
   const unknown = await supabase.rpc("photo_uploads_unknown_sizes");
   if (unknown.error) return console.error("Photo cleanup: couldn't read the sizes to fix.", unknown.error);
-  const fixes = sizesToFix(z.array(z.string()).parse(unknown.data), sizes);
+  const unknownSrcs = z.array(z.string()).safeParse(unknown.data);
+  if (!unknownSrcs.success) return console.error("Photo cleanup: the sizes to fix came back in a wrong shape.");
+  const fixes = sizesToFix(unknownSrcs.data, sizes);
   if (Object.keys(fixes).length === 0) return;
   const { error: fixError } = await supabase.rpc("set_photo_upload_sizes", { sizes: fixes });
   if (fixError) console.error("Photo cleanup: couldn't fix the sizes.", fixError);
   else console.log(`Photo cleanup: fixed ${Object.keys(fixes).length} photo sizes.`);
 }
 
-/** The real sizes (from R2's listing) of the estimated photos that are still in R2: { src: bytes }. */
+/**
+ * The real size of every estimated photo: { src: bytes }. `sizes` is R2's whole listing, so a photo missing from it
+ * is gone for good: it gets 1 byte (it takes no space), so it isn't asked about again every week.
+ */
 export function sizesToFix(unknown: string[], sizes: Map<string, number>): Record<string, number> {
   const fixes: Record<string, number> = {};
-  for (const src of unknown) {
-    const size = sizes.get(src);
-    if (size !== undefined) fixes[src] = size;
-  }
+  for (const src of unknown) fixes[src] = sizes.get(src) ?? 1;
   return fixes;
 }
 

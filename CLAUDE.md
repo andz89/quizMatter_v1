@@ -473,9 +473,11 @@ Keep these rules:
   on a slide of a presentation **they own** (their shared copy too), once per file (`photo_storage_used`). A photo
   someone copied never counts for the copier; once the uploader stops using it, it counts for nobody (accepted:
   copies don't make new files). Photos in a review draft don't count. Admins have no limit.
-- **The database is the real check:** `upload-image` calls `reserve_photo_upload` with the secret key before the
-  file is stored (one teacher at a time, an advisory lock; a new upload holds its space for 10 minutes); over the
-  limit = `QMSTO` (413, `STORAGE_FULL_MESSAGE`). Teachers only read their own `photo_uploads` rows, so they can't
+- **The database is the real check:** `upload-image` first asks `photo_upload_fits` (before the click limit counts
+  the upload, so a full account's tries never pause or ban), then calls `reserve_photo_upload` with the secret key
+  before the file is stored (one teacher at a time, an advisory lock; a new upload holds its space for 10 minutes);
+  over the limit = `QMSTO` (413, `STORAGE_FULL_MESSAGE`). The browser skips sending a photo while the last total it
+  saw is full (it asks again first, `sendPhoto`). Teachers only read their own `photo_uploads` rows, so they can't
   delete records to free space. The limit is `photo_storage_limit()` and `PHOTO_STORAGE_LIMIT_BYTES`
   (`src/lib/photoStorage.ts`): change both together.
 - **Nothing is deleted because of it.** Over the limit (e.g. old photos counted at 2 MB until the weekly cleanup

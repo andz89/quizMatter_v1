@@ -20,7 +20,10 @@ $$;
 -- functions below and the secret key: a teacher can't delete their own records to free space.
 create table public.photo_uploads (
   user_id uuid not null references auth.users (id) on delete cascade,
+  -- Same limit as photoSchema.src (src/lib/schema.ts): 300 characters.
   src text not null check (src like 'https://images.quizmatter.com/uploads/%' and length(src) <= 300),
+  -- Same limit as MAX_STORED_PHOTO_BYTES (src/lib/constants.ts): 2 MB. Change it here, in set_photo_upload_sizes
+  -- and in the backfill below too.
   bytes integer not null check (bytes > 0 and bytes <= 2097152),
   -- false = estimated (the backfill below); the weekly photo cleanup sends the real size.
   size_known boolean not null default true,
@@ -57,34 +60,39 @@ as $$
     );
 $$;
 
+-- ─── Does this upload fit? (upload-image asks first, before the click limit counts it; secret key) ───────────
+-- True for an admin, or when the file already counts for them (uploading it again adds nothing), or when it fits.
+create function public.photo_upload_fits(target uuid, target_src text, file_bytes integer) returns boolean
+language sql stable security definer
+set search_path = ''
+as $$
+  select exists (select 1 from public.admins a where a.user_id = target)
+    or exists (
+      select 1 from public.photo_uploads u
+      where u.user_id = target and u.src = target_src
+        and (
+          u.created_at > now() - interval '10 minutes'
+          or exists (select 1 from public.photos p where p.user_id = target and p.src = u.src)
+          or exists (
+            select 1 from public.slide_photos sp
+            join public.presentations pr on pr.id = sp.presentation_id
+            where sp.src = u.src and pr.owner_id = target
+          )
+        )
+    )
+    or public.photo_storage_used(target) + file_bytes <= public.photo_storage_limit();
+$$;
+
 -- ─── Before an upload's file is stored (upload-image, with the secret key) ───────────────────────────────────
 create function public.reserve_photo_upload(target uuid, target_src text, file_bytes integer) returns void
 language plpgsql security definer
 set search_path = ''
 as $$
-declare
-  is_admin boolean := exists (select 1 from public.admins a where a.user_id = target);
-  already_counted boolean;
 begin
   -- One teacher's uploads are checked one at a time, so two at once can't both slip past the limit.
   perform pg_advisory_xact_lock(hashtext('photo_storage:' || target::text));
 
-  already_counted := exists (
-    select 1 from public.photo_uploads u
-    where u.user_id = target and u.src = target_src
-      and (
-        u.created_at > now() - interval '10 minutes'
-        or exists (select 1 from public.photos p where p.user_id = target and p.src = u.src)
-        or exists (
-          select 1 from public.slide_photos sp
-          join public.presentations pr on pr.id = sp.presentation_id
-          where sp.src = u.src and pr.owner_id = target
-        )
-      )
-  );
-
-  if not is_admin and not already_counted
-    and public.photo_storage_used(target) + file_bytes > public.photo_storage_limit() then
+  if not public.photo_upload_fits(target, target_src, file_bytes) then
     raise exception 'Your photo storage is full (50 MB).' using errcode = 'QMSTO';
   end if;
 
@@ -158,14 +166,16 @@ end;
 $$;
 
 -- ─── Real sizes for the estimated rows (the weekly photo cleanup, src/lib/cleanupPhotos.ts) ───────────────────
-create function public.photo_uploads_unknown_sizes() returns setof text
+-- One jsonb array, not a set of rows: PostgREST cuts a set at max_rows (1,000), and the rest would wait for later weeks.
+create function public.photo_uploads_unknown_sizes() returns jsonb
 language sql stable security definer
 set search_path = ''
 as $$
-  select distinct u.src from public.photo_uploads u where not u.size_known;
+  select coalesce(jsonb_agg(distinct u.src), '[]'::jsonb) from public.photo_uploads u where not u.size_known;
 $$;
 
--- sizes: { "<src>": bytes } for files the cleanup found in R2.
+-- sizes: { "<src>": bytes } for every estimated file: its size in R2, or 1 when it's no longer there (it takes no
+-- space, and it leaves the list). Same 2 MB cap as the table (MAX_STORED_PHOTO_BYTES).
 create function public.set_photo_upload_sizes(sizes jsonb) returns void
 language sql security definer
 set search_path = ''
@@ -182,6 +192,9 @@ grant execute on function public.photo_storage_limit() to authenticated, service
 
 revoke all on function public.photo_storage_used(uuid) from public, anon, authenticated;
 grant execute on function public.photo_storage_used(uuid) to service_role;
+
+revoke all on function public.photo_upload_fits(uuid, text, integer) from public, anon, authenticated;
+grant execute on function public.photo_upload_fits(uuid, text, integer) to service_role;
 
 revoke all on function public.reserve_photo_upload(uuid, text, integer) from public, anon, authenticated;
 grant execute on function public.reserve_photo_upload(uuid, text, integer) to service_role;

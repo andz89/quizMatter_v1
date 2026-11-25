@@ -52,8 +52,9 @@ limit). So the database keeps a small list of which slide uses which photo, one 
 
 Each teacher may keep 50 MB of photos (`photo_uploads`, `supabase/migrations/20261231002600_photo_storage.sql`).
 Photos uploaded before that limit had no saved size, so they count as 2 MB (`size_known = false`). After deleting,
-the job asks `photo_uploads_unknown_sizes()` and sends the real sizes it saw in R2's listing to
-`set_photo_upload_sizes` (`sizesToFix`). After the first run the list is empty. A failure here is only logged.
+the job asks `photo_uploads_unknown_sizes()` (one jsonb array, so PostgREST's 1,000-row cut doesn't apply) and sends
+the real sizes it saw in R2's listing to `set_photo_upload_sizes` (`sizesToFix`); a file no longer in R2 gets 1 byte,
+so it leaves the list. After the first run the list is empty. A failure here is only logged.
 
 ### The 7-day safety rule
 

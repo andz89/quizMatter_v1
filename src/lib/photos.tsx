@@ -21,7 +21,7 @@ import {
 import { contains } from "./search";
 import { modalAttachmentSchema, type ModalAttachment } from "./announcements";
 import { MAX_GIF_BYTES } from "./photoTypes";
-import type { PhotoStorage } from "./photoStorage";
+import { STORAGE_FULL_MESSAGE, isStorageFull, type PhotoStorage } from "./photoStorage";
 import { useEditorStore } from "./store";
 import { createClient } from "./supabase/client";
 import { PHOTO_ID } from "./svgLibrary";
@@ -107,6 +107,11 @@ async function shrinkPhoto(file: Blob, webpOnly = false): Promise<ShrunkPhoto> {
  * name on the admin's computer (to show and search).
  */
 async function sendPhoto(shrunk: ShrunkPhoto, shared?: { categoryId: string; source: string; name: string }): Promise<Photo> {
+  // Last seen full (e.g. a photo dropped onto a slide): asked again first, since a save may have freed space, and
+  // the 2 MB photo isn't sent when it's still full. The upload route checks anyway.
+  if (!shared && lastStorage && isStorageFull(lastStorage) && isStorageFull(await loadPhotoStorage().catch(() => lastStorage!))) {
+    throw new PhotoError(STORAGE_FULL_MESSAGE);
+  }
   const params = new URLSearchParams({ width: String(shrunk.width), height: String(shrunk.height) });
   if (shared) {
     params.set("category", shared.categoryId);
@@ -133,8 +138,11 @@ async function sendPhoto(shrunk: ShrunkPhoto, shared?: { categoryId: string; sou
 // Who shows the storage (the Photos panel). Uploads and removes tell them the new total from their own answers,
 // so a photo dropped onto a slide updates the open panel too, without another request.
 const storageListeners = new Set<(storage: PhotoStorage) => void>();
+// The newest total this tab has seen (sendPhoto uses it to skip sending a photo when it's full).
+let lastStorage: PhotoStorage | null = null;
 
 function tellStorage(storage: PhotoStorage) {
+  lastStorage = storage;
   for (const listener of storageListeners) listener(storage);
 }
 
@@ -148,7 +156,9 @@ export function watchPhotoStorage(listener: (storage: PhotoStorage) => void): ()
 export async function loadPhotoStorage(): Promise<PhotoStorage> {
   const { data, error } = await createClient().rpc("my_photo_storage");
   if (error) throw error;
-  return photoStorageSchema.parse(data);
+  const storage = photoStorageSchema.parse(data);
+  tellStorage(storage);
+  return storage;
 }
 
 /**

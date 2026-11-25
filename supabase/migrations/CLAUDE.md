@@ -131,9 +131,10 @@ A refusal raises an error with its own code. The app turns the code into a messa
   `to_jsonb(old)`, since `shared_photos` has no `user_id`.
 - Photo storage, 50 MB per teacher: `20261231002600_photo_storage.sql` (test `supabase/tests/photo_storage.sql`;
   root `CLAUDE.md`, "Photo Storage"). `photo_uploads` (who uploaded which file, its size; teachers read their own,
-  nobody else writes it), `photo_storage_limit()`, `photo_storage_used(target)` (not granted), `reserve_photo_upload`
-  (service role: `QMSTO` when full), `my_photo_storage()`, `remove_my_photo(src, mode)`, and for the weekly cleanup
-  `photo_uploads_unknown_sizes()` / `set_photo_upload_sizes(sizes)` (service role). Existing "My photos" rows were
+  nobody else writes it), `photo_storage_limit()`, `photo_storage_used(target)` (not granted), `photo_upload_fits`
+  (service role: asked before the click limit counts), `reserve_photo_upload` (service role: `QMSTO` when full),
+  `my_photo_storage()`, `remove_my_photo(src, mode)`, and for the weekly cleanup `photo_uploads_unknown_sizes()` (a
+  jsonb array, not rows: PostgREST cuts rows at 1,000) / `set_photo_upload_sizes(sizes)` (service role). Existing "My photos" rows were
   added at their shared photo's size, else 2 MB. Apply it **before** the app.
 - Click limits: `20261013000000_click_limits.sql`, `20261014000000_click_auto_ban.sql`, `20261017000000_click_history.sql`.
   `20261211000000_save_photo_click_limits.sql` (test `supabase/tests/save_photo_click_limits.sql`): saving

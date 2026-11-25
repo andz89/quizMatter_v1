@@ -957,8 +957,11 @@ isOneToOne: false
 "photo_storage_used":
 { Args: { "target": string }; Returns: number
                            },
+"photo_upload_fits":
+{ Args: { "file_bytes": number,"target": string,"target_src": string }; Returns: boolean
+                           },
 "photo_uploads_unknown_sizes":
-{ Args: Record<PropertyKey, never>; Returns: string[]
+{ Args: Record<PropertyKey, never>; Returns: Json
                            },
 "photo_waiting_for_approval":
 { Args: { "owner": string,"target_src": string }; Returns: boolean

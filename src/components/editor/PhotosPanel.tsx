@@ -74,11 +74,13 @@ export function PhotosPanel() {
   useEffect(() => {
     if (isMyPhotosTab && myPhotos === null) loadMyPhotos().then(setMyPhotos, () => setMyPhotos("failed"));
   }, [isMyPhotosTab, myPhotos]);
-  // Read once with the tab, for teachers who can upload. If it fails, the bar just doesn't show.
-  const needsStorage = isMyPhotosTab && canUpload === true && storage === null;
+  // Read each time the tab opens and after each save while it's open (taking a photo off the slides and saving
+  // frees space), for teachers who can upload. If it fails, the bar keeps what it had (or doesn't show).
+  const savedAt = useEditorStore((s) => s.savedAt);
+  const needsStorage = isMyPhotosTab && canUpload === true;
   useEffect(() => {
     if (needsStorage) loadPhotoStorage().then(setStorage, () => {});
-  }, [needsStorage]);
+  }, [needsStorage, savedAt]);
   const isFull = storage !== null && isStorageFull(storage);
 
   // A new upload goes to the top of the list (or moves there, if it was already in it).
@@ -86,42 +88,57 @@ export function PhotosPanel() {
     if (photo) setMyPhotos((list) => (Array.isArray(list) ? [photo, ...list.filter((p) => p.src !== photo.src)] : list));
   };
 
-  const removeFromList = (photo: Photo) =>
+  // Takes the photo off the list and returns how to put it back where it was. Putting back adds only that photo, so
+  // a photo uploaded meanwhile stays.
+  const removeFromList = (photo: Photo) => {
+    const index = Array.isArray(myPhotos) ? myPhotos.findIndex((p) => p.src === photo.src) : -1;
     setMyPhotos((list) => (Array.isArray(list) ? list.filter((p) => p.src !== photo.src) : list));
+    return () =>
+      setMyPhotos((list) =>
+        Array.isArray(list) && index >= 0 && !list.some((p) => p.src === photo.src)
+          ? [...list.slice(0, index), photo, ...list.slice(index)]
+          : list,
+      );
+  };
 
   // Removed at once when none of the teacher's slides has it (one request). If their slides still have it, a box
   // says where and that it keeps counting toward their storage. The open presentation may have it on a slide not
-  // saved yet, which the database can't see: then the database only answers ("ask") and the box always shows.
+  // saved yet, which the database can't see: then the database only answers ("ask") and the box always shows. A
+  // review draft is someone else's lesson and never counts, so it isn't asked about.
   const handleRemove = async (photo: Photo) => {
-    const { presentation } = useEditorStore.getState();
-    const usedHere = presentation.slides.some((slide) => JSON.stringify(slide).includes(photo.src));
-    const previous = myPhotos;
-    if (!usedHere) removeFromList(photo);
+    const { presentation, review } = useEditorStore.getState();
+    const usedHere = review === null && presentation.slides.some((slide) => JSON.stringify(slide).includes(photo.src));
+    const putBack = usedHere ? null : removeFromList(photo);
     try {
       const result = await removeMyPhoto(photo.src, usedHere ? "ask" : "if_unused");
       if (result.removed) return;
-      setMyPhotos(previous);
+      // It counts for nothing (an admin, or a photo they didn't upload): nothing to warn about, so it just goes.
+      if (result.bytes === null || result.limit === null) return removeAnyway(photo, putBack, false);
+      putBack?.();
       const unsavedHere = usedHere && !result.uses.some((use) => use.id === presentation.id);
       setStillUsed({ photo, message: stillUsedMessage(result.uses, result.bytes, unsavedHere) });
     } catch (error) {
-      setMyPhotos(previous);
+      putBack?.();
       toast.error(isPhotoLocked(error) ? PHOTO_LOCKED_MESSAGE : "Couldn't remove the photo. Please try again.");
     }
   };
 
-  const confirmRemove = async () => {
-    if (!stillUsed) return;
-    const { photo } = stillUsed;
-    setStillUsed(null);
-    const previous = myPhotos;
-    removeFromList(photo);
+  // Removes it even though slides have it. `putBack`: the photo is already off the list (else it's taken off now).
+  const removeAnyway = async (photo: Photo, putBack: (() => void) | null, stillCounts: boolean) => {
+    const undo = putBack ?? removeFromList(photo);
     try {
       await removeMyPhoto(photo.src, "remove");
-      toast(STILL_COUNTS_TOAST);
+      if (stillCounts) toast(STILL_COUNTS_TOAST);
     } catch (error) {
-      setMyPhotos(previous);
+      undo();
       toast.error(isPhotoLocked(error) ? PHOTO_LOCKED_MESSAGE : "Couldn't remove the photo. Please try again.");
     }
+  };
+
+  const confirmRemove = () => {
+    if (!stillUsed) return;
+    setStillUsed(null);
+    removeAnyway(stillUsed.photo, null, true);
   };
 
   // One photo at a time (addPhotoToSlide refuses another while one is uploading).

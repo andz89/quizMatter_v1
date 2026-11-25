@@ -2952,11 +2952,36 @@ $$;
 ALTER FUNCTION "public"."photo_storage_used"("target" "uuid") OWNER TO "postgres";
 
 
-CREATE OR REPLACE FUNCTION "public"."photo_uploads_unknown_sizes"() RETURNS SETOF "text"
+CREATE OR REPLACE FUNCTION "public"."photo_upload_fits"("target" "uuid", "target_src" "text", "file_bytes" integer) RETURNS boolean
     LANGUAGE "sql" STABLE SECURITY DEFINER
     SET "search_path" TO ''
     AS $$
-  select distinct u.src from public.photo_uploads u where not u.size_known;
+  select exists (select 1 from public.admins a where a.user_id = target)
+    or exists (
+      select 1 from public.photo_uploads u
+      where u.user_id = target and u.src = target_src
+        and (
+          u.created_at > now() - interval '10 minutes'
+          or exists (select 1 from public.photos p where p.user_id = target and p.src = u.src)
+          or exists (
+            select 1 from public.slide_photos sp
+            join public.presentations pr on pr.id = sp.presentation_id
+            where sp.src = u.src and pr.owner_id = target
+          )
+        )
+    )
+    or public.photo_storage_used(target) + file_bytes <= public.photo_storage_limit();
+$$;
+
+
+ALTER FUNCTION "public"."photo_upload_fits"("target" "uuid", "target_src" "text", "file_bytes" integer) OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."photo_uploads_unknown_sizes"() RETURNS "jsonb"
+    LANGUAGE "sql" STABLE SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+  select coalesce(jsonb_agg(distinct u.src), '[]'::jsonb) from public.photo_uploads u where not u.size_known;
 $$;
 
 
@@ -3504,29 +3529,11 @@ CREATE OR REPLACE FUNCTION "public"."reserve_photo_upload"("target" "uuid", "tar
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO ''
     AS $$
-declare
-  is_admin boolean := exists (select 1 from public.admins a where a.user_id = target);
-  already_counted boolean;
 begin
   -- One teacher's uploads are checked one at a time, so two at once can't both slip past the limit.
   perform pg_advisory_xact_lock(hashtext('photo_storage:' || target::text));
 
-  already_counted := exists (
-    select 1 from public.photo_uploads u
-    where u.user_id = target and u.src = target_src
-      and (
-        u.created_at > now() - interval '10 minutes'
-        or exists (select 1 from public.photos p where p.user_id = target and p.src = u.src)
-        or exists (
-          select 1 from public.slide_photos sp
-          join public.presentations pr on pr.id = sp.presentation_id
-          where sp.src = u.src and pr.owner_id = target
-        )
-      )
-  );
-
-  if not is_admin and not already_counted
-    and public.photo_storage_used(target) + file_bytes > public.photo_storage_limit() then
+  if not public.photo_upload_fits(target, target_src, file_bytes) then
     raise exception 'Your photo storage is full (50 MB).' using errcode = 'QMSTO';
   end if;
 
@@ -7149,6 +7156,11 @@ GRANT ALL ON FUNCTION "public"."photo_storage_limit"() TO "service_role";
 
 REVOKE ALL ON FUNCTION "public"."photo_storage_used"("target" "uuid") FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."photo_storage_used"("target" "uuid") TO "service_role";
+
+
+
+REVOKE ALL ON FUNCTION "public"."photo_upload_fits"("target" "uuid", "target_src" "text", "file_bytes" integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."photo_upload_fits"("target" "uuid", "target_src" "text", "file_bytes" integer) TO "service_role";
 
 
 
