@@ -91,11 +91,17 @@ modal grey out.
   `n / total` / Next, and a sideways strip of every slide (each picture drawn only once it scrolls near, `LazySlide`,
   since a presentation can have 100); right, labels (QuizMatter, Reviewed, Under review, Sent to QuizMatter), the
   title (`h1` on the page, `h2` in the modal), the details line, tags, "View more by <name>", then **Make a copy**
-  (main button; my own: Edit; a link that opens a new tab, `[id]/copy/page.tsx` + `MakeCopy.tsx`, so the modal or page
-  stays: it shows the Spinner and "Making your copy…", checks it's still visible, not from newer app code and not
-  under review, saves my private copy once (zod first, remembering `copied_from`; an editor's copy gets them as
-  Author), then replaces itself with the editor, so Back or a reload never makes a second copy; a refusal or the
-  daily "create" pause is said on that page with a link back; greyed out while under review or paused), Save (bookmark), Like, Share (a touch screen gets its share menu, a computer copies
+  (main button; my own: Edit; it opens a new tab, `[id]/copy/page.tsx` + `MakeCopy.tsx`, so the modal or page stays.
+  The click picks the copy's new id and leaves a one-time ticket for it in localStorage (`[id]/copy/copyTicket.ts`),
+  opens `/presentation/<id>/copy?as=<new id>` at once (`window.open` inside the click, so it isn't blocked) and greys
+  the button out for 4 s, so a double-click opens one tab. The server reads only the presentation, its review status
+  and data version (private, under review or newer app code: refused there). The tab shows the Spinner and "Making
+  your copy…", opens the copy if it's already there (a reload or a restored tab: never a second copy), saves only
+  with the ticket (another site's link to `/copy` makes nothing), under that id (zod first, remembering
+  `copied_from`; an editor's copy gets them as Author), then replaces itself with the editor. A refusal or the daily
+  "create" pause is said there (a link back, or home when it's private now) and sent to the first tab
+  (`sendCopyResult` / `useCopyResults`, a `storage` event), which greys out its button or loads the presentation
+  again; greyed out while under review or paused), Save (bookmark), Like, Share (a touch screen gets its share menu, a computer copies
   `<site>/presentation/<id>`, "Link copied."; only on a published one) and Report (`ReportButton.tsx iconOnly`, goes
   to Admin → Reports); editors' Review / Update this lesson / Continue review under them; then the credit lines, the
   details and This week's lessons. Below: `[id]/MoreLikeThis.tsx`. Phones get one column. Actions in

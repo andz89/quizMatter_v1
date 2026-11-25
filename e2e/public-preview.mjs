@@ -122,7 +122,7 @@ try {
   const context = await loggedIn(browser, viewer);
   const viewerPage = await context.newPage();
   await viewerPage.goto(`${APP}/presentation/${ids.copy}`);
-  check("logged in, it's the normal view page (Make a copy)", await viewerPage.getByRole("link", { name: "Make a copy" }).isVisible());
+  check("logged in, it's the normal view page (Make a copy)", await viewerPage.getByRole("button", { name: "Make a copy" }).isVisible());
   check("logged in, no login buttons", (await viewerPage.getByRole("link", { name: "Log in to see the slide" }).count()) === 0);
   await context.close();
 } finally {

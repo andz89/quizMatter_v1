@@ -27,6 +27,7 @@ import {
   usePresentationChanges,
   usePresentationModal,
 } from "../../openPresentation";
+import { copyPageHref, useCopyResults } from "./copy/copyTicket";
 import { LessonWeek } from "./LessonWeek";
 import { LikeButton } from "./LikeButton";
 import { MoreLikeThis } from "./MoreLikeThis";
@@ -90,6 +91,12 @@ export function PresentationDetails({ view, inModal = false }: { view: Presentat
   const goTo = (href: string) => (inModal && modal ? modal.leave(href) : router.push(href));
   // It changed since it opened (private, under review): show it as it is now.
   const reload = () => (inModal && modal ? modal.open(presentation.id, { fresh: true }) : router.refresh());
+
+  // Make a copy's tab couldn't copy it: grey out the button here too (the daily pause), or show it as it is now.
+  useCopyResults(presentation.id, (result) => {
+    if (result.kind === "paused" && result.pausedUntil) pauseFeature("create", result.pausedUntil);
+    else if (result.kind !== "paused") reload();
+  });
 
   const beginReview = async () => {
     setIsStartingReview(true);
@@ -375,32 +382,39 @@ export function PresentationDetails({ view, inModal = false }: { view: Presentat
 
 /**
  * "Make a copy": opens a new tab (`/presentation/<id>/copy`, MakeCopy) that makes my private copy and then shows it
- * in the editor, so this page or modal stays as it is. Greyed out while it's under review or new presentations are
- * paused for today (the "create" click limit).
+ * in the editor, so this page or modal stays as it is. The click leaves a one-time ticket for the copy's new id
+ * (copyTicket.ts) and greys the button out for a few seconds, so a double-click opens one tab, not two copies.
+ * Greyed out while it's under review or new presentations are paused for today (the "create" click limit).
  */
 function MakeCopyButton({ presentationId, isLocked, isPaused }: { presentationId: string; isLocked: boolean; isPaused: boolean }) {
-  if (isLocked || isPaused) {
-    return (
-      <button
-        type="button"
-        disabled
-        title={
-          isLocked
-            ? "Under review: it can be copied once QuizMatter publishes the review."
-            : "You've made the most new presentations for today. It works again at midnight."
-        }
-        className={`flex-1 ${mainButtonClass}`}
-      >
-        Make a copy
-      </button>
-    );
-  }
+  const [isOpening, setIsOpening] = useState(false);
+  const open = () => {
+    setIsOpening(true);
+    setTimeout(() => setIsOpening(false), COPY_WAIT_MS);
+    // At once, inside the click: a tab opened later (after a wait) is blocked by the browser.
+    window.open(copyPageHref(presentationId), "_blank", "noopener");
+  };
   return (
-    <a href={`/presentation/${presentationId}/copy`} target="_blank" rel="noopener" className={`flex-1 ${mainButtonClass}`}>
+    <button
+      type="button"
+      onClick={open}
+      disabled={isLocked || isPaused || isOpening}
+      title={
+        isLocked
+          ? "Under review: it can be copied once QuizMatter publishes the review."
+          : isPaused
+            ? "You've made the most new presentations for today. It works again at midnight."
+            : "Opens your copy in a new tab"
+      }
+      className={`flex-1 ${mainButtonClass}`}
+    >
       Make a copy
-    </a>
+    </button>
   );
 }
+
+// After a click, Make a copy waits this long before it can open another tab.
+const COPY_WAIT_MS = 4000;
 
 /** QuizMatter, Reviewed, Under review, Sent to QuizMatter: small pills above the title. */
 function Labels({ view }: { view: PresentationViewData }) {

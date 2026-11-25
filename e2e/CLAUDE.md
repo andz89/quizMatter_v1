@@ -199,8 +199,11 @@ when another is picked), moving into and between boxes (Alt keeps a free picture
   opening one again sends no server request (remembered), a reload has no modal, Save inside works (the card behind shows it at once, the Saved tab has it; removed and saved again
   there, the card stays), the link
   itself is the full page with the same layout and its slide drawn, a modal over that page takes → alone and Present
-  shows one view, Back while presenting ends it (the next modal still closes), Make a copy opens a new tab that
-  becomes the editor with exactly one copy while the modal stays open, a copy link of a missing presentation says so,
+  shows one view, Back while presenting ends it (the next modal still closes), Make a copy (double-clicked) opens one
+  new tab that becomes the editor with exactly one copy while the modal stays open, opening that copy link again
+  makes no second copy, a copy link from outside (no ticket) makes none, one of a missing presentation says so, and
+  a presentation made private while its modal is open: the copy tab says so (Go home) and the modal hears it and
+  closes,
   and at 390 px it fits
   (screenshots `presentation-modal.png`, `presentation-page.png`, `presentation-modal-phone.png`).
 - `public-preview.mjs`: a published presentation's public preview, logged out: the first shown slide (a hidden first
