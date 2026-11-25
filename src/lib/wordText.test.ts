@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { PICKED_LINES_MAX, droppedTextHtml, parseNumbering, pickedSlideTexts, stripItemMark, suggestItems, wordLines } from "./wordText";
+import { PICKED_LINES_MAX, droppedTextHtml, parseNumbering, parseStyleNumbers, pickedSlideTexts, stripItemMark, suggestItems, wordLines } from "./wordText";
 
 const p = (text: string) => `<w:p><w:r><w:t>${text}</w:t></w:r></w:p>`;
 
@@ -43,7 +43,7 @@ test("stripItemMark removes a leading number or letter", () => {
   assert.equal(stripItemMark("B) Dog"), "Dog");
   assert.equal(stripItemMark("(c) Dog"), "Dog");
   assert.equal(stripItemMark("(3) Dog"), "Dog");
-  assert.equal(stripItemMark("I. Intro"), "Intro");
+  assert.equal(stripItemMark("I. Intro", "question"), "Intro");
 });
 
 test("stripItemMark keeps text that only looks like a mark", () => {
@@ -218,4 +218,67 @@ test("an old numbering kept by tracked changes isn't counted", () => {
 test("suggestions find questions numbered by Word's list button", () => {
   const lines = wordLines(np("1", "0", "What is 2+2?") + np("1", "1", "Three") + np("1", "1", "Four"), parseNumbering(NUMBERING));
   assert.deepEqual(suggestItems(lines), [{ question: 0, options: [1, 2] }]);
+});
+
+test("lists from the same abstractNum keep one count; a restart counts on its own", () => {
+  const numbering = parseNumbering(NUMBERING.replace("</w:numbering>", `<w:num w:numId="7"><w:abstractNumId w:val="0"/></w:num></w:numbering>`));
+  // numId 7 is pasted-in questions on the same list as numId 1: Word keeps counting.
+  assert.deepEqual(wordLines(np("1", "0", "One") + np("1", "0", "Two") + np("7", "0", "Three"), numbering), ["1. One", "2. Two", "3. Three"]);
+  // numId 3 restarts list 2's letters.
+  assert.deepEqual(wordLines(np("2", "0", "Red") + np("3", "0", "Green") + np("2", "0", "Blue"), numbering), ["A. Red", "A. Green", "B. Blue"]);
+});
+
+test("a paragraph style that numbers its paragraphs gives the number", () => {
+  const styles = parseStyleNumbers(`<w:styles>
+    <w:style w:type="paragraph" w:styleId="ListNumber"><w:pPr><w:numPr><w:numId w:val="1"/></w:numPr></w:pPr></w:style>
+    <w:style w:type="paragraph" w:styleId="Question"><w:basedOn w:val="ListNumber"/></w:style>
+  </w:styles>`);
+  const styled = (style: string, text: string, numPr = "") =>
+    `<w:p><w:pPr><w:pStyle w:val="${style}"/>${numPr}</w:pPr><w:r><w:t>${text}</w:t></w:r></w:p>`;
+  const xml =
+    styled("Question", "What is 2+2?") + styled("Question", "Four", `<w:numPr><w:ilvl w:val="1"/></w:numPr>`) +
+    styled("ListNumber", "What is 3+3?") + styled("Question", "Off", `<w:numPr><w:numId w:val="0"/></w:numPr>`);
+  assert.deepEqual(wordLines(xml, parseNumbering(NUMBERING), styles), ["1. What is 2+2?", "a) Four", "2. What is 3+3?", "Off"]);
+});
+
+test("Word's 01. style and a letter list starting at 0", () => {
+  const numbering = parseNumbering(`<w:numbering>
+    <w:abstractNum w:abstractNumId="0"><w:lvl w:ilvl="0"><w:start w:val="1"/><w:numFmt w:val="decimalZero"/><w:lvlText w:val="%1."/></w:lvl></w:abstractNum>
+    <w:abstractNum w:abstractNumId="1"><w:lvl w:ilvl="0"><w:start w:val="0"/><w:numFmt w:val="lowerLetter"/><w:lvlText w:val="%1)"/></w:lvl></w:abstractNum>
+    <w:num w:numId="1"><w:abstractNumId w:val="0"/></w:num>
+    <w:num w:numId="2"><w:abstractNumId w:val="1"/></w:num>
+  </w:numbering>`);
+  assert.deepEqual(wordLines(np("1", "0", "One") + np("2", "0", "Zero") + np("2", "0", "Next"), numbering), ["01. One", "0) Zero", "a) Next"]);
+});
+
+test("text moved with Track Changes on is read once, at its new place", () => {
+  const xml =
+    `<w:p><w:moveTo><w:r><w:t>C. Mars</w:t></w:r></w:moveTo></w:p>` +
+    `<w:p><w:r><w:t>B. Venus</w:t></w:r></w:p>` +
+    `<w:p><w:pPr><w:rPr><w:moveFrom w:id="1"/></w:rPr></w:pPr><w:moveFrom><w:r><w:t>C. Mars</w:t></w:r></w:moveFrom></w:p>`;
+  assert.deepEqual(wordLines(xml), ["C. Mars", "B. Venus"]);
+});
+
+test("an accent inside a sum doesn't change the sum's sign", () => {
+  const m = (t: string) => `<m:r><m:t>${t}</m:t></m:r>`;
+  const line = wordLines(
+    `<w:p><m:oMath><m:nary><m:naryPr><m:chr m:val="∑"/></m:naryPr><m:sub/><m:sup/><m:e>` +
+      `<m:acc><m:accPr><m:chr m:val="̄"/></m:accPr><m:e>${m("x")}</m:e></m:acc></m:e></m:nary></m:oMath></w:p>`,
+  )[0];
+  assert.ok(line.startsWith("∑"), line);
+});
+
+test("stripItemMark keeps a name's initial", () => {
+  assert.equal(stripItemMark("J. K. Rowling wrote it"), "J. K. Rowling wrote it");
+  assert.equal(stripItemMark("A. J. K. Rowling"), "A. J. K. Rowling");
+  assert.equal(stripItemMark("A. Lincoln signed it", "question"), "A. Lincoln signed it");
+  assert.equal(stripItemMark("1. A. Lincoln signed it", "question"), "A. Lincoln signed it");
+  assert.equal(stripItemMark("G. Mars"), "G. Mars");
+  assert.equal(stripItemMark("c) Mars"), "Mars");
+});
+
+test("ticked lines: only the answers lose a letter", () => {
+  const { question, options } = pickedSlideTexts(["A. Lincoln was president in?", "a. 1861", "b. 1901"], [0, 1, 2]);
+  assert.equal(question, "A. Lincoln was president in?");
+  assert.deepEqual(options, ["1861", "1901", "", ""]);
 });

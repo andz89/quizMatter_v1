@@ -30,7 +30,8 @@ Slides drawn without the editor: fullscreen presenting, cards, the view page, re
   seconds in `SLIDE_EFFECT_SECONDS` / `SLIDE_FADE_SECONDS` (`constants.ts`). A new effect goes in
   `startSlideEffect` and `SLIDE_TRANSITIONS` (`schema.ts`), and gets a choice in the editor's `EffectsPanel`.
 - `PresentDraftButton.tsx`: Present for a presentation that isn't open in the editor (a review's submitted
-  version). Downloads `PresentationView` only when clicked, with the Spinner meanwhile.
+  version). Downloads `PresentationView` only when clicked, with the Spinner meanwhile. `showView={false}` leaves the
+  showing to another Present on screen (a page under the presentation modal), so only one view hears the keys.
 - `ReviewDraftView.tsx`: a review's draft, or a submission, view only ("Reviewed by" / "Submitted by" details +
   every slide as a picture). Shared by the reviewer's page and the admin's review and submission pages; reuse it.
 

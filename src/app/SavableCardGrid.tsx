@@ -2,20 +2,26 @@
 
 import { useState } from "react";
 import { PresentationCard, type PresentationCardData } from "./PresentationCard";
+import { usePresentationChanges } from "./openPresentation";
 
 /**
- * Cards in a grid whose bookmark (Save) button works, outside the home tabs: "You may also like" and a profile's
+ * Cards in a grid whose bookmark (Save) button works, outside the home tabs: "More like this" (MoreLikeThis.tsx) and a profile's
  * presentations. It remembers what was saved or removed here, so the button stays right without a reload.
  */
 export function SavableCardGrid({ cards }: { cards: PresentationCardData[] }) {
   const [savedIds, setSavedIds] = useState(() => new Set(cards.filter((card) => card.isSaved).map((card) => card.id)));
-  const onSavedChange = (card: PresentationCardData, isSaved: boolean) =>
+  const markSaved = (id: string, isSaved: boolean) =>
     setSavedIds((ids) => {
       const next = new Set(ids);
-      if (isSaved) next.add(card.id);
-      else next.delete(card.id);
+      if (isSaved) next.add(id);
+      else next.delete(id);
       return next;
     });
+  const onSavedChange = (card: PresentationCardData, isSaved: boolean) => markSaved(card.id, isSaved);
+  // Saved or removed elsewhere (the presentation modal, the same card in another grid).
+  usePresentationChanges(({ id, isSaved }) => {
+    if (isSaved !== undefined) markSaved(id, isSaved);
+  });
   return (
     <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
       {cards.map((card) => (

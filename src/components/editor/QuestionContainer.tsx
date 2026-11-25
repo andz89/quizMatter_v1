@@ -176,8 +176,9 @@ export function QuestionContainer({
           selectContainer(QUESTION_CONTAINER_ID, slide.id, e.shiftKey)
         }
         onClickCapture={(e) => {
-          const line = useEditorStore.getState().heldWordLine;
-          if (line === null) return;
+          const { heldWordLine, wordFile } = useEditorStore.getState();
+          const line = heldWordLine === null ? undefined : wordFile?.lines[heldWordLine];
+          if (line === undefined) return;
           e.preventDefault();
           e.stopPropagation();
           putLineInBox(slide.id, QUESTION_CONTAINER_ID, line);

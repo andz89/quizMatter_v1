@@ -7,6 +7,7 @@ import { DevRequestCounter } from "@/components/DevRequestCounter";
 import { Footer } from "@/components/Footer";
 import { MaintenanceBar } from "@/components/MaintenanceBar";
 import { MaintenanceWatch } from "@/components/MaintenanceWatch";
+import { PresentationModalProvider } from "./PresentationModal";
 import "./globals.css";
 
 // Lexend for text (made for easy reading, good for young readers); Bricolage Grotesque for headings.
@@ -38,7 +39,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <MaintenanceBar />
         {/* The super admin's announcements for chosen teachers: bars on top, a modal (only when one is live). */}
         <Announcements />
-        {children}
+        {/* A card of someone else's presentation opens it in a modal over the page (PresentationModal.tsx). */}
+        <PresentationModalProvider>{children}</PresentationModalProvider>
         {/* Facebook, the support email, Privacy and Terms; not on the editor pages. */}
         <Footer />
         {/* A feature paused for clicking too fast (e.g. bookmarks): a notice at the bottom. */}

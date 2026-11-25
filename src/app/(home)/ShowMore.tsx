@@ -5,13 +5,26 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { LinkPending } from "@/components/LinkPending";
 import { MAX_SHOWN, PAGE_SIZE } from "../homeSearch";
 
-/** "Show more": the same page with 20 more cards (`shown` in the link), keeping the scroll. Hidden once all show, or at the most allowed. */
-export function ShowMore({ shown, total }: { shown: number; total: number }) {
+/**
+ * "Show more": the same page with 20 more cards (`shown` in the link), keeping the scroll. Hidden once all show, or
+ * at the most allowed. Admin → Presentations passes its own `step` and `max`.
+ */
+export function ShowMore({
+  shown,
+  total,
+  step = PAGE_SIZE,
+  max = MAX_SHOWN,
+}: {
+  shown: number;
+  total: number;
+  step?: number;
+  max?: number;
+}) {
   const pathname = usePathname();
   const params = useSearchParams();
-  if (shown >= total || shown >= MAX_SHOWN) return null;
+  if (shown >= total || shown >= max) return null;
   const next = new URLSearchParams(params ?? undefined);
-  next.set("shown", String(shown + PAGE_SIZE));
+  next.set("shown", String(shown + step));
   return (
     <div className="mt-6 flex flex-col items-center gap-2">
       <Link

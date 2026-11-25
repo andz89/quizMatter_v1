@@ -80,6 +80,8 @@ try {
   check("the question becomes the dropped line, without its number", await waitFor(async () => (await question.innerText()).includes("What gas do plants take in?") && !(await question.innerText()).includes("Old question")));
   check("the question has no leading 1.", !(await question.innerText()).includes("1. What"));
 
+  // Changes under 500 ms apart are one undo step (HISTORY_GROUP_MS): wait, so Undo below takes back only this drop.
+  await page.waitForTimeout(700);
   await line(2).dragTo(optionB);
   check("answer B becomes the dropped line, without its letter", await waitFor(async () => (await optionB.innerText()).includes("Carbon dioxide") && !(await optionB.innerText()).includes("Old B")));
   check("answer B has no leading b.", !(await optionB.innerText()).includes("b. Carbon"));
@@ -93,7 +95,7 @@ try {
   await page.waitForTimeout(300);
   const unchanged = (await question.innerText()).includes("What gas") && (await optionB.innerText()).includes("Old B");
   const anyOxygen = (await slide.innerText()).includes("Oxygen");
-  check("a line dropped outside the boxes changes nothing", unchanged && !anyOxygen);
+  check("a line dropped outside the boxes changes nothing", unchanged && !anyOxygen, `${await question.innerText()} | ${await optionB.innerText()} | oxygen: ${anyOxygen}`);
 
   // Touch screens: tap a line's handle, then tap a box.
   const optionC = page.locator('[data-slide-id="s1"] [data-container-id="s1-c"]');

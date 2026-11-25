@@ -9,6 +9,7 @@ import { MAX_SAVED } from "@/lib/schema";
 import { REFUSALS } from "@/lib/presentations";
 import { pauseFeature, useIsPaused } from "@/lib/clickLimits";
 import { setPresentationSaved } from "./presentation/[id]/actions";
+import { announcePresentationChange } from "./openPresentation";
 
 // What to tell the user when saving failed (also used by the preview page's Save button).
 export const SAVE_ERRORS = {
@@ -63,6 +64,8 @@ export function SaveCardButton({
       }
       toast.success(isSaved ? "Removed from Saved." : "Saved.");
       onChange(!isSaved);
+      // Every other card of it (e.g. behind the modal) shows it too.
+      announcePresentationChange({ id: presentationId, isSaved: !isSaved });
     });
 
   return (

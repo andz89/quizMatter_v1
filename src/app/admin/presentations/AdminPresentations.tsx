@@ -1,23 +1,28 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Form from "next/form";
 import Link from "next/link";
 import { toast } from "sonner";
+import { FormPending } from "@/components/FormPending";
+import { LinkPending } from "@/components/LinkPending";
 import { Spinner } from "@/components/Spinner";
 import { ConfirmModal } from "@/components/editor/ConfirmModal";
 import { FluidSlidePreview } from "@/components/presentation/FluidSlidePreview";
 import { CANVAS_WIDTH, CANVAS_HEIGHT, getSlideNumbers } from "@/lib/constants";
 import { joinParts } from "@/lib/format";
 import type { Slide } from "@/lib/schema";
+import { SEARCH_MAX_LENGTH } from "@/lib/search";
 import { removePresentations } from "../../actions";
 import { setReviewOpen, setShared } from "./actions";
 import { ReviewersModal, type ApprovedReviewer } from "./ReviewersModal";
+import { ADMIN_LIST_SORTS, adminListQuery, type AdminList } from "./listParams";
 import { SearchIcon, Trash2Icon } from "lucide-react";
 
 export type AdminPresentationRow = {
   id: string;
   title: string;
-  // Grade, subject ("" if none), shown under the title and searched too.
+  // Grade, subject ("" if none), shown under the title.
   meta: string;
   // Full grade names when the meta line shortens Kindergarten to "K" (shown as its tooltip).
   metaTitle?: string;
@@ -34,21 +39,9 @@ export type AdminPresentationRow = {
   // Everyone whose review an admin published (the Review column).
   reviewers: ApprovedReviewer[];
   slideCount: number;
-  createdAt: number;
-  updatedAt: number;
   createdLabel: string;
   updatedLabel: string;
 };
-
-type Sort = "updatedAt" | "createdAt";
-
-// Rows shown at first, and how many more each "Show more" adds.
-const PAGE_SIZE = 10;
-
-const SORTS: { id: Sort; label: string }[] = [
-  { id: "updatedAt", label: "Last changed" },
-  { id: "createdAt", label: "Newest" },
-];
 
 // Picture, title, status, review, slides, date, open-to-editors button, share button, trash. Below laptop width
 // (phones and tablets): picture and title, then the rest on its own row below, wrapping as needed.
@@ -56,64 +49,54 @@ const COLUMNS =
   "grid-cols-[64px_minmax(0,1fr)] lg:grid-cols-[96px_minmax(0,1fr)_104px_112px_56px_104px_120px_112px_36px]";
 
 /**
- * The admin's QuizMatter presentations as a table, sorted by date changed or created, with a search box. Each
- * row can be shared with every teacher (or made a draft again) and deleted. Claude's drafts that aren't saved yet
- * are listed too: they open in the editor, and Save makes them QuizMatter presentations.
+ * The admin's QuizMatter presentations as a table, with sort links and a search box. The page reads only the rows
+ * shown (`list` is the page link: search, sort, how many), so sorting and searching load the page again. Each row
+ * can be shared with every teacher (or made a draft again) and deleted. Claude's drafts that aren't saved yet are
+ * listed first: they open in the editor, and Save makes them QuizMatter presentations.
  */
-export function AdminPresentations({ rows }: { rows: AdminPresentationRow[] }) {
-  const [sort, setSort] = useState<Sort>("updatedAt");
-  const [search, setSearch] = useState("");
-  const [limit, setLimit] = useState(PAGE_SIZE);
-
-  const query = search.trim().toLowerCase();
-  const shown = rows
-    .filter((row) =>
-      `${row.title} ${row.meta} ${row.isShared ? "shared" : "draft"} ${row.reviewers.length > 0 ? "reviewed" : "not reviewed"}`
-        .toLowerCase()
-        .includes(query),
-    )
-    .sort((a, b) => b[sort] - a[sort]);
+export function AdminPresentations({ rows, list }: { rows: AdminPresentationRow[]; list: AdminList }) {
+  const byNewest = list.sort === "newest";
 
   return (
     <>
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <div className="flex gap-1">
-          {SORTS.map(({ id, label }) => (
-            <button
+          {ADMIN_LIST_SORTS.map(({ id, label }) => (
+            <Link
               key={id}
-              type="button"
-              aria-pressed={sort === id}
-              onClick={() => {
-                setSort(id);
-                setLimit(PAGE_SIZE);
-              }}
-              className={`rounded-button px-3 py-1.5 text-sm transition-colors ${
-                sort === id
+              href={`/admin/presentations${adminListQuery({ q: list.q, sort: id })}`}
+              aria-current={list.sort === id ? "page" : undefined}
+              className={`flex items-center gap-2 rounded-button px-3 py-1.5 text-sm transition-colors ${
+                list.sort === id
                   ? "bg-bg-surface font-semibold text-text-primary shadow-[0_0_0_1px_var(--border-default)]"
                   : "text-text-secondary hover:text-text-primary"
               }`}
             >
               {label}
-            </button>
+              <LinkPending />
+            </Link>
           ))}
         </div>
 
-        <label className="relative ml-auto w-full sm:w-64">
+        {/* A GET form: Enter puts the words in the link (?q=…), keeping the sort; the count starts at 10 again. */}
+        <Form action="/admin/presentations" className="relative ml-auto w-full sm:w-64">
           <span className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-text-primary">
             <SearchIcon size={16} />
           </span>
           <input
+            // Keyed by the search, so Back or a sort link shows the link's words, not old typing.
+            key={list.q}
             type="search"
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              setLimit(PAGE_SIZE);
-            }}
+            name="q"
+            defaultValue={list.q}
+            maxLength={SEARCH_MAX_LENGTH}
             placeholder="Search presentations"
             aria-label="Search presentations"
             className="w-full rounded-input border border-border-default bg-bg-surface py-2 pr-3 pl-9 text-sm text-text-primary outline-none placeholder:text-text-secondary focus:border-text-secondary"
           />
-        </label>
+          {byNewest && <input type="hidden" name="sort" value="newest" />}
+          <FormPending />
+        </Form>
       </div>
 
       <div className="overflow-hidden rounded-card border border-border-default bg-bg-surface">
@@ -125,55 +108,25 @@ export function AdminPresentations({ rows }: { rows: AdminPresentationRow[] }) {
           <span className="hidden lg:block">Status</span>
           <span className="hidden lg:block">Review</span>
           <span className="hidden lg:block">Slides</span>
-          <span className="hidden lg:block">
-            {sort === "updatedAt" ? "Changed" : "Created"}
-          </span>
+          <span className="hidden lg:block">{byNewest ? "Created" : "Changed"}</span>
           <span className="hidden lg:block" />
           <span className="hidden lg:block" />
           <span className="hidden lg:block" />
         </div>
 
-        {shown.length === 0 ? (
+        {rows.length === 0 ? (
           <div className="px-5 py-12 text-center">
             <p className="text-sm font-semibold text-text-primary">
-              {rows.length === 0
-                ? "No QuizMatter presentations yet"
-                : `No presentations match “${search.trim()}”`}
+              {list.q ? `No presentations match “${list.q}”` : "No QuizMatter presentations yet"}
             </p>
             <p className="mt-1 text-sm text-text-secondary">
-              {rows.length === 0
-                ? "Click “+ New presentation” to make one for every teacher."
-                : "Try another search."}
+              {list.q ? "Try another search." : "Click “+ New presentation” to make one for every teacher."}
             </p>
           </div>
         ) : (
-          shown.slice(0, limit).map((row) => (
-            <Row
-              key={row.id}
-              row={row}
-              dateLabel={
-                sort === "updatedAt" ? row.updatedLabel : row.createdLabel
-              }
-            />
-          ))
+          rows.map((row) => <Row key={row.id} row={row} dateLabel={byNewest ? row.createdLabel : row.updatedLabel} />)
         )}
       </div>
-
-      {/* Every row is already loaded, so "Show more" only reveals 10 more (no waiting, no spinner). */}
-      {shown.length > limit && (
-        <div className="mt-6 flex flex-col items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setLimit(limit + PAGE_SIZE)}
-            className="rounded-button border border-border-default bg-bg-surface px-4 py-2 text-sm font-semibold text-text-primary hover:bg-bg-page"
-          >
-            Show more
-          </button>
-          <p className="text-[13px] text-text-secondary">
-            Showing {limit} of {shown.length}
-          </p>
-        </div>
-      )}
     </>
   );
 }

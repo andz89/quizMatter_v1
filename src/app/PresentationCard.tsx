@@ -8,6 +8,7 @@ import { SUBMISSION_LABELS, type SubmissionStatus } from "@/lib/submissions";
 import { PresentationCardMenu } from "./PresentationCardMenu";
 import { LikeCardButton } from "./LikeCardButton";
 import { SaveCardButton } from "./SaveCardButton";
+import { useOpenOnClick } from "./openPresentation";
 
 export type PresentationCardData = {
   id: string;
@@ -47,6 +48,9 @@ export type PresentationCardData = {
   // in it instead. `isLiked` = I liked it.
   canLike?: boolean;
   isLiked?: boolean;
+  // Someone else's presentation (a home tab, search, a profile, "More like this"): a click opens it in the modal
+  // (src/app/PresentationModal.tsx) instead of a new tab.
+  opensInModal?: boolean;
 };
 
 /**
@@ -72,6 +76,7 @@ export function PresentationCard({
   onSavedChange?: (card: PresentationCardData, isSaved: boolean) => void;
 }) {
   const isChecking = card.badge === "checking";
+  const openOnClick = useOpenOnClick();
   // Like the design's card: picture, then a small status label, the title and a gray details line, all inside.
   const body = (
     <div
@@ -156,17 +161,21 @@ export function PresentationCard({
       {isChecking ? (
         <div className="block">{body}</div>
       ) : (
-        // Opens in a new tab, so the list stays open in this one. No prefetch: a new tab can't use it, and every
-        // card on screen would load its page again after each refresh (e.g. after a bookmark click).
+        // Someone else's opens in the modal over the list; my own opens the editor in a new tab, so the list stays
+        // open in this one. No prefetch: a new tab can't use it, and every card on screen would load its page again
+        // after each refresh (e.g. after a bookmark click).
         <Link
           href={card.href}
-          target="_blank"
+          target={card.opensInModal ? undefined : "_blank"}
           prefetch={false}
           className="group block"
           onClick={(e) => {
-            if (!selection || !(e.shiftKey || selection.isSelecting)) return;
-            e.preventDefault();
-            selection.onToggle();
+            if (selection && (e.shiftKey || selection.isSelecting)) {
+              e.preventDefault();
+              selection.onToggle();
+              return;
+            }
+            if (card.opensInModal) openOnClick(e, card.id);
           }}
         >
           {body}

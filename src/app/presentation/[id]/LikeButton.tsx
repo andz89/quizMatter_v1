@@ -8,6 +8,7 @@ import { Spinner } from "@/components/Spinner";
 import { REFUSALS } from "@/lib/presentations";
 import { pauseFeature, useIsPaused } from "@/lib/clickLimits";
 import { setPresentationLiked } from "./actions";
+import { announcePresentationChange, usePresentationChanges } from "../../openPresentation";
 
 // What to tell the user when liking failed (also used by the card's heart, LikeCardButton).
 export const LIKE_ERRORS = {
@@ -38,6 +39,13 @@ export function LikeButton({
   const [likeCount, setLikeCount] = useState(countAtStart);
   const [isLiked, setIsLiked] = useState(likedAtStart);
   const [isPending, setIsPending] = useState(false);
+  // Liked or unliked elsewhere (the same presentation in the modal over this page, a card).
+  // Its own count goes up or down by one, so a count loaded at another time stays right.
+  usePresentationChanges((change) => {
+    if (change.id !== presentationId || change.isLiked === undefined || change.isLiked === isLiked) return;
+    setIsLiked(change.isLiked);
+    setLikeCount((count) => Math.max(count + (change.isLiked ? 1 : -1), 0));
+  });
   const isPaused = useIsPaused("like");
   const label = likeCount === 1 ? "1 like" : `${likeCount} likes`;
 
@@ -63,8 +71,8 @@ export function LikeButton({
     }
     const { status, pausedUntil } = result;
     if (status === "done") {
-      setIsLiked(!isLiked);
-      setLikeCount((count) => Math.max(count + (isLiked ? -1 : 1), 0));
+      // Sets this heart and every other one of it on the page (the listener above).
+      announcePresentationChange({ id: presentationId, isLiked: !isLiked });
       toast.success(isLiked ? "Like removed." : "Liked.");
     } else if (status === "paused") {
       pauseFeature("like", pausedUntil!);

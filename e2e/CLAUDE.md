@@ -137,6 +137,10 @@ Tests that delete data (the announcements ones empty the announcements table) do
 - `blank-lines.mjs`: "___" blanks show as one line: the editor marks them (question, a styled option, a run just
   typed; a single `_` isn't), the save has no `qm-blank` span, and presenting fullscreen (question, option, an
   underlined text box, a table cell) and the view page join them the same way.
+- `text-spaces.mjs`: spaces typed on purpose in a text box (a run of them, and at a line's start) stay in the editor
+  after saving and opening again and after undo, the save keeps them, and presenting fullscreen and the view page
+  show them (their text and their `white-space`). Tabs and Windows line ends (`\r\n`), in new text and in text saved
+  before: `src/lib/richText.test.ts`.
 - `text-limits.mjs`: pasting past the limit into the question, an answer choice (5,000 characters) and a text box
   (50,000 as HTML, so 10,000 "&" is refused) leaves the text as it was with one toast; up to the limit goes in;
   typing at the limit is refused, deleting works; Ctrl+S saves; the slide name box's `maxlength`.
@@ -185,6 +189,16 @@ when another is picked), moving into and between boxes (Alt keeps a free picture
   not a teacher's copy; `robots.txt` names it; the login and Privacy titles. Logged in: `/` is the normal home, the
   home and Saved titles, and the editor's one h1. It deletes its lesson itself (deleting an admin moves their
   lessons to the super admin).
+- `presentation-modal.mjs`: a card on From QuizMatter opens the modal in the same tab with the address unchanged
+  (first slide, tags, Make a copy), the strip and → change the slide, Escape in Report closes only that box, Share
+  copies the link, "Show more like this" loads a card that swaps the modal, Escape / Back close it and stay on the
+  list, a double-click keeps it open, Escape then another card at once keeps the new one (one Back still closes it),
+  opening one again sends no server request (remembered), a reload has no modal, Save inside works (the card behind shows it at once, the Saved tab has it; removed and saved again
+  there, the card stays), the link
+  itself is the full page with the same layout and its slide drawn, a modal over that page takes → alone and Present
+  shows one view, Back while presenting ends it (the next modal still closes), Make a copy opens the editor with the
+  modal gone and its Back entry gone (`history.length` +1 only), and at 390 px it fits
+  (screenshots `presentation-modal.png`, `presentation-page.png`, `presentation-modal-phone.png`).
 - `public-preview.mjs`: a published presentation's public preview, logged out: the first shown slide (a hidden first
   one is skipped), the title as the `<h1>`, the Author, "Filipino · Grade 4 · 1 slide", no answer in the page, the
   login button back to the page and Sign up; `og:title`, the description, `twitter:card`, a full `og:image` address
@@ -194,6 +208,9 @@ when another is picked), moving into and between boxes (Alt keeps a free picture
   in, the same link is the normal view page.
 - `admin-list.mjs`: Admin → Admins as the super admin: every admin with Super admin / Admin and Two-step on / not
   set up (an admin row without an authenticator app); a plain admin gets "page not found" and no menu item.
+- `admin-presentations-paging.mjs`: Admin → Presentations with 23 QuizMatter presentations: 10 rows at first
+  ("Showing 10 of 23"), Show more adds 10 until all show and the button goes, a search (Enter) finds one by its
+  subject in the database and drops `shown`, Newest puts the newest made first, and `?shown=15` falls back to 10.
 - `reports-plain-admin.mjs`: Admin → Reports as a plain admin: a teacher's reported copy has Hide and Delete, a
   reported QuizMatter lesson has neither and says why.
 - `submissions.mjs`: Submit to QuizMatter from start to end. An editor submits from the card's ⋮ menu (an empty
@@ -277,6 +294,13 @@ when another is picked), moving into and between boxes (Alt keeps a free picture
   in, and back onto the panel (nothing); a click adds after the active slide; one undo takes it out. A drop from newer
   app code or one that isn't a slide is refused with words. Saved: the order shown, new ids, a picture still in its
   own answer box, the source untouched.
+- `download-word.mjs`: the editor's Download box (the presentation page has no Download button). Word (.docx) of
+  all slides: named after the title, "1. Which planet…" with its options unmarked, the Answer key last ("1. A.
+  Jupiter"), and the real photo inside as a JPEG (read from live R2 after the editor showed it, so it needs the
+  bucket's CORS rule for `localhost:3100`) plus its cropped, flipped copy as a second picture half as wide, no
+  "Photo (link)", no toast; the box closes. Custom "1, 9" is refused with words; Custom "2" has only the photo slide
+  and no key. Text (.txt): plain options, the photo links and "## Answer key" at the end. Screenshots of the box:
+  `download-box.png` (Word, All slides) and `download-box-custom.png` (Custom).
 - `word-file.mjs`: the editor's Word file panel. A .docx made in the test (`fflate`) lists one piece per line (an
   empty line skipped), an old `.doc` is refused with words, Copy copies the line as it is, lines dragged onto the
   question box and answer B replace their text without "1." / "b.", Undo brings B back, a line dropped on the slide

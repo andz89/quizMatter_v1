@@ -28,7 +28,9 @@
   presenting's steps past hidden slides (`stepPresentation`, `presentStartIndex`), and `shownSlides` (the slides
   presenting goes through, for the view page's Prev/Next); tests `constants.test.ts`.
 - `factories.ts`: new blank slides and presentations, `duplicateSlide`.
-- `svgLibrary.tsx` (very big): every drawing in the Elements panel and the diagram layouts. Before changing diagram
+- `svgLibrary.tsx` (very big): every drawing in the Elements panel and the diagram layouts. The starting values of
+  the clock, bar graph and diagrams (`DEFAULT_CLOCK_TIME`, `DEFAULT_FLOWCHART`, …) and their asset ids live in
+  `elementDefaults.ts` (no drawing code, so tests and the downloads load them); `svgLibrary.tsx` re-exports them. Before changing diagram
   code here, read the Diagrams rules in `src/components/editor/CLAUDE.md`. The two written fractions share an
   element's `fraction`: the Written Fraction (`shaded` over `parts`) and the Mixed Fraction (the same, plus `whole`
   in front, 1–999, missing = 1; DATA_VERSION 5, `20261231002000_mixed_fraction.sql`, spec
@@ -136,7 +138,9 @@
   `youtube.test.ts`. `photos.tsx`'s `fetchYouTubeCard` asks `/api/announcement-youtube` for the card, and
   `uploadAnnouncementPhoto` returns a photo attachment.
 - `reviews.ts` (reviewer's saves) / `reviewStatus.ts` (reads), `submissions.ts` (Submit to QuizMatter reads).
-- `lessons.ts`: reads for "This week's lessons", "You may also like" and an editor's profile list (only ids; see `src/app/CLAUDE.md`).
+- `lessons.ts`: reads for "This week's lessons", "More like this" and an editor's profile list (only ids; see `src/app/CLAUDE.md`).
+  `loadLessonExtras` says `failed` when its read fails, so "More like this" keeps its button and shows a toast
+  instead of "Nothing like this yet.".
 - `folders.ts`, `userSettings.ts`, `profiles.ts`, `account.ts` (`getAccount`: who is logged in, `isAdmin` /
   `isSuperAdmin` (true only after the second step), `adminRole` (membership: 'super' / 'admin' / 'none', from
   `admin_membership`), and `hasVerifiedFactor()` (asks Supabase whether the account has a verified authenticator app)).
@@ -251,11 +255,39 @@ data. Spec: `docs/superpowers/specs/2026-10-23-stable-presentation-data-design.m
   up to 20 calls a day; the Privacy Policy promises it too).
 - Drawings: `svgLibrary.tsx`, `flags.tsx`, `kids.tsx`, `solids.tsx`, and the big people drawings `schoolBoy.tsx` /
   `clipartKids.tsx`, which load only when needed (`peopleArt.ts`).
-- Text: `richText.ts` (tiptap setup, safe HTML), `format.ts` (dates, labels), `blanks.ts` (`blankRuns`,
+- Downloads (the editor's `DownloadButton` box: Word or Text, All slides or Custom; made in the browser, sent nowhere):
+  `presentationOutline.ts` reads a presentation once for both, only the chosen slides (`positions`: places in the
+  slide list, 1 = first; `parseSlideNumbers` reads the Custom box's "1-3, 5" and says what's wrong): the details,
+  then each slide with no label (no "Q1" / "Slide 1"; a question starts with its number, counted like the editor's
+  but among the chosen slides only, so they go 1, 2, 3; a custom slide "11–15. …"; other and hidden slides have
+  none): question, options (none marked), embed link, text boxes, tables, diagrams, bar graphs, clocks, calendars
+  and photos; other drawings are left out. Elements are read box by box (an element in a box is placed relative to
+  it): the question box's, the strip or side box's, each option's under its letter (a picture-only option shows as
+  "C." with its picture), then the free ones, each group top to bottom. The numbered questions' answers go in an
+  Answer key at the end (`answerKey`; a choice as "A. Jupiter" with the option's pictures, a canvas answer under its
+  number); a hidden slide's answer stays with it, and a blank or title slide's is its "Reveal". Photos keep their
+  crop and flips. A clock, calendar, bar graph or diagram never changed saves no setting, so it's found by its asset
+  id and shows its starting look (`elementDefaults.ts`); only the digital clock writes AM / PM, like the slide. Also `presentationFileName`, `saveFile`, and `htmlToText` (Claude's `read_presentation`
+  uses it too; `presentationFileName` cuts at 100 whole characters). `markdownExport.ts` writes it as Markdown in a
+  `.txt` (photos as links, a cropped one says so; "## Answer key");
+  `wordExport.ts` as a real `.docx` with the `docx` package (tables as Word tables, links clickable, the Answer key
+  on its own page), imported only on a Word download.
+  Its photos are the real pictures: the browser reads each one once straight from R2 (never through our server)
+  and redraws it as a JPEG, cropped and flipped like the slide (Word can't show WebP; at most 1,600 px a side, as
+  wide on the page as on the slide; 4 photos at a time, each canvas freed at once; one file per `photoKey`).
+  That needs the R2 bucket's CORS rule (Cloudflare → R2 → the bucket → Settings → CORS policy: `GET` from
+  quizmatter.com, the dev preview and localhost); a photo it can't read stays a "Photo (link)" and a toast says how
+  many. Tests: `markdownExport.test.ts`, `wordExport.test.ts` (unzips the file).
+- Text: `richText.ts` (tiptap setup, safe HTML). Saved text keeps typed spaces (runs of spaces, spaces at a line's
+  start): the editor loads it with `readSavedText` (a document, so no editor-wide `parseOptions` changes later
+  `insertContent`) and the read-only text with `toSafeHtml`. Both first run `tidySavedHtml` (a tab or line end older
+  Claude imports saved shows as one space, a line end at a tag's edge goes). New text from outside goes through
+  `tidyText` in `textToHtml` and `stripMarkup` (`\r\n` → a new line, a tab → one space), so a Claude import's plain
+  text and HTML match. Tests: `richText.test.ts`, `e2e/text-spaces.mjs`. `format.ts` (dates, labels), `blanks.ts` (`blankRuns`,
   `markBlanks`: "___" blanks joined into one line, display only; tests `blanks.test.ts`) and `blankLines.ts` (the
   same in the editor, a Tiptap decoration). See `src/components/editor/CLAUDE.md`, "Slide text size".
 - `wordText.ts` / `wordFile.ts`: the editor's Word file panel (see `src/components/editor/CLAUDE.md`).
-  `wordFile.ts` (`readWordFile`, `readWordBytes`) unzips only `word/document.xml` and `word/numbering.xml` with `fflate`, in the browser
+  `wordFile.ts` (`readWordFile`, `readWordBytes`) unzips only `word/document.xml`, `word/numbering.xml` and `word/styles.xml` with `fflate`, in the browser
   (20 MB at most, and its text part 20 MB unzipped, checked from the zip's list before unzipping; `.docx` only,
   `WORD_FILE_ERROR`). `wordText.ts` (no imports): `wordLines` (one line per paragraph
   and line break, only `<w:t>` text, a text box's `mc:Fallback` copy skipped, nested paragraphs their own line; equations as plain text: x², H₂O,
@@ -263,7 +295,10 @@ data. Spec: `docs/superpowers/specs/2026-10-23-stable-presentation-data-design.m
   Wingdings),
   `parseNumbering` (Word's list button numbers: `wordLines` writes "1.", "a)", "(I)" in front of a list paragraph,
   counting per list and depth like Word, restarts and start values kept, bullets left out, a tracked change's old
-  numbering skipped), `stripItemMark`, `droppedTextHtml`, `pickedSlideTexts` + `PICKED_LINES_MAX` (ticked lines → question and A–D), `suggestItems` (numbered lines and up to 4
+  numbering skipped; lists made from the same `w:abstractNum` share one count, like Word, unless one restarts; "01."
+  (`decimalZero`) kept), `parseStyleNumbers` (a paragraph style that numbers, e.g. "List Number", through `w:basedOn`),
+  text moved with Track Changes on read once (`w:moveFrom` skipped), `stripItemMark` (a single letter only as A–E in
+  an answer box or I / V / X in the question box, never right before another initial: "J. K. Rowling"), `droppedTextHtml`, `pickedSlideTexts` + `PICKED_LINES_MAX` (ticked lines → question and A–D), `suggestItems` (numbered lines and up to 4
   lines under each, for Show suggestions; `stripItemMark` also removes a "____" blank in front of a number), `WORD_LINES_MAX` (2,000). Tests: `wordText.test.ts`, `wordFile.test.ts`.
 - `sameValue.ts`: whether two settings hold the same values in any key order (the database re-sorts saved keys, e.g.
   a fraction comes back as `{parts, whole, shaded}`); `MathToolControls` uses it. Tests: `sameValue.test.ts`.

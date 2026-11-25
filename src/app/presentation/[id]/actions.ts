@@ -1,8 +1,37 @@
 "use server";
 
+import { z } from "zod";
 import { pausedUntilFromError } from "@/lib/clickLimits";
+import { loadLessonExtras } from "@/lib/lessons";
 import { likedPresentationSchema, reportSchema, savedPresentationSchema } from "@/lib/schema";
 import { createClient } from "@/lib/supabase/server";
+import { loadCardRows, toSavableCards } from "../../(home)/cards";
+import type { PresentationCardData } from "../../PresentationCard";
+import { loadPresentationView, type PresentationViewData } from "./loadView";
+
+/**
+ * Someone else's presentation for the modal a card opens (src/app/PresentationModal.tsx): the same data as its page.
+ * null = not a presentation this user may read (or not an id). Read only.
+ */
+export async function openPresentation(id: string): Promise<PresentationViewData | null> {
+  const checked = z.uuid().safeParse(id);
+  return checked.success ? loadPresentationView(checked.data) : null;
+}
+
+/**
+ * "More like this" (its button in the modal and on the page): up to 6 QuizMatter presentations with the same subject
+ * and a grade in common, as cards (see the lesson_extras migration). Empty if there are none; null if the read
+ * failed (the button stays, to try again).
+ */
+export async function loadMoreLikeThis(id: string): Promise<PresentationCardData[] | null> {
+  const checked = z.uuid().safeParse(id);
+  if (!checked.success) return [];
+  const supabase = await createClient();
+  const { suggestionIds, failed } = await loadLessonExtras(supabase, checked.data);
+  if (failed) return null;
+  if (suggestionIds.length === 0) return [];
+  return toSavableCards(supabase, await loadCardRows(supabase, suggestionIds));
+}
 
 /**
  * Reports another teacher's published presentation to the admins (Admin → Reports). The database only takes

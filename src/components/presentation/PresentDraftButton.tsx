@@ -20,9 +20,18 @@ const PresentationView = dynamic(
 
 /**
  * "Present" for a presentation that isn't open in the editor, e.g. a review's submitted version (the reviewer's
- * view-only page and the admin's review page). Shows it fullscreen, from slide 1.
+ * view-only page and the admin's review page). Shows it fullscreen, from slide 1. `showView={false}` leaves the
+ * showing to another Present on the screen (a page under the presentation modal), so only one view hears the keys.
  */
-export function PresentDraftButton({ presentation, className }: { presentation: Presentation; className: string }) {
+export function PresentDraftButton({
+  presentation,
+  className,
+  showView = true,
+}: {
+  presentation: Presentation;
+  className: string;
+  showView?: boolean;
+}) {
   const isPresenting = useEditorStore((s) => s.isPresenting);
 
   // The presentation view reads the editor's store, so the presentation goes in there first.
@@ -43,7 +52,7 @@ export function PresentDraftButton({ presentation, className }: { presentation: 
         <PlayIcon size={14} fill="currentColor" />
         Present
       </button>
-      {isPresenting && <PresentationView />}
+      {isPresenting && showView && <PresentationView />}
     </>
   );
 }

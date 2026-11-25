@@ -146,7 +146,7 @@ export async function toSavableCards(supabase: SupabaseClient<Database>, rows: C
     return rows.map(toSavableCard);
   } catch {
     const now = Date.now();
-    return rows.map((row) => toCard(row, `/presentation/${row.id}`, now));
+    return rows.map((row) => ({ ...toCard(row, `/presentation/${row.id}`, now), opensInModal: true }));
   }
 }
 
@@ -273,6 +273,8 @@ export async function loadCardContext(supabase: SupabaseClient<Database>, rows: 
     canLike: p.owner_id !== me && p.is_published && !account.isAdmin,
     isLiked: likedIds.has(p.id),
     isReviewedByMe: p.reviewers.some((reviewer) => reviewer.reviewer_id === me),
+    // Opens in the modal (an admin's own QuizMatter one too: it shows Edit there).
+    opensInModal: true,
   });
   return { savedIds, toSavableCard };
 }
