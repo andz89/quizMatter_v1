@@ -31,3 +31,26 @@ export function formatStorage(bytes: number): string {
 export function isStorageFull(storage: PhotoStorage): boolean {
   return storage.limit !== null && storage.used >= storage.limit;
 }
+
+/** One of my own presentations whose slides still have the photo (from remove_my_photo). */
+type StillUsedIn = { title: string; is_shared_copy: boolean; slides: number[] };
+
+/**
+ * The "This photo is still on your slides" box's words: where it is, then why removing it from My photos frees
+ * nothing. `unsavedHere`: the open presentation has it but its saved copy isn't in `uses` (not saved yet).
+ */
+export function stillUsedMessage(uses: StillUsedIn[], bytes: number | null, unsavedHere: boolean): string {
+  const lines = uses.map((use) => {
+    const where = `${use.slides.length === 1 ? "slide" : "slides"} ${use.slides.join(", ")}`;
+    const title = use.title || "Untitled presentation";
+    return use.is_shared_copy
+      ? `• ${title}, published version (${where}): open it and click Update shared presentation to take it out there too`
+      : `• ${title} (${where})`;
+  });
+  if (unsavedHere) lines.push("• This presentation (not saved yet)");
+  const size = bytes === null ? "" : ` (${formatStorage(bytes)})`;
+  return (
+    `It's used in:\n${lines.join("\n")}\n\n` +
+    `Removing it from My photos won't free storage. It still counts${size} until it's gone from these slides too.`
+  );
+}
