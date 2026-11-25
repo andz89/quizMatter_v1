@@ -314,7 +314,11 @@ when another is picked), moving into and between boxes (Alt keeps a free picture
 - `layers-panel.mjs`: the editor's Layers panel. A slide with a circle hidden under a rectangle, a group and a star
   in answer B: the boxes ("On the slide", "Answer B"), top layer first with the group folded, ▸ shows its members,
   hovering a row outlines one element on the slide, a click selects the hidden circle (screenshot
-  `layers-panel.png`), dragging it above the rectangle saves that order, one Ctrl+Z puts it back, Escape closes.
+  `layers-panel.png`), dragging it above the rectangle saves that order, one Ctrl+Z puts it back, Enter picks a
+  focused row, a row dropped over the next box's row stays in its own box, a True or false slide doesn't list its
+  hidden answer C's star, a hidden slide shows its note, 1,000 elements list within 3 seconds, and dragging an
+  element on that slide isn't much slower with the panel open (each row redraws only for its own element), Escape
+  closes.
 - `word-file.mjs`: the editor's Word file panel. A .docx made in the test (`fflate`) lists one piece per line (an
   empty line skipped), an old `.doc` is refused with words, Copy copies the line as it is, lines dragged onto the
   question box and answer B replace their text without "1." / "b.", Undo brings B back, a line dropped on the slide

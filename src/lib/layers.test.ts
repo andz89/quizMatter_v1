@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { layerBoxes, moveLayer } from "./layers";
-import type { SvgElement } from "./schema";
+import { layerBoxes, moveLayer, shownLayerBoxes } from "./layers";
+import type { Slide, SvgElement } from "./schema";
 
 // A small element: only the fields the layer helpers read matter.
 function el(id: string, containerId: string | null = null, groupId?: string): SvgElement {
@@ -66,4 +66,38 @@ test("moveLayer reorders a member inside its own group, but never takes it out",
   const elements = [el("g1", null, "G"), el("g2", null, "G"), el("g3", null, "G"), el("b")];
   assert.deepEqual(ids(moveLayer(elements, ["g1"], "g3", "above")), ["g2", "g3", "g1", "b"]);
   assert.equal(moveLayer(elements, ["g1"], "b", "above"), elements);
+});
+
+// A slide with one element in each box; `change` sets its kind.
+function slideWith(change: Partial<Slide>): Slide {
+  return {
+    id: "s",
+    question: "",
+    layout: "grid",
+    options: ["a", "b", "c", "d"].map((id) => ({ id, text: "" })),
+    correctOptionId: null,
+    questionHeight: 150,
+    elements: [el("free"), el("q", "question"), el("a1", "a"), el("c1", "c"), el("side1", "side"), el("ans", "answer")],
+    ...change,
+  } as Slide;
+}
+const shown = (slide: Slide) => shownLayerBoxes(slide).map((b) => b.name).join("|");
+
+test("shownLayerBoxes names every box a choice slide shows", () => {
+  assert.equal(shown(slideWith({ type: "choice", hasShapeBox: true })), "On the slide|Question|Answer A|Answer C|Shape box");
+});
+
+test("shownLayerBoxes leaves out boxes the slide doesn't show", () => {
+  // True or false shows only the first two answers; no shape box unless the slide has one.
+  assert.equal(shown(slideWith({ type: "true-false" })), "On the slide|Question|Answer A");
+  // A blank slide has no question or answer boxes; its drawn answer shows only as a drawing ("canvas").
+  assert.equal(shown(slideWith({ type: "blank" })), "On the slide");
+  assert.equal(shown(slideWith({ type: "blank", answerType: "canvas" })), "On the slide|Reveal");
+  assert.equal(shown(slideWith({ type: "short-answer", answerType: "canvas" })), "On the slide|Question|Answer");
+  // An embed slide holds only its video or deck.
+  assert.equal(shown(slideWith({ type: "video" } as Partial<Slide>)), "");
+});
+
+test("shownLayerBoxes keeps the shape box beside the rows", () => {
+  assert.equal(shown(slideWith({ type: "choice", layout: "list-side" })), "On the slide|Question|Answer A|Answer C|Shape box");
 });

@@ -73,18 +73,31 @@ editor / view / review, and renders `Editor.tsx`, which calls `store.loadPresent
   Enter / leaving colors those words; the focus moving into the panel (`data-color-panel`) keeps it open
   (`setActiveTextEditor`'s `keepColorPanel`). Saved colors stay `#RRGGBB`: no data change.
 - **Layers panel** (`LayersPanel`, the rail's "Layers", like Canva's; spec
-  `docs/superpowers/specs/2026-11-25-layers-panel-design.md`): the selected slide's elements, one list per box ("On
-  the slide", "Question", "Answer A"–"D", "Shape box", "Answer"), top layer first, since elements only overlap inside
-  their box. Rows come from `layerBoxes` (`src/lib/layers.ts`): a group is one row ("Group · N items") whose ▸ shows
-  its members. A row's name is a text box's first 40 letters, "Table", "Photo", "Drawing", or the asset's label.
-  Click = select (a group row the whole group, a member row only that member; Shift / Ctrl / Cmd adds), so an
-  element hidden behind another can be picked; its handles are drawn above everything, and arrow keys, the toolbar
-  and Arrange then work on it (dragging its body on the slide still grabs what's on top). Hover = the store's
-  `hoveredLayerIds`, drawn by `SvgElementItem`'s selection part as a 2 px violet outline (not saved, not in undo).
-  Drag a row (`@dnd-kit`, one list per box and per open group) = `reorderLayers` → `moveLayer`: just above or below
-  the row it's dropped on, past a whole group, a member only among its own group, never into another box; one undo
-  step; a drop that changes nothing makes none. Only `slide.elements`' order changes, so nothing new is saved. Test:
-  `e2e/layers-panel.mjs`; the math: `src/lib/layers.test.ts`.
+  `docs/superpowers/specs/2026-11-25-layers-panel-design.md`): the selected slide's elements, one list per box, top
+  layer first, since elements only overlap inside their box. `shownLayerBoxes` (`src/lib/layers.ts`) gives only the
+  boxes the slide really shows, in their order on the slide: "On the slide", "Question" (not on blank, title or
+  custom slides), "Answer A"–"D" (choice slides; True or false only A and B), "Shape box" (when the slide has one),
+  "Answer" / "Reveal" (only a drawn answer, `answerType` "canvas"). Elements kept in a box the slide doesn't show
+  aren't listed (picking them would select something invisible). A hidden slide (locked) and an embed slide show a
+  note instead. A group is one row ("Group · N items") whose ▸ shows its members. A row's name is a text box's
+  first 40 characters (whole characters, so an emoji isn't cut), "Table", "Photo", "Drawing", or the asset's label.
+  Click, or Enter / Space on a focused row = select (a group row the whole group, a member row only that member;
+  Shift / Ctrl / Cmd adds), so an element hidden behind another can be picked; its handles are drawn above
+  everything, and arrow keys, the toolbar and Arrange then work on it (dragging its body on the slide still grabs
+  what's on top). Hover = the store's `hoveredLayerIds`, drawn by `SvgElementItem`'s selection part as a 2 px violet
+  outline (not saved, not in undo). Drag a row (`@dnd-kit`, one list per box and per open group; `sameListOnly`
+  makes only rows of its own list drop targets, so a drop near the next box still lands in its own) =
+  `reorderLayers` → `moveLayer`: just above or below the row it's dropped on, past a whole group, a member only
+  among its own group; one undo step; a drop that changes nothing makes none. Only `slide.elements`' order changes,
+  so nothing new is saved.
+  **Speed (up to 1,000 rows):** a redrawn `DndContext` hands every draggable row new values, redrawing all of them,
+  so the panel keeps it still: `LayersPanel` is memoized (Editor redraws on each selection change) and reads only
+  yes / no facts about the slide; its sensor options, modifiers and drop handler never change while the slide stays
+  the same; only `LayerBoxes` inside it follows the slide's elements. Rows (`ElementRow`, `GroupRow`, `BoxRows`) are
+  memoized, each box's ids keep their array while they don't change (`useSameIds`, or `SortableContext` would
+  redraw every row), and a row's "selected" is a yes / no from the store. So moving an element on the slide redraws
+  only its own row (before this, 1,000 rows redrew on each move). Rows out of sight skip drawing
+  (`content-visibility`). Test: `e2e/layers-panel.mjs`; the math: `src/lib/layers.test.ts`.
 - **Word file panel** (`WordFilePanel`, the rail's "Word file"; spec
   `docs/superpowers/specs/2026-11-21-word-file-panel-design.md`): a teacher opens a `.docx` (`readWordFile`,
   `src/lib/wordFile.ts`, read in the browser only: never uploaded or saved, so no Privacy Policy line) and sees its

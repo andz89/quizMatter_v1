@@ -1,15 +1,23 @@
 "use client";
 
-import { useEffect, useState, type MouseEvent, type ReactNode } from "react";
-import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
+import { memo, useCallback, useEffect, useMemo, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent, type ReactNode } from "react";
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type CollisionDetection,
+  type DragEndEvent,
+} from "@dnd-kit/core";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { restrictToVerticalAxis } from "@dnd-kit/modifiers";
 import { CSS } from "@dnd-kit/utilities";
-import { useEditorStore, isPanelEscape, selectedIdsOn } from "@/lib/store";
-import { ANSWER_CONTAINER_ID, QUESTION_CONTAINER_ID, SIDE_CONTAINER_ID, getShownOptions } from "@/lib/constants";
+import { useEditorStore, isPanelEscape } from "@/lib/store";
 import { CUSTOM_SVG_ID, PHOTO_ID, getElementAsset } from "@/lib/svgLibrary";
-import { layerBoxes, type LayerItem } from "@/lib/layers";
-import type { Slide, SvgElement } from "@/lib/schema";
+import { isEmbedSlide } from "@/lib/embed";
+import { shownLayerBoxes, type LayerItem } from "@/lib/layers";
+import type { SvgElement } from "@/lib/schema";
 import { PanelLabel } from "./PanelControls";
 import { ElementSvg } from "./ElementSvg";
 import { ChevronRightIcon, GroupIcon, TableIcon, TypeIcon, XIcon } from "lucide-react";
@@ -17,18 +25,43 @@ import { ChevronRightIcon, GroupIcon, TableIcon, TypeIcon, XIcon } from "lucide-
 // What a dragged row carries: the elements it moves, and the element a drop on it lands next to.
 type RowData = { movingIds: string[]; targetId: string };
 
+// A row only ever lands among its own list (a box, or one open group): rows of other lists aren't drop targets,
+// so a drag near the edge of the next box still finds the nearest row of its own.
+const sameListOnly: CollisionDetection = (args) => {
+  const list = args.active.data.current?.sortable?.containerId;
+  return closestCenter({
+    ...args,
+    droppableContainers: args.droppableContainers.filter((c) => c.data.current?.sortable?.containerId === list),
+  });
+};
+
+// Made once: a new one would change the DndContext's values, redrawing every row (see LayersPanel).
+const VERTICAL_ONLY = [restrictToVerticalAxis];
+const POINTER_OPTIONS = { activationConstraint: { distance: 4 } };
+
 /**
  * Sidebar panel listing the selected slide's elements, box by box, top layer first (like Canva's Layers). Click a
  * row to select it (even one hidden behind another), hover to outline it on the slide, drag to change the order.
+ *
+ * Speed: this part reads only yes / no facts about the slide, so an edit (like moving an element on the slide)
+ * doesn't redraw it or the DndContext: a redrawn DndContext hands every draggable row new values, redrawing all of
+ * them. Only `LayerBoxes`, inside it, follows the slide's elements, and its rows are memoized.
  */
-export function LayersPanel() {
+// Memoized: Editor redraws on every selection change, which would otherwise redraw this too.
+export const LayersPanel = memo(function LayersPanel() {
   const closeLayersPanel = useEditorStore((s) => s.closeLayersPanel);
   const reorderLayers = useEditorStore((s) => s.reorderLayers);
   const setHoveredLayerIds = useEditorStore((s) => s.setHoveredLayerIds);
-  const slide = useEditorStore((s) => s.presentation.slides.find((slide) => slide.id === s.selectedSlideId));
+  const slideId = useEditorStore((s) => s.selectedSlideId);
+  // A hidden slide is locked (nothing on it can change or be picked) until it's shown again.
+  const isHidden = useEditorStore((s) => !!s.presentation.slides.find((slide) => slide.id === slideId)?.hidden);
+  const isEmbed = useEditorStore((s) => {
+    const slide = s.presentation.slides.find((slide) => slide.id === slideId);
+    return !!slide && isEmbedSlide(slide);
+  });
   // Which groups are open, showing their members.
   const [openGroups, setOpenGroups] = useState<Set<string>>(new Set());
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
+  const sensors = useSensors(useSensor(PointerSensor, POINTER_OPTIONS));
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -41,26 +74,35 @@ export function LayersPanel() {
   // The outline goes when the panel closes (also by switching panels).
   useEffect(() => () => setHoveredLayerIds([]), [setHoveredLayerIds]);
 
-  if (!slide) return null;
-  const boxes = layerBoxes(slide.elements);
+  const toggleGroup = useCallback(
+    (groupId: string) =>
+      setOpenGroups((open) => {
+        const next = new Set(open);
+        if (!next.delete(groupId)) next.add(groupId);
+        return next;
+      }),
+    []
+  );
 
-  const toggleGroup = (groupId: string) =>
-    setOpenGroups((open) => {
-      const next = new Set(open);
-      if (!next.delete(groupId)) next.add(groupId);
-      return next;
-    });
+  // A row dropped on another row of its list goes just past it.
+  const handleDragEnd = useCallback(
+    ({ active, over }: DragEndEvent) => {
+      const from = active.data.current?.sortable;
+      const to = over?.data.current?.sortable;
+      if (!slideId || !over || !from || !to || active.id === over.id || from.containerId !== to.containerId) return;
+      const { movingIds } = active.data.current as RowData;
+      const { targetId } = over.data.current as RowData;
+      // The list is top layer first, so moving down the list = below the target.
+      reorderLayers(slideId, movingIds, targetId, from.index < to.index ? "below" : "above");
+    },
+    [slideId, reorderLayers]
+  );
 
-  // A row dropped on another row of the same list (a box, or one open group) goes just past it.
-  const handleDragEnd = ({ active, over }: DragEndEvent) => {
-    const from = active.data.current?.sortable;
-    const to = over?.data.current?.sortable;
-    if (!over || !from || !to || active.id === over.id || from.containerId !== to.containerId) return;
-    const { movingIds } = active.data.current as RowData;
-    const { targetId } = over.data.current as RowData;
-    // The list is top layer first, so moving down the list = below the target.
-    reorderLayers(slide.id, movingIds, targetId, from.index < to.index ? "below" : "above");
-  };
+  const note = isHidden
+    ? "This slide is hidden. Show it again to see and change its layers."
+    : isEmbed
+      ? "This slide shows only its video or slides, so it has no layers."
+      : null;
 
   return (
     <div
@@ -79,59 +121,86 @@ export function LayersPanel() {
         </button>
       </div>
 
-      {boxes.length === 0 ? (
-        <p className="text-sm text-text-secondary">Nothing on this slide yet. Add elements or photos, and they show here.</p>
+      {note ? (
+        <p className="text-sm text-text-secondary">{note}</p>
       ) : (
-        <DndContext sensors={sensors} collisionDetection={closestCenter} modifiers={[restrictToVerticalAxis]} onDragEnd={handleDragEnd}>
-          {boxes.map((box) => (
-            <section key={box.containerId ?? "slide"} className="flex flex-col gap-2">
-              <PanelLabel>{boxName(slide, box.containerId)}</PanelLabel>
-              <SortableContext items={box.items.map(itemKey)} strategy={verticalListSortingStrategy}>
-                <ul className="flex flex-col gap-1">
-                  {box.items.map((item) =>
-                    item.kind === "element" ? (
-                      <ElementRow key={itemKey(item)} slideId={slide.id} element={item.element} />
-                    ) : (
-                      <GroupRow
-                        key={itemKey(item)}
-                        slideId={slide.id}
-                        groupId={item.groupId}
-                        members={item.members}
-                        isOpen={openGroups.has(item.groupId)}
-                        onToggle={() => toggleGroup(item.groupId)}
-                      />
-                    )
-                  )}
-                </ul>
-              </SortableContext>
-            </section>
-          ))}
+        <DndContext sensors={sensors} collisionDetection={sameListOnly} modifiers={VERTICAL_ONLY} onDragEnd={handleDragEnd}>
+          <LayerBoxes slideId={slideId} openGroups={openGroups} onToggle={toggleGroup} />
         </DndContext>
       )}
     </div>
   );
+});
+
+/** The slide's boxes and their rows: the only part that follows the slide's elements. */
+function LayerBoxes({ slideId, openGroups, onToggle }: { slideId: string; openGroups: Set<string>; onToggle: (groupId: string) => void }) {
+  const slide = useEditorStore((s) => s.presentation.slides.find((slide) => slide.id === slideId));
+  const boxes = useMemo(() => (slide ? shownLayerBoxes(slide) : []), [slide]);
+  if (boxes.length === 0) {
+    return <p className="text-sm text-text-secondary">Nothing on this slide yet. Add elements or photos, and they show here.</p>;
+  }
+  return boxes.map((box) => (
+    <section key={box.containerId ?? "slide"} className="flex flex-col gap-2">
+      <PanelLabel>{box.name}</PanelLabel>
+      <BoxRows slideId={slideId} items={box.items} openGroups={openGroups} onToggle={onToggle} />
+    </section>
+  ));
 }
 
 function itemKey(item: LayerItem) {
   return item.kind === "element" ? item.element.id : `group:${item.groupId}`;
 }
 
-/** The box's title. Answer boxes are lettered by their place, like on the slide. */
-function boxName(slide: Slide, containerId: string | null) {
-  if (containerId === null) return "On the slide";
-  if (containerId === QUESTION_CONTAINER_ID) return "Question";
-  if (containerId === SIDE_CONTAINER_ID) return "Shape box";
-  if (containerId === ANSWER_CONTAINER_ID) return "Answer";
-  const index = getShownOptions(slide).findIndex((option) => option.id === containerId);
-  return index >= 0 ? `Answer ${String.fromCharCode(65 + index)}` : "Answer";
+/**
+ * The same array back while the ids are the same. A new `items` array makes @dnd-kit's SortableContext hand every
+ * row a new context, which redraws all of them (memo or not): with 1,000 elements, each move of an element on the
+ * slide redrew the whole list.
+ */
+function useSameIds(ids: string[]) {
+  // Ids never hold a line break, so the joined text changes exactly when the list does.
+  const joined = ids.join("\n");
+  return useMemo(() => joined.split("\n"), [joined]);
 }
+
+interface BoxRowsProps {
+  slideId: string;
+  items: LayerItem[];
+  openGroups: Set<string>;
+  onToggle: (groupId: string) => void;
+}
+
+/** One box's rows: a sortable list of its elements and groups. */
+const BoxRows = memo(function BoxRows({ slideId, items, openGroups, onToggle }: BoxRowsProps) {
+  const keys = useSameIds(items.map(itemKey));
+  return (
+    <SortableContext items={keys} strategy={verticalListSortingStrategy}>
+      <ul className="flex flex-col gap-1">
+        {items.map((item) =>
+          item.kind === "element" ? (
+            <ElementRow key={itemKey(item)} slideId={slideId} element={item.element} />
+          ) : (
+            <GroupRow
+              key={itemKey(item)}
+              slideId={slideId}
+              groupId={item.groupId}
+              members={item.members}
+              isOpen={openGroups.has(item.groupId)}
+              onToggle={onToggle}
+            />
+          )
+        )}
+      </ul>
+    </SortableContext>
+  );
+});
 
 /** A row's name: a text box's first words, else what the element is. */
 function elementName(element: SvgElement) {
   const asset = getElementAsset(element.assetId);
   if (asset?.isTextBox) {
     const text = new DOMParser().parseFromString(element.text?.html ?? "", "text/html").body.textContent?.trim() ?? "";
-    return text ? text.slice(0, 40) : "Text box";
+    // By whole characters, so an emoji isn't cut in two.
+    return text ? Array.from(text).slice(0, 40).join("") : "Text box";
   }
   if (asset?.isTable) return "Table";
   if (element.assetId === PHOTO_ID) return "Photo";
@@ -143,21 +212,28 @@ function ElementPicture({ element }: { element: SvgElement }) {
   const asset = getElementAsset(element.assetId);
   if (asset?.isTextBox) return <TypeIcon size={16} />;
   if (asset?.isTable) return <TableIcon size={16} />;
+  const isWide = element.width >= element.height;
   return (
     <span className="flex h-full w-full items-center justify-center p-1">
-      <span className="block" style={{ aspectRatio: `${element.width} / ${element.height}`, maxWidth: "100%", maxHeight: "100%", width: element.width >= element.height ? "100%" : "auto", height: element.width >= element.height ? "auto" : "100%" }}>
+      <span
+        className="block max-h-full max-w-full"
+        style={{ aspectRatio: `${element.width} / ${element.height}`, width: isWide ? "100%" : "auto", height: isWide ? "auto" : "100%" }}
+      >
         <ElementSvg assetId={element.assetId} color={element.color} settings={element} />
       </span>
     </span>
   );
 }
 
-function ElementRow({ slideId, element, indent }: { slideId: string; element: SvgElement; indent?: boolean }) {
+const ElementRow = memo(function ElementRow({ slideId, element, indent }: { slideId: string; element: SvgElement; indent?: boolean }) {
   const selectElement = useEditorStore((s) => s.selectElement);
   const selectElements = useEditorStore((s) => s.selectElements);
+  // The row is memoized, so this (a text box reads its HTML) runs only when this element changed.
+  const name = elementName(element);
+  const ids = [element.id];
   // A group member is picked on its own, like a double-click on the slide.
-  const onSelect = (e: MouseEvent) => {
-    if (e.shiftKey || e.ctrlKey || e.metaKey) selectElement(slideId, element.id, true);
+  const onSelect = (additive: boolean) => {
+    if (additive) selectElement(slideId, element.id, true);
     else if (element.groupId) selectElements([element.id]);
     else selectElement(slideId, element.id);
   };
@@ -165,25 +241,34 @@ function ElementRow({ slideId, element, indent }: { slideId: string; element: Sv
     <LayerRow
       slideId={slideId}
       id={element.id}
-      data={{ movingIds: [element.id], targetId: element.id }}
-      elementIds={[element.id]}
-      name={elementName(element)}
+      data={{ movingIds: ids, targetId: element.id }}
+      elementIds={ids}
+      name={name}
       picture={<ElementPicture element={element} />}
       indent={indent}
       onSelect={onSelect}
     />
   );
-}
+});
 
 interface GroupRowProps {
   slideId: string;
   groupId: string;
   members: SvgElement[];
   isOpen: boolean;
-  onToggle: () => void;
+  onToggle: (groupId: string) => void;
 }
 
-function GroupRow({ slideId, groupId, members, isOpen, onToggle }: GroupRowProps) {
+// The members list is new each time the rows are built: the row redraws only when a member itself changed.
+const sameMembers = (a: GroupRowProps, b: GroupRowProps) =>
+  a.slideId === b.slideId &&
+  a.groupId === b.groupId &&
+  a.isOpen === b.isOpen &&
+  a.onToggle === b.onToggle &&
+  a.members.length === b.members.length &&
+  a.members.every((el, i) => el === b.members[i]);
+
+const GroupRow = memo(function GroupRow({ slideId, groupId, members, isOpen, onToggle }: GroupRowProps) {
   const selectElement = useEditorStore((s) => s.selectElement);
   const ids = members.map((el) => el.id);
   return (
@@ -197,7 +282,7 @@ function GroupRow({ slideId, groupId, members, isOpen, onToggle }: GroupRowProps
           name={`Group · ${members.length} items`}
           picture={<GroupIcon size={16} />}
           // Selecting one member selects the whole group.
-          onSelect={(e) => selectElement(slideId, ids[0], e.shiftKey || e.ctrlKey || e.metaKey)}
+          onSelect={(additive) => selectElement(slideId, ids[0], additive)}
           toggle={
             <button
               type="button"
@@ -205,7 +290,7 @@ function GroupRow({ slideId, groupId, members, isOpen, onToggle }: GroupRowProps
               aria-expanded={isOpen}
               onClick={(e) => {
                 e.stopPropagation();
-                onToggle();
+                onToggle(groupId);
               }}
               className="flex h-6 w-6 shrink-0 items-center justify-center rounded-dropdown text-text-secondary hover:bg-bg-page hover:text-text-primary"
             >
@@ -225,7 +310,7 @@ function GroupRow({ slideId, groupId, members, isOpen, onToggle }: GroupRowProps
       )}
     </li>
   );
-}
+}, sameMembers);
 
 interface LayerRowProps {
   slideId: string;
@@ -238,27 +323,38 @@ interface LayerRowProps {
   picture: ReactNode;
   indent?: boolean;
   toggle?: ReactNode;
-  onSelect: (e: MouseEvent) => void;
+  // additive: Shift / Ctrl / Cmd was held.
+  onSelect: (additive: boolean) => void;
 }
 
-/** One draggable row: a small picture and a name. */
+/** One draggable row: a small picture and a name. Enter or Space picks it, like a click. */
 function LayerRow({ slideId, id, data, elementIds, name, picture, indent, toggle, onSelect }: LayerRowProps) {
   const setHoveredLayerIds = useEditorStore((s) => s.setHoveredLayerIds);
-  const selectedIds = useEditorStore(selectedIdsOn(slideId));
-  const isSelected = elementIds.every((elId) => selectedIds.includes(elId));
+  // A yes / no, so a selection change redraws only the rows it turns on or off.
+  const isSelected = useEditorStore(
+    (s) => s.selectedSlideId === slideId && elementIds.every((elId) => s.selectedElementIds.includes(elId))
+  );
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id, data });
+
+  const handleKeyDown = (e: ReactKeyboardEvent) => {
+    if (e.target !== e.currentTarget || (e.key !== "Enter" && e.key !== " ")) return;
+    e.preventDefault();
+    onSelect(e.shiftKey || e.ctrlKey || e.metaKey);
+  };
 
   return (
     <li
       ref={setNodeRef}
       {...attributes}
       {...listeners}
-      onClick={onSelect}
+      onClick={(e: MouseEvent) => onSelect(e.shiftKey || e.ctrlKey || e.metaKey)}
+      onKeyDown={handleKeyDown}
       onPointerEnter={() => setHoveredLayerIds(elementIds)}
       onPointerLeave={() => setHoveredLayerIds([])}
       title={name}
       style={{ transform: CSS.Translate.toString(transform), transition }}
-      className={`relative flex h-11 cursor-grab items-center gap-2.5 rounded-dropdown border px-2 text-sm active:cursor-grabbing ${
+      // content-visibility: a long list (up to 1,000 elements) skips drawing the rows scrolled out of sight.
+      className={`relative flex h-11 shrink-0 cursor-grab items-center gap-2.5 rounded-dropdown border px-2 text-sm [contain-intrinsic-size:auto_44px] [content-visibility:auto] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent active:cursor-grabbing ${
         indent ? "ml-6" : ""
       } ${isSelected ? "border-accent bg-accent-soft font-semibold text-accent" : "border-border-default bg-bg-surface text-text-primary hover:bg-bg-page"} ${
         isDragging ? "z-10 opacity-80" : ""

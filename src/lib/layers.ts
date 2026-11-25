@@ -1,4 +1,15 @@
-import type { SvgElement } from "./schema";
+import type { Slide, SvgElement } from "./schema";
+import {
+  ANSWER_CONTAINER_ID,
+  QUESTION_CONTAINER_ID,
+  SIDE_CONTAINER_ID,
+  getShownOptions,
+  hasOptions,
+  hasReveal,
+  hasShapeBox,
+  isFreeCanvas,
+} from "./constants";
+import { isEmbedSlide } from "./embed";
 
 // The Layers panel's math (see "Layers panel" in src/components/editor/CLAUDE.md). Later in `slide.elements` =
 // drawn on top, and only elements in the same box overlap, so each box has its own order.
@@ -29,6 +40,28 @@ export function layerBoxes(elements: SvgElement[]): LayerBox[] {
     box.items.push({ kind: "group", groupId: element.groupId, members: newMembers });
   });
   return [...boxes.values()];
+}
+
+/**
+ * The boxes the slide really shows, each with its name, in the order they sit on the slide. Elements kept in a box
+ * the slide doesn't show (answers C and D of a True or false, a drawn answer switched back to text, a shape box
+ * turned off) are left out: picking them would select something invisible. An embed slide shows none.
+ */
+export function shownLayerBoxes(slide: Slide): (LayerBox & { name: string })[] {
+  if (isEmbedSlide(slide)) return [];
+  const names = new Map<string | null, string>([[null, "On the slide"]]);
+  if (!isFreeCanvas(slide)) names.set(QUESTION_CONTAINER_ID, "Question");
+  if (hasOptions(slide)) {
+    getShownOptions(slide).forEach((option, i) => names.set(option.id, `Answer ${String.fromCharCode(65 + i)}`));
+    if (hasShapeBox(slide)) names.set(SIDE_CONTAINER_ID, "Shape box");
+  }
+  if (slide.answerType === "canvas") names.set(ANSWER_CONTAINER_ID, hasReveal(slide) ? "Reveal" : "Answer");
+
+  const boxes = new Map(layerBoxes(slide.elements).map((box) => [box.containerId, box]));
+  return [...names].flatMap(([containerId, name]) => {
+    const box = boxes.get(containerId);
+    return box ? [{ ...box, name }] : [];
+  });
 }
 
 /**
