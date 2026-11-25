@@ -6,7 +6,7 @@ first.
 
 - `src/app/` **(notes)**: the teacher pages. `(home)/` home tabs (My presentations, From QuizMatter, Other
   teachers, Saved, Liked, Reviews & submissions, search) and folders; `presentation/[id]/` the view page (and the modal a card of someone else's presentation opens:
-  `src/app/PresentationModal.tsx`) and `edit/` the
+  `src/app/PresentationModal.tsx`), `copy/` (Make a copy's new tab) and `edit/` the
   editor page; `presentation/new/` opens Claude's drafts; `account/`, `login/`, `signup/`, `forgot-password/` +
   `set-password/` (Forgot password), `teachers/[slug]/`
   (profiles); `oauth/` Claude's login; `(legal)/` the Privacy Policy and Terms of Use (version in `src/lib/legal.ts`). Teachers' server actions:

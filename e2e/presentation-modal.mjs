@@ -3,8 +3,8 @@
 // ✕ close it and a reload just reloads the list. "Show more like this" loads cards inside it, and one of them swaps
 // the modal. Escape in the Report box closes only that box. A link to /presentation/<id> is the full page, same layout.
 // Saving in the modal updates the card behind at once; over the full page only the modal hears the arrow keys and
-// shows Present; Back while presenting ends it; leaving through Make a copy needs one Back to return. Opening one
-// again shows the remembered copy without asking the server.
+// shows Present; Back while presenting ends it; Make a copy opens a new tab that becomes the editor with one copy,
+// and the modal stays. Opening one again shows the remembered copy without asking the server.
 import { chromium } from "playwright";
 import { APP, SHOTS, check, deleteTeacher, finish, loggedIn, makeTeacher, psql } from "./lib.mjs";
 
@@ -60,7 +60,7 @@ try {
   check("the address doesn't change", new URL(page.url()).pathname === "/quizmatter", page.url());
   check("it shows the first slide", await dialog.getByText("First question A").first().isVisible());
   check("tags show", await dialog.getByText("leaves", { exact: true }).isVisible());
-  check("Make a copy is the main button", await dialog.getByRole("button", { name: "Make a copy" }).isVisible());
+  check("Make a copy is the main button", await dialog.getByRole("link", { name: "Make a copy" }).isVisible());
   await page.screenshot({ path: `${SHOTS}presentation-modal.png` });
 
   await dialog.getByRole("button", { name: "Slide 2" }).click();
@@ -190,17 +190,28 @@ try {
   await anyDialog.first().waitFor({ state: "detached", timeout: 5_000 }).catch(() => {});
   check("…and the next modal still closes with Escape", (await anyDialog.count()) === 0);
 
-  // Make a copy from the modal opens the editor and the modal is gone.
+  // Make a copy opens a new tab that makes the copy and becomes the editor with it; the modal stays in this tab.
   await page.goto(`${APP}/quizmatter`);
   await page.locator("a", { hasText: titles.a }).first().waitFor({ timeout: 30_000 });
-  const historyBefore = await page.evaluate(() => history.length);
   await openA();
-  await dialog.getByRole("button", { name: "Make a copy" }).click();
-  await page.waitForURL(/\/presentation\/[^/]+\/edit$/, { timeout: 30_000 });
-  await page.waitForTimeout(500);
-  check("Make a copy opens the editor, the modal is gone", (await page.getByRole("dialog", { name: titles.a }).count()) === 0, page.url());
-  const historyAfter = await page.evaluate(() => history.length);
-  check("the modal's Back entry is gone (one Back returns to the list)", historyAfter === historyBefore + 1, `${historyBefore} → ${historyAfter}`);
+  const [copyTab] = await Promise.all([
+    context.waitForEvent("page"),
+    dialog.getByRole("link", { name: "Make a copy" }).click(),
+  ]);
+  await copyTab.waitForURL(/\/presentation\/[^/]+\/edit$/, { timeout: 30_000 });
+  await copyTab.getByText("First question A").first().waitFor({ timeout: 30_000 });
+  check("Make a copy opens a new tab with the copy in the editor", new URL(copyTab.url()).pathname !== `/presentation/${ids.a}/edit`, copyTab.url());
+  check("…and the modal stays open in the first tab", await dialog.isVisible() && new URL(page.url()).pathname === "/quizmatter", page.url());
+  const copies = psql(`select count(*) from public.presentations where copied_from = '${ids.a}' and owner_id = '${viewer.id}'`).trim();
+  check("…and it made exactly one copy", copies === "1", copies);
+  await copyTab.close();
+  const missingTab = await context.newPage();
+  await missingTab.goto(`${APP}/presentation/${crypto.randomUUID()}/copy`);
+  check(
+    "a copy link of a presentation that isn't there says so",
+    await missingTab.getByText("can't be copied").isVisible({ timeout: 20_000 }),
+  );
+  await missingTab.close();
 
   await context.close();
 

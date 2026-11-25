@@ -26,7 +26,8 @@ Canva's template preview, and closing it puts the teacher back where they were.
   only once it scrolls into view, since a presentation can have 100 slides).
 - Right: labels (QuizMatter, Reviewed, Under review, Sent to QuizMatter), the title, the details line, the tags,
   "View more by <name>" (round first letter, a link to their profile: the lesson's editor, or the teacher who
-  published it), then the buttons: **Make a copy** (main violet; my own: Edit), Save (bookmark), Like (heart and
+  published it), then the buttons: **Make a copy** (main violet; opens a new tab that makes the copy and shows it in the editor,
+  so the modal stays; my own: Edit), Save (bookmark), Like (heart and
   count), Share, Report; editors get Review / Update this lesson / Continue review under them. Then the Author /
   Publisher / Reviewer lines, Description, Curriculum, Learning competency, References and This week's lessons.
 - Bottom (QuizMatter lessons only): "More like this" with a **Show more like this** button; it loads up to 6 cards

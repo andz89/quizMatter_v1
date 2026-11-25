@@ -219,7 +219,7 @@ try {
   await go(teacherPage, `/presentation/${mainId}`);
   check("teachers see the reviewer's email on the view page", await seen(teacherPage.getByText(editorA.email)));
   check("…and no Under review", (await teacherPage.getByText("Under review").count()) === 0);
-  check("teachers can copy it again", await teacherPage.getByRole("button", { name: "Make a copy" }).isEnabled());
+  check("teachers can copy it again", await teacherPage.getByRole("link", { name: "Make a copy" }).isVisible());
   await go(pageA, "/reviews-submissions");
   check("Reviews & submissions says Published", await seen(myRow(pageA, MAIN).getByText("Published")));
 
