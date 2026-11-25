@@ -24,6 +24,7 @@ import { TopLoadingBar } from "@/components/TopLoadingBar";
 import { FluidSlidePreview } from "@/components/presentation/FluidSlidePreview";
 import { PresentDraftButton } from "@/components/presentation/PresentDraftButton";
 import { SAVE_ERRORS } from "../../SaveCardButton";
+import { announcePresentationChange, usePresentationModal } from "../../openPresentation";
 import { LessonWeek } from "./LessonWeek";
 import { LikeButton } from "./LikeButton";
 import { MoreLikeThis } from "./MoreLikeThis";
@@ -41,17 +42,10 @@ import type { PresentationViewData } from "./loadView";
  * this lesson", see the author_updates migration); while it's under review nobody can copy it and its owner can't
  * edit it. While my presentation waits for QuizMatter (see the quizmatter_submissions migration), it has no Edit.
  * The slides skip hidden ones, like presenting, unless `showHidden` (the owner, and admins checking reports), who see
- * them faded with the eye-off mark. "Make a copy" still copies every slide. `onChange` runs after a save or like.
+ * them faded with the eye-off mark. "Make a copy" still copies every slide. While the modal is open over the page,
+ * the page's copy leaves the arrow keys and presenting to the modal.
  */
-export function PresentationDetails({
-  view,
-  inModal = false,
-  onChange,
-}: {
-  view: PresentationViewData;
-  inModal?: boolean;
-  onChange?: () => void;
-}) {
+export function PresentationDetails({ view, inModal = false }: { view: PresentationViewData; inModal?: boolean }) {
   const { presentation, isMine, review, reviewers, waitingSince } = view;
   const router = useRouter();
   const [isCopying, setIsCopying] = useState(false);
@@ -60,6 +54,9 @@ export function PresentationDetails({
   const [isStartingReview, setIsStartingReview] = useState(false);
   const [slideIndex, setSlideIndex] = useState(0);
   const isPresenting = useEditorStore((s) => s.isPresenting);
+  const modal = usePresentationModal();
+  // The page under an open modal: the modal is the one in use.
+  const isBehindModal = !inModal && !!modal?.isOpen;
   // The slides the strip and Prev/Next go through (the details line still counts them all).
   const slides = view.showHidden ? presentation.slides : shownSlides(presentation.slides);
   const slideCount = slides.length;
@@ -70,9 +67,9 @@ export function PresentationDetails({
   // A copy is a new presentation: too many in a day pauses it until midnight (the "create" click limit).
   const isCopyPaused = useIsPaused("create");
 
-  // ← / → change the slide, unless the teacher is typing or presenting.
+  // ← / → change the slide, unless the teacher is typing or presenting, or the modal is open over this page.
   useEffect(() => {
-    if (isPresenting) return;
+    if (isPresenting || isBehindModal) return;
     const onKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement;
       if (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName)) return;
@@ -81,7 +78,12 @@ export function PresentationDetails({
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [slideCount, isPresenting]);
+  }, [slideCount, isPresenting, isBehindModal]);
+
+  // Another page: from the modal, through it (so one Back returns to the list behind).
+  const goTo = (href: string) => (inModal && modal ? modal.leave(href) : router.push(href));
+  // It changed since it opened (private, under review): show it as it is now.
+  const reload = () => (inModal && modal ? modal.open(presentation.id) : router.refresh());
 
   const makeCopy = async () => {
     setIsCopying(true);
@@ -93,6 +95,7 @@ export function PresentationDetails({
       if (!error && !stillVisible) {
         toast.error("This presentation is private now, so it can't be copied.");
         setIsCopying(false);
+        reload();
         return;
       }
       // Saved by newer app code than this tab runs: copying it here would drop fields this tab doesn't know.
@@ -104,6 +107,7 @@ export function PresentationDetails({
       if ((await loadReviewStatus(supabase, presentation.id)).isLocked) {
         toast.error("This presentation is under review, so it can't be copied right now.");
         setIsCopying(false);
+        reload();
         return;
       }
     } catch {
@@ -119,7 +123,7 @@ export function PresentationDetails({
     try {
       await savePresentationToDb(copy, { copiedFrom: presentation.id });
       // isCopying stays true, so the spinner and top line keep showing until the editor opens (the modal closes then).
-      router.push(`/presentation/${copy.id}/edit`);
+      goTo(`/presentation/${copy.id}/edit`);
     } catch (error) {
       // Paused: the button greys out and the notice at the bottom says until when.
       const pausedUntil = pausedUntilFromError(error as { code?: string; details?: string });
@@ -139,10 +143,11 @@ export function PresentationDetails({
           : "You're reviewing this presentation now. Teachers keep seeing it as it is.",
       );
       // isStartingReview stays true, so the spinner and top line keep showing until the editor opens.
-      router.push(`/presentation/${presentation.id}/edit`);
+      goTo(`/presentation/${presentation.id}/edit`);
     } catch (error) {
       toast.error(error instanceof SaveRefusedError ? "Someone else just started reviewing this." : saveErrorMessage(error, "start the review"));
       setIsStartingReview(false);
+      reload();
     }
   };
 
@@ -160,7 +165,7 @@ export function PresentationDetails({
     const { status, pausedUntil } = result;
     if (status === "done") {
       setIsSaved(!isSaved);
-      onChange?.();
+      announcePresentationChange({ id: presentation.id, isSaved: !isSaved });
       toast.success(isSaved ? "Removed from Saved." : "Saved. Find it in “Saved” on your home page.");
     } else if (status === "paused") {
       pauseFeature("saved", pausedUntil!);
@@ -216,6 +221,8 @@ export function PresentationDetails({
               <div className="mt-3 flex items-center gap-3">
                 <PresentDraftButton
                   presentation={presentation}
+                  // Under the modal, the modal's own Present shows the slides (one view, so a key moves one slide).
+                  showView={!isBehindModal}
                   className="rounded-button bg-accent btn-press px-4 py-2 text-sm font-semibold text-white hover:bg-accent-hover"
                 />
                 <div className="ml-auto flex items-center gap-2">
@@ -330,7 +337,6 @@ export function PresentationDetails({
                 likeCount={view.likeCount}
                 isLiked={view.isLiked}
                 canLike={view.canLike}
-                onChange={onChange}
                 className={smallButtonClass}
               />
             )}
@@ -468,7 +474,8 @@ function SlideStrip({
     const row = rowRef.current;
     const item = row?.children[current] as HTMLElement | undefined;
     if (!row || !item) return;
-    const left = item.offsetLeft - row.offsetLeft;
+    // The row is `relative`, so offsetLeft already counts from the row's own left edge.
+    const left = item.offsetLeft;
     if (left < row.scrollLeft || left + item.offsetWidth > row.scrollLeft + row.clientWidth) {
       row.scrollTo({ left: left - (row.clientWidth - item.offsetWidth) / 2, behavior: "smooth" });
     }

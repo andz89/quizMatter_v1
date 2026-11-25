@@ -55,10 +55,12 @@ Canva's template preview, and closing it puts the teacher back where they were.
 - `PresentationDetails.tsx` (client): the layout above, for both. Replaces `PresentationPreview.tsx` (my own
   locked presentation's view-only page uses it too: Edit instead of Make a copy). `MoreLikeThis.tsx` replaces
   `Suggestions.tsx`.
-- `src/app/PresentationModal.tsx` (client): `PresentationModalProvider` (root layout) and `useOpenPresentation()`.
-  It closes by itself when the page changes (a link inside it, Make a copy). A Save or Like inside it refreshes
-  the list when it closes, so the card behind shows it. While a box opened from it (Report) is on top, Escape
-  closes only that box.
+- `src/app/PresentationModal.tsx` (client): `PresentationModalProvider` (root layout); `src/app/openPresentation.ts`
+  gives the pages `useOpenOnClick`, `usePresentationModal` (`open`, `isOpen`, `leave`), `useNestedDialog` and the
+  saved/liked change signal. Going to another page from inside it takes its Back entry away first, so one Back
+  returns to the list. A Save or Like updates every card of it at once and refreshes the list when it closes. While
+  a box opened from it (Report) is on top, Escape closes only that box. While it's open, the page under it leaves the
+  arrow keys and presenting to it, and the browser's Back while presenting ends presenting too.
 - `PresentationCard`: a card with `opensInModal` (set by `toSavableCard`) has no `target="_blank"`; a plain click
   opens the modal.
 - No database change, no new package.

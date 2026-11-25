@@ -56,11 +56,20 @@ modal grey out.
   same `loadPresentationView` the page uses. **The address never changes**: a reload just reloads the page behind it
   (the user's choice). Opening adds one history entry with the same address, so Back closes it (the `popstate`
   listener is added once, with `useEffectEvent`: re-added on every render it missed Back); ✕, Escape and a click
-  outside close it through `history.back()`. It closes by itself when the page changes (a link inside it, Make a
-  copy). A Save or Like inside marks it changed, and the page behind is refreshed after it closes. While a box opened
-  from it (Report) is on top, Escape closes only that box (it counts the `[role="dialog"]`s). A suggestion or lesson
-  clicked inside swaps the modal (no new history entry). My own cards and Claude's drafts still open the editor in a
-  new tab. Test: `e2e/presentation-modal.mjs`.
+  outside close it through `history.back()`. Going to another page from inside it (a plain click on a link that isn't
+  a presentation's, caught by `onClickCapture`; Make a copy and Review through `leave`) first takes that entry away
+  with `history.back()`, then opens the page (a tick later, after Next's own Back handling), so one Back returns to
+  the list; the top line shows meanwhile. It closes by itself when the page changes. The browser's Back while
+  presenting also ends presenting and fullscreen (`stopPresenting`). Save and Like (in the modal, on a card, in
+  `LikeButton` / `SaveCardButton` / `LikeCardButton`) call `announcePresentationChange`: every card of it on the page
+  (`useSavedIds`, `SavableCardGrid`, `LikeCardButton`, via `usePresentationChanges`) shows it at once, and the page
+  behind is refreshed after the modal closes. While Report is on top (`useNestedDialog`), the modal's `canClose` is
+  off, so Escape and a click outside close only that box. While it's open, the page under it leaves the arrow keys and
+  presenting to it (`isOpen`: `PresentationDetails`' page copy and `PresentingView` in `(home)/CardGrid.tsx` don't
+  show their own view, `PresentDraftButton showView`), so one key moves one slide. A suggestion or lesson clicked
+  inside swaps the modal (no new history entry); if it changed since it opened (private, under review), the modal
+  loads it again. My own cards and Claude's drafts still open the editor in a new tab. Test:
+  `e2e/presentation-modal.mjs`.
 - `[id]/page.tsx`: the full page, for a presentation opened by its link (a shared link, Admin → Reports, My
   submissions, a new tab). Logged in it draws the same `[id]/PresentationDetails.tsx` as the modal, without the box.
   `[id]/loadView.ts` (`loadPresentationView`, server) reads everything both need: `fetchPresentation`, This week's

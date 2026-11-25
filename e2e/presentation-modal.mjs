@@ -2,6 +2,8 @@
 // someone else's presentation opens a Canva-style modal over the list; the address never changes, so Back, Escape and
 // ✕ close it and a reload just reloads the list. "Show more like this" loads cards inside it, and one of them swaps
 // the modal. Escape in the Report box closes only that box. A link to /presentation/<id> is the full page, same layout.
+// Saving in the modal updates the card behind at once; over the full page only the modal hears the arrow keys and
+// shows Present; Back while presenting ends it; leaving through Make a copy needs one Back to return.
 import { chromium } from "playwright";
 import { APP, SHOTS, check, deleteTeacher, finish, loggedIn, makeTeacher, psql } from "./lib.mjs";
 
@@ -31,7 +33,9 @@ psql(`
     ('${ids.a}', 'a1', 0, $j$${JSON.stringify(slide("a1", "First question A"))}$j$),
     ('${ids.a}', 'a2', 1, $j$${JSON.stringify(slide("a2", "Second question A"))}$j$),
     ('${ids.a}', 'a3', 2, $j$${JSON.stringify(slide("a3", "Third question A"))}$j$),
-    ('${ids.b}', 'b1', 0, $j$${JSON.stringify(slide("b1", "First question B"))}$j$);
+    ('${ids.b}', 'b1', 0, $j$${JSON.stringify(slide("b1", "First question B"))}$j$),
+    ('${ids.b}', 'b2', 1, $j$${JSON.stringify(slide("b2", "Second question B"))}$j$),
+    ('${ids.b}', 'b3', 2, $j$${JSON.stringify(slide("b3", "Third question B"))}$j$);
 `);
 
 try {
@@ -106,6 +110,10 @@ try {
   await openA();
   await dialog.getByRole("button", { name: "Save to your home page" }).click();
   await page.getByText("Saved. Find it").waitFor();
+  check(
+    "the card behind shows it saved at once",
+    (await page.getByRole("button", { name: `Remove ${titles.a} from Saved` }).count()) >= 1,
+  );
   await dialog.getByRole("button", { name: "Close" }).click();
   await anyDialog.first().waitFor({ state: "detached" });
   await page.goto(`${APP}/saved`);
@@ -120,14 +128,42 @@ try {
   check("the full page draws the slide", await page.getByText("First question A").first().isVisible());
   await page.screenshot({ path: `${SHOTS}presentation-page.png` });
 
+  // The modal over the full page: only the modal hears the arrow keys, and Present shows one view.
+  await page.getByRole("button", { name: "Show more like this" }).click();
+  await page.locator("main a", { hasText: titles.b }).first().click({ timeout: 20_000 });
+  const dialogOverPage = page.getByRole("dialog", { name: titles.b });
+  await dialogOverPage.getByRole("heading", { name: titles.b }).waitFor({ timeout: 20_000 });
+  await page.keyboard.press("ArrowRight");
+  await dialogOverPage.getByText("2 / 3").waitFor();
+  check("→ moves only the modal's slides, not the page's", await page.locator("main").getByText("1 / 3").isVisible());
+  const views = page.locator("div.fixed.inset-0.z-50.overflow-hidden");
+  await dialogOverPage.getByRole("button", { name: "Present" }).click();
+  await views.first().waitFor({ timeout: 20_000 });
+  await page.waitForTimeout(500);
+  check("Present in the modal shows one view", (await views.count()) === 1, `${await views.count()}`);
+
+  // Back while presenting ends the presentation too, so the next modal still closes.
+  await page.goBack();
+  await anyDialog.first().waitFor({ state: "detached" });
+  await page.waitForTimeout(300);
+  check("Back while presenting ends it", (await views.count()) === 0, `${await views.count()}`);
+  await page.locator("main a", { hasText: titles.b }).first().click();
+  await dialogOverPage.getByRole("heading", { name: titles.b }).waitFor({ timeout: 20_000 });
+  await page.keyboard.press("Escape");
+  await anyDialog.first().waitFor({ state: "detached", timeout: 5_000 }).catch(() => {});
+  check("…and the next modal still closes with Escape", (await anyDialog.count()) === 0);
+
   // Make a copy from the modal opens the editor and the modal is gone.
   await page.goto(`${APP}/quizmatter`);
   await page.locator("a", { hasText: titles.a }).first().waitFor({ timeout: 30_000 });
+  const historyBefore = await page.evaluate(() => history.length);
   await openA();
   await dialog.getByRole("button", { name: "Make a copy" }).click();
   await page.waitForURL(/\/presentation\/[^/]+\/edit$/, { timeout: 30_000 });
   await page.waitForTimeout(500);
   check("Make a copy opens the editor, the modal is gone", (await page.getByRole("dialog", { name: titles.a }).count()) === 0, page.url());
+  const historyAfter = await page.evaluate(() => history.length);
+  check("the modal's Back entry is gone (one Back returns to the list)", historyAfter === historyBefore + 1, `${historyBefore} → ${historyAfter}`);
 
   await context.close();
 

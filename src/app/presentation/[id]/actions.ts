@@ -20,13 +20,15 @@ export async function openPresentation(id: string): Promise<PresentationViewData
 
 /**
  * "More like this" (its button in the modal and on the page): up to 6 QuizMatter presentations with the same subject
- * and a grade in common, as cards (see the lesson_extras migration). Empty if there are none or the read fails.
+ * and a grade in common, as cards (see the lesson_extras migration). Empty if there are none; null if the read
+ * failed (the button stays, to try again).
  */
-export async function loadMoreLikeThis(id: string): Promise<PresentationCardData[]> {
+export async function loadMoreLikeThis(id: string): Promise<PresentationCardData[] | null> {
   const checked = z.uuid().safeParse(id);
   if (!checked.success) return [];
   const supabase = await createClient();
-  const { suggestionIds } = await loadLessonExtras(supabase, checked.data);
+  const { suggestionIds, failed } = await loadLessonExtras(supabase, checked.data);
+  if (failed) return null;
   if (suggestionIds.length === 0) return [];
   return toSavableCards(supabase, await loadCardRows(supabase, suggestionIds));
 }

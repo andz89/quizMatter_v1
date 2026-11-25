@@ -7,16 +7,19 @@ import { useEditorStore } from "@/lib/store";
 import { OTHER_CHOICE, SUBJECTS, isOtherSubject, subjectChipLabel } from "@/lib/schema";
 import { PresentationCard, type PresentationCardData } from "../PresentationCard";
 import { DraggableCard } from "../MyFolders";
+import { usePresentationChanges, usePresentationModal } from "../openPresentation";
 
 // Only downloaded when the teacher clicks Present on a card.
 const PresentationView = dynamic(() =>
   import("@/components/presentation/PresentationView").then((mod) => mod.PresentationView)
 );
 
-/** The fullscreen presentation, while Present (in a card's ⋮ menu) is on. */
+/** The fullscreen presentation, while Present (in a card's ⋮ menu) is on. Not under the presentation modal: its own
+ * Present shows the slides then (one view, so a key moves one slide). */
 export function PresentingView() {
   const isPresenting = useEditorStore((s) => s.isPresenting);
-  return isPresenting ? <PresentationView /> : null;
+  const modal = usePresentationModal();
+  return isPresenting && !modal?.isOpen ? <PresentationView /> : null;
 }
 
 export function Cards({
@@ -98,7 +101,7 @@ export function Empty({ children }: { children: ReactNode }) {
 export function useSavedIds(cards: PresentationCardData[], onChange?: (card: PresentationCardData, isSaved: boolean) => void) {
   const router = useRouter();
   const [savedIds, setSavedIds] = useState(() => new Set(cards.filter((card) => card.isSaved).map((card) => card.id)));
-  const onSavedChange = (card: PresentationCardData, isSaved: boolean) => {
+  const markSaved = (card: PresentationCardData, isSaved: boolean) => {
     setSavedIds((ids) => {
       const next = new Set(ids);
       if (isSaved) next.add(card.id);
@@ -106,8 +109,16 @@ export function useSavedIds(cards: PresentationCardData[], onChange?: (card: Pre
       return next;
     });
     onChange?.(card, isSaved);
+  };
+  const onSavedChange = (card: PresentationCardData, isSaved: boolean) => {
+    markSaved(card, isSaved);
     router.refresh();
   };
+  // Saved or removed elsewhere (the presentation modal): this card shows it too. The modal refreshes on close.
+  usePresentationChanges(({ id, isSaved }) => {
+    const card = cards.find((card) => card.id === id);
+    if (card && isSaved !== undefined) markSaved(card, isSaved);
+  });
   return { savedIds, onSavedChange };
 }
 

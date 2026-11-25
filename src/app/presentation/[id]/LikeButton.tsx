@@ -8,6 +8,7 @@ import { Spinner } from "@/components/Spinner";
 import { REFUSALS } from "@/lib/presentations";
 import { pauseFeature, useIsPaused } from "@/lib/clickLimits";
 import { setPresentationLiked } from "./actions";
+import { announcePresentationChange } from "../../openPresentation";
 
 // What to tell the user when liking failed (also used by the card's heart, LikeCardButton).
 export const LIKE_ERRORS = {
@@ -26,15 +27,12 @@ export function LikeButton({
   likeCount: countAtStart,
   isLiked: likedAtStart,
   canLike,
-  onChange,
   className,
 }: {
   presentationId: string;
   likeCount: number;
   isLiked: boolean;
   canLike: boolean;
-  // After a like or unlike was saved (the modal then refreshes the page behind it when it closes).
-  onChange?: () => void;
   className: string;
 }) {
   const router = useRouter();
@@ -66,9 +64,11 @@ export function LikeButton({
     }
     const { status, pausedUntil } = result;
     if (status === "done") {
+      const count = Math.max(likeCount + (isLiked ? -1 : 1), 0);
       setIsLiked(!isLiked);
-      setLikeCount((count) => Math.max(count + (isLiked ? -1 : 1), 0));
-      onChange?.();
+      setLikeCount(count);
+      // The card of it behind the modal shows it too.
+      announcePresentationChange({ id: presentationId, isLiked: !isLiked, likeCount: count });
       toast.success(isLiked ? "Like removed." : "Liked.");
     } else if (status === "paused") {
       pauseFeature("like", pausedUntil!);

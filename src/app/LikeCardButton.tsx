@@ -8,6 +8,7 @@ import { Spinner } from "@/components/Spinner";
 import { pauseFeature, useIsPaused } from "@/lib/clickLimits";
 import { setPresentationLiked } from "./presentation/[id]/actions";
 import { LIKE_ERRORS } from "./presentation/[id]/LikeButton";
+import { announcePresentationChange, usePresentationChanges } from "./openPresentation";
 
 /**
  * The heart and like count on someone else's presentation card, left of the bookmark: likes it, or takes the like
@@ -30,6 +31,12 @@ export function LikeCardButton({
   const [isLiked, setIsLiked] = useState(likedAtStart);
   const [isPending, startTransition] = useTransition();
   const isPaused = useIsPaused("like");
+  // Liked or unliked elsewhere (the presentation modal, the same card in another grid): this heart shows it too.
+  usePresentationChanges((change) => {
+    if (change.id !== presentationId || change.isLiked === undefined || change.likeCount === undefined) return;
+    setIsLiked(change.isLiked);
+    setLikeCount(change.likeCount);
+  });
 
   const toggle = () =>
     startTransition(async () => {
@@ -53,8 +60,8 @@ export function LikeCardButton({
         return;
       }
       toast.success(isLiked ? "Like removed." : "Liked.");
-      setIsLiked(!isLiked);
-      setLikeCount((count) => Math.max(count + (isLiked ? -1 : 1), 0));
+      // Sets this heart and every other one of it on the page (the listener above).
+      announcePresentationChange({ id: presentationId, isLiked: !isLiked, likeCount: Math.max(likeCount + (isLiked ? -1 : 1), 0) });
     });
 
   return (

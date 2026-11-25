@@ -21,7 +21,10 @@ export function MoreLikeThis({ presentationId }: { presentationId: string }) {
   const load = async () => {
     setIsLoading(true);
     try {
-      setCards(await loadMoreLikeThis(presentationId));
+      const found = await loadMoreLikeThis(presentationId);
+      // null = the read failed: the button stays, to try again.
+      if (found) setCards(found);
+      else toast.error("Couldn't load more like this. Please try again.");
     } catch {
       toast.error("Couldn't load more like this. Please try again.");
     } finally {

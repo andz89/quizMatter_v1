@@ -19,18 +19,18 @@ export type LessonWeek = {
 };
 
 /**
- * A live QuizMatter presentation's week list (null unless an editor made it) and up to 6 "You may also like" ids,
- * best first, in one call (see the lesson_extras migration). Nothing if it fails.
+ * A live QuizMatter presentation's week list (null unless an editor made it) and up to 6 "More like this" ids,
+ * best first, in one call (see the lesson_extras migration). Nothing if it fails (`failed` then says so).
  */
 export async function loadLessonExtras(
   supabase: SupabaseClient<Database>,
   id: string,
-): Promise<{ week: LessonWeek | null; suggestionIds: string[] }> {
+): Promise<{ week: LessonWeek | null; suggestionIds: string[]; failed?: boolean }> {
   const nothing = { week: null, suggestionIds: [] };
   const checked = idSchema.safeParse(id);
   if (!checked.success) return nothing;
   const { data, error } = await supabase.rpc("lesson_extras", { target_id: checked.data });
-  if (error) return nothing;
+  if (error) return { ...nothing, failed: true };
   const rows = data as { id: string; kind: "week" | "suggestion"; editor_name: string; editor_slug: string; position: number }[];
   const weekRows = rows.filter((row) => row.kind === "week");
   return {
