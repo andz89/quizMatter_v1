@@ -2850,6 +2850,21 @@ $$;
 ALTER FUNCTION "public"."my_paused_features"() OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."my_photo_storage"() RETURNS "jsonb"
+    LANGUAGE "sql" STABLE SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+  select jsonb_build_object(
+    'used', public.photo_storage_used((select auth.uid())),
+    'limit', case when exists (select 1 from public.admins a where a.user_id = (select auth.uid()))
+                  then null else public.photo_storage_limit() end
+  );
+$$;
+
+
+ALTER FUNCTION "public"."my_photo_storage"() OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."my_profile_photo"() RETURNS TABLE("src" "text", "left_today" integer)
     LANGUAGE "sql" STABLE SECURITY DEFINER
     SET "search_path" TO ''
@@ -2902,6 +2917,50 @@ $$;
 
 
 ALTER FUNCTION "public"."my_submissions"() OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."photo_storage_limit"() RETURNS bigint
+    LANGUAGE "sql" IMMUTABLE
+    SET "search_path" TO ''
+    AS $$
+  select 52428800::bigint; -- 50 × 1024 × 1024
+$$;
+
+
+ALTER FUNCTION "public"."photo_storage_limit"() OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."photo_storage_used"("target" "uuid") RETURNS bigint
+    LANGUAGE "sql" STABLE SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+  select coalesce(sum(u.bytes), 0)::bigint
+  from public.photo_uploads u
+  where u.user_id = target
+    and (
+      u.created_at > now() - interval '10 minutes'
+      or exists (select 1 from public.photos p where p.user_id = target and p.src = u.src)
+      or exists (
+        select 1 from public.slide_photos sp
+        join public.presentations pr on pr.id = sp.presentation_id
+        where sp.src = u.src and pr.owner_id = target
+      )
+    );
+$$;
+
+
+ALTER FUNCTION "public"."photo_storage_used"("target" "uuid") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."photo_uploads_unknown_sizes"() RETURNS SETOF "text"
+    LANGUAGE "sql" STABLE SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+  select distinct u.src from public.photo_uploads u where not u.size_known;
+$$;
+
+
+ALTER FUNCTION "public"."photo_uploads_unknown_sizes"() OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."photo_waiting_for_approval"("target_src" "text", "owner" "uuid") RETURNS boolean
@@ -3363,6 +3422,54 @@ $$;
 ALTER FUNCTION "public"."remove_copy_of_quizmatter_presentation"() OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."remove_my_photo"("target_src" "text", "mode" "text") RETURNS "jsonb"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+declare
+  me uuid := auth.uid();
+  uses jsonb;
+  removed boolean := false;
+begin
+  if me is null then
+    raise exception 'Please log in again.' using errcode = '42501';
+  end if;
+  if mode is null or mode not in ('if_unused', 'ask', 'remove') then
+    raise exception 'Unknown mode.' using errcode = '22023';
+  end if;
+
+  select coalesce(jsonb_agg(u order by u.title, u.id), '[]'::jsonb) into uses
+  from (
+    select pr.id, pr.title, pr.shared_from is not null as is_shared_copy,
+      jsonb_agg(s.position + 1 order by s.position) as slides
+    from public.slide_photos sp
+    join public.presentations pr on pr.id = sp.presentation_id
+    join public.slides s on s.presentation_id = sp.presentation_id and s.id = sp.slide_id
+    where sp.src = target_src and pr.owner_id = me
+    group by pr.id, pr.title, pr.shared_from
+  ) u;
+
+  if mode = 'remove' or (mode = 'if_unused' and uses = '[]'::jsonb) then
+    -- Through the photos table's own triggers: a photo waiting for QuizMatter is still refused (QMPHL).
+    delete from public.photos p where p.user_id = me and p.src = target_src;
+    removed := true;
+  end if;
+
+  return jsonb_build_object(
+    'removed', removed,
+    'uses', uses,
+    'bytes', (select u.bytes from public.photo_uploads u where u.user_id = me and u.src = target_src),
+    'used', public.photo_storage_used(me),
+    'limit', case when exists (select 1 from public.admins a where a.user_id = me)
+                  then null else public.photo_storage_limit() end
+  );
+end;
+$$;
+
+
+ALTER FUNCTION "public"."remove_my_photo"("target_src" "text", "mode" "text") OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."remove_new_editor_copies"() RETURNS "trigger"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO ''
@@ -3391,6 +3498,47 @@ $$;
 
 
 ALTER FUNCTION "public"."remove_profile_photo"() OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."reserve_photo_upload"("target" "uuid", "target_src" "text", "file_bytes" integer) RETURNS "void"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+declare
+  is_admin boolean := exists (select 1 from public.admins a where a.user_id = target);
+  already_counted boolean;
+begin
+  -- One teacher's uploads are checked one at a time, so two at once can't both slip past the limit.
+  perform pg_advisory_xact_lock(hashtext('photo_storage:' || target::text));
+
+  already_counted := exists (
+    select 1 from public.photo_uploads u
+    where u.user_id = target and u.src = target_src
+      and (
+        u.created_at > now() - interval '10 minutes'
+        or exists (select 1 from public.photos p where p.user_id = target and p.src = u.src)
+        or exists (
+          select 1 from public.slide_photos sp
+          join public.presentations pr on pr.id = sp.presentation_id
+          where sp.src = u.src and pr.owner_id = target
+        )
+      )
+  );
+
+  if not is_admin and not already_counted
+    and public.photo_storage_used(target) + file_bytes > public.photo_storage_limit() then
+    raise exception 'Your photo storage is full (50 MB).' using errcode = 'QMSTO';
+  end if;
+
+  insert into public.photo_uploads (user_id, src, bytes, size_known, created_at)
+  values (target, target_src, file_bytes, true, now())
+  on conflict (user_id, src) do update
+    set bytes = excluded.bytes, size_known = true, created_at = now();
+end;
+$$;
+
+
+ALTER FUNCTION "public"."reserve_photo_upload"("target" "uuid", "target_src" "text", "file_bytes" integer) OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."review_status"("target_id" "text") RETURNS TABLE("status" "text", "reviewer_name" "text", "is_locked" boolean, "is_mine" boolean, "can_start" boolean, "is_author_update" boolean, "is_author" boolean)
@@ -3988,6 +4136,20 @@ $$;
 
 
 ALTER FUNCTION "public"."set_maintenance"("turn_on" boolean, "note" "text") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."set_photo_upload_sizes"("sizes" "jsonb") RETURNS "void"
+    LANGUAGE "sql" SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+  update public.photo_uploads u
+  set bytes = least(greatest((s.value)::int, 1), 2097152), size_known = true
+  from jsonb_each_text(sizes) s
+  where u.src = s.key and not u.size_known;
+$$;
+
+
+ALTER FUNCTION "public"."set_photo_upload_sizes"("sizes" "jsonb") OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."set_profile_photo"("src" "text") RETURNS integer
@@ -4916,6 +5078,20 @@ CREATE TABLE IF NOT EXISTS "public"."photo_categories" (
 ALTER TABLE "public"."photo_categories" OWNER TO "postgres";
 
 
+CREATE TABLE IF NOT EXISTS "public"."photo_uploads" (
+    "user_id" "uuid" NOT NULL,
+    "src" "text" NOT NULL,
+    "bytes" integer NOT NULL,
+    "size_known" boolean DEFAULT true NOT NULL,
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    CONSTRAINT "photo_uploads_bytes_check" CHECK ((("bytes" > 0) AND ("bytes" <= 2097152))),
+    CONSTRAINT "photo_uploads_src_check" CHECK ((("src" ~~ 'https://images.quizmatter.com/uploads/%'::"text") AND ("length"("src") <= 300)))
+);
+
+
+ALTER TABLE "public"."photo_uploads" OWNER TO "postgres";
+
+
 CREATE TABLE IF NOT EXISTS "public"."photos" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "user_id" "uuid" DEFAULT "auth"."uid"() NOT NULL,
@@ -5286,6 +5462,11 @@ ALTER TABLE ONLY "public"."maintenance"
 
 ALTER TABLE ONLY "public"."photo_categories"
     ADD CONSTRAINT "photo_categories_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."photo_uploads"
+    ADD CONSTRAINT "photo_uploads_pkey" PRIMARY KEY ("user_id", "src");
 
 
 
@@ -5854,6 +6035,11 @@ ALTER TABLE ONLY "public"."password_reset_sends"
 
 
 
+ALTER TABLE ONLY "public"."photo_uploads"
+    ADD CONSTRAINT "photo_uploads_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "auth"."users"("id") ON DELETE CASCADE;
+
+
+
 ALTER TABLE ONLY "public"."photos"
     ADD CONSTRAINT "photos_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "auth"."users"("id") ON DELETE CASCADE;
 
@@ -6090,6 +6276,10 @@ CREATE POLICY "Own settings" ON "public"."user_settings" TO "authenticated" USIN
 
 
 
+CREATE POLICY "Own upload records" ON "public"."photo_uploads" FOR SELECT TO "authenticated" USING (("user_id" = ( SELECT "auth"."uid"() AS "uid")));
+
+
+
 CREATE POLICY "Owners change shared photos" ON "public"."shared_photos" FOR UPDATE TO "authenticated" USING ((( SELECT "public"."is_super_admin"() AS "is_super_admin") OR (( SELECT "public"."is_admin"() AS "is_admin") AND ("uploaded_by" = ( SELECT "auth"."uid"() AS "uid"))))) WITH CHECK ((( SELECT "public"."is_super_admin"() AS "is_super_admin") OR (( SELECT "public"."is_admin"() AS "is_admin") AND ("uploaded_by" = ( SELECT "auth"."uid"() AS "uid")))));
 
 
@@ -6244,6 +6434,9 @@ ALTER TABLE "public"."password_reset_sends" ENABLE ROW LEVEL SECURITY;
 
 
 ALTER TABLE "public"."photo_categories" ENABLE ROW LEVEL SECURITY;
+
+
+ALTER TABLE "public"."photo_uploads" ENABLE ROW LEVEL SECURITY;
 
 
 ALTER TABLE "public"."photos" ENABLE ROW LEVEL SECURITY;
@@ -6924,6 +7117,12 @@ GRANT ALL ON FUNCTION "public"."my_paused_features"() TO "service_role";
 
 
 
+REVOKE ALL ON FUNCTION "public"."my_photo_storage"() FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."my_photo_storage"() TO "authenticated";
+GRANT ALL ON FUNCTION "public"."my_photo_storage"() TO "service_role";
+
+
+
 REVOKE ALL ON FUNCTION "public"."my_profile_photo"() FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."my_profile_photo"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."my_profile_photo"() TO "service_role";
@@ -6939,6 +7138,22 @@ GRANT ALL ON FUNCTION "public"."my_reviews"() TO "service_role";
 REVOKE ALL ON FUNCTION "public"."my_submissions"() FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."my_submissions"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."my_submissions"() TO "service_role";
+
+
+
+REVOKE ALL ON FUNCTION "public"."photo_storage_limit"() FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."photo_storage_limit"() TO "authenticated";
+GRANT ALL ON FUNCTION "public"."photo_storage_limit"() TO "service_role";
+
+
+
+REVOKE ALL ON FUNCTION "public"."photo_storage_used"("target" "uuid") FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."photo_storage_used"("target" "uuid") TO "service_role";
+
+
+
+REVOKE ALL ON FUNCTION "public"."photo_uploads_unknown_sizes"() FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."photo_uploads_unknown_sizes"() TO "service_role";
 
 
 
@@ -7055,6 +7270,12 @@ GRANT ALL ON FUNCTION "public"."remove_copy_of_quizmatter_presentation"() TO "se
 
 
 
+REVOKE ALL ON FUNCTION "public"."remove_my_photo"("target_src" "text", "mode" "text") FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."remove_my_photo"("target_src" "text", "mode" "text") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."remove_my_photo"("target_src" "text", "mode" "text") TO "service_role";
+
+
+
 REVOKE ALL ON FUNCTION "public"."remove_new_editor_copies"() FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."remove_new_editor_copies"() TO "service_role";
 
@@ -7063,6 +7284,11 @@ GRANT ALL ON FUNCTION "public"."remove_new_editor_copies"() TO "service_role";
 REVOKE ALL ON FUNCTION "public"."remove_profile_photo"() FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."remove_profile_photo"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."remove_profile_photo"() TO "service_role";
+
+
+
+REVOKE ALL ON FUNCTION "public"."reserve_photo_upload"("target" "uuid", "target_src" "text", "file_bytes" integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."reserve_photo_upload"("target" "uuid", "target_src" "text", "file_bytes" integer) TO "service_role";
 
 
 
@@ -7143,6 +7369,11 @@ GRANT ALL ON FUNCTION "public"."set_liked"("presentation_id" "text", "is_liked" 
 REVOKE ALL ON FUNCTION "public"."set_maintenance"("turn_on" boolean, "note" "text") FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."set_maintenance"("turn_on" boolean, "note" "text") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."set_maintenance"("turn_on" boolean, "note" "text") TO "service_role";
+
+
+
+REVOKE ALL ON FUNCTION "public"."set_photo_upload_sizes"("sizes" "jsonb") FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."set_photo_upload_sizes"("sizes" "jsonb") TO "service_role";
 
 
 
@@ -7379,6 +7610,11 @@ GRANT ALL ON TABLE "public"."password_reset_sends" TO "service_role";
 
 GRANT ALL ON TABLE "public"."photo_categories" TO "authenticated";
 GRANT ALL ON TABLE "public"."photo_categories" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."photo_uploads" TO "service_role";
+GRANT SELECT ON TABLE "public"."photo_uploads" TO "authenticated";
 
 
 

@@ -288,6 +288,20 @@ isOneToOne: true
                   Relationships: [
                     
                   ]
+                },"photo_uploads": {
+                  Row: {
+                    "bytes": number,"created_at": string,"size_known": boolean,"src": string,"user_id": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "bytes": number,"created_at"?: string,"size_known"?: boolean,"src": string,"user_id": string
+                  }
+                  Update: {
+                    "bytes"?: number,"created_at"?: string,"size_known"?: boolean,"src"?: string,"user_id"?: string
+                  }
+                  Relationships: [
+                    
+                  ]
                 },"photos": {
                   Row: {
                     "created_at": string,"height": number,"id": string,"src": string,"user_id": string,"width": number
@@ -919,6 +933,9 @@ isOneToOne: false
               "feature": string,"paused_until": string
             }[]
                            },
+"my_photo_storage":
+{ Args: Record<PropertyKey, never>; Returns: Json
+                           },
 "my_profile_photo":
 { Args: Record<PropertyKey, never>; Returns: {
               "left_today": number,"src": string
@@ -933,6 +950,15 @@ isOneToOne: false
 { Args: Record<PropertyKey, never>; Returns: {
               "admin_note": string,"copy_id": string,"id": string,"presentation_id": string,"status": string,"submitted_at": string,"title": string
             }[]
+                           },
+"photo_storage_limit":
+{ Args: Record<PropertyKey, never>; Returns: number
+                           },
+"photo_storage_used":
+{ Args: { "target": string }; Returns: number
+                           },
+"photo_uploads_unknown_sizes":
+{ Args: Record<PropertyKey, never>; Returns: string[]
                            },
 "photo_waiting_for_approval":
 { Args: { "owner": string,"target_src": string }; Returns: boolean
@@ -983,8 +1009,14 @@ isOneToOne: false
 "recount_announcement":
 { Args: { "target": string }; Returns: undefined
                            },
+"remove_my_photo":
+{ Args: { "mode": string,"target_src": string }; Returns: Json
+                           },
 "remove_profile_photo":
 { Args: Record<PropertyKey, never>; Returns: undefined
+                           },
+"reserve_photo_upload":
+{ Args: { "file_bytes": number,"target": string,"target_src": string }; Returns: undefined
                            },
 "review_status":
 { Args: { "target_id": string }; Returns: {
@@ -1025,6 +1057,9 @@ isOneToOne: false
                            },
 "set_maintenance":
 { Args: { "note": string,"turn_on": boolean }; Returns: undefined
+                           },
+"set_photo_upload_sizes":
+{ Args: { "sizes": Json }; Returns: undefined
                            },
 "set_profile_photo":
 { Args: { "src": string }; Returns: number
