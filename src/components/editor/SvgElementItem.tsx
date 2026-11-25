@@ -869,3 +869,33 @@ export const SvgElementItem = memo(function SvgElementItem({ slideId, element, i
   prev.part === next.part &&
   prev.bounds.width === next.bounds.width &&
   prev.bounds.height === next.bounds.height);
+
+/**
+ * A box's elements (Question, an answer, Shape box, Answer canvas) in two passes, like the slide's two layers: every
+ * picture first, then every selection part (outline and handles). So the handles of a selected element, and the
+ * Layers panel's hover outline, show above whatever covers it in its box.
+ */
+export function BoxElements({
+  slideId,
+  elements,
+  selectedElementIds,
+  bounds,
+}: {
+  slideId: string;
+  elements: SvgElement[];
+  selectedElementIds: string[];
+  bounds: { width: number; height: number };
+}) {
+  return (["picture", "selection"] as const).flatMap((part) =>
+    elements.map((element) => (
+      <SvgElementItem
+        key={`${part}:${element.id}`}
+        slideId={slideId}
+        element={element}
+        isSelected={selectedElementIds.includes(element.id)}
+        bounds={bounds}
+        part={part}
+      />
+    ))
+  );
+}

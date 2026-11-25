@@ -8,6 +8,7 @@ import Italic from "@tiptap/extension-italic";
 import Underline from "@tiptap/extension-underline";
 import TextAlign from "@tiptap/extension-text-align";
 import { TextStyle, Color } from "@tiptap/extension-text-style";
+import { Transform } from "@tiptap/pm/transform";
 
 /** Everything a question/option box can hold: paragraphs with bold, italic, underline, color and alignment. */
 export const TEXT_EXTENSIONS = [
@@ -116,4 +117,16 @@ export function readSavedText(html: string): JSONContent {
  */
 export function toSafeHtml(html: string): string {
   return getHTMLFromFragment(createDocument(tidySavedHtml(html), TEXT_SCHEMA, TEXT_PARSE_OPTIONS).content, TEXT_SCHEMA);
+}
+
+/**
+ * Saved text HTML with the words between `from` and `to` (the editor's positions) in `color`, or all of it when the
+ * two are the same. For a text whose editor is gone (a table cell's, once typing ends). Browser only.
+ */
+export function colorSavedText(html: string, from: number, to: number, color: string): string {
+  const doc = createDocument(tidySavedHtml(html), TEXT_SCHEMA, TEXT_PARSE_OPTIONS);
+  const end = doc.content.size;
+  const [start, stop] = from === to ? [0, end] : [Math.min(from, end), Math.min(to, end)];
+  const colored = new Transform(doc).addMark(start, stop, TEXT_SCHEMA.marks.textStyle.create({ color })).doc;
+  return getHTMLFromFragment(colored.content, TEXT_SCHEMA);
 }

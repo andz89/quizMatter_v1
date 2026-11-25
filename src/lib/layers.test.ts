@@ -81,10 +81,11 @@ function slideWith(change: Partial<Slide>): Slide {
     ...change,
   } as Slide;
 }
-const shown = (slide: Slide) => shownLayerBoxes(slide).map((b) => b.name).join("|");
+const shown = (slide: Slide, isAnswerOpen = false) => shownLayerBoxes(slide, isAnswerOpen).map((b) => b.name).join("|");
 
 test("shownLayerBoxes names every box a choice slide shows", () => {
-  assert.equal(shown(slideWith({ type: "choice", hasShapeBox: true })), "On the slide|Question|Answer A|Answer C|Shape box");
+  // A grid's shape strip sits between the question and the answers.
+  assert.equal(shown(slideWith({ type: "choice", hasShapeBox: true })), "On the slide|Question|Shape box|Answer A|Answer C");
 });
 
 test("shownLayerBoxes leaves out boxes the slide doesn't show", () => {
@@ -92,8 +93,13 @@ test("shownLayerBoxes leaves out boxes the slide doesn't show", () => {
   assert.equal(shown(slideWith({ type: "true-false" })), "On the slide|Question|Answer A");
   // A blank slide has no question or answer boxes; its drawn answer shows only as a drawing ("canvas").
   assert.equal(shown(slideWith({ type: "blank" })), "On the slide");
-  assert.equal(shown(slideWith({ type: "blank", answerType: "canvas" })), "On the slide|Reveal");
-  assert.equal(shown(slideWith({ type: "short-answer", answerType: "canvas" })), "On the slide|Question|Answer");
+  // The drawn answer shows only in its modal, which covers the slide: listed alone while it's open, never else.
+  assert.equal(shown(slideWith({ type: "blank", answerType: "canvas" })), "On the slide");
+  assert.equal(shown(slideWith({ type: "blank", answerType: "canvas" }), true), "Reveal");
+  assert.equal(shown(slideWith({ type: "short-answer", answerType: "canvas" }), true), "Answer");
+  // A typed answer has no layers; a slide that can't have an answer ignores the flag.
+  assert.equal(shown(slideWith({ type: "short-answer" }), true), "");
+  assert.equal(shown(slideWith({ type: "choice" }), true), "On the slide|Question|Answer A|Answer C");
   // An embed slide holds only its video or deck.
   assert.equal(shown(slideWith({ type: "video" } as Partial<Slide>)), "");
 });

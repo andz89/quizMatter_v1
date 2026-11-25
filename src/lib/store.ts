@@ -2001,6 +2001,21 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 // record that as a new edit.
 let skipHistory = false;
 let lastPresentationChangeAt = 0;
+// A held drag (beginHistoryStep): "start" = its first change starts a step, "join" = the rest join it, however slow.
+let heldStep: "start" | "join" | null = null;
+
+/**
+ * A drag that is one undo step however long it pauses (e.g. the Color panel's shade square): its first change starts
+ * a new step and every change until endHistoryStep joins it. The next edit after it starts its own step.
+ */
+export function beginHistoryStep() {
+  heldStep = "start";
+}
+
+export function endHistoryStep() {
+  heldStep = null;
+  lastPresentationChangeAt = 0;
+}
 
 /**
  * Runs a presentation change that isn't the user's own edit — like fitting a box to its drawing when it
@@ -2049,7 +2064,8 @@ useEditorStore.subscribe((state, prev) => {
   if (state.presentation === prev.presentation || skipHistory) return;
 
   const now = Date.now();
-  const startsNewStep = now - lastPresentationChangeAt > HISTORY_GROUP_MS;
+  const startsNewStep = heldStep === "start" || (heldStep !== "join" && now - lastPresentationChangeAt > HISTORY_GROUP_MS);
+  if (heldStep === "start") heldStep = "join";
   lastPresentationChangeAt = now;
   if (!startsNewStep) return;
 

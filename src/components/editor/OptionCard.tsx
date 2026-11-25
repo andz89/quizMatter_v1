@@ -5,7 +5,7 @@ import { useEditorStore, selectedIdsOn } from "@/lib/store";
 import { OPTION_FONT_SIZE, OPTION_LABELS, getContainerBounds, type BoxLayout } from "@/lib/constants";
 import { useElementDropTarget } from "@/lib/useElementDropTarget";
 import { EditableText } from "./EditableText";
-import { SvgElementItem } from "./SvgElementItem";
+import { BoxElements } from "./SvgElementItem";
 import { GroupSelectionOverlay } from "./GroupSelectionOverlay";
 import { SnapGuides } from "./SnapGuides";
 import type { Option, SvgElement } from "@/lib/schema";
@@ -131,15 +131,7 @@ export function OptionCard({ slideId, option, index, isCorrect, elements, box }:
       </div>
 
       <div data-element-layer className="pointer-events-none absolute inset-0">
-        {boundElements.map((element) => (
-          <SvgElementItem
-            key={element.id}
-            slideId={slideId}
-            element={element}
-            isSelected={selectedElementIds.includes(element.id)}
-            bounds={bounds}
-          />
-        ))}
+        <BoxElements slideId={slideId} elements={boundElements} selectedElementIds={selectedElementIds} bounds={bounds} />
         <GroupSelectionOverlay slideId={slideId} elements={boundElements} bounds={bounds} />
         <SnapGuides slideId={slideId} containerId={option.id} />
       </div>

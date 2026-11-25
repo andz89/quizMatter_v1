@@ -540,7 +540,8 @@ Bright, rounded and friendly for kids, but clean enough to feel credible to teac
 | `rounded-dropdown` | 8px | Small buttons, pills, menus |
 
 - Plain `border` is 1.5px (set by `--default-border-width`).
-- Shadows: almost none. The main-button key edge (`btn-press`) is the one exception.
+- Shadows: almost none. The only exceptions: the main-button key edge (`btn-press`) and the faint outline of the
+  Color panel's picker markers (`color-marker`), so a marker shows on white and black alike.
 - Main button: `rounded-button bg-accent btn-press px-4 py-2 text-sm font-semibold text-white hover:bg-accent-hover`.
 
 ## Icons

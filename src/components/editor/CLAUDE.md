@@ -68,25 +68,37 @@ editor / view / review, and renders `Editor.tsx`, which calls `store.loadPresent
   `docs/superpowers/specs/2026-11-25-custom-colors-design.md`, test `e2e/custom-colors.mjs`): the rainbow "+" opens
   `CustomColorPicker` (a shade square, a hue bar, a hex box; math in `src/lib/colors.ts`), then Recent colors (custom
   ones used, up to 11, newest first; this browser only, `localStorage` `qm-recent-colors`). The square and bar never
-  take the focus (a drag keeps typing and its picked words; a drag's moves join into one undo step). The hex box
-  needs the focus, which ends typing: a press on it first reads each typed-in text's picked words (`hexTargets`), and
-  Enter / leaving colors those words; the focus moving into the panel (`data-color-panel`) keeps it open
-  (`setActiveTextEditor`'s `keepColorPanel`). Saved colors stay `#RRGGBB`: no data change.
+  take the focus (a drag keeps typing and its picked words). A drag is one undo step however long it pauses (the
+  store's `beginHistoryStep` / `endHistoryStep`), and goes into Recent only if it changed the color. The hex box
+  needs the focus, which ends typing: a press on it first reads each typed-in text's picked words (`pressedWords`,
+  with what was picked then, `selectionKey`), and Enter / leaving colors those words (a cursor with no words picked
+  colors the whole text instead; a table cell's editor is gone by then, so its words, or with no words picked the
+  whole cell, are colored in its saved text with `colorSavedText`). After that the panel keeps those words
+  (`wordPick`): the picker shows their color and the square / hue bar keep coloring them, until something else is
+  picked, typing starts again or a swatch is clicked. The hex box always uses its value (the color shown can be
+  only a start: Quiz Violet when there's no one solid color). Nothing colored = nothing in Recent. The focus moving
+  into the panel (`data-color-panel`) keeps it open (`setActiveTextEditor`'s `keepColorPanel`). Saved colors stay
+  `#RRGGBB`: no data change.
 - **Layers panel** (`LayersPanel`, the rail's "Layers", like Canva's; spec
   `docs/superpowers/specs/2026-11-25-layers-panel-design.md`): the selected slide's elements, one list per box, top
   layer first, since elements only overlap inside their box. `shownLayerBoxes` (`src/lib/layers.ts`) gives only the
-  boxes the slide really shows, in their order on the slide: "On the slide", "Question" (not on blank, title or
-  custom slides), "Answer A"–"D" (choice slides; True or false only A and B), "Shape box" (when the slide has one),
-  "Answer" / "Reveal" (only a drawn answer, `answerType` "canvas"). Elements kept in a box the slide doesn't show
-  aren't listed (picking them would select something invisible). A hidden slide (locked) and an embed slide show a
+  boxes the teacher can see now, in their order on the slide: "On the slide", "Question" (not on blank, title or
+  custom slides), "Answer A"–"D" (choice slides; True or false only A and B), "Shape box" (when the slide has one;
+  a strip is listed before the answers, as it sits above them, a box beside the rows after them). While the answer's
+  modal is open (`answerSlideId`), it covers the slide, so only "Answer" / "Reveal" is listed (a drawn answer,
+  `answerType` "canvas"); while it's closed, that box isn't. Elements kept in a box the slide doesn't show aren't
+  listed (picking them would select something invisible). A hidden slide (locked) and an embed slide show a
   note instead. A group is one row ("Group · N items") whose ▸ shows its members. A row's name is a text box's
   first 40 characters (whole characters, so an emoji isn't cut), "Table", "Photo", "Drawing", or the asset's label.
   Click, or Enter / Space on a focused row = select (a group row the whole group, a member row only that member;
-  Shift / Ctrl / Cmd adds), so an element hidden behind another can be picked; its handles are drawn above
-  everything, and arrow keys, the toolbar and Arrange then work on it (dragging its body on the slide still grabs
+  with Shift / Ctrl / Cmd the same is added or taken out), so an element
+  hidden behind another can be picked; its handles are drawn above everything in its box (a box draws its elements
+  in two passes like the slide's two layers, `BoxElements` in `SvgElementItem.tsx`: pictures, then outlines and
+  handles), and arrow keys, the toolbar and Arrange then work on it (dragging its body on the slide still grabs
   what's on top). Hover = the store's `hoveredLayerIds`, drawn by `SvgElementItem`'s selection part as a 2 px violet
-  outline (not saved, not in undo). Drag a row (`@dnd-kit`, one list per box and per open group; `sameListOnly`
-  makes only rows of its own list drop targets, so a drop near the next box still lands in its own) =
+  outline (not saved, not in undo); a hovered row that goes (its element deleted) clears it, or undo would bring the
+  element back outlined. Drag a row (`@dnd-kit`, one list per box and per open group; an open group's members
+  move with its row; `sameListOnly` makes only rows of its own list drop targets, so a drop near the next box still lands in its own) =
   `reorderLayers` → `moveLayer`: just above or below the row it's dropped on, past a whole group, a member only
   among its own group; one undo step; a drop that changes nothing makes none. Only `slide.elements`' order changes,
   so nothing new is saved.
@@ -97,7 +109,9 @@ editor / view / review, and renders `Editor.tsx`, which calls `store.loadPresent
   memoized, each box's ids keep their array while they don't change (`useSameIds`, or `SortableContext` would
   redraw every row), and a row's "selected" is a yes / no from the store. So moving an element on the slide redraws
   only its own row (before this, 1,000 rows redrew on each move). Rows out of sight skip drawing
-  (`content-visibility`). Test: `e2e/layers-panel.mjs`; the math: `src/lib/layers.test.ts`.
+  (`content-visibility`). An element's row is the list item itself, its fixed height on the same node as
+  `content-visibility`: each small picture measures itself, and inside a wrapper each measure laid out the whole
+  list (3× slower). Only a group's row has a wrapper list item, which also holds its members. Test: `e2e/layers-panel.mjs`; the math: `src/lib/layers.test.ts`.
 - **Word file panel** (`WordFilePanel`, the rail's "Word file"; spec
   `docs/superpowers/specs/2026-11-21-word-file-panel-design.md`): a teacher opens a `.docx` (`readWordFile`,
   `src/lib/wordFile.ts`, read in the browser only: never uploaded or saved, so no Privacy Policy line) and sees its

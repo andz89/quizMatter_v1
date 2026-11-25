@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useCallback, useEffect, useMemo, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent, type ReactNode } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent, type ReactNode } from "react";
 import {
   DndContext,
   closestCenter,
@@ -135,9 +135,17 @@ export const LayersPanel = memo(function LayersPanel() {
 /** The slide's boxes and their rows: the only part that follows the slide's elements. */
 function LayerBoxes({ slideId, openGroups, onToggle }: { slideId: string; openGroups: Set<string>; onToggle: (groupId: string) => void }) {
   const slide = useEditorStore((s) => s.presentation.slides.find((slide) => slide.id === slideId));
-  const boxes = useMemo(() => (slide ? shownLayerBoxes(slide) : []), [slide]);
+  // The answer's modal covers the slide: while it's open, only its drawn answer is listed.
+  const isAnswerOpen = useEditorStore((s) => s.answerSlideId === slideId);
+  const boxes = useMemo(() => (slide ? shownLayerBoxes(slide, isAnswerOpen) : []), [slide, isAnswerOpen]);
   if (boxes.length === 0) {
-    return <p className="text-sm text-text-secondary">Nothing on this slide yet. Add elements or photos, and they show here.</p>;
+    return (
+      <p className="text-sm text-text-secondary">
+        {isAnswerOpen
+          ? "Nothing in the answer yet. Pick Canvas and add elements or photos, and they show here."
+          : "Nothing on this slide yet. Add elements or photos, and they show here."}
+      </p>
+    );
   }
   return boxes.map((box) => (
     <section key={box.containerId ?? "slide"} className="flex flex-col gap-2">
@@ -231,11 +239,14 @@ const ElementRow = memo(function ElementRow({ slideId, element, indent }: { slid
   // The row is memoized, so this (a text box reads its HTML) runs only when this element changed.
   const name = elementName(element);
   const ids = [element.id];
-  // A group member is picked on its own, like a double-click on the slide.
+  // A group member is picked on its own, like a double-click on the slide; with Shift / Ctrl / Cmd only it is added
+  // or taken out (selectElement would take its whole group).
   const onSelect = (additive: boolean) => {
-    if (additive) selectElement(slideId, element.id, true);
-    else if (element.groupId) selectElements([element.id]);
-    else selectElement(slideId, element.id);
+    if (!element.groupId) return selectElement(slideId, element.id, additive);
+    if (!additive) return selectElements([element.id]);
+    const { selectedSlideId, selectedElementIds } = useEditorStore.getState();
+    const current = selectedSlideId === slideId ? selectedElementIds : [];
+    selectElements(current.includes(element.id) ? current.filter((id) => id !== element.id) : [...current, element.id]);
   };
   return (
     <LayerRow
@@ -272,43 +283,41 @@ const GroupRow = memo(function GroupRow({ slideId, groupId, members, isOpen, onT
   const selectElement = useEditorStore((s) => s.selectElement);
   const ids = members.map((el) => el.id);
   return (
-    <li className="flex flex-col gap-1">
-      <ul>
-        <LayerRow
-          slideId={slideId}
-          id={`group:${groupId}`}
-          data={{ movingIds: ids, targetId: ids[0] }}
-          elementIds={ids}
-          name={`Group · ${members.length} items`}
-          picture={<GroupIcon size={16} />}
-          // Selecting one member selects the whole group.
-          onSelect={(additive) => selectElement(slideId, ids[0], additive)}
-          toggle={
-            <button
-              type="button"
-              title={isOpen ? "Hide the group's items" : "Show the group's items"}
-              aria-expanded={isOpen}
-              onClick={(e) => {
-                e.stopPropagation();
-                onToggle(groupId);
-              }}
-              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-dropdown text-text-secondary hover:bg-bg-page hover:text-text-primary"
-            >
-              <ChevronRightIcon size={14} className={`transition-transform ${isOpen ? "rotate-90" : ""}`} />
-            </button>
-          }
-        />
-      </ul>
-      {isOpen && (
-        <SortableContext items={ids} strategy={verticalListSortingStrategy}>
-          <ul className="flex flex-col gap-1">
-            {members.map((member) => (
-              <ElementRow key={member.id} slideId={slideId} element={member} indent />
-            ))}
-          </ul>
-        </SortableContext>
-      )}
-    </li>
+    <LayerRow
+      slideId={slideId}
+      id={`group:${groupId}`}
+      data={{ movingIds: ids, targetId: ids[0] }}
+      elementIds={ids}
+      name={`Group · ${members.length} items`}
+      picture={<GroupIcon size={16} />}
+      // Selecting one member selects the whole group.
+      onSelect={(additive) => selectElement(slideId, ids[0], additive)}
+      toggle={
+        <button
+          type="button"
+          title={isOpen ? "Hide the group's items" : "Show the group's items"}
+          aria-expanded={isOpen}
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggle(groupId);
+          }}
+          className="flex h-6 w-6 shrink-0 items-center justify-center rounded-dropdown text-text-secondary hover:bg-bg-page hover:text-text-primary"
+        >
+          <ChevronRightIcon size={14} className={`transition-transform ${isOpen ? "rotate-90" : ""}`} />
+        </button>
+      }
+      below={
+        isOpen ? (
+          <SortableContext items={ids} strategy={verticalListSortingStrategy}>
+            <ul className="flex flex-col gap-1">
+              {members.map((member) => (
+                <ElementRow key={member.id} slideId={slideId} element={member} indent />
+              ))}
+            </ul>
+          </SortableContext>
+        ) : null
+      }
+    />
   );
 }, sameMembers);
 
@@ -323,12 +332,19 @@ interface LayerRowProps {
   picture: ReactNode;
   indent?: boolean;
   toggle?: ReactNode;
+  // A group's: what hangs under its row and moves with it (its members while open, else null).
+  below?: ReactNode;
   // additive: Shift / Ctrl / Cmd was held.
   onSelect: (additive: boolean) => void;
 }
 
-/** One draggable row: a small picture and a name. Enter or Space picks it, like a click. */
-function LayerRow({ slideId, id, data, elementIds, name, picture, indent, toggle, onSelect }: LayerRowProps) {
+/**
+ * One draggable row: a small picture and a name. Enter or Space picks it, like a click. A group's row (`below` given,
+ * even empty) is wrapped in the list item the drag moves, so its open members move with it and the other rows make
+ * room for all of them. An element's row is that list item itself: its fixed height next to `content-visibility`
+ * keeps 1,000 rows fast (each small picture measures itself, and a wrapper made each measure lay out the whole list).
+ */
+function LayerRow({ slideId, id, data, elementIds, name, picture, indent, toggle, below, onSelect }: LayerRowProps) {
   const setHoveredLayerIds = useEditorStore((s) => s.setHoveredLayerIds);
   // A yes / no, so a selection change redraws only the rows it turns on or off.
   const isSelected = useEditorStore(
@@ -336,35 +352,67 @@ function LayerRow({ slideId, id, data, elementIds, name, picture, indent, toggle
   );
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id, data });
 
+  // A row that goes while hovered (its element deleted) gets no pointerleave: its outline goes with it, or it would
+  // come back on the slide with the element (undo).
+  const isHovered = useRef(false);
+  useEffect(
+    () => () => {
+      if (isHovered.current) setHoveredLayerIds([]);
+    },
+    [setHoveredLayerIds]
+  );
+
   const handleKeyDown = (e: ReactKeyboardEvent) => {
     if (e.target !== e.currentTarget || (e.key !== "Enter" && e.key !== " ")) return;
     e.preventDefault();
     onSelect(e.shiftKey || e.ctrlKey || e.metaKey);
   };
 
-  return (
-    <li
-      ref={setNodeRef}
-      {...attributes}
-      {...listeners}
-      onClick={(e: MouseEvent) => onSelect(e.shiftKey || e.ctrlKey || e.metaKey)}
-      onKeyDown={handleKeyDown}
-      onPointerEnter={() => setHoveredLayerIds(elementIds)}
-      onPointerLeave={() => setHoveredLayerIds([])}
-      title={name}
-      style={{ transform: CSS.Translate.toString(transform), transition }}
-      // content-visibility: a long list (up to 1,000 elements) skips drawing the rows scrolled out of sight.
-      className={`relative flex h-11 shrink-0 cursor-grab items-center gap-2.5 rounded-dropdown border px-2 text-sm [contain-intrinsic-size:auto_44px] [content-visibility:auto] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent active:cursor-grabbing ${
-        indent ? "ml-6" : ""
-      } ${isSelected ? "border-accent bg-accent-soft font-semibold text-accent" : "border-border-default bg-bg-surface text-text-primary hover:bg-bg-page"} ${
-        isDragging ? "z-10 opacity-80" : ""
-      }`}
-    >
+  const sortableStyle = { transform: CSS.Translate.toString(transform), transition };
+  const dragClass = isDragging ? "z-10 opacity-80" : "";
+  const rowProps = {
+    ...attributes,
+    ...listeners,
+    "data-layer-row": true,
+    onClick: (e: MouseEvent) => onSelect(e.shiftKey || e.ctrlKey || e.metaKey),
+    onKeyDown: handleKeyDown,
+    onPointerEnter: () => {
+      isHovered.current = true;
+      setHoveredLayerIds(elementIds);
+    },
+    onPointerLeave: () => {
+      isHovered.current = false;
+      setHoveredLayerIds([]);
+    },
+    title: name,
+  };
+  // content-visibility: a long list (up to 1,000 elements) skips drawing the rows scrolled out of sight.
+  const rowClass = `relative flex h-11 shrink-0 cursor-grab items-center gap-2.5 rounded-dropdown border px-2 text-sm [contain-intrinsic-size:auto_44px] [content-visibility:auto] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent active:cursor-grabbing ${
+    indent ? "ml-6" : ""
+  } ${isSelected ? "border-accent bg-accent-soft font-semibold text-accent" : "border-border-default bg-bg-surface text-text-primary hover:bg-bg-page"}`;
+  const content = (
+    <>
       {toggle}
       <span className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-dropdown border border-border-default bg-bg-surface text-text-primary">
         {picture}
       </span>
       <span className="min-w-0 flex-1 truncate">{name}</span>
+    </>
+  );
+
+  if (below === undefined) {
+    return (
+      <li ref={setNodeRef} {...rowProps} style={sortableStyle} className={`${rowClass} ${dragClass}`}>
+        {content}
+      </li>
+    );
+  }
+  return (
+    <li ref={setNodeRef} style={sortableStyle} className={`relative flex shrink-0 flex-col gap-1 ${dragClass}`}>
+      <div {...rowProps} className={rowClass}>
+        {content}
+      </div>
+      {below}
     </li>
   );
 }

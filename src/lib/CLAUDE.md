@@ -283,7 +283,8 @@ data. Spec: `docs/superpowers/specs/2026-10-23-stable-presentation-data-design.m
   `insertContent`) and the read-only text with `toSafeHtml`. Both first run `tidySavedHtml` (a tab or line end older
   Claude imports saved shows as one space, a line end at a tag's edge goes). New text from outside goes through
   `tidyText` in `textToHtml` and `stripMarkup` (`\r\n` → a new line, a tab → one space), so a Claude import's plain
-  text and HTML match. Tests: `richText.test.ts`, `e2e/text-spaces.mjs`. `textCase.ts`: the text bar's Change
+  text and HTML match. `colorSavedText` colors a range of saved HTML (the Color panel's hex box on a table cell,
+  whose text editor is gone once typing ends). Tests: `richText.test.ts`, `e2e/text-spaces.mjs`. `textCase.ts`: the text bar's Change
   case (`changeCase` reads a whole paragraph, one result per character, so a word split by bold is one word and
   separate accent marks stay in their word; Sentence case starts after . ! ? followed by a space, keeps "I" / "I'm"
   (not "i-click"), and a line break isn't a new sentence; Capitalize Each Word: "don't" → "Don't", "'hello" →

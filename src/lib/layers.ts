@@ -3,10 +3,12 @@ import {
   ANSWER_CONTAINER_ID,
   QUESTION_CONTAINER_ID,
   SIDE_CONTAINER_ID,
+  canHaveAnswer,
   getShownOptions,
   hasOptions,
   hasReveal,
   hasShapeBox,
+  hasShapeStrip,
   isFreeCanvas,
 } from "./constants";
 import { isEmbedSlide } from "./embed";
@@ -43,19 +45,28 @@ export function layerBoxes(elements: SvgElement[]): LayerBox[] {
 }
 
 /**
- * The boxes the slide really shows, each with its name, in the order they sit on the slide. Elements kept in a box
+ * The boxes the teacher can see now, each with its name, in the order they sit on the slide. Elements kept in a box
  * the slide doesn't show (answers C and D of a True or false, a drawn answer switched back to text, a shape box
- * turned off) are left out: picking them would select something invisible. An embed slide shows none.
+ * turned off) are left out: picking them would select something invisible. An embed slide shows none. While the
+ * answer's modal is open (`isAnswerOpen`) it covers the slide, so only the drawn answer's box is listed; while it's
+ * closed, that box isn't.
  */
-export function shownLayerBoxes(slide: Slide): (LayerBox & { name: string })[] {
+export function shownLayerBoxes(slide: Slide, isAnswerOpen = false): (LayerBox & { name: string })[] {
   if (isEmbedSlide(slide)) return [];
-  const names = new Map<string | null, string>([[null, "On the slide"]]);
-  if (!isFreeCanvas(slide)) names.set(QUESTION_CONTAINER_ID, "Question");
-  if (hasOptions(slide)) {
-    getShownOptions(slide).forEach((option, i) => names.set(option.id, `Answer ${String.fromCharCode(65 + i)}`));
-    if (hasShapeBox(slide)) names.set(SIDE_CONTAINER_ID, "Shape box");
+  const names = new Map<string | null, string>();
+  if (isAnswerOpen && canHaveAnswer(slide)) {
+    if (slide.answerType === "canvas") names.set(ANSWER_CONTAINER_ID, hasReveal(slide) ? "Reveal" : "Answer");
+  } else {
+    names.set(null, "On the slide");
+    if (!isFreeCanvas(slide)) names.set(QUESTION_CONTAINER_ID, "Question");
+    if (hasOptions(slide)) {
+      // A shape strip sits between the question and the answers; beside the rows (list-side) it comes after them.
+      const isStrip = hasShapeStrip(slide);
+      if (isStrip) names.set(SIDE_CONTAINER_ID, "Shape box");
+      getShownOptions(slide).forEach((option, i) => names.set(option.id, `Answer ${String.fromCharCode(65 + i)}`));
+      if (!isStrip && hasShapeBox(slide)) names.set(SIDE_CONTAINER_ID, "Shape box");
+    }
   }
-  if (slide.answerType === "canvas") names.set(ANSWER_CONTAINER_ID, hasReveal(slide) ? "Reveal" : "Answer");
 
   const boxes = new Map(layerBoxes(slide.elements).map((box) => [box.containerId, box]));
   return [...names].flatMap(([containerId, name]) => {

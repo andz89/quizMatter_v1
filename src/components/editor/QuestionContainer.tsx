@@ -16,7 +16,7 @@ import {
 import { clamp } from "@/lib/geometry";
 import { useElementDropTarget } from "@/lib/useElementDropTarget";
 import { EditableText } from "./EditableText";
-import { SvgElementItem } from "./SvgElementItem";
+import { BoxElements } from "./SvgElementItem";
 import { CORNERS, EDGE_HANDLES } from "./handles";
 import { GroupSelectionOverlay } from "./GroupSelectionOverlay";
 import { SnapGuides } from "./SnapGuides";
@@ -229,15 +229,7 @@ export function QuestionContainer({
           data-element-layer
           className="pointer-events-none absolute inset-0"
         >
-          {boundElements.map((element) => (
-            <SvgElementItem
-              key={element.id}
-              slideId={slide.id}
-              element={element}
-              isSelected={selectedElementIds.includes(element.id)}
-              bounds={bounds}
-            />
-          ))}
+          <BoxElements slideId={slide.id} elements={boundElements} selectedElementIds={selectedElementIds} bounds={bounds} />
           <GroupSelectionOverlay
             slideId={slide.id}
             elements={boundElements}

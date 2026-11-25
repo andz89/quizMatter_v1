@@ -95,6 +95,30 @@ await api("/rest/v1/slides", {
         elements: Array.from({ length: 1000 }, (_, i) => el(`m${i}`, i % 2 ? "circle" : "star", (i % 40) * 31, Math.floor(i / 40) * 28, 24)),
       },
     },
+    // Review fixes: a star in answer A covered by a rectangle; a free circle and a group of three stars.
+    {
+      presentation_id: presentationId,
+      id: "s5",
+      position: 4,
+      data: {
+        id: "s5",
+        type: "choice",
+        question: "Pick one",
+        questionHtml: "<p>Pick one</p>",
+        layout: "grid",
+        options: ["a", "b", "c", "d"].map((x) => ({ id: `s5-${x}`, text: x })),
+        correctOptionId: null,
+        questionHeight: 150,
+        elements: [
+          el("x5", "circle", 50, 620, 60),
+          el("h1", "star", 300, 620, 60, { groupId: "H" }),
+          el("h2", "star", 400, 620, 60, { groupId: "H" }),
+          el("h3", "star", 500, 620, 60, { groupId: "H" }),
+          el("sa", "star", 20, 20, 40, { containerId: "s5-a" }),
+          el("cover", "rectangle", 0, 0, 120, { containerId: "s5-a" }),
+        ],
+      },
+    },
   ]),
 });
 
@@ -119,7 +143,7 @@ try {
 
   const labels = await panel.locator("span.uppercase").allTextContents();
   check("boxes: on the slide, then answer B", labels.join("|") === "On the slide|Answer B", labels.join("|"));
-  const rowNames = () => panel.locator("li[title]").evaluateAll((rows) => rows.map((r) => r.getAttribute("title")));
+  const rowNames = () => panel.locator("[data-layer-row][title]").evaluateAll((rows) => rows.map((r) => r.getAttribute("title")));
   const names = await rowNames();
   check("top layer first, group folded", names.join("|") === "Group · 2 items|Rectangle|Circle|Star", names.join("|"));
 
@@ -128,7 +152,7 @@ try {
   check("group members show", (await rowNames()).length === 6, (await rowNames()).join("|"));
 
   // Hover outlines the hidden circle on the slide; a click selects it.
-  const circleRow = panel.locator('li[title="Circle"]');
+  const circleRow = panel.locator('[data-layer-row][title="Circle"]');
   await circleRow.hover();
   const outline = await page.locator('[data-slide-id="s1"] [data-svg-element]:not([data-element-id])').evaluateAll((items) =>
     items.filter((i) => i.style.outline.includes("solid")).length
@@ -139,7 +163,7 @@ try {
   await page.screenshot({ path: `${SHOTS}layers-panel.png` });
 
   // Drag the circle above the rectangle.
-  const rectRow = panel.locator('li[title="Rectangle"]');
+  const rectRow = panel.locator('[data-layer-row][title="Rectangle"]');
   const from = await circleRow.boundingBox();
   const to = await rectRow.boundingBox();
   await page.mouse.move(from.x + 100, from.y + from.height / 2);
@@ -169,7 +193,7 @@ try {
 
   // Dropped far down, over the next box's row: it still lands in its own box, at the bottom.
   const r = await rectRow.boundingBox();
-  const starB = await panel.locator("section", { hasText: "Answer B" }).locator("li").boundingBox();
+  const starB = await panel.locator("section", { hasText: "Answer B" }).locator("[data-layer-row][title]").boundingBox();
   await page.mouse.move(r.x + 100, r.y + r.height / 2);
   await page.mouse.down();
   await page.mouse.move(r.x + 100, r.y + r.height / 2 + 10, { steps: 3 });
@@ -196,7 +220,7 @@ try {
   // 1,000 elements: the panel lists them all, fast, and dragging one on the slide stays quick with it open.
   let started = Date.now();
   await showSlide("s4");
-  await panel.locator("li[title]").nth(999).waitFor({ state: "attached" });
+  await panel.locator("[data-layer-row][title]").nth(999).waitFor({ state: "attached" });
   const openMs = Date.now() - started - 800;
   check("1,000 rows show within 3 seconds", openMs < 3000, `${openMs} ms`);
 
@@ -218,7 +242,73 @@ try {
   check("a drag on the slide isn't much slower with the panel open", withPanel < withoutPanel * 1.6 + 300, `${withPanel} ms open, ${withoutPanel} ms closed`);
   await page.getByRole("button", { name: "Layers", exact: true }).click();
 
+  // Review fixes, on slide 5.
+  await showSlide("s5");
+  const s5Labels = (await panel.locator("span.uppercase").allTextContents()).join("|");
+  check("slide 5 lists the slide and answer A", s5Labels === "On the slide|Answer A", s5Labels);
+  const s5 = page.locator('[data-slide-id="s5"]');
+
+  // A star covered by a rectangle in its box: picked from the panel, its handles are above the rectangle.
+  await panel.locator("section", { hasText: "Answer A" }).locator('[data-layer-row][title="Star"]').click();
+  const handleOnTop = await s5.locator('[title="Resize"]').evaluateAll((handles) =>
+    handles.map((h) => {
+      const r = h.getBoundingClientRect();
+      return document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2)?.getAttribute("title");
+    })
+  );
+  check("a covered element's handles in a box are on top", handleOnTop.length === 4 && handleOnTop.every((t) => t === "Resize"), handleOnTop.join("|"));
+
+  // Shift-clicking a group member's row adds (and then takes out) only that member.
+  const freeRows = panel.locator("section", { hasText: "On the slide" });
+  const xRow = freeRows.locator('[data-layer-row][title="Circle"]');
+  const groupRow = freeRows.locator('[data-layer-row][title^="Group"]');
+  await xRow.click();
+  await freeRows.getByRole("button", { name: "Show the group's items" }).click();
+  const memberRows = freeRows.locator("li li[data-layer-row]");
+  const picked = async () => {
+    const all = [xRow, memberRows.nth(0), memberRows.nth(1), memberRows.nth(2)];
+    return (await Promise.all(all.map(async (r) => ((await r.getAttribute("class")).includes("bg-accent-soft") ? 1 : 0)))).join("");
+  };
+  await memberRows.nth(1).click({ modifiers: ["Shift"] });
+  check("Shift adds only that member", (await picked()) === "1010", await picked());
+  await memberRows.nth(1).click({ modifiers: ["Shift"] });
+  check("Shift again takes out only that member", (await picked()) === "1000", await picked());
+
+  // Dragging an open group's row moves its members with it.
+  const g = await groupRow.boundingBox();
+  const memberBefore = await memberRows.nth(2).boundingBox();
+  await page.mouse.move(g.x + 100, g.y + g.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(g.x + 100, g.y + g.height / 2 + 10, { steps: 3 });
+  await page.mouse.move(g.x + 100, g.y + g.height / 2 + 40, { steps: 5 });
+  await page.waitForTimeout(300);
+  const gMoved = (await groupRow.boundingBox()).y - g.y;
+  const memberMoved = (await memberRows.nth(2).boundingBox()).y - memberBefore.y;
+  check("the members move with the dragged group row", gMoved > 20 && Math.abs(gMoved - memberMoved) < 3, `${gMoved} / ${memberMoved}`);
+  const xBox = await xRow.boundingBox();
+  await page.mouse.move(g.x + 100, xBox.y + xBox.height - 5, { steps: 10 });
+  await page.mouse.up();
+  await page.waitForTimeout(500);
+  const freeNames = (await freeRows.locator(":scope > ul > [data-layer-row], :scope > ul > li > [data-layer-row]").evaluateAll((rows) => rows.map((r) => r.getAttribute("title")))).join("|");
+  check("the group lands below the circle", freeNames === "Circle|Group · 3 items", freeNames);
+
+  // A hovered row whose element is deleted takes its outline with it: undo brings the element back unoutlined.
+  await xRow.hover();
+  await xRow.click();
+  await page.keyboard.press("Delete");
+  await page.waitForTimeout(300);
+  check("Delete removes the circle's row", (await xRow.count()) === 0);
+  // Off the panel, so the circle's row doesn't come back under the pointer (that would hover it again, rightly).
+  await page.mouse.move(5, 5);
+  await page.keyboard.press("Control+z");
+  await page.waitForTimeout(300);
+  const stuck = await s5.locator("[data-svg-element]:not([data-element-id])").evaluateAll((items) =>
+    items.filter((i) => i.style.outline.includes("solid")).length
+  );
+  check("no hover outline is left after undo", stuck === 0, String(stuck));
+
   // Escape closes the panel.
+
   await page.keyboard.press("Escape");
   check("Escape closes the panel", (await page.locator("h2", { hasText: "Layers" }).count()) === 0);
   check("no page errors", errors.length === 0, errors.join(" | "));

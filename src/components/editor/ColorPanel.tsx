@@ -3,11 +3,11 @@
 import { useEffect, useRef, useState } from "react";
 import type { Editor } from "@tiptap/react";
 import { useEditorState } from "@tiptap/react";
-import { useEditorStore } from "@/lib/store";
+import { beginHistoryStep, endHistoryStep, useEditorStore, type TextTarget } from "@/lib/store";
 import { useFormatTexts } from "@/lib/useFormatTexts";
-import { formatChain } from "@/lib/richText";
+import { colorSavedText, formatChain } from "@/lib/richText";
 import { diagramStyleTargets, getDiagramBoxes, getElementAsset, withDiagramBoxStyle } from "@/lib/svgLibrary";
-import { cellRange, withCellsFill } from "@/lib/table";
+import { cellRange, withCellHtml, withCellsFill, type TableCellSpot } from "@/lib/table";
 import { toCssBackground } from "./ElementSvg";
 import {
   BORDER_WIDTH_DEFAULT,
@@ -82,8 +82,24 @@ const LIGHT_COLORS = [
 
 // Custom colors used lately, kept in this browser only (newest first).
 const RECENT_KEY = "qm-recent-colors";
-// The custom picker's start when the picked color isn't one solid color (a gradient, none, or mixed): Quiz Violet.
-const PICKER_START = "#6B3DF5";
+// The custom picker's start when the picked color isn't one solid color (a gradient, none, or mixed): Quiz Violet,
+// read from the design system's variable (the panel only shows in the browser).
+function pickerStart(): string {
+  return parseHex(getComputedStyle(document.documentElement).getPropertyValue("--accent")) ?? "#000000";
+}
+
+// Words picked in a text being typed in, read on the press on the hex box (its focus ends the typing). A table cell's
+// editor is gone once typing ends, so its words are colored in the cell's saved text (`cell`; an empty pick there
+// colors the whole cell).
+type WordTarget = { editor: Editor; target: TextTarget; from: number; to: number; cell: TableCellSpot | null };
+
+// What is picked, leaving out the typing itself, so it's the same before and after the hex box ends the typing. When
+// it changes (another element, cell, box or slide), the words the panel was coloring are let go.
+function selectionKey(state: ReturnType<typeof useEditorStore.getState>): string {
+  const { selectedSlideId, selectedElementIds, pickedTableCell, pickedDiagramBox, selectedContainerId } = state;
+  const cell = pickedTableCell && { ...pickedTableCell, typingAt: undefined };
+  return JSON.stringify([selectedSlideId, selectedElementIds, cell, pickedDiagramBox, selectedContainerId]);
+}
 // The "+" swatch that opens the custom picker.
 const RAINBOW = "conic-gradient(#F00, #FF0, #0F0, #0FF, #00F, #F0F, #F00)";
 
@@ -139,8 +155,13 @@ export function ColorPanel() {
   const textEditor = texts[0]?.editor ?? null;
   const [isPickerOpen, setIsPickerOpen] = useState(false);
   const [recentColors, setRecentColors] = useState(loadRecentColors);
-  // The words picked in each text being typed in, read on the press on the hex box (its focus ends the typing).
-  const hexTargets = useRef<{ editor: Editor; from: number; to: number }[] | null>(null);
+  const [startColor] = useState(pickerStart);
+  // The words picked when the hex box was pressed, and what was picked then; dropped when the box loses the focus.
+  const pressedWords = useRef<{ targets: WordTarget[]; key: string } | null>(null);
+  // Words a hex color went to: the square and hue bar keep coloring them, showing their color, until the pick changes.
+  const [wordPick, setWordPick] = useState<{ targets: WordTarget[]; key: string; color: string } | null>(null);
+  // A square / hue bar drag that colored something, so its color goes into Recent.
+  const dragColored = useRef(false);
   const textColor = useEditorState({
     editor: textEditor,
     selector: ({ editor }) => (editor?.getAttributes("textStyle").color as string | undefined) ?? DEFAULT_TEXT_COLOR,
@@ -159,6 +180,15 @@ export function ColorPanel() {
     window.addEventListener("keydown", handleKeyDown, true);
     return () => window.removeEventListener("keydown", handleKeyDown, true);
   }, [closeColorPanel]);
+
+  // Typing again, or picking something else, lets go of the words.
+  const wordPickKey = wordPick?.key ?? null;
+  useEffect(() => {
+    if (wordPickKey === null) return;
+    return useEditorStore.subscribe((state) => {
+      if (state.activeTextEditor || selectionKey(state) !== wordPickKey) setWordPick(null);
+    });
+  }, [wordPickKey]);
 
   const elements = slide?.elements.filter((el) => selectedElementIds.includes(el.id)) ?? [];
   // With no text or shapes to color, the panel paints the selected shape box's fill or border.
@@ -227,8 +257,8 @@ export function ColorPanel() {
           ? elements[0].color
           : null;
 
-  // undefined = none (shape box, shape borders and cell backgrounds only).
-  const handleColor = (color: string | undefined) => {
+  // undefined = none (shape box, shape borders and cell backgrounds only). False when there was nothing to color.
+  const handleColor = (color: string | undefined): boolean => {
     if (textEditor) texts.forEach(({ editor }) => formatChain(editor).setColor(color ?? DEFAULT_TEXT_COLOR).run());
     else if (boxStyle && diagram && diagramElement)
       updateElement(selectedSlideId, diagramElement.id, withDiagramBoxStyle(diagram, styleTargets, { [boxStyle.key]: color ?? DIAGRAM_NONE }));
@@ -237,7 +267,33 @@ export function ColorPanel() {
     else if (boxTarget === "fill") setShapeBoxColors(selectedSlideId, { shapeBoxFill: color });
     else if (boxTarget === "border") setShapeBoxColors(selectedSlideId, { shapeBoxBorder: color });
     else if (isShapeBorder) updateElements(selectedSlideId, Object.fromEntries(elements.map((el) => [el.id, { borderColor: color }])));
-    else if (color) updateElements(selectedSlideId, Object.fromEntries(elements.map((el) => [el.id, { color }])));
+    else if (color && elements.length > 0) updateElements(selectedSlideId, Object.fromEntries(elements.map((el) => [el.id, { color }])));
+    else return false;
+    return true;
+  };
+  // A swatch colors what is picked as a whole, so the words a hex color went to are let go.
+  const handleSwatch = (color: string | undefined) => {
+    setWordPick(null);
+    return handleColor(color);
+  };
+
+  // Colors the saved words; false when none of their texts is still there.
+  const colorWords = (targets: WordTarget[], color: string): boolean => {
+    let colored = false;
+    for (const { editor, target, from, to, cell } of targets) {
+      if (!editor.isDestroyed) {
+        editor.chain().setTextSelection({ from, to }).setColor(color).run();
+        colored = true;
+      } else if (cell && target.kind === "table") {
+        const slide = useEditorStore.getState().presentation.slides.find((s) => s.id === target.slideId);
+        const table = slide?.elements.find((el) => el.id === target.elementId)?.table;
+        const html = table?.rows[cell.row]?.[cell.column]?.html;
+        if (!table || html === undefined) continue;
+        updateElement(target.slideId, target.elementId, { table: withCellHtml(table, cell, colorSavedText(html, from, to, color)) });
+        colored = true;
+      }
+    }
+    return colored;
   };
 
   // A custom color used: first in Recent (preset colors already have their swatch).
@@ -251,23 +307,54 @@ export function ColorPanel() {
       // Storage blocked or full: Recent lasts only while the panel is open.
     }
   };
+  // The press on the hex box comes before typing ends: read the words picked in each text being typed in. A cursor
+  // with no words picked is left out (the color then goes to the whole text, like a swatch), except in a table cell,
+  // where it colors the whole cell (the panel can't reach a cell's text once its typing ends).
   const handleHexStart = () => {
-    hexTargets.current = texts
+    const state = useEditorStore.getState();
+    const cell = state.pickedTableCell;
+    const targets = texts
       .filter(({ editor }) => editor.isEditable)
-      .map(({ editor }) => ({ editor, from: editor.state.selection.from, to: editor.state.selection.to }));
+      .map(({ editor, target }) => ({
+        editor,
+        target,
+        from: editor.state.selection.from,
+        to: editor.state.selection.to,
+        cell: target.kind === "table" && cell?.elementId === target.elementId ? { row: cell.row, column: cell.column } : null,
+      }))
+      .filter(({ from, to, cell }) => from !== to || cell);
+    pressedWords.current = { targets, key: selectionKey(state) };
   };
   const handleHexColor = (color: string) => {
-    const typedIn = hexTargets.current ?? [];
-    hexTargets.current = null;
-    // Typing ended when the box took the focus: color the words that were picked then, not the whole text.
-    if (typedIn.length > 0)
-      typedIn.forEach(({ editor, from, to }) => {
-        if (!editor.isDestroyed) editor.chain().setTextSelection({ from, to }).setColor(color).run();
-      });
-    else handleColor(color);
-    rememberColor(color);
+    const key = selectionKey(useEditorStore.getState());
+    const pressed = pressedWords.current;
+    // The words picked at the press (unless something else was picked since), else the ones a hex color went to.
+    const words =
+      pressed && pressed.key === key && pressed.targets.length > 0
+        ? pressed.targets
+        : wordPick && wordPick.key === key
+          ? wordPick.targets
+          : null;
+    if (words && colorWords(words, color)) {
+      setWordPick({ targets: words, key, color });
+      rememberColor(color);
+    } else if (handleSwatch(color)) {
+      rememberColor(color);
+    }
   };
-  const pickerColor = (commonColor && parseHex(commonColor)) ?? PICKER_START;
+  // The square and hue bar color the words a hex color went to, or else what is picked.
+  const handlePickerChange = (color: string) => {
+    const colored = !!wordPick && colorWords(wordPick.targets, color);
+    if (colored) setWordPick((pick) => pick && { ...pick, color });
+    if (colored || handleSwatch(color)) dragColored.current = true;
+  };
+  const solidColor = commonColor ? parseHex(commonColor) : null;
+  const pickerColor = wordPick?.color ?? solidColor ?? startColor;
+  const handlePickerDone = (lastColor: string | null) => {
+    endHistoryStep();
+    if (lastColor && dragColored.current) rememberColor(lastColor);
+    dragColored.current = false;
+  };
 
   // The thickness applies to every selected shape at once; the slider starts at the first one's value.
   const borderWidth = elements[0]?.borderWidth ?? BORDER_WIDTH_DEFAULT;
@@ -318,7 +405,7 @@ export function ColorPanel() {
         <>
           <h3 className="mb-3 text-[12px] font-bold uppercase tracking-[0.05em] text-text-header">None</h3>
           <div className="mb-6 grid grid-cols-6 justify-items-center gap-3">
-            <Swatch title="None" background={NONE_SWATCH} bordered selected={noneSelected} onClick={() => handleColor(undefined)} />
+            <Swatch title="None" background={NONE_SWATCH} bordered selected={noneSelected} onClick={() => handleSwatch(undefined)} />
           </div>
         </>
       )}
@@ -378,8 +465,7 @@ export function ColorPanel() {
             bordered
             selected={commonColor === color}
             onClick={() => {
-              handleColor(color);
-              rememberColor(color);
+              if (handleSwatch(color)) rememberColor(color);
             }}
           />
         ))}
@@ -388,10 +474,16 @@ export function ColorPanel() {
         <div className="mt-4">
           <CustomColorPicker
             color={pickerColor}
-            onChange={handleColor}
-            onDone={rememberColor}
+            hasColor={!!wordPick || !!solidColor}
+            onDragStart={() => {
+              dragColored.current = false;
+              beginHistoryStep();
+            }}
+            onChange={handlePickerChange}
+            onDone={handlePickerDone}
             onHexStart={handleHexStart}
             onHexColor={handleHexColor}
+            onHexEnd={() => (pressedWords.current = null)}
           />
         </div>
       )}
@@ -405,7 +497,7 @@ export function ColorPanel() {
             background={color}
             bordered={color === "#FFFFFF"}
             selected={commonColor === color}
-            onClick={() => handleColor(color)}
+            onClick={() => handleSwatch(color)}
           />
         ))}
       </div>
@@ -420,7 +512,7 @@ export function ColorPanel() {
             // Pale colors need an outline to show up on the white panel.
             bordered
             selected={commonColor === color}
-            onClick={() => handleColor(color)}
+            onClick={() => handleSwatch(color)}
           />
         ))}
       </div>
@@ -437,7 +529,7 @@ export function ColorPanel() {
                   title={`${from} → ${to}`}
                   background={toCssBackground(value)}
                   selected={commonColor === value}
-                  onClick={() => handleColor(value)}
+                  onClick={() => handleSwatch(value)}
                 />
               );
             })}
