@@ -124,6 +124,24 @@ export const photoSchema = z.object({
   height: z.number().int().positive().max(PHOTO_MAX_SIDE),
 });
 
+// A teacher's photo storage (my_photo_storage; src/lib/photoStorage.ts). limit null = an admin, no limit.
+export const photoStorageSchema = z.object({
+  used: z.number().int().nonnegative(),
+  limit: z.number().int().positive().nullable(),
+});
+
+// remove_my_photo's answer: whether it was removed, my own presentations whose slides still have it (slide numbers
+// are places in the list, 1 = first), its size (null if I never uploaded it) and my new total.
+export const removePhotoResultSchema = photoStorageSchema.extend({
+  removed: z.boolean(),
+  uses: z.array(
+    z.object({ id: z.string(), title: z.string(), is_shared_copy: z.boolean(), slides: z.array(z.number().int()) })
+  ),
+  bytes: z.number().int().positive().nullable(),
+});
+export type RemovePhotoResult = z.infer<typeof removePhotoResultSchema>;
+export type PhotoUse = RemovePhotoResult["uses"][number];
+
 // An editor's profile photo: always the square the account page's "Adjust your photo" box makes.
 export const profilePhotoSchema = photoSchema.extend({
   width: z.literal(PROFILE_PHOTO_SIZE),

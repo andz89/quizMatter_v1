@@ -6,18 +6,22 @@ import {
   SHARED_PHOTO_COLUMNS,
   photoCategoryNameSchema,
   photoSchema,
+  photoStorageSchema,
+  removePhotoResultSchema,
   sharedPhotoBytesSchema,
   sharedPhotoInfoSchema,
   sharedPhotoSchema,
   toSharedPhoto,
   type Photo,
   type PhotoCategory,
+  type RemovePhotoResult,
   type SharedPhotoInfo,
   type SharedPhotoWithInfo,
 } from "./schema";
 import { contains } from "./search";
 import { modalAttachmentSchema, type ModalAttachment } from "./announcements";
 import { MAX_GIF_BYTES } from "./photoTypes";
+import type { PhotoStorage } from "./photoStorage";
 import { useEditorStore } from "./store";
 import { createClient } from "./supabase/client";
 import { PHOTO_ID } from "./svgLibrary";
@@ -119,7 +123,32 @@ async function sendPhoto(shrunk: ShrunkPhoto, shared?: { categoryId: string; sou
   if (response.status === 429) await checkPauses();
   const photo = photoSchema.safeParse(result);
   if (!response.ok || !photo.success) throw new PhotoError(result?.error ?? "Couldn't upload the photo. Please try again.");
+  const storage = photoStorageSchema.safeParse(result?.storage);
+  if (storage.success) tellStorage(storage.data);
   return photo.data;
+}
+
+// ─── Photo storage (50 MB per teacher; src/lib/photoStorage.ts) ─────────────────────────────────────────────────
+
+// Who shows the storage (the Photos panel). Uploads and removes tell them the new total from their own answers,
+// so a photo dropped onto a slide updates the open panel too, without another request.
+const storageListeners = new Set<(storage: PhotoStorage) => void>();
+
+function tellStorage(storage: PhotoStorage) {
+  for (const listener of storageListeners) listener(storage);
+}
+
+/** Calls `listener` with each new total. Returns the function that stops it. */
+export function watchPhotoStorage(listener: (storage: PhotoStorage) => void): () => void {
+  storageListeners.add(listener);
+  return () => storageListeners.delete(listener);
+}
+
+/** How much photo storage the teacher uses (limit null = an admin). Throws if it can't be read. */
+export async function loadPhotoStorage(): Promise<PhotoStorage> {
+  const { data, error } = await createClient().rpc("my_photo_storage");
+  if (error) throw error;
+  return photoStorageSchema.parse(data);
 }
 
 /**
@@ -233,10 +262,19 @@ export function isPhotoLocked(error: unknown): boolean {
   return typeof error === "object" && error !== null && "code" in error && error.code === "QMPHL";
 }
 
-/** Takes a photo off the teacher's list. Slides that use it keep it (the file stays). Throws if it fails. */
-export async function removeMyPhoto(src: string) {
-  const { error } = await createClient().from("photos").delete().eq("src", src);
+/**
+ * Takes a photo off the teacher's list (remove_my_photo). Slides that use it keep it (the file stays), and it
+ * keeps counting toward their storage while their own slides have it. `mode`: "if_unused" removes it only when
+ * none of their saved slides has it (else the answer lists where it is); "ask" never removes (the open presentation
+ * may have it on a slide not saved yet); "remove" removes it (the teacher confirmed). Throws if it fails (QMPHL: a
+ * photo waiting for QuizMatter, see isPhotoLocked).
+ */
+export async function removeMyPhoto(src: string, mode: "if_unused" | "ask" | "remove"): Promise<RemovePhotoResult> {
+  const { data, error } = await createClient().rpc("remove_my_photo", { target_src: src, mode });
   if (error) throw error;
+  const result = removePhotoResultSchema.parse(data);
+  tellStorage({ used: result.used, limit: result.limit });
+  return result;
 }
 
 // ─── Shared photos: uploaded by admins, for every teacher, in categories (tables shared_photos, photo_categories).
