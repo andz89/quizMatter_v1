@@ -1,4 +1,4 @@
-# Photo storage limit (100 MB per teacher)
+# Photo storage limit (50 MB per teacher)
 
 Date: 2026-11-26. Status: approved in chat, ready for a plan.
 
@@ -6,7 +6,7 @@ Date: 2026-11-26. Status: approved in chat, ready for a plan.
 
 Photos live in Cloudflare R2, which we pay for by size. Today a teacher who can upload is limited only by speed
 (the `photo_upload` click limits: 30 a minute, 300 a day) and by file size (2 MB each). Nothing stops one account
-from storing gigabytes over weeks. Like Canva, each teacher gets a storage total: **100 MB**.
+from storing gigabytes over weeks. Like Canva, each teacher gets a storage total: **50 MB**.
 
 Only editors and admins can upload their own photos today (`upload-image` refuses other teachers), so this matters
 now for editors and is ready for when plain teachers can upload.
@@ -36,14 +36,14 @@ for nobody. That's normal sharing, not abuse, and copies don't make new files.
 - **Admins skip the limit** (like the 50-presentation limit). QuizMatter lessons are admin-owned anyway, so an
   editor's photo stops counting for them once it's only in a QuizMatter lesson (an approved submission's copy or a
   published review).
-- **Nothing is ever deleted because of the limit.** Someone over 100 MB (e.g. after the first count) keeps every
+- **Nothing is ever deleted because of the limit.** Someone over 50 MB (e.g. after the first count) keeps every
   photo and just can't upload more until they're under.
 - Photos in an editor's review draft (`presentation_reviews.draft`) don't count: the draft isn't their presentation.
   Editors are trusted; accepted.
 
 ## Goals / non-goals
 
-- Goal: the real storage a teacher uses stays under 100 MB; the teacher always knows why and how to free space.
+- Goal: the real storage a teacher uses stays under 50 MB; the teacher always knows why and how to free space.
 - Goal: no slower server: the usual remove is still 1 request; counting reads only that teacher's rows.
 - Non-goal: who can upload (unchanged), shared photos (admins), Claude's photo uploads, announcement and profile
   photos (none of these count).
@@ -62,7 +62,7 @@ for nobody. That's normal sharing, not abuse, and copies don't make new files.
 
 ## Database (one migration, `supabase/migrations/20261231002600_photo_storage.sql`)
 
-**`photo_storage_limit()`** returns `104857600` (100 × 1024 × 1024). Same number as `PHOTO_STORAGE_LIMIT_BYTES` in
+**`photo_storage_limit()`** returns `52428800` (50 × 1024 × 1024). Same number as `PHOTO_STORAGE_LIMIT_BYTES` in
 the app.
 
 **Table `photo_uploads`** (the upload record):
@@ -131,8 +131,8 @@ an empty list, so later runs cost one tiny query. Until then old photos count as
 ## App
 
 - **`src/lib/photoStorage.ts`** (no imports, tested by `photoStorage.test.ts`): `PHOTO_STORAGE_LIMIT_BYTES`
-  (100 MB), `formatStorage(bytes)` ("0 MB", "1.8 MB", "45 MB", "100 MB": one decimal under 10 MB), the words:
-  `STORAGE_FULL_MESSAGE` ("Your photo storage is full (100 MB). To free space, remove photos from My photos and from
+  (50 MB), `formatStorage(bytes)` ("0 MB", "1.8 MB", "45 MB", "50 MB": one decimal under 10 MB), the words:
+  `STORAGE_FULL_MESSAGE` ("Your photo storage is full (50 MB). To free space, remove photos from My photos and from
   your slides."), `STILL_COUNTS_TOAST` ("Removed from My photos. It still counts toward your storage until you
   remove it from your slides.").
 - **`upload-image` route**, own photo only, after the click-limit check and before `savePhotoFile`:
@@ -143,7 +143,7 @@ an empty list, so later runs cost one tiny query. Until then old photos count as
   the answer), `uploadPhoto` passes the `storage` back.
 - **Photos panel, "My Photos" tab** (`PhotosPanel.tsx`), for teachers who can upload and aren't admins:
   - under the Upload button: "Storage" label, a bar (`bg-accent` fill on `bg-accent-soft`, `bg-danger` when full),
-    "45 MB of 100 MB", and "Counts photos in My photos and on your slides." Read when the tab first opens, updated
+    "20 MB of 50 MB", and "Counts photos in My photos and on your slides." Read when the tab first opens, updated
     from each upload / remove answer.
   - full (`used >= limit`): the bar is coral, `STORAGE_FULL_MESSAGE` shows, Upload is greyed out. A dropped file
     gets the route's 413 message as a toast.
@@ -160,7 +160,7 @@ an empty list, so later runs cost one tiny query. Until then old photos count as
 ## Privacy Policy
 
 Add to "Your work": we keep a record of each photo you upload (which file and its size) to count your photo
-storage (100 MB), until you delete your account. Bump `LEGAL_VERSION` to the deploy date.
+storage (50 MB), until you delete your account. Bump `LEGAL_VERSION` to the deploy date.
 
 ## Tests (Docker only)
 
@@ -169,7 +169,7 @@ storage (100 MB), until you delete your account. Bump `LEGAL_VERSION` to the dep
   `QMSTO` over the limit; same file again is free; admin skips; teachers can't insert / update / delete
   `photo_uploads`; `remove_my_photo` modes and its `uses` (titles, slide numbers, shared copy flag); `QMPHL` still
   refuses; backfill rows; size fix functions refuse `authenticated`.
-- `src/lib/photoStorage.test.ts`: `formatStorage`, the limit equals 104857600.
+- `src/lib/photoStorage.test.ts`: `formatStorage`, the limit equals 52428800.
 - `e2e/photo-storage.mjs`: an editor sees the bar; removing a photo that's on a slide shows the warning; a full
   account sees the message and a greyed Upload.
 
