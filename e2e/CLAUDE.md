@@ -138,7 +138,9 @@ Tests that delete data (the announcements ones empty the announcements table) do
   typed; a single `_` isn't), the save has no `qm-blank` span, and presenting fullscreen (question, option, an
   underlined text box, a table cell) and the view page join them the same way.
 - `text-spaces.mjs`: spaces typed on purpose in a text box (a run of them, and at a line's start) stay in the editor
-  after saving and opening again, the save keeps them, and presenting fullscreen and the view page show them.
+  after saving and opening again and after undo, the save keeps them, and presenting fullscreen and the view page
+  show them (their text and their `white-space`). Tabs and Windows line ends (`\r\n`), in new text and in text saved
+  before: `src/lib/richText.test.ts`.
 - `text-limits.mjs`: pasting past the limit into the question, an answer choice (5,000 characters) and a text box
   (50,000 as HTML, so 10,000 "&" is refused) leaves the text as it was with one toast; up to the limit goes in;
   typing at the limit is refused, deleting works; Ctrl+S saves; the slide name box's `maxlength`.

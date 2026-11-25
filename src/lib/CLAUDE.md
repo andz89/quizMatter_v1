@@ -278,8 +278,12 @@ data. Spec: `docs/superpowers/specs/2026-10-23-stable-presentation-data-design.m
   That needs the R2 bucket's CORS rule (Cloudflare → R2 → the bucket → Settings → CORS policy: `GET` from
   quizmatter.com, the dev preview and localhost); a photo it can't read stays a "Photo (link)" and a toast says how
   many. Tests: `markdownExport.test.ts`, `wordExport.test.ts` (unzips the file).
-- Text: `richText.ts` (tiptap setup, safe HTML; saved HTML is read back with `TEXT_PARSE_OPTIONS`, which keeps typed
-  spaces: runs of spaces and spaces at a line's start; test `e2e/text-spaces.mjs`), `format.ts` (dates, labels), `blanks.ts` (`blankRuns`,
+- Text: `richText.ts` (tiptap setup, safe HTML). Saved text keeps typed spaces (runs of spaces, spaces at a line's
+  start): the editor loads it with `readSavedText` (a document, so no editor-wide `parseOptions` changes later
+  `insertContent`) and the read-only text with `toSafeHtml`. Both first run `tidySavedHtml` (a tab or line end older
+  Claude imports saved shows as one space, a line end at a tag's edge goes). New text from outside goes through
+  `tidyText` in `textToHtml` and `stripMarkup` (`\r\n` → a new line, a tab → one space), so a Claude import's plain
+  text and HTML match. Tests: `richText.test.ts`, `e2e/text-spaces.mjs`. `format.ts` (dates, labels), `blanks.ts` (`blankRuns`,
   `markBlanks`: "___" blanks joined into one line, display only; tests `blanks.test.ts`) and `blankLines.ts` (the
   same in the editor, a Tiptap decoration). See `src/components/editor/CLAUDE.md`, "Slide text size".
 - `wordText.ts` / `wordFile.ts`: the editor's Word file panel (see `src/components/editor/CLAUDE.md`).
