@@ -16,6 +16,7 @@ import { presentFullscreen } from "./EditorBottomBar";
 import { Spinner } from "@/components/Spinner";
 import { TopLoadingBar } from "@/components/TopLoadingBar";
 import { LinkPending } from "@/components/LinkPending";
+import { DownloadButton } from "@/components/DownloadButton";
 import { ChevronLeftIcon, PlayIcon, Redo2Icon, Undo2Icon } from "lucide-react";
 
 export function EditorTopBar() {
@@ -52,6 +53,9 @@ export function EditorTopBar() {
           <Redo2Icon size={18} />
         </button>
       </div>
+
+      {/* What the editor shows now, unsaved edits too. */}
+      <DownloadButton getPresentation={() => useEditorStore.getState().presentation} className={historyButtonClass} iconSize={18} />
 
       {/* A selected text box gets both bars: its text formatting and the element controls. From laptop width they
           sit in the middle of the bar, pinned to its top: when they don't fit on one line (typing in a table), the

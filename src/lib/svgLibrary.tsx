@@ -5,6 +5,25 @@ import { KIDS, KID_VIEWBOX } from "./kids";
 import { CLIPART_KIDS, drawPeopleArt, SCHOOL_BOY } from "./peopleArt";
 import { FLAGS } from "./flags";
 import { DEFAULT_CALENDAR_DATE, MONTH_NAMES, monthGrid, WEEKDAY_NAMES, weekdayOf, type CalendarDate } from "./calendarDate";
+// The starting values live in elementDefaults.ts (no drawing code, so tests and the downloads can load them).
+import {
+  DEFAULT_CLOCK_TIME,
+  DEFAULT_BAR_GRAPH,
+  DEFAULT_FLOWCHART,
+  DEFAULT_CYCLE,
+  DEFAULT_MIND_MAP,
+  DEFAULT_TREE,
+  DEFAULT_FACTOR_TREE,
+  type ClockTime,
+  type BarGraphSettings,
+  type FlowchartSettings,
+  type CycleSettings,
+  type MindMapSettings,
+  type TreeSettings,
+  type FactorTreeSettings,
+} from "./elementDefaults";
+export { DEFAULT_CLOCK_TIME, DEFAULT_BAR_GRAPH, DEFAULT_FLOWCHART, DEFAULT_CYCLE, DEFAULT_MIND_MAP, DEFAULT_TREE, DEFAULT_FACTOR_TREE };
+export type { ClockTime, BarGraphSettings, FlowchartSettings, CycleSettings, MindMapSettings, TreeSettings, FactorTreeSettings };
 import {
   BORDER_WIDTH_DEFAULT,
   CYCLE_STEPS,
@@ -117,8 +136,6 @@ export interface ElementAsset {
   render: (color: string, settings: RenderSettings) => ReactNode;
 }
 
-export type ClockTime = NonNullable<SvgElement["clockTime"]>;
-export const DEFAULT_CLOCK_TIME: ClockTime = { hours: 10, minutes: 10, pm: false };
 
 export type NumberLineSettings = NonNullable<SvgElement["numberLine"]>;
 export const DEFAULT_NUMBER_LINE: NumberLineSettings = { start: 0, step: 1, hidden: [] };
@@ -553,14 +570,6 @@ function renderThermometer(color: string, { value }: ThermometerSettings = DEFAU
   );
 }
 
-export type BarGraphSettings = NonNullable<SvgElement["barGraph"]>;
-export const DEFAULT_BAR_GRAPH: BarGraphSettings = {
-  bars: [
-    { label: "A", value: 4 },
-    { label: "B", value: 7 },
-    { label: "C", value: 2 },
-  ],
-};
 // The graph's scale runs 0 to BAR_GRAPH_MAX. It has 2–6 bars, each label up to 12 letters.
 export const BAR_COUNTS = [2, 3, 4, 5, 6];
 export const BAR_LABEL_MAX = 12;
@@ -957,8 +966,6 @@ function ringRadius(count: number, spacing: number, min: number) {
   return Math.max(min, spacing / 2 / Math.sin(Math.PI / count));
 }
 
-export type FlowchartSettings = NonNullable<SvgElement["flowchart"]>;
-export const DEFAULT_FLOWCHART: FlowchartSettings = { steps: [{ text: "First" }, { text: "Next" }, { text: "Last" }] };
 const FLOW_ACROSS = { width: 64, height: 44 };
 const FLOW_DOWN = { width: 110, height: 36 };
 const FLOW_GAP = 22; // room for the arrow between two steps
@@ -993,10 +1000,6 @@ function renderFlowchart(color: string, settings: FlowchartSettings = DEFAULT_FL
   );
 }
 
-export type CycleSettings = NonNullable<SvgElement["cycle"]>;
-export const DEFAULT_CYCLE: CycleSettings = {
-  steps: [{ text: "Egg" }, { text: "Caterpillar" }, { text: "Pupa" }, { text: "Butterfly" }],
-};
 const CYCLE_BOX = { width: 64, height: 36 };
 
 // The steps sit on a ring, the first at the top, going clockwise.
@@ -1024,11 +1027,6 @@ function renderCycle(color: string, settings: CycleSettings = DEFAULT_CYCLE, tex
   );
 }
 
-export type MindMapSettings = NonNullable<SvgElement["mindMap"]>;
-export const DEFAULT_MIND_MAP: MindMapSettings = {
-  center: { text: "Topic" },
-  ideas: [{ text: "Idea 1" }, { text: "Idea 2" }, { text: "Idea 3" }, { text: "Idea 4" }],
-};
 const MIND_CENTER_BOX = { width: 80, height: 44 };
 const MIND_IDEA_BOX = { width: 64, height: 36 };
 
@@ -1063,14 +1061,6 @@ function renderMindMap(color: string, settings: MindMapSettings = DEFAULT_MIND_M
   );
 }
 
-export type TreeSettings = NonNullable<SvgElement["tree"]>;
-export const DEFAULT_TREE: TreeSettings = {
-  root: { text: "Animals" },
-  branches: [
-    { label: { text: "Mammals" }, leaves: [{ text: "Dog" }, { text: "Cat" }] },
-    { label: { text: "Birds" }, leaves: [{ text: "Eagle" }] },
-  ],
-};
 const TREE_ROOT_BOX = { width: 90, height: 36 };
 const TREE_BOX = { width: 64, height: 32 };
 const TREE_COLUMN = 76; // width of each branch's column
@@ -1140,16 +1130,6 @@ function renderTree(color: string, settings: TreeSettings = DEFAULT_TREE, text: 
   );
 }
 
-export type FactorTreeSettings = NonNullable<SvgElement["factorTree"]>;
-export const DEFAULT_FACTOR_TREE: FactorTreeSettings = {
-  root: {
-    text: "48",
-    children: [
-      { text: "6", children: [{ text: "2" }, { text: "3" }] },
-      { text: "8", children: [{ text: "2" }, { text: "4", children: [{ text: "2" }, { text: "2" }] }] },
-    ],
-  },
-};
 const FACTOR_BOX = { width: 44, height: 34 };
 const FACTOR_GAP = 12; // between the two sides of a split
 const FACTOR_LEVEL_GAP = 22; // from a box's bottom to its children's tops

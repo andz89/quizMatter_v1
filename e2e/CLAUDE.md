@@ -292,6 +292,13 @@ when another is picked), moving into and between boxes (Alt keeps a free picture
   in, and back onto the panel (nothing); a click adds after the active slide; one undo takes it out. A drop from newer
   app code or one that isn't a slide is refused with words. Saved: the order shown, new ids, a picture still in its
   own answer box, the source untouched.
+- `download-word.mjs`: the editor's Download box (the presentation page has no Download button). Word (.docx) of
+  all slides: named after the title, "1. Which planet…" with its options unmarked, the Answer key last ("1. A.
+  Jupiter"), and the real photo inside as a JPEG (read from live R2 after the editor showed it, so it needs the
+  bucket's CORS rule for `localhost:3100`) plus its cropped, flipped copy as a second picture half as wide, no
+  "Photo (link)", no toast; the box closes. Custom "1, 9" is refused with words; Custom "2" has only the photo slide
+  and no key. Text (.txt): plain options, the photo links and "## Answer key" at the end. Screenshots of the box:
+  `download-box.png` (Word, All slides) and `download-box-custom.png` (Custom).
 - `word-file.mjs`: the editor's Word file panel. A .docx made in the test (`fflate`) lists one piece per line (an
   empty line skipped), an old `.doc` is refused with words, Copy copies the line as it is, lines dragged onto the
   question box and answer B replace their text without "1." / "b.", Undo brings B back, a line dropped on the slide

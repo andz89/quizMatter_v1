@@ -10,6 +10,7 @@ import { loadPresentation } from "@/lib/fetchPresentation";
 import { PHOTO_MAX_SIDE, thumbnailUrl } from "@/lib/constants";
 import { findOrCreateCategory, removeUnusedNewCategory } from "@/lib/photoCategories";
 import { contains } from "@/lib/search";
+import { htmlToText } from "@/lib/presentationOutline";
 import { createPhotoTickets } from "@/lib/photoTickets";
 import { claudePhotoFillSchema, claudePhotoSchema, type Photo, type Presentation, type Slide } from "@/lib/schema";
 import { getMaintenanceStatus, MAINTENANCE_WORDS } from "@/lib/maintenance";
@@ -436,20 +437,6 @@ function shrinkPresentation({ slides, ...details }: Presentation) {
       })),
     })),
   };
-}
-
-/** The text editor's HTML as plain text: each paragraph or line break on its own line. */
-function htmlToText(html: string): string {
-  return html
-    .replace(/<br\s*\/?>|<\/(p|div|li|h\d)>/gi, "\n")
-    .replace(/<[^>]*>/g, "")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&amp;/g, "&")
-    .trim();
 }
 
 /**

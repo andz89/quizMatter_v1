@@ -7,7 +7,8 @@ editor / view / review, and renders `Editor.tsx`, which calls `store.loadPresent
 
 - `Editor.tsx`: the frame. `EditorTopBar`, `IconRail` (the left icon bar that opens the side panels), `Workspace`,
   `EditorBottomBar` (zoom, which slide is showing, the slide grid, fullscreen present).
-- `EditorTopBar.tsx`: Save, `ShareButton`, `ReviewControls`, and the toolbar for what is picked:
+- `EditorTopBar.tsx`: Save, `ShareButton`, `ReviewControls`, the download button (`DownloadButton`, the store's
+  presentation, unsaved edits too), and the toolbar for what is picked:
   `SelectedElementToolbar` (elements), `TextFormatToolbar` (text), `ShapeBoxToolbar`. From laptop width they sit in
   the middle of the bar, pinned 6 px from its top; when two don't fit on one line (typing in a table: text bar +
   table bar) the second row hangs below the bar instead of the first being pushed off the screen (test

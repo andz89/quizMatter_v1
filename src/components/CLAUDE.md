@@ -36,6 +36,12 @@ notes.
   page: leaves the search and goes home, like "Clear search"). The modal is portalled outside
   the page's form, so it has its own form (Enter in any field searches; the footer's Search points at it by id).
   Test: `e2e/search-options-modal.mjs`.
+- `DownloadButton.tsx`: the download button, only on the editor's top bar (not the presentation page or modal). It opens the
+  Download box (`Modal`): Word (.docx) / Text (.txt) as two picture cards (icon, hint, a check on the picked one),
+  and All slides / Custom as one two-part switch (slide numbers like "1-3, 5"; a wrong one is said under the box).
+  Each card's radio is see-through and covers the card, so clicks and the browser test reach it. The Word code loads only on a Word download (the Spinner shows in Download, and the
+  box can't close meanwhile).
+  How the files are made: `src/lib/CLAUDE.md`, "Downloads".
 - `ClickPauseNotice.tsx`: the sticky "paused" notice from click limits; in the root layout once.
 - Maintenance (root `CLAUDE.md`, "Maintenance"), in the root layout once each: `MaintenanceWatch.tsx` wraps the
   browser's fetch and sends an open tab to `/maintenance` on a maintenance refusal (not on `/maintenance` or
