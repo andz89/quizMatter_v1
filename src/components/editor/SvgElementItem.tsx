@@ -128,6 +128,7 @@ export const SvgElementItem = memo(function SvgElementItem({ slideId, element, i
   const setSnapGuides = useEditorStore((s) => s.setSnapGuides);
   // While ghost previews show the dragged element(s) in a different box, hide the real ones so they're not duplicated.
   const isGhosting = useEditorStore((s) => s.elementDragGhosts.some((g) => g.id === element.id));
+  const isLayerHovered = useEditorStore((s) => s.hoveredLayerIds.includes(element.id));
 
   const dragState = useRef<DragState | null>(null);
   // Set when a pointer press and release on a selected diagram was a click (see stopDrag).
@@ -672,7 +673,14 @@ export const SvgElementItem = memo(function SvgElementItem({ slideId, element, i
         height: element.height,
         transform: `rotate(${angle}deg)`,
         visibility: isGhosting ? "hidden" : "visible",
-        outline: isOnlySelected && showSelection ? "1.5px dashed var(--text-header)" : "1.5px dashed transparent",
+        // Hovered in the Layers panel: a violet line shows which element that row is, even under other ones.
+        outline: !showSelection
+          ? "1.5px dashed transparent"
+          : isOnlySelected
+            ? "1.5px dashed var(--text-header)"
+            : isLayerHovered
+              ? "2px solid var(--accent)"
+              : "1.5px dashed transparent",
         outlineOffset: 3,
       }}
     >

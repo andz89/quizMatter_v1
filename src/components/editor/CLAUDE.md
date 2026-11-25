@@ -59,8 +59,22 @@ editor / view / review, and renders `Editor.tsx`, which calls `store.loadPresent
   `ElementSvg` draws it, `TextBoxContent` is a text box, `DiagramBoxEditor` / `DiagramBoxButtons` are diagrams,
   `TableContent.tsx` is a table (see "Tables").
 - Side panels (all use the `side-panel` class, sideways rows use `ScrollRow`): `ElementsPanel`, `PhotosPanel`,
-  `ColorPanel`, `BackgroundPanel`, `EffectsPanel`, `PresentationsPanel`, `WordFilePanel`. They stay open after you
-  add something (don't auto-close them).
+  `ColorPanel`, `BackgroundPanel`, `EffectsPanel`, `PresentationsPanel`, `WordFilePanel`, `LayersPanel`. They stay
+  open after you add something (don't auto-close them). Only one is open at a time: each toggle in the store closes
+  the others, so a new panel adds its `is…Open: next ? false : …` line to every toggle.
+- **Layers panel** (`LayersPanel`, the rail's "Layers", like Canva's; spec
+  `docs/superpowers/specs/2026-11-25-layers-panel-design.md`): the selected slide's elements, one list per box ("On
+  the slide", "Question", "Answer A"–"D", "Shape box", "Answer"), top layer first, since elements only overlap inside
+  their box. Rows come from `layerBoxes` (`src/lib/layers.ts`): a group is one row ("Group · N items") whose ▸ shows
+  its members. A row's name is a text box's first 40 letters, "Table", "Photo", "Drawing", or the asset's label.
+  Click = select (a group row the whole group, a member row only that member; Shift / Ctrl / Cmd adds), so an
+  element hidden behind another can be picked; its handles are drawn above everything, and arrow keys, the toolbar
+  and Arrange then work on it (dragging its body on the slide still grabs what's on top). Hover = the store's
+  `hoveredLayerIds`, drawn by `SvgElementItem`'s selection part as a 2 px violet outline (not saved, not in undo).
+  Drag a row (`@dnd-kit`, one list per box and per open group) = `reorderLayers` → `moveLayer`: just above or below
+  the row it's dropped on, past a whole group, a member only among its own group, never into another box; one undo
+  step; a drop that changes nothing makes none. Only `slide.elements`' order changes, so nothing new is saved. Test:
+  `e2e/layers-panel.mjs`; the math: `src/lib/layers.test.ts`.
 - **Word file panel** (`WordFilePanel`, the rail's "Word file"; spec
   `docs/superpowers/specs/2026-11-21-word-file-panel-design.md`): a teacher opens a `.docx` (`readWordFile`,
   `src/lib/wordFile.ts`, read in the browser only: never uploaded or saved, so no Privacy Policy line) and sees its

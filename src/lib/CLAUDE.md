@@ -306,6 +306,9 @@ data. Spec: `docs/superpowers/specs/2026-10-23-stable-presentation-data-design.m
   text moved with Track Changes on read once (`w:moveFrom` skipped), `stripItemMark` (a single letter only as A–E in
   an answer box or I / V / X in the question box, never right before another initial: "J. K. Rowling"), `droppedTextHtml`, `pickedSlideTexts` + `PICKED_LINES_MAX` (ticked lines → question and A–D), `suggestItems` (numbered lines and up to 4
   lines under each, for Show suggestions; `stripItemMark` also removes a "____" blank in front of a number), `WORD_LINES_MAX` (2,000). Tests: `wordText.test.ts`, `wordFile.test.ts`.
+- `layers.ts`: the editor's Layers panel math (only a type import, tested in `layers.test.ts`): `layerBoxes` (rows
+  per box, top layer first, groups folded) and `moveLayer` (a dragged row just above or below another in its box).
+  How the panel uses them: `src/components/editor/CLAUDE.md`, "Layers panel".
 - `sameValue.ts`: whether two settings hold the same values in any key order (the database re-sorts saved keys, e.g.
   a fraction comes back as `{parts, whole, shaded}`); `MathToolControls` uses it. Tests: `sameValue.test.ts`.
 - `support.ts`: `SUPPORT_EMAIL` and `FACEBOOK_URL`, the one place each is written (the support address is an alias

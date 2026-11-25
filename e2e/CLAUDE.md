@@ -308,6 +308,10 @@ when another is picked), moving into and between boxes (Alt keeps a free picture
   "Photo (link)", no toast; the box closes. Custom "1, 9" is refused with words; Custom "2" has only the photo slide
   and no key. Text (.txt): plain options, the photo links and "## Answer key" at the end. Screenshots of the box:
   `download-box.png` (Word, All slides) and `download-box-custom.png` (Custom).
+- `layers-panel.mjs`: the editor's Layers panel. A slide with a circle hidden under a rectangle, a group and a star
+  in answer B: the boxes ("On the slide", "Answer B"), top layer first with the group folded, ▸ shows its members,
+  hovering a row outlines one element on the slide, a click selects the hidden circle (screenshot
+  `layers-panel.png`), dragging it above the rectangle saves that order, one Ctrl+Z puts it back, Escape closes.
 - `word-file.mjs`: the editor's Word file panel. A .docx made in the test (`fflate`) lists one piece per line (an
   empty line skipped), an old `.doc` is refused with words, Copy copies the line as it is, lines dragged onto the
   question box and answer B replace their text without "1." / "b.", Undo brings B back, a line dropped on the slide
