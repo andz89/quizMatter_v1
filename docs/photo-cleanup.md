@@ -48,6 +48,13 @@ limit). So the database keeps a small list of which slide uses which photo, one 
 - A photo counts as used while **at least one** row has it, however many slides use it.
 - The list was filled once from all slides when it was added.
 
+### Fixing photo sizes for the storage limit
+
+Each teacher may keep 50 MB of photos (`photo_uploads`, `supabase/migrations/20261231002600_photo_storage.sql`).
+Photos uploaded before that limit had no saved size, so they count as 2 MB (`size_known = false`). After deleting,
+the job asks `photo_uploads_unknown_sizes()` and sends the real sizes it saw in R2's listing to
+`set_photo_upload_sizes` (`sizesToFix`). After the first run the list is empty. A failure here is only logged.
+
 ### The 7-day safety rule
 
 A new file is never deleted, even if nothing uses it yet. A teacher may put a photo on a slide and not

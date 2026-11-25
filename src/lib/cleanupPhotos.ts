@@ -33,7 +33,7 @@ export async function cleanupPhotos(env: CleanupEnv) {
   const { data, error } = await supabase.rpc("used_photo_srcs");
   if (error) throw error;
 
-  const { unused, checked } = await findUnusedPhotos(env.PHOTOS_BUCKET, data);
+  const { unused, checked, sizes } = await findUnusedPhotos(env.PHOTOS_BUCKET, data);
   const keys = unused.filter((file) => isPastKeepTime(file.uploaded)).map((file) => file.key);
 
   // R2 deletes up to 1000 files per call.
@@ -41,15 +41,36 @@ export async function cleanupPhotos(env: CleanupEnv) {
     await env.PHOTOS_BUCKET.delete(keys.slice(i, i + 1000));
   }
   console.log(`Photo cleanup: checked ${checked} files, deleted ${keys.length}.`, keys);
+
+  // Photos uploaded before the storage limit count as 2 MB until their real size is known (photo_uploads): send the
+  // sizes this listing just saw. After the first run the list is empty. A failure is only logged: the deletes are done.
+  const unknown = await supabase.rpc("photo_uploads_unknown_sizes");
+  if (unknown.error) return console.error("Photo cleanup: couldn't read the sizes to fix.", unknown.error);
+  const fixes = sizesToFix(z.array(z.string()).parse(unknown.data), sizes);
+  if (Object.keys(fixes).length === 0) return;
+  const { error: fixError } = await supabase.rpc("set_photo_upload_sizes", { sizes: fixes });
+  if (fixError) console.error("Photo cleanup: couldn't fix the sizes.", fixError);
+  else console.log(`Photo cleanup: fixed ${Object.keys(fixes).length} photo sizes.`);
+}
+
+/** The real sizes (from R2's listing) of the estimated photos that are still in R2: { src: bytes }. */
+export function sizesToFix(unknown: string[], sizes: Map<string, number>): Record<string, number> {
+  const fixes: Record<string, number> = {};
+  for (const src of unknown) {
+    const size = sizes.get(src);
+    if (size !== undefined) fixes[src] = size;
+  }
+  return fixes;
 }
 
 /**
- * Every file in R2 under uploads/ that isn't in `usedSrcs` (from used_photo_srcs()), whatever its age, and how
- * many files there are in all. The 7-day rule is left to the caller.
+ * Every file in R2 under uploads/ that isn't in `usedSrcs` (from used_photo_srcs()), whatever its age, how
+ * many files there are in all, and every file's size (src → bytes). The 7-day rule is left to the caller.
  */
 export async function findUnusedPhotos(bucket: R2Bucket, usedSrcs: unknown) {
   const used = new Set(z.array(z.string()).parse(usedSrcs));
   const unused: UnusedPhoto[] = [];
+  const sizes = new Map<string, number>();
   let checked = 0;
   let totalSize = 0;
   let cursor: string | undefined;
@@ -59,11 +80,12 @@ export async function findUnusedPhotos(bucket: R2Bucket, usedSrcs: unknown) {
       checked++;
       totalSize += file.size;
       const src = PHOTOS_DOMAIN + file.key;
+      sizes.set(src, file.size);
       if (!used.has(src)) unused.push({ key: file.key, src, uploaded: file.uploaded, size: file.size });
     }
     cursor = page.truncated ? page.cursor : undefined;
   } while (cursor);
-  return { unused, checked, totalSize };
+  return { unused, checked, totalSize, sizes };
 }
 
 /**
