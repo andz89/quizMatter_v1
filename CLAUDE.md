@@ -463,6 +463,28 @@ The super admin shows a message to chosen teachers on chosen pages (Admin → An
 - **Privacy:** what's used to choose them, and the closed records, are in the Privacy Policy. A new filter on another
   detail updates it too.
 
+# Photo Storage (50 MB per teacher)
+
+Each teacher may keep 50 MB of photos. Design: `docs/superpowers/specs/2026-11-26-photo-storage-limit-design.md`.
+Migration: `20261231002600_photo_storage.sql`; tests: `supabase/tests/photo_storage.sql`, `e2e/photo-storage.mjs`.
+Keep these rules:
+
+- **What counts:** a photo the teacher **uploaded** (a `photo_uploads` row) while it's in their "My photos" **or**
+  on a slide of a presentation **they own** (their shared copy too), once per file (`photo_storage_used`). A photo
+  someone copied never counts for the copier; once the uploader stops using it, it counts for nobody (accepted:
+  copies don't make new files). Photos in a review draft don't count. Admins have no limit.
+- **The database is the real check:** `upload-image` calls `reserve_photo_upload` with the secret key before the
+  file is stored (one teacher at a time, an advisory lock; a new upload holds its space for 10 minutes); over the
+  limit = `QMSTO` (413, `STORAGE_FULL_MESSAGE`). Teachers only read their own `photo_uploads` rows, so they can't
+  delete records to free space. The limit is `photo_storage_limit()` and `PHOTO_STORAGE_LIMIT_BYTES`
+  (`src/lib/photoStorage.ts`): change both together.
+- **Nothing is deleted because of it.** Over the limit (e.g. old photos counted at 2 MB until the weekly cleanup
+  sends their real size, `set_photo_upload_sizes`) only stops new uploads.
+- **Removing from My photos** is `remove_my_photo(src, mode)`: one request when no slide of theirs has it; else it
+  answers where (`uses`) and the Photos panel's box says it still counts until it's off those slides (and the
+  published copy, "Update shared presentation").
+- **Privacy:** the upload records are in the Privacy Policy ("Your work"). Keep that true.
+
 # Diagrams and Picture Shapes
 
 Their rules moved next to their code: Diagrams (Flowchart, Cycle, Mind Map, Tree) in `src/components/editor/CLAUDE.md`, Picture Shapes (`assetShapes.json`, for Claude's import) in `src/lib/CLAUDE.md`. Read them before changing either.

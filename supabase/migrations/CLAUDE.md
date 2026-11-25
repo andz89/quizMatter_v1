@@ -85,6 +85,7 @@ A refusal raises an error with its own code. The app turns the code into a messa
 - `QMBLK`: a click limit paused the feature (the pause end time is in `details`), read by `pausedUntilFromError`
   (`src/lib/clickLimits.ts`).
 - `QMPPL`: an editor already saved 3 profile photos today (`set_profile_photo`).
+- `QMSTO`: the teacher's photo storage (50 MB) is full (`reserve_photo_upload`; the upload route answers 413).
 - `QMONE`: another announcement of the same type (modal or bar) is on; the message is its name, and Admin →
   Announcements asks to turn it off (`check_one_on`).
 
@@ -128,6 +129,12 @@ A refusal raises an error with its own code. The app turns the code into a messa
   review is waiting; a waiting photo passes to another editor with the same file; new editors' old photos are
   added; `slide_photos (src)` index. `20261128000000_fix_photo_lock.sql`: the lock trigger reads the owner with
   `to_jsonb(old)`, since `shared_photos` has no `user_id`.
+- Photo storage, 50 MB per teacher: `20261231002600_photo_storage.sql` (test `supabase/tests/photo_storage.sql`;
+  root `CLAUDE.md`, "Photo Storage"). `photo_uploads` (who uploaded which file, its size; teachers read their own,
+  nobody else writes it), `photo_storage_limit()`, `photo_storage_used(target)` (not granted), `reserve_photo_upload`
+  (service role: `QMSTO` when full), `my_photo_storage()`, `remove_my_photo(src, mode)`, and for the weekly cleanup
+  `photo_uploads_unknown_sizes()` / `set_photo_upload_sizes(sizes)` (service role). Existing "My photos" rows were
+  added at their shared photo's size, else 2 MB. Apply it **before** the app.
 - Click limits: `20261013000000_click_limits.sql`, `20261014000000_click_auto_ban.sql`, `20261017000000_click_history.sql`.
   `20261211000000_save_photo_click_limits.sql` (test `supabase/tests/save_photo_click_limits.sql`): saving
   presentations (`presentation_save` + `presentation_save_daily`, from `count_presentation_write`: once per request,

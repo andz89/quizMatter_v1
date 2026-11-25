@@ -233,6 +233,7 @@ data. Spec: `docs/superpowers/specs/2026-10-23-stable-presentation-data-design.m
 
 - Limits: `clickLimits.ts` (the one click-limit system, see root `CLAUDE.md`), `browserLimits.ts` (sign up / login
   speed bumps kept in the browser).
+- Photo storage (50 MB per teacher, root `CLAUDE.md`): `photoStorage.ts` (no imports, tested in `photoStorage.test.ts`): `PHOTO_STORAGE_LIMIT_BYTES` (same as the database's `photo_storage_limit()`), `formatStorage` (rounded down), `isStorageFull`, `stillUsedMessage` (the remove warning's words), `STORAGE_FULL_MESSAGE`, `STILL_COUNTS_TOAST`. `photos.tsx`: `loadPhotoStorage`, `watchPhotoStorage` (uploads and removes tell listeners the new total from their own answers) and `removeMyPhoto(src, mode)` (`remove_my_photo`: `if_unused` / `ask` / `remove`). `cleanupPhotos.ts` sends the real sizes of photos counted at 2 MB (`sizesToFix`).
 - Photos: `photos.tsx` (upload, My photos, shared photos; `isPhotoLocked` / `PHOTO_LOCKED_MESSAGE` for `QMPHL`, a
   photo in something waiting for QuizMatter can't be removed; the editor's Photos panel shows only public shared
   photos, even to admins), `photoFiles.ts` (R2 files, server), `photoTypes.ts` (what a file really is, from its first bytes:
