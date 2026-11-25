@@ -258,7 +258,7 @@ data. Spec: `docs/superpowers/specs/2026-10-23-stable-presentation-data-design.m
   `markBlanks`: "___" blanks joined into one line, display only; tests `blanks.test.ts`) and `blankLines.ts` (the
   same in the editor, a Tiptap decoration). See `src/components/editor/CLAUDE.md`, "Slide text size".
 - `wordText.ts` / `wordFile.ts`: the editor's Word file panel (see `src/components/editor/CLAUDE.md`).
-  `wordFile.ts` (`readWordFile`, `readWordBytes`) unzips only `word/document.xml` and `word/numbering.xml` with `fflate`, in the browser
+  `wordFile.ts` (`readWordFile`, `readWordBytes`) unzips only `word/document.xml`, `word/numbering.xml` and `word/styles.xml` with `fflate`, in the browser
   (20 MB at most, and its text part 20 MB unzipped, checked from the zip's list before unzipping; `.docx` only,
   `WORD_FILE_ERROR`). `wordText.ts` (no imports): `wordLines` (one line per paragraph
   and line break, only `<w:t>` text, a text box's `mc:Fallback` copy skipped, nested paragraphs their own line; equations as plain text: x², H₂O,
@@ -266,7 +266,10 @@ data. Spec: `docs/superpowers/specs/2026-10-23-stable-presentation-data-design.m
   Wingdings),
   `parseNumbering` (Word's list button numbers: `wordLines` writes "1.", "a)", "(I)" in front of a list paragraph,
   counting per list and depth like Word, restarts and start values kept, bullets left out, a tracked change's old
-  numbering skipped), `stripItemMark`, `droppedTextHtml`, `pickedSlideTexts` + `PICKED_LINES_MAX` (ticked lines → question and A–D), `suggestItems` (numbered lines and up to 4
+  numbering skipped; lists made from the same `w:abstractNum` share one count, like Word, unless one restarts; "01."
+  (`decimalZero`) kept), `parseStyleNumbers` (a paragraph style that numbers, e.g. "List Number", through `w:basedOn`),
+  text moved with Track Changes on read once (`w:moveFrom` skipped), `stripItemMark` (a single letter only as A–E in
+  an answer box or I / V / X in the question box, never right before another initial: "J. K. Rowling"), `droppedTextHtml`, `pickedSlideTexts` + `PICKED_LINES_MAX` (ticked lines → question and A–D), `suggestItems` (numbered lines and up to 4
   lines under each, for Show suggestions; `stripItemMark` also removes a "____" blank in front of a number), `WORD_LINES_MAX` (2,000). Tests: `wordText.test.ts`, `wordFile.test.ts`.
 - `sameValue.ts`: whether two settings hold the same values in any key order (the database re-sorts saved keys, e.g.
   a fraction comes back as `{parts, whole, shaded}`); `MathToolControls` uses it. Tests: `sameValue.test.ts`.

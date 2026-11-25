@@ -253,16 +253,16 @@ export function WordFilePanel() {
                     title="Drag onto a question or an answer choice, or tap the handle and then a box"
                     data-suggested={suggestion ? (suggestion.isQuestion ? "question" : "option") : undefined}
                     className={`group flex cursor-grab items-start gap-1.5 rounded-dropdown border py-1.5 pl-1 pr-1.5 text-sm text-text-primary hover:border-accent active:cursor-grabbing ${
-                      place !== -1 || line === heldWordLine || suggestion ? "border-accent" : "border-border-default"
+                      place !== -1 || i === heldWordLine || suggestion ? "border-accent" : "border-border-default"
                     } ${suggestion?.isQuestion ? "bg-accent-soft" : "bg-bg-surface"} ${suggestion && !suggestion.isQuestion ? "ml-4 border-l-4" : ""}`}
                   >
                     <button
                       type="button"
-                      onClick={() => setHeldWordLine(line === heldWordLine ? null : line)}
+                      onClick={() => setHeldWordLine(i === heldWordLine ? null : i)}
                       aria-label="Pick up this line, then tap a box"
-                      aria-pressed={line === heldWordLine}
+                      aria-pressed={i === heldWordLine}
                       className={`flex h-6 w-5 shrink-0 items-center justify-center rounded-dropdown ${
-                        line === heldWordLine ? "bg-accent text-white" : "text-text-secondary hover:bg-accent-soft hover:text-accent"
+                        i === heldWordLine ? "bg-accent text-white" : "text-text-secondary hover:bg-accent-soft hover:text-accent"
                       }`}
                     >
                       <GripVerticalIcon size={14} />

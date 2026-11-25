@@ -600,9 +600,10 @@ interface EditorState {
   wordFile: WordFile | null;
   setWordFile: (wordFile: WordFile | null) => void;
   // A line picked up with a tap on its handle (for touch screens, where dragging doesn't work): the next tap on a
-  // question or answer box puts it there (putLineInBox). null = nothing held.
-  heldWordLine: string | null;
-  setHeldWordLine: (line: string | null) => void;
+  // question or answer box puts it there (putLineInBox). Its place in wordFile.lines, so two lines with the same
+  // text aren't both held. null = nothing held.
+  heldWordLine: number | null;
+  setHeldWordLine: (index: number | null) => void;
   // Puts a Word file line in a question box or answer choice (a drop or a tap): its leading "1." / "a)" removed, the
   // box's text replaced (keeping its first paragraph's settings). A line over PLAIN_TEXT_MAX is refused with a toast.
   putLineInBox: (slideId: string, boxId: string, line: string) => void;
@@ -1915,12 +1916,13 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }),
   closeWordPanel: () => set({ isWordPanelOpen: false, heldWordLine: null }),
   wordFile: null,
-  setWordFile: (wordFile) => set({ wordFile }),
+  // A new file's lines are other lines: a held place would point at another one.
+  setWordFile: (wordFile) => set({ wordFile, heldWordLine: null }),
   heldWordLine: null,
-  setHeldWordLine: (line) => set({ heldWordLine: line }),
+  setHeldWordLine: (index) => set({ heldWordLine: index }),
   putLineInBox: (slideId, boxId, line) => {
     set({ heldWordLine: null });
-    const text = stripItemMark(line);
+    const text = stripItemMark(line, boxId === QUESTION_CONTAINER_ID ? "question" : "option");
     if (!text) return;
     if (text.length > PLAIN_TEXT_MAX) {
       toast.error(TEXT_LIMIT_MESSAGE, { id: "text-limit" });

@@ -60,6 +60,9 @@ export const SLIDE_DRAG_MIME = "application/x-quizbuilder-slide";
 
 // The font size (px) each kind of text shows at when the user hasn't chosen one. Text never shrinks: too-long
 // text goes onto new lines and what's past the box's bottom is cut off. Text boxes match the question box.
+// They were 48 / 56 / 48 until 2026-11-21. Slides saved before then with no size show at 45 now, on purpose (the
+// owner's choice): smaller text never gets cut off, and bringing back 48 / 56 would also change the slides made at
+// 45 since then (they saved no size either). Don't change these again without saving the old size into old slides.
 export const QUESTION_FONT_SIZE = 45;
 export const OPTION_FONT_SIZE = 45;
 export const TEXT_BOX_FONT_SIZE = 45;

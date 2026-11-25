@@ -62,8 +62,9 @@ export function OptionCard({ slideId, option, index, isCorrect, elements, box }:
       // Shift+click selects more boxes, to change their text together.
       onClick={(e) => selectContainer(option.id, slideId, e.shiftKey)}
       onClickCapture={(e) => {
-        const line = useEditorStore.getState().heldWordLine;
-        if (line === null) return;
+        const { heldWordLine, wordFile } = useEditorStore.getState();
+        const line = heldWordLine === null ? undefined : wordFile?.lines[heldWordLine];
+        if (line === undefined) return;
         e.preventDefault();
         e.stopPropagation();
         putLineInBox(slideId, option.id, line);
