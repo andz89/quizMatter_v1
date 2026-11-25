@@ -9,7 +9,13 @@ editor / view / review, and renders `Editor.tsx`, which calls `store.loadPresent
   `EditorBottomBar` (zoom, which slide is showing, the slide grid, fullscreen present).
 - `EditorTopBar.tsx`: Save, `ShareButton`, `ReviewControls`, the download button (`DownloadButton`, the store's
   presentation, unsaved edits too), and the toolbar for what is picked:
-  `SelectedElementToolbar` (elements), `TextFormatToolbar` (text), `ShapeBoxToolbar`. From laptop width they sit in
+  `SelectedElementToolbar` (elements), `TextFormatToolbar` (text), `ShapeBoxToolbar`. The text bar's "Aa" (Change
+  case: UPPERCASE, lowercase, Sentence case, Capitalize Each Word; `applyTextCase`, `src/lib/textCase.ts`) rewrites
+  the real letters, keeping bold and colors, on the selected words while typing, else all the text (like the other
+  buttons, `formatChain`); one undo step, nothing new saved (spec
+  `docs/superpowers/specs/2026-11-25-text-case-design.md`, test `e2e/text-case.mjs`). At 1280 px the middle toolbars
+  share 640 px (half the bar), so the text bar's buttons are 28 px wide; check `e2e/save-button-width.mjs` after
+  adding one. From laptop width they sit in
   the middle of the bar, pinned 6 px from its top; when two don't fit on one line (typing in a table: text bar +
   table bar) the second row hangs below the bar instead of the first being pushed off the screen (test
   `e2e/toolbar-rows.mjs`). `ArrangePanel` and

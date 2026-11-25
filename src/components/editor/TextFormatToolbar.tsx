@@ -6,12 +6,14 @@ import { useEditorStore, type TextEditorEntry, type TextTarget } from "@/lib/sto
 import { formatChain } from "@/lib/richText";
 import { DEFAULT_TEXT_COLOR, OPTION_FONT_SIZE, QUESTION_CONTAINER_ID, QUESTION_FONT_SIZE, TABLE_FONT_SIZE, TEXT_BOX_FONT_SIZE } from "@/lib/constants";
 import { FONT_SIZE_RANGE, type Presentation } from "@/lib/schema";
-import { EraserIcon, TextAlignCenterIcon, TextAlignEndIcon, TextAlignStartIcon } from "lucide-react";
+import { applyTextCase, TEXT_CASES } from "@/lib/textCase";
+import { ToolPanelButton } from "./PanelControls";
+import { CaseSensitiveIcon, EraserIcon, TextAlignCenterIcon, TextAlignEndIcon, TextAlignStartIcon } from "lucide-react";
 
 type Align = "left" | "center" | "right";
 
 /**
- * Size / bold / italic / underline / align / color bar, shown in the header while typing in a text,
+ * Size / bold / italic / underline / change case / align / color bar, shown in the header while typing in a text,
  * or when question/option boxes are selected (then each button changes all their text). The buttons
  * show the style of the first text.
  */
@@ -82,6 +84,26 @@ export function TextFormatToolbar({ texts }: { texts: TextEditorEntry[] }) {
       >
         <span className="underline">U</span>
       </ToolButton>
+      <ToolPanelButton
+        title="Change case"
+        icon={<CaseSensitiveIcon size={20} />}
+        buttonClassName="h-8 w-7 rounded-dropdown text-text-primary hover:bg-bg-page aria-expanded:bg-bg-page"
+        closeOnAnyClick
+        panelWidthClassName="w-auto"
+      >
+        <div className="-mx-2 -my-1 flex flex-col">
+          {TEXT_CASES.map(({ value, label }) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => applyToAll((c) => c.command(({ tr }) => applyTextCase(tr, value)))}
+              className="whitespace-nowrap rounded-dropdown px-3 py-1.5 text-left text-sm text-text-primary hover:bg-bg-page"
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </ToolPanelButton>
 
       <Divider />
 
@@ -142,7 +164,8 @@ function ToolButton({
       type="button"
       title={title}
       onClick={onClick}
-      className={`flex h-8 w-8 items-center justify-center rounded-dropdown text-sm ${
+      // 28 px wide: at 1280 px the middle toolbars share 640 px, and the text bar must leave the Save button room.
+      className={`flex h-8 w-7 items-center justify-center rounded-dropdown text-sm ${
         active ? "bg-accent text-white" : "text-text-primary hover:bg-bg-page"
       }`}
     >

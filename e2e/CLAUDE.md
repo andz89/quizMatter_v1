@@ -141,6 +141,9 @@ Tests that delete data (the announcements ones empty the announcements table) do
   after saving and opening again and after undo, the save keeps them, and presenting fullscreen and the view page
   show them (their text and their `white-space`). Tabs and Windows line ends (`\r\n`), in new text and in text saved
   before: `src/lib/richText.test.ts`.
+- `text-case.mjs`: the text bar's Change case (Aa) on a question: Sentence case on all the text while typing with
+  nothing selected (a bolded "th" stays bold), UPPERCASE on selected words only, Capitalize Each Word across a bold
+  split, one undo per pick, lowercase on a picked box, saved.
 - `text-limits.mjs`: pasting past the limit into the question, an answer choice (5,000 characters) and a text box
   (50,000 as HTML, so 10,000 "&" is refused) leaves the text as it was with one toast; up to the limit goes in;
   typing at the limit is refused, deleting works; Ctrl+S saves; the slide name box's `maxlength`.
