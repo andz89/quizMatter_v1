@@ -285,8 +285,11 @@ data. Spec: `docs/superpowers/specs/2026-10-23-stable-presentation-data-design.m
   `tidyText` in `textToHtml` and `stripMarkup` (`\r\n` → a new line, a tab → one space), so a Claude import's plain
   text and HTML match. Tests: `richText.test.ts`, `e2e/text-spaces.mjs`. `textCase.ts`: the text bar's Change
   case (`changeCase` reads a whole paragraph, one result per character, so a word split by bold is one word and
-  "don't" → "Don't"; Sentence case starts after . ! ?, a line break isn't a new sentence; `applyTextCase` replaces
-  only the text pieces that change, keeping their marks). Tests: `textCase.test.ts`. `format.ts` (dates, labels), `blanks.ts` (`blankRuns`,
+  separate accent marks stay in their word; Sentence case starts after . ! ? followed by a space, keeps "I" / "I'm"
+  (not "i-click"), and a line break isn't a new sentence; Capitalize Each Word: "don't" → "Don't", "'hello" →
+  "'Hello"; both leave web addresses, emails and file names as typed; lowercase gives Greek "ς" at a word's end;
+  names still go lower in Sentence case. `applyTextCase` replaces only the text pieces that change, keeping their
+  marks). Tests: `textCase.test.ts` (the rules, and `applyTextCase` on a real Tiptap document). `format.ts` (dates, labels), `blanks.ts` (`blankRuns`,
   `markBlanks`: "___" blanks joined into one line, display only; tests `blanks.test.ts`) and `blankLines.ts` (the
   same in the editor, a Tiptap decoration). See `src/components/editor/CLAUDE.md`, "Slide text size".
 - `wordText.ts` / `wordFile.ts`: the editor's Word file panel (see `src/components/editor/CLAUDE.md`).

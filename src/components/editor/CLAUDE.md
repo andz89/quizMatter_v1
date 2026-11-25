@@ -14,8 +14,8 @@ editor / view / review, and renders `Editor.tsx`, which calls `store.loadPresent
   the real letters, keeping bold and colors, on the selected words while typing, else all the text (like the other
   buttons, `formatChain`); one undo step, nothing new saved (spec
   `docs/superpowers/specs/2026-11-25-text-case-design.md`, test `e2e/text-case.mjs`). At 1280 px the middle toolbars
-  share 640 px (half the bar), so the text bar's buttons are 28 px wide (`ToolButton`, also the size picker's − / +
-  in the table and diagram bars); check `e2e/save-button-width.mjs` after adding one. From laptop width they sit in
+  share 640 px (half the bar), so every text bar button is 28 px wide (`ToolButton`, the color button, and the size
+  picker's − / +, which the table and diagram bars share); check `e2e/save-button-width.mjs` after adding one. From laptop width they sit in
   the middle of the bar, pinned 6 px from its top; when two don't fit on one line (typing in a table: text bar +
   table bar) the second row hangs below the bar instead of the first being pushed off the screen (test
   `e2e/toolbar-rows.mjs`). `ArrangePanel` and

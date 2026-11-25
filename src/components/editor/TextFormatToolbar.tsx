@@ -124,7 +124,7 @@ export function TextFormatToolbar({ texts }: { texts: TextEditorEntry[] }) {
         type="button"
         title="Text color"
         onClick={toggleColorPanel}
-        className="flex h-8 w-8 items-center justify-center"
+        className="flex h-8 w-7 items-center justify-center"
       >
         <span
           className="h-6 w-6 rounded-full"
@@ -164,7 +164,8 @@ function ToolButton({
       type="button"
       title={title}
       onClick={onClick}
-      // 28 px wide: at 1280 px the middle toolbars share 640 px, and the text bar must leave the Save button room.
+      // 28 px wide, like every button in the text bar: at 1280 px the middle toolbars share 640 px, and the text bar
+      // must leave the Save button room. FontSizePicker's − / + use it too, so the table and diagram bars match.
       className={`flex h-8 w-7 items-center justify-center rounded-dropdown text-sm ${
         active ? "bg-accent text-white" : "text-text-primary hover:bg-bg-page"
       }`}
