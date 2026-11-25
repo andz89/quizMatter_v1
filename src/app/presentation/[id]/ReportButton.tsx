@@ -7,7 +7,6 @@ import { Modal } from "@/components/Modal";
 import { Spinner } from "@/components/Spinner";
 import { REPORT_REASON_LABELS, type ReportReason } from "@/lib/schema";
 import { reportPresentation } from "./actions";
-import { useNestedDialog } from "../../openPresentation";
 
 /**
  * "Report" on another teacher's presentation: pick a reason, add a note if you like, and the admins get it.
@@ -26,8 +25,6 @@ export function ReportButton({
   const [reason, setReason] = useState<ReportReason | null>(null);
   const [note, setNote] = useState("");
   const [isSending, startSending] = useTransition();
-  // Inside the presentation modal: Escape and a click outside close only this box.
-  useNestedDialog(isOpen);
 
   const send = () =>
     startSending(async () => {

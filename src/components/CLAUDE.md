@@ -7,7 +7,8 @@ notes.
   `<Link>` to show both at once on click (see the root `CLAUDE.md`).
   `FormPending.tsx`: put inside a `next/form` `Form` to show the top line at once on submit (`useFormStatus`).
 - `Modal.tsx`: the one modal box (title, ✕, Escape / click outside closes, `isBusy` blocks closing, optional footer,
-  `isNarrow` for a small box, `canClose={false}` hides ✕ and ignores Escape / click outside, `hideHeader` leaves out the title row and ✕, `width` sets an exact width in px, `noPadding` lets the content reach the edges, `corner` floats something in the top-right corner, outside the scrolling).
+  `isNarrow` for a small box, `canClose={false}` hides ✕ and ignores Escape / click outside, `hideHeader` leaves out the title row and ✕, `width` sets an exact width in px, `noPadding` lets the content reach the edges, `corner` floats something in the top-right corner, outside the scrolling, `onOutsideClick` replaces onClose for a
+  click outside). Escape goes only to the box on top (the last one opened), so one Escape closes one box.
   For "Are you sure?" use `editor/ConfirmModal.tsx` instead, never the browser's `confirm()`.
 - `NavBar.tsx` (server only): the top bar of every page, with the "Support" button (`KeepFreeButton`) and
   `AccountMenu.tsx` (an "Admin" or "Editor" label above the name, then Admin, Account settings, Help & support,

@@ -110,6 +110,22 @@ try {
   await anyDialog.first().waitFor({ state: "detached" });
   check("Back closes it and stays on the list", new URL(page.url()).pathname === "/quizmatter", page.url());
 
+  // A double-click on a card: the second click lands outside the loading box, and the modal stays.
+  await page.locator("a", { hasText: titles.a }).first().dblclick();
+  await dialog.getByRole("heading", { name: titles.a }).waitFor({ timeout: 20_000 });
+  check("a double-click keeps the modal open", await dialog.isVisible());
+
+  // Escape, then another card at once (before the browser's Back is done): the new modal stays.
+  await page.keyboard.press("Escape");
+  await page.locator("a", { hasText: titles.b }).first().click();
+  const quickB = page.getByRole("dialog", { name: titles.b });
+  await quickB.getByRole("heading", { name: titles.b }).waitFor({ timeout: 20_000 });
+  await page.waitForTimeout(800);
+  check("closing and opening another card at once keeps the new one", await quickB.isVisible());
+  await page.goBack();
+  await anyDialog.first().waitFor({ state: "detached" });
+  check("…and one Back still closes it, on the list", new URL(page.url()).pathname === "/quizmatter", page.url());
+
   // A reload just reloads the list.
   await openA();
   await page.reload();

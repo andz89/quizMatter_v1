@@ -5,6 +5,9 @@ import { createPortal } from "react-dom";
 import { Spinner } from "./Spinner";
 import { XIcon } from "lucide-react";
 
+// The open boxes, oldest first: the last one is on top.
+const openModals: object[] = [];
+
 /**
  * A white box in the middle of the screen over a dark backdrop, with a title and ✕. Escape, a click outside
  * or ✕ closes it — except while `isBusy` (e.g. uploading), when ✕ shows the Spinner and nothing closes it.
@@ -14,11 +17,13 @@ import { XIcon } from "lucide-react";
  * (the title still names the box for screen readers); the footer then needs its own way to close. `width` gives the
  * box an exact width in px (e.g. an announcement), still shrinking to fit a smaller screen. `noPadding` lets the
  * content reach the box's edges (its corners are clipped round). `corner` floats in the box's top-right corner, over
- * the content and outside its scrolling (e.g. an announcement's close button).
+ * the content and outside its scrolling (e.g. an announcement's close button). `onOutsideClick` replaces onClose for a
+ * click outside. Escape goes only to the box on top.
  */
 export function Modal({
   title,
   onClose,
+  onOutsideClick,
   isBusy = false,
   isNarrow = false,
   canClose = true,
@@ -31,6 +36,8 @@ export function Modal({
 }: {
   title: string;
   onClose: () => void;
+  // A click outside the box, when it should do something else than onClose (e.g. wait a moment after opening).
+  onOutsideClick?: () => void;
   isBusy?: boolean;
   isNarrow?: boolean;
   canClose?: boolean;
@@ -48,9 +55,18 @@ export function Modal({
     if (e.key === "Escape" && !isBusy && canClose) onClose();
   });
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => onKeyDown(e);
+    // Only the box on top hears Escape (e.g. an announcement or Report over the presentation modal): one Escape closes
+    // one box. Boxes opened later sit on top (each is added to <body> in turn).
+    const entry = {};
+    openModals.push(entry);
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (openModals[openModals.length - 1] === entry) onKeyDown(e);
+    };
     window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      openModals.splice(openModals.indexOf(entry), 1);
+    };
   }, []);
 
   // Portal into <body>, so no parent's `zoom` or `transform` shifts this `position: fixed` box.
@@ -58,7 +74,7 @@ export function Modal({
     <div
       className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 px-4 py-6"
       onClick={(e) => {
-        if (e.target === e.currentTarget && !isBusy && canClose) onClose();
+        if (e.target === e.currentTarget && !isBusy && canClose) (onOutsideClick ?? onClose)();
       }}
     >
       <div

@@ -13,7 +13,12 @@ import { useEditorStore } from "@/lib/store";
 import { openPresentation } from "./presentation/[id]/actions";
 import type { PresentationViewData } from "./presentation/[id]/loadView";
 import { PresentationDetails } from "./presentation/[id]/PresentationDetails";
-import { PresentationModalContext, usePresentationChanges } from "./openPresentation";
+import {
+  PresentationModalContext,
+  PresentationModalOpenContext,
+  usePresentationChanges,
+  type PresentationModalApi,
+} from "./openPresentation";
 
 // A presentation's own address: those links open in the modal (useOpenOnClick), not as a page.
 const PRESENTATION_PATH = /^\/presentation\/[^/]+$/;
@@ -25,6 +30,9 @@ const REMEMBER_MS = 5 * 60 * 1000;
 // Only called on a click (open), never while drawing.
 const clockNow = () => Date.now();
 const isRecent = (at: number) => clockNow() - at < REMEMBER_MS;
+// Right after opening, a click outside doesn't close it: a double-click's second click lands on the backdrop.
+// (Escape and ✕ always close.)
+const OPEN_GRACE_MS = 500;
 
 /** Presenting ends (and fullscreen with it) when the modal goes away under it (the browser's Back). */
 function stopPresenting() {
@@ -39,7 +47,8 @@ function stopPresenting() {
  * modal-design.md), in the root layout. The address never changes, so a reload just reloads the page behind it.
  * Opening adds one history entry (same address), so Back closes it. Going to another page from inside it (a link,
  * Make a copy) takes that entry away first (`leave`), so one Back returns to the list. A Save or Like updates the
- * cards behind at once (announcePresentationChange) and refreshes the page behind when it closes.
+ * cards behind at once (announcePresentationChange) and refreshes the page behind when it closes. The pages get one
+ * steady `PresentationModalApi` (cards don't redraw on open / close) and `isOpen` from its own context.
  */
 export function PresentationModalProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
@@ -47,8 +56,6 @@ export function PresentationModalProvider({ children }: { children: ReactNode })
   const isPresenting = useEditorStore((s) => s.isPresenting);
   // `view` null = still loading.
   const [shown, setShown] = useState<{ id: string; view: PresentationViewData | null } | null>(null);
-  // A box opened from inside it (Report) is on top.
-  const [isNestedOpen, setNestedOpen] = useState(false);
   // Going to another page from inside it: the top line shows until that page opens.
   const [isLeaving, setIsLeaving] = useState(false);
   // Only the newest open counts (a second click while the first still loads).
@@ -57,29 +64,36 @@ export function PresentationModalProvider({ children }: { children: ReactNode })
   const hasEntryRef = useRef(false);
   // Something was saved or liked while it showed: the page behind is refreshed on close.
   const changedRef = useRef(false);
-  // Our own Back (✕ / Escape) is on its way: the refresh waits for it to finish.
+  // Our own Back (✕ / Escape) is on its way: the browser does it a moment later, and its popstate is ours, not a
+  // Back that closes a modal opened meanwhile.
+  const backPendingRef = useRef(false);
+  // …and once it's done: refresh the page behind (something changed) / add the entry of a modal opened meanwhile.
   const refreshAfterBackRef = useRef(false);
+  const pushAfterBackRef = useRef(false);
+  // When it opened (see OPEN_GRACE_MS).
+  const openedAtRef = useRef(0);
   // Our own Back from `leave` is on its way: that page opens once it's done.
   const leaveToRef = useRef<string | null>(null);
   // The remembered presentations, the one opened longest ago first (see REMEMBER_COUNT).
   const rememberedRef = useRef(new Map<string, { view: PresentationViewData; at: number }>());
 
-  usePresentationChanges(({ id, isSaved, isLiked, likeCount }) => {
+  usePresentationChanges(({ id, isSaved, isLiked }) => {
     if (shown) changedRef.current = true;
     // A remembered copy keeps the newest Save / Like, so opening it again shows them right.
     const remembered = rememberedRef.current.get(id);
     if (!remembered) return;
     const view = { ...remembered.view };
     if (isSaved !== undefined) view.isSaved = isSaved;
-    if (isLiked !== undefined) view.isLiked = isLiked;
-    if (likeCount !== undefined) view.likeCount = likeCount;
+    if (isLiked !== undefined && isLiked !== view.isLiked) {
+      view.isLiked = isLiked;
+      view.likeCount = Math.max(view.likeCount + (isLiked ? 1 : -1), 0);
+    }
     remembered.view = view;
   });
 
   const hide = () => {
     requestRef.current++;
     setShown(null);
-    setNestedOpen(false);
   };
   // A tick later, after Next's own Back handling (its popstate listener runs after ours and would undo it).
   const refreshSoon = () => setTimeout(() => router.refresh(), 0);
@@ -98,10 +112,19 @@ export function PresentationModalProvider({ children }: { children: ReactNode })
       setTimeout(() => router.push(href), 0);
       return;
     }
-    if (refreshAfterBackRef.current) {
+    if (backPendingRef.current) {
+      backPendingRef.current = false;
+      if (refreshAfterBackRef.current) refreshSoon();
       refreshAfterBackRef.current = false;
-      refreshSoon();
+      // A card was clicked before our Back was done: its modal gets its entry now.
+      if (pushAfterBackRef.current) {
+        pushAfterBackRef.current = false;
+        window.history.pushState(null, "", window.location.href);
+        hasEntryRef.current = true;
+      }
+      return;
     }
+    // The browser's own Back.
     if (!hasEntryRef.current) return;
     hasEntryRef.current = false;
     stopPresenting();
@@ -122,6 +145,9 @@ export function PresentationModalProvider({ children }: { children: ReactNode })
     hasEntryRef.current = false;
     changedRef.current = false;
     leaveToRef.current = null;
+    backPendingRef.current = false;
+    refreshAfterBackRef.current = false;
+    pushAfterBackRef.current = false;
     rememberedRef.current.clear();
     stopPresenting();
     setIsLeaving(false);
@@ -130,7 +156,11 @@ export function PresentationModalProvider({ children }: { children: ReactNode })
 
   const open = async (id: string, { fresh = false }: { fresh?: boolean } = {}) => {
     const request = ++requestRef.current;
-    if (!hasEntryRef.current) {
+    // What it showed before (a lesson or suggestion clicked inside): a failed load goes back to it.
+    const previous = shown?.view ? shown : null;
+    if (!previous) openedAtRef.current = clockNow();
+    if (backPendingRef.current) pushAfterBackRef.current = true;
+    else if (!hasEntryRef.current) {
       window.history.pushState(null, "", window.location.href);
       hasEntryRef.current = true;
     }
@@ -154,7 +184,8 @@ export function PresentationModalProvider({ children }: { children: ReactNode })
     if (request !== requestRef.current) return;
     if (!view) {
       toast.error(view === null ? "This presentation isn't available anymore." : "Couldn't open the presentation. Please try again.");
-      close();
+      if (previous && previous.id !== id) setShown(previous);
+      else close();
       return;
     }
     remembered.set(id, { view, at: clockNow() });
@@ -165,15 +196,23 @@ export function PresentationModalProvider({ children }: { children: ReactNode })
 
   const close = () => {
     hide();
+    // Closed again before our Back was done: no entry to add.
+    pushAfterBackRef.current = false;
     if (!hasEntryRef.current) {
       refreshIfChanged();
       return;
     }
     // Takes our history entry away; the popstate above then refreshes if needed.
     hasEntryRef.current = false;
+    backPendingRef.current = true;
     refreshAfterBackRef.current = changedRef.current;
     changedRef.current = false;
     window.history.back();
+  };
+  // A click outside: not in the first moment, so a double-click's second click doesn't close it at once.
+  const closeFromOutside = () => {
+    if (clockNow() - openedAtRef.current < OPEN_GRACE_MS) return;
+    close();
   };
 
   const leave = (href: string) => {
@@ -210,17 +249,28 @@ export function PresentationModalProvider({ children }: { children: ReactNode })
     leave(url.pathname + url.search + url.hash);
   };
 
+  // One steady object for the pages, calling the newest open / leave (set after each render).
+  const latestRef = useRef({ open, leave });
+  useEffect(() => {
+    latestRef.current = { open, leave };
+  });
+  const [api] = useState<PresentationModalApi>(() => ({
+    open: (id, options) => latestRef.current.open(id, options),
+    leave: (href) => latestRef.current.leave(href),
+  }));
+
   return (
-    <PresentationModalContext value={{ open, isOpen: shown !== null, leave, setNestedOpen }}>
-      {children}
+    <PresentationModalContext value={api}>
+      <PresentationModalOpenContext value={shown !== null}>{children}</PresentationModalOpenContext>
       {shown && (
         <Modal
           // A new presentation starts at the top of the box.
           key={shown.id}
           title={shown.view?.presentation.title || "Presentation"}
           onClose={close}
-          // Escape while presenting belongs to the presentation; while Report is on top, to that box.
-          canClose={!isPresenting && !isNestedOpen}
+          onOutsideClick={closeFromOutside}
+          // Escape while presenting belongs to the presentation. (A box on top, like Report, gets Escape by itself.)
+          canClose={!isPresenting}
           hideHeader
           noPadding
           width={1280}
@@ -237,11 +287,14 @@ export function PresentationModalProvider({ children }: { children: ReactNode })
           }
         >
           {shown.view ? (
-            <PeopleArtGate needed={usesPeopleArt(shown.view.presentation.slides)} fill>
-              <div className="px-5 pt-14 pb-6 sm:px-8 sm:pt-8 sm:pb-8" onClickCapture={onLinkClick}>
-                <PresentationDetails view={shown.view} inModal />
-              </div>
-            </PeopleArtGate>
+            // At least as tall as the loading box, so the people art's wait (or its Try again) fills it, not a strip.
+            <div className="grid min-h-[60vh]">
+              <PeopleArtGate needed={usesPeopleArt(shown.view.presentation.slides)} fill>
+                <div className="px-5 pt-14 pb-6 sm:px-8 sm:pt-8 sm:pb-8" onClickCapture={onLinkClick}>
+                  <PresentationDetails view={shown.view} inModal />
+                </div>
+              </PeopleArtGate>
+            </div>
           ) : (
             <div className="flex h-[60vh] items-center justify-center">
               <Spinner size={32} />

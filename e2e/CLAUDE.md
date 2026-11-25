@@ -190,7 +190,8 @@ when another is picked), moving into and between boxes (Alt keeps a free picture
 - `presentation-modal.mjs`: a card on From QuizMatter opens the modal in the same tab with the address unchanged
   (first slide, tags, Make a copy), the strip and → change the slide, Escape in Report closes only that box, Share
   copies the link, "Show more like this" loads a card that swaps the modal, Escape / Back close it and stay on the
-  list, opening one again sends no server request (remembered), a reload has no modal, Save inside works (the card behind shows it at once, the Saved tab has it; removed and saved again
+  list, a double-click keeps it open, Escape then another card at once keeps the new one (one Back still closes it),
+  opening one again sends no server request (remembered), a reload has no modal, Save inside works (the card behind shows it at once, the Saved tab has it; removed and saved again
   there, the card stays), the link
   itself is the full page with the same layout and its slide drawn, a modal over that page takes → alone and Present
   shows one view, Back while presenting ends it (the next modal still closes), Make a copy opens the editor with the

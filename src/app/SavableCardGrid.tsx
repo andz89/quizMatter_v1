@@ -10,17 +10,17 @@ import { usePresentationChanges } from "./openPresentation";
  */
 export function SavableCardGrid({ cards }: { cards: PresentationCardData[] }) {
   const [savedIds, setSavedIds] = useState(() => new Set(cards.filter((card) => card.isSaved).map((card) => card.id)));
-  const onSavedChange = (card: PresentationCardData, isSaved: boolean) =>
+  const markSaved = (id: string, isSaved: boolean) =>
     setSavedIds((ids) => {
       const next = new Set(ids);
-      if (isSaved) next.add(card.id);
-      else next.delete(card.id);
+      if (isSaved) next.add(id);
+      else next.delete(id);
       return next;
     });
+  const onSavedChange = (card: PresentationCardData, isSaved: boolean) => markSaved(card.id, isSaved);
   // Saved or removed elsewhere (the presentation modal, the same card in another grid).
   usePresentationChanges(({ id, isSaved }) => {
-    const card = cards.find((card) => card.id === id);
-    if (card && isSaved !== undefined) onSavedChange(card, isSaved);
+    if (isSaved !== undefined) markSaved(id, isSaved);
   });
   return (
     <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">

@@ -2,24 +2,30 @@
 
 import { createContext, useContext, useEffect, useEffectEvent, type MouseEvent } from "react";
 
-/** What the presentation modal (PresentationModalProvider, src/app/PresentationModal.tsx) gives the pages. */
+/**
+ * What the presentation modal (PresentationModalProvider, src/app/PresentationModal.tsx) gives the pages. The same
+ * object for the whole visit, so the cards that read it don't redraw when the modal opens or closes.
+ */
 export type PresentationModalApi = {
   // Opens someone else's presentation in the modal. `fresh` skips the remembered copy (it changed since it opened).
   open: (id: string, options?: { fresh?: boolean }) => void;
-  // The modal is showing: the page behind leaves the arrow keys and presenting to it.
-  isOpen: boolean;
   // Goes to another page from inside the modal (Make a copy, a profile link), taking the modal's Back entry away
   // first, so one Back returns to the list.
   leave: (href: string) => void;
-  // A box opened from inside the modal (Report) is on top: Escape and a click outside close only that box.
-  setNestedOpen: (isOpen: boolean) => void;
 };
 
 export const PresentationModalContext = createContext<PresentationModalApi | null>(null);
+// The modal is showing: the page behind leaves the arrow keys and presenting to it.
+export const PresentationModalOpenContext = createContext(false);
 
 /** The modal's tools, or null outside the provider. */
 export function usePresentationModal() {
   return useContext(PresentationModalContext);
+}
+
+/** The modal is showing (the page under it then leaves the arrow keys and presenting to it). */
+export function useIsPresentationModalOpen() {
+  return useContext(PresentationModalOpenContext);
 }
 
 /**
@@ -37,22 +43,13 @@ export function useOpenOnClick() {
   };
 }
 
-/** Tells the modal a box opened from inside it is showing (see setNestedOpen). */
-export function useNestedDialog(isOpen: boolean) {
-  const modal = usePresentationModal();
-  const setNestedOpen = modal?.setNestedOpen;
-  useEffect(() => {
-    if (!isOpen || !setNestedOpen) return;
-    setNestedOpen(true);
-    return () => setNestedOpen(false);
-  }, [isOpen, setNestedOpen]);
-}
-
 /**
  * A presentation was saved / unsaved or liked / unliked somewhere (the modal, a card): every card of it on the page
- * shows it at once, so the bookmark or heart behind the modal is never stale.
+ * shows it at once, so the bookmark or heart behind the modal is never stale. A like says only liked or not: each
+ * heart that showed the other state adds or takes away one from its own count (counts loaded at different times
+ * stay right).
  */
-export type PresentationChange = { id: string; isSaved?: boolean; isLiked?: boolean; likeCount?: number };
+export type PresentationChange = { id: string; isSaved?: boolean; isLiked?: boolean };
 
 const CHANGED = "qm:presentation-changed";
 

@@ -56,21 +56,28 @@ modal grey out.
   same `loadPresentationView` the page uses. **The address never changes**: a reload just reloads the page behind it
   (the user's choice). Opening adds one history entry with the same address, so Back closes it (the `popstate`
   listener is added once, with `useEffectEvent`: re-added on every render it missed Back); ✕, Escape and a click
-  outside close it through `history.back()`. Going to another page from inside it (a plain click on a link that isn't
+  outside close it through `history.back()` (`backPendingRef` marks that Back as ours: a card clicked before it's done
+  gets its entry once it is, so the new modal isn't closed by it). A click outside does nothing in the first 500 ms
+  (`OPEN_GRACE_MS`, the Modal's `onOutsideClick`), so a double-click's second click doesn't close it. Going to another page from inside it (a plain click on a link that isn't
   a presentation's, caught by `onClickCapture`; Make a copy and Review through `leave`) first takes that entry away
   with `history.back()`, then opens the page (a tick later, after Next's own Back handling), so one Back returns to
   the list; the top line shows meanwhile. It closes by itself when the page changes. The browser's Back while
   presenting also ends presenting and fullscreen (`stopPresenting`). Save and Like (in the modal, on a card, in
-  `LikeButton` / `SaveCardButton` / `LikeCardButton`) call `announcePresentationChange`: every card of it on the page
+  `LikeButton` / `SaveCardButton` / `LikeCardButton`) call `announcePresentationChange` (a like says only liked or
+  not, and each heart that showed the other state adds or takes away one from its own count): every card of it on the page
   (`useSavedIds`, `SavableCardGrid`, `LikeCardButton`, and the full page's own Save and `LikeButton`, via
-  `usePresentationChanges`; on Saved, a card removed and saved again comes back) shows it at once, and the page
+  `usePresentationChanges`; on Saved, a card removed and saved again comes back; a bookmark is kept even for a card
+  not in the list yet, which the refresh brings in) shows it at once, and the page
   behind is refreshed after the modal closes (a tick later, like the push after `leave`, so Next's Back handling
-  doesn't undo it). A link inside that changes only the search words of the same page closes the modal at once. While Report is on top (`useNestedDialog`), the modal's `canClose` is
-  off, so Escape and a click outside close only that box. While it's open, the page under it leaves the arrow keys and
-  presenting to it (`isOpen`: `PresentationDetails`' page copy and `PresentingView` in `(home)/CardGrid.tsx` don't
+  doesn't undo it). A link inside that changes only the search words of the same page closes the modal at once. A box
+  on top of it (Report, an announcement) gets Escape by itself (the shared `Modal` gives Escape only to the top box).
+  The pages get one steady object (`usePresentationModal`: `open`, `leave`), so the cards don't redraw when it opens
+  or closes; whether it's open is its own context (`useIsPresentationModalOpen`). While it's open, the page under it
+  leaves the arrow keys and presenting to it (`PresentationDetails`' page copy and `PresentingView` in `(home)/CardGrid.tsx` don't
   show their own view, `PresentDraftButton showView`), so one key moves one slide. A suggestion or lesson clicked
-  inside swaps the modal (no new history entry); if it went under review since it opened (a refused copy, or someone
-  else started reviewing it), the modal loads it again (`open(id, { fresh: true })`). **It remembers** the last 10 presentations opened for 5 minutes
+  inside swaps the modal (no new history entry; if it fails to load, the toast says so and the one shown before
+  stays); if it went private or under review since it opened (a refused copy, or someone else started reviewing it),
+  the modal loads it again (`open(id, { fresh: true })`: gone, it says so, closes and isn't remembered). **It remembers** the last 10 presentations opened for 5 minutes
   (the one opened longest ago is forgotten first; `REMEMBER_COUNT` / `REMEMBER_MS`, only in that tab's memory; another page or a reload starts empty), so opening
   one again shows at once without asking the server; a Save or Like updates the remembered copy too. Make a copy
   still checks the server first. My own cards and Claude's drafts still open the editor in a new tab. Test:

@@ -24,7 +24,12 @@ import { TopLoadingBar } from "@/components/TopLoadingBar";
 import { FluidSlidePreview } from "@/components/presentation/FluidSlidePreview";
 import { PresentDraftButton } from "@/components/presentation/PresentDraftButton";
 import { SAVE_ERRORS } from "../../SaveCardButton";
-import { announcePresentationChange, usePresentationChanges, usePresentationModal } from "../../openPresentation";
+import {
+  announcePresentationChange,
+  useIsPresentationModalOpen,
+  usePresentationChanges,
+  usePresentationModal,
+} from "../../openPresentation";
 import { LessonWeek } from "./LessonWeek";
 import { LikeButton } from "./LikeButton";
 import { MoreLikeThis } from "./MoreLikeThis";
@@ -60,7 +65,8 @@ export function PresentationDetails({ view, inModal = false }: { view: Presentat
     if (change.id === presentation.id && change.isSaved !== undefined) setIsSaved(change.isSaved);
   });
   // The page under an open modal: the modal is the one in use.
-  const isBehindModal = !inModal && !!modal?.isOpen;
+  const isModalOpen = useIsPresentationModalOpen();
+  const isBehindModal = !inModal && isModalOpen;
   // The slides the strip and Prev/Next go through (the details line still counts them all).
   const slides = view.showHidden ? presentation.slides : shownSlides(presentation.slides);
   const slideCount = slides.length;
@@ -97,10 +103,14 @@ export function PresentationDetails({ view, inModal = false }: { view: Presentat
       // The database hides someone else's private presentation, so finding nothing means it's private now.
       const { data: stillVisible, error } = await supabase.from("presentations").select("id, data_version").eq("id", presentation.id).maybeSingle();
       if (!error && !stillVisible) {
-        toast.error("This presentation is private now, so it can't be copied.");
         setIsCopying(false);
-        // The page loads again (and says it's gone); the modal just stays, the toast said why.
-        if (!inModal) router.refresh();
+        // The modal loads it again for real: it says it isn't available, closes, and forgets its remembered copy.
+        if (inModal && modal) {
+          modal.open(presentation.id, { fresh: true });
+          return;
+        }
+        toast.error("This presentation is private now, so it can't be copied.");
+        router.refresh();
         return;
       }
       // Saved by newer app code than this tab runs: copying it here would drop fields this tab doesn't know.
@@ -451,7 +461,7 @@ function Labels({ view }: { view: PresentationViewData }) {
           key={pill.text}
           className={`inline-flex items-center gap-1 rounded-dropdown px-2.5 py-1 text-[13px] leading-none font-semibold ${pill.className}`}
         >
-          {"icon" in pill && <CheckIcon size={12} strokeWidth={3} />}
+          {"icon" in pill && <CheckIcon size={12} />}
           {pill.text}
         </span>
       ))}
