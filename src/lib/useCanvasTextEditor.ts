@@ -3,7 +3,7 @@ import { useEditor, type Editor } from "@tiptap/react";
 import type { EditorView } from "@tiptap/pm/view";
 import { toast } from "sonner";
 import { useEditorStore, type TextTarget } from "@/lib/store";
-import { TEXT_EXTENSIONS } from "@/lib/richText";
+import { TEXT_EXTENSIONS, TEXT_PARSE_OPTIONS } from "@/lib/richText";
 import { useTextRoom } from "@/lib/useHasHiddenText";
 import { HTML_MAX, PLAIN_TEXT_MAX } from "@/lib/schema";
 import { TEXT_LIMIT_MESSAGE, TextLimit } from "@/lib/textLimit";
@@ -93,6 +93,7 @@ export function useCanvasTextEditor({
   const editor = useEditor({
     extensions: hasTextLimit ? WITH_TEXT_LIMIT : HTML_LIMIT_ONLY,
     content,
+    parseOptions: TEXT_PARSE_OPTIONS,
     editable: false,
     // Next.js renders this on the server first; the editor can only be built in the browser.
     immediatelyRender: false,
@@ -149,7 +150,7 @@ export function useCanvasTextEditor({
     if (!editor) return;
     const current = editor.isEmpty ? "" : editor.getHTML();
     if (current !== content) {
-      editor.commands.setContent(content, { emitUpdate: false });
+      editor.commands.setContent(content, { emitUpdate: false, parseOptions: TEXT_PARSE_OPTIONS });
       // Replacing the text drops the cursor, so if the user is typing here (e.g. pressed Ctrl+Z),
       // put the cursor back at the end.
       if (editor.isFocused) editor.commands.focus("end");

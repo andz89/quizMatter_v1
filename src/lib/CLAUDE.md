@@ -253,7 +253,8 @@ data. Spec: `docs/superpowers/specs/2026-10-23-stable-presentation-data-design.m
   up to 20 calls a day; the Privacy Policy promises it too).
 - Drawings: `svgLibrary.tsx`, `flags.tsx`, `kids.tsx`, `solids.tsx`, and the big people drawings `schoolBoy.tsx` /
   `clipartKids.tsx`, which load only when needed (`peopleArt.ts`).
-- Text: `richText.ts` (tiptap setup, safe HTML), `format.ts` (dates, labels), `blanks.ts` (`blankRuns`,
+- Text: `richText.ts` (tiptap setup, safe HTML; saved HTML is read back with `TEXT_PARSE_OPTIONS`, which keeps typed
+  spaces: runs of spaces and spaces at a line's start; test `e2e/text-spaces.mjs`), `format.ts` (dates, labels), `blanks.ts` (`blankRuns`,
   `markBlanks`: "___" blanks joined into one line, display only; tests `blanks.test.ts`) and `blankLines.ts` (the
   same in the editor, a Tiptap decoration). See `src/components/editor/CLAUDE.md`, "Slide text size".
 - `wordText.ts` / `wordFile.ts`: the editor's Word file panel (see `src/components/editor/CLAUDE.md`).

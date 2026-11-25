@@ -1,4 +1,4 @@
-import { generateHTML, generateJSON, type Editor } from "@tiptap/core";
+import { createDocument, getHTMLFromFragment, getSchema, type Editor } from "@tiptap/core";
 import Document from "@tiptap/extension-document";
 import Paragraph from "@tiptap/extension-paragraph";
 import Text from "@tiptap/extension-text";
@@ -77,10 +77,20 @@ export function stripMarkup(text: string): string {
 }
 
 /**
+ * How saved text HTML is read back (the editor and `toSafeHtml`): keep the spaces a teacher typed. Left out,
+ * reading HTML squeezes each run of spaces into one and drops spaces at a line's start, so "Name:     Score:" came
+ * back as "Name: Score:" after saving and opening again.
+ */
+export const TEXT_PARSE_OPTIONS = { preserveWhitespace: true } as const;
+
+// Built once: `toSafeHtml` runs for every text on every slide and thumbnail.
+const TEXT_SCHEMA = getSchema(TEXT_EXTENSIONS);
+
+/**
  * Re-builds saved HTML through the editor's own rules, which drops any tag or style the editor
  * doesn't allow — e.g. a <script> or <img> in the saved data comes out as nothing. Uses the
  * browser's DOM, so call it only on the client.
  */
 export function toSafeHtml(html: string): string {
-  return generateHTML(generateJSON(html, TEXT_EXTENSIONS), TEXT_EXTENSIONS);
+  return getHTMLFromFragment(createDocument(html, TEXT_SCHEMA, TEXT_PARSE_OPTIONS).content, TEXT_SCHEMA);
 }
