@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { hexToHsv, hsvToHex, parseHex, readRecentColors, withRecent } from "./colors.ts";
+import { hexToHsv, hsvToHex, parseHex, readRecentColors, withRecent } from "./colors";
 
 test("parseHex reads short and long hex, with or without #", () => {
   assert.equal(parseHex("#abc"), "#AABBCC");

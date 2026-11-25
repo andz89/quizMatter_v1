@@ -513,7 +513,7 @@ interface EditorState {
   activeTextEditor: Editor | null;
   // Which text that editor is typing in, so the format toolbar can change its font size.
   activeTextTarget: TextTarget | null;
-  setActiveTextEditor: (editor: Editor | null, target?: TextTarget | null) => void;
+  setActiveTextEditor: (editor: Editor | null, target?: TextTarget | null, keepColorPanel?: boolean) => void;
   // Sets the chosen font size of questions, options or text boxes (all to the same size).
   setTextFontSizes: (targets: TextTarget[], fontSize: number) => void;
 
@@ -1534,12 +1534,13 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   activeTextEditor: null,
   activeTextTarget: null,
-  // Leaving a text box with no shape selected closes the color panel — nothing is left for it to color.
-  setActiveTextEditor: (editor, target = null) =>
+  // Leaving a text box with no shape selected closes the color panel — nothing is left for it to color. Unless the
+  // focus went into the panel itself (its hex box), which then colors the words picked while typing.
+  setActiveTextEditor: (editor, target = null, keepColorPanel = false) =>
     set((state) => ({
       activeTextEditor: editor,
       activeTextTarget: editor ? target : null,
-      isColorPanelOpen: editor || state.selectedElementIds.length > 0 ? state.isColorPanelOpen : false,
+      isColorPanelOpen: editor || keepColorPanel || state.selectedElementIds.length > 0 ? state.isColorPanelOpen : false,
     })),
 
   setTextFontSizes: (targets, fontSize) => {

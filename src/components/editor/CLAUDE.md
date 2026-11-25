@@ -62,6 +62,16 @@ editor / view / review, and renders `Editor.tsx`, which calls `store.loadPresent
   `ColorPanel`, `BackgroundPanel`, `EffectsPanel`, `PresentationsPanel`, `WordFilePanel`, `LayersPanel`. They stay
   open after you add something (don't auto-close them). Only one is open at a time: each toggle in the store closes
   the others, so a new panel adds its `is…Open: next ? false : …` line to every toggle.
+- **Color panel** (`ColorPanel`): one panel for every color target (text, shapes, borders, table cells, diagram
+  boxes, the shape box), all through its `handleColor`. 36 Solid colors (the first 18 are the originals, kept in place
+  so colors already used still show as picked), 12 Light, the Gradients. "Custom" (spec
+  `docs/superpowers/specs/2026-11-25-custom-colors-design.md`, test `e2e/custom-colors.mjs`): the rainbow "+" opens
+  `CustomColorPicker` (a shade square, a hue bar, a hex box; math in `src/lib/colors.ts`), then Recent colors (custom
+  ones used, up to 11, newest first; this browser only, `localStorage` `qm-recent-colors`). The square and bar never
+  take the focus (a drag keeps typing and its picked words; a drag's moves join into one undo step). The hex box
+  needs the focus, which ends typing: a press on it first reads each typed-in text's picked words (`hexTargets`), and
+  Enter / leaving colors those words; the focus moving into the panel (`data-color-panel`) keeps it open
+  (`setActiveTextEditor`'s `keepColorPanel`). Saved colors stay `#RRGGBB`: no data change.
 - **Layers panel** (`LayersPanel`, the rail's "Layers", like Canva's; spec
   `docs/superpowers/specs/2026-11-25-layers-panel-design.md`): the selected slide's elements, one list per box ("On
   the slide", "Question", "Answer A"–"D", "Shape box", "Answer"), top layer first, since elements only overlap inside

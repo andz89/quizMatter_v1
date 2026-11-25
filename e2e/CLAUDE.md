@@ -144,6 +144,9 @@ Tests that delete data (the announcements ones empty the announcements table) do
 - `text-case.mjs`: the text bar's Change case (Aa) on a question: Sentence case on all the text while typing with
   nothing selected (a bolded "th" stays bold), UPPERCASE on selected words only, Capitalize Each Word across a bold
   split, one undo per pick, lowercase on a picked box, saved.
+- `custom-colors.mjs`: the Color panel's 36 Solid colors and its Custom picker: a hex typed for a picked question
+  box, dragging the shade square (the text and the hex box change; it goes into Recent), a hex while typing colors
+  only the words picked (the panel stays open), a bad hex goes back, saved, Recent kept after a reload.
 - `text-limits.mjs`: pasting past the limit into the question, an answer choice (5,000 characters) and a text box
   (50,000 as HTML, so 10,000 "&" is refused) leaves the text as it was with one toast; up to the limit goes in;
   typing at the limit is refused, deleting works; Ctrl+S saves; the slide name box's `maxlength`.

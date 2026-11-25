@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
+import type { Editor } from "@tiptap/react";
 import { useEditorState } from "@tiptap/react";
 import { useEditorStore } from "@/lib/store";
 import { useFormatTexts } from "@/lib/useFormatTexts";
@@ -18,9 +19,12 @@ import {
   SIDE_CONTAINER_ID,
 } from "@/lib/constants";
 import { PanelSlider } from "./PanelControls";
-import { XIcon } from "lucide-react";
+import { CustomColorPicker } from "./CustomColorPicker";
+import { parseHex, readRecentColors, withRecent } from "@/lib/colors";
+import { PlusIcon, XIcon } from "lucide-react";
 
-// A simple curated palette: the app's own brand colors first, then a broader range for presentation content.
+// A curated palette: the first 18 are the original ones (kept in place, so colors already used still show as picked),
+// then grays and darker / brighter shades. Any other color: the Custom picker.
 const COLORS = [
   "#191A2C",
   "#1E8E4F",
@@ -40,6 +44,24 @@ const COLORS = [
   "#AE3EC9",
   "#D6336C",
   "#495057",
+  "#000000",
+  "#343A40",
+  "#868E96",
+  "#CED4DA",
+  "#F783AC",
+  "#63E6BE",
+  "#7A1F1F",
+  "#8A3A0A",
+  "#6B4E00",
+  "#1B5E20",
+  "#0B3D91",
+  "#4A148C",
+  "#FF6B6B",
+  "#FFA94D",
+  "#FFD43B",
+  "#69DB7C",
+  "#4DABF7",
+  "#DA77F2",
 ];
 
 // Soft tints — good for backgrounds such as the shape box fill.
@@ -57,6 +79,21 @@ const LIGHT_COLORS = [
   "#FFF5F5",
   "#FFF9DB",
 ];
+
+// Custom colors used lately, kept in this browser only (newest first).
+const RECENT_KEY = "qm-recent-colors";
+// The custom picker's start when the picked color isn't one solid color (a gradient, none, or mixed): Quiz Violet.
+const PICKER_START = "#6B3DF5";
+// The "+" swatch that opens the custom picker.
+const RAINBOW = "conic-gradient(#F00, #FF0, #0F0, #0FF, #00F, #F0F, #F00)";
+
+function loadRecentColors(): string[] {
+  try {
+    return readRecentColors(localStorage.getItem(RECENT_KEY));
+  } catch {
+    return [];
+  }
+}
 
 // A white circle with a red slash, for "no color".
 export const NONE_SWATCH = "linear-gradient(135deg, #FFFFFF 45%, #E03131 45%, #E03131 55%, #FFFFFF 55%)";
@@ -100,6 +137,10 @@ export function ColorPanel() {
   // text of the selected question/option boxes.
   const texts = useFormatTexts();
   const textEditor = texts[0]?.editor ?? null;
+  const [isPickerOpen, setIsPickerOpen] = useState(false);
+  const [recentColors, setRecentColors] = useState(loadRecentColors);
+  // The words picked in each text being typed in, read on the press on the hex box (its focus ends the typing).
+  const hexTargets = useRef<{ editor: Editor; from: number; to: number }[] | null>(null);
   const textColor = useEditorState({
     editor: textEditor,
     selector: ({ editor }) => (editor?.getAttributes("textStyle").color as string | undefined) ?? DEFAULT_TEXT_COLOR,
@@ -199,6 +240,35 @@ export function ColorPanel() {
     else if (color) updateElements(selectedSlideId, Object.fromEntries(elements.map((el) => [el.id, { color }])));
   };
 
+  // A custom color used: first in Recent (preset colors already have their swatch).
+  const rememberColor = (color: string) => {
+    if (COLORS.includes(color) || LIGHT_COLORS.includes(color)) return;
+    const next = withRecent(recentColors, color);
+    setRecentColors(next);
+    try {
+      localStorage.setItem(RECENT_KEY, JSON.stringify(next));
+    } catch {
+      // Storage blocked or full: Recent lasts only while the panel is open.
+    }
+  };
+  const handleHexStart = () => {
+    hexTargets.current = texts
+      .filter(({ editor }) => editor.isEditable)
+      .map(({ editor }) => ({ editor, from: editor.state.selection.from, to: editor.state.selection.to }));
+  };
+  const handleHexColor = (color: string) => {
+    const typedIn = hexTargets.current ?? [];
+    hexTargets.current = null;
+    // Typing ended when the box took the focus: color the words that were picked then, not the whole text.
+    if (typedIn.length > 0)
+      typedIn.forEach(({ editor, from, to }) => {
+        if (!editor.isDestroyed) editor.chain().setTextSelection({ from, to }).setColor(color).run();
+      });
+    else handleColor(color);
+    rememberColor(color);
+  };
+  const pickerColor = (commonColor && parseHex(commonColor)) ?? PICKER_START;
+
   // The thickness applies to every selected shape at once; the slider starts at the first one's value.
   const borderWidth = elements[0]?.borderWidth ?? BORDER_WIDTH_DEFAULT;
   const setBorderWidth = (value: number) => {
@@ -214,6 +284,8 @@ export function ColorPanel() {
   return (
     <div
       data-keep-container-selection="true"
+      // The text being typed in leaves the panel open when the focus moves in here (the custom color's hex box).
+      data-color-panel="true"
       // In text mode, mousedown's default would move focus out of the text and lose the selected words.
       onMouseDown={(e) => textEditor && e.preventDefault()}
       className="flex shrink-0 flex-col overflow-y-auto border-r border-border-default bg-bg-surface side-panel"
@@ -280,7 +352,51 @@ export function ColorPanel() {
         </div>
       )}
 
-      <h3 className="mb-3 text-[12px] font-bold uppercase tracking-[0.05em] text-text-header">Solid</h3>
+      <h3 className="mb-3 text-[12px] font-bold uppercase tracking-[0.05em] text-text-header">Custom</h3>
+      <div className="grid grid-cols-6 justify-items-center gap-3">
+        <button
+          type="button"
+          title="Custom color"
+          aria-expanded={isPickerOpen}
+          onClick={() => setIsPickerOpen((open) => !open)}
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full"
+          style={{
+            background: RAINBOW,
+            outline: isPickerOpen ? "2px solid var(--accent)" : "2px solid transparent",
+            outlineOffset: 2,
+          }}
+        >
+          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-bg-surface text-text-primary">
+            <PlusIcon size={14} />
+          </span>
+        </button>
+        {recentColors.map((color) => (
+          <Swatch
+            key={color}
+            title={color}
+            background={color}
+            bordered
+            selected={commonColor === color}
+            onClick={() => {
+              handleColor(color);
+              rememberColor(color);
+            }}
+          />
+        ))}
+      </div>
+      {isPickerOpen && (
+        <div className="mt-4">
+          <CustomColorPicker
+            color={pickerColor}
+            onChange={handleColor}
+            onDone={rememberColor}
+            onHexStart={handleHexStart}
+            onHexColor={handleHexColor}
+          />
+        </div>
+      )}
+
+      <h3 className="mb-3 mt-6 text-[12px] font-bold uppercase tracking-[0.05em] text-text-header">Solid</h3>
       <div className="grid grid-cols-6 justify-items-center gap-3">
         {COLORS.map((color) => (
           <Swatch

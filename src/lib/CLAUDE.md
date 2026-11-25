@@ -309,6 +309,9 @@ data. Spec: `docs/superpowers/specs/2026-10-23-stable-presentation-data-design.m
 - `layers.ts`: the editor's Layers panel math (only a type import, tested in `layers.test.ts`): `layerBoxes` (rows
   per box, top layer first, groups folded) and `moveLayer` (a dragged row just above or below another in its box).
   How the panel uses them: `src/components/editor/CLAUDE.md`, "Layers panel".
+- `colors.ts`: the Color panel's custom picker math (no imports, tested in `colors.test.ts`): `parseHex` (`#abc` /
+  `aabbcc` → `#AABBCC`, else null), `hexToHsv` / `hsvToHex`, `withRecent` and `readRecentColors` (Recent colors in
+  `localStorage`, junk ignored). How the panel uses them: `src/components/editor/CLAUDE.md`, "Color panel".
 - `sameValue.ts`: whether two settings hold the same values in any key order (the database re-sorts saved keys, e.g.
   a fraction comes back as `{parts, whole, shaded}`); `MathToolControls` uses it. Tests: `sameValue.test.ts`.
 - `support.ts`: `SUPPORT_EMAIL` and `FACEBOOK_URL`, the one place each is written (the support address is an alias
