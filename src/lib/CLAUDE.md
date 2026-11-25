@@ -283,7 +283,8 @@ data. Spec: `docs/superpowers/specs/2026-10-23-stable-presentation-data-design.m
   `insertContent`) and the read-only text with `toSafeHtml`. Both first run `tidySavedHtml` (a tab or line end older
   Claude imports saved shows as one space, a line end at a tag's edge goes). New text from outside goes through
   `tidyText` in `textToHtml` and `stripMarkup` (`\r\n` → a new line, a tab → one space), so a Claude import's plain
-  text and HTML match. Tests: `richText.test.ts`, `e2e/text-spaces.mjs`. `textCase.ts`: the text bar's Change
+  text and HTML match. `colorSavedText` colors a range of saved HTML (the Color panel's hex box on a table cell,
+  whose text editor is gone once typing ends). Tests: `richText.test.ts`, `e2e/text-spaces.mjs`. `textCase.ts`: the text bar's Change
   case (`changeCase` reads a whole paragraph, one result per character, so a word split by bold is one word and
   separate accent marks stay in their word; Sentence case starts after . ! ? followed by a space, keeps "I" / "I'm"
   (not "i-click"), and a line break isn't a new sentence; Capitalize Each Word: "don't" → "Don't", "'hello" →
@@ -306,6 +307,14 @@ data. Spec: `docs/superpowers/specs/2026-10-23-stable-presentation-data-design.m
   text moved with Track Changes on read once (`w:moveFrom` skipped), `stripItemMark` (a single letter only as A–E in
   an answer box or I / V / X in the question box, never right before another initial: "J. K. Rowling"), `droppedTextHtml`, `pickedSlideTexts` + `PICKED_LINES_MAX` (ticked lines → question and A–D), `suggestItems` (numbered lines and up to 4
   lines under each, for Show suggestions; `stripItemMark` also removes a "____" blank in front of a number), `WORD_LINES_MAX` (2,000). Tests: `wordText.test.ts`, `wordFile.test.ts`.
+- `layers.ts`: the editor's Layers panel math (imports only `constants.ts` and `embed.ts`, tested in
+  `layers.test.ts`): `layerBoxes` (rows per box, top layer first, groups folded), `shownLayerBoxes` (only the boxes
+  the slide shows, named, in their order on the slide) and `moveLayer` (a dragged row just above or below another
+  in its box).
+  How the panel uses them: `src/components/editor/CLAUDE.md`, "Layers panel".
+- `colors.ts`: the Color panel's custom picker math (no imports, tested in `colors.test.ts`): `parseHex` (`#abc` /
+  `aabbcc` → `#AABBCC`, else null), `hexToHsv` / `hsvToHex`, `withRecent` and `readRecentColors` (Recent colors in
+  `localStorage`, junk ignored). How the panel uses them: `src/components/editor/CLAUDE.md`, "Color panel".
 - `sameValue.ts`: whether two settings hold the same values in any key order (the database re-sorts saved keys, e.g.
   a fraction comes back as `{parts, whole, shaded}`); `MathToolControls` uses it. Tests: `sameValue.test.ts`.
 - `support.ts`: `SUPPORT_EMAIL` and `FACEBOOK_URL`, the one place each is written (the support address is an alias

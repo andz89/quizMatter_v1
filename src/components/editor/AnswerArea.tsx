@@ -6,7 +6,7 @@ import { ANSWER_CONTAINER_ID, CANVAS_WIDTH, CANVAS_HEIGHT, getContainerBounds, h
 import { useElementDropTarget } from "@/lib/useElementDropTarget";
 import { useMarqueeSelection } from "@/lib/useMarqueeSelection";
 import { getElementAsset } from "@/lib/svgLibrary";
-import { SvgElementItem } from "./SvgElementItem";
+import { BoxElements } from "./SvgElementItem";
 import { GroupSelectionOverlay } from "./GroupSelectionOverlay";
 import { SnapGuides } from "./SnapGuides";
 import { ContainerClearButton } from "./ContainerClearButton";
@@ -176,15 +176,7 @@ function AnswerCanvas({ slide }: { slide: Slide }) {
       )}
 
       <div data-element-layer className="pointer-events-none absolute inset-0">
-        {answerElements.map((element) => (
-          <SvgElementItem
-            key={element.id}
-            slideId={slide.id}
-            element={element}
-            isSelected={selectedElementIds.includes(element.id)}
-            bounds={ANSWER_BOUNDS}
-          />
-        ))}
+        <BoxElements slideId={slide.id} elements={answerElements} selectedElementIds={selectedElementIds} bounds={ANSWER_BOUNDS} />
         <GroupSelectionOverlay slideId={slide.id} elements={answerElements} bounds={ANSWER_BOUNDS} />
         <SnapGuides slideId={slide.id} containerId={ANSWER_CONTAINER_ID} />
       </div>

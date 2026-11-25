@@ -128,6 +128,7 @@ export const SvgElementItem = memo(function SvgElementItem({ slideId, element, i
   const setSnapGuides = useEditorStore((s) => s.setSnapGuides);
   // While ghost previews show the dragged element(s) in a different box, hide the real ones so they're not duplicated.
   const isGhosting = useEditorStore((s) => s.elementDragGhosts.some((g) => g.id === element.id));
+  const isLayerHovered = useEditorStore((s) => s.hoveredLayerIds.includes(element.id));
 
   const dragState = useRef<DragState | null>(null);
   // Set when a pointer press and release on a selected diagram was a click (see stopDrag).
@@ -672,7 +673,14 @@ export const SvgElementItem = memo(function SvgElementItem({ slideId, element, i
         height: element.height,
         transform: `rotate(${angle}deg)`,
         visibility: isGhosting ? "hidden" : "visible",
-        outline: isOnlySelected && showSelection ? "1.5px dashed var(--text-header)" : "1.5px dashed transparent",
+        // Hovered in the Layers panel: a violet line shows which element that row is, even under other ones.
+        outline: !showSelection
+          ? "1.5px dashed transparent"
+          : isOnlySelected
+            ? "1.5px dashed var(--text-header)"
+            : isLayerHovered
+              ? "2px solid var(--accent)"
+              : "1.5px dashed transparent",
         outlineOffset: 3,
       }}
     >
@@ -861,3 +869,33 @@ export const SvgElementItem = memo(function SvgElementItem({ slideId, element, i
   prev.part === next.part &&
   prev.bounds.width === next.bounds.width &&
   prev.bounds.height === next.bounds.height);
+
+/**
+ * A box's elements (Question, an answer, Shape box, Answer canvas) in two passes, like the slide's two layers: every
+ * picture first, then every selection part (outline and handles). So the handles of a selected element, and the
+ * Layers panel's hover outline, show above whatever covers it in its box.
+ */
+export function BoxElements({
+  slideId,
+  elements,
+  selectedElementIds,
+  bounds,
+}: {
+  slideId: string;
+  elements: SvgElement[];
+  selectedElementIds: string[];
+  bounds: { width: number; height: number };
+}) {
+  return (["picture", "selection"] as const).flatMap((part) =>
+    elements.map((element) => (
+      <SvgElementItem
+        key={`${part}:${element.id}`}
+        slideId={slideId}
+        element={element}
+        isSelected={selectedElementIds.includes(element.id)}
+        bounds={bounds}
+        part={part}
+      />
+    ))
+  );
+}

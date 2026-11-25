@@ -3,7 +3,7 @@
 import { useEditorStore, selectedIdsOn } from "@/lib/store";
 import { SIDE_CONTAINER_ID, getContainerBounds, getShapeStripHeight, hasShapeStrip } from "@/lib/constants";
 import { useElementDropTarget } from "@/lib/useElementDropTarget";
-import { SvgElementItem } from "./SvgElementItem";
+import { BoxElements } from "./SvgElementItem";
 import { toCssBackground } from "./ElementSvg";
 import { GroupSelectionOverlay } from "./GroupSelectionOverlay";
 import { SnapGuides } from "./SnapGuides";
@@ -58,15 +58,7 @@ export function SideContainer({ slide }: { slide: Slide }) {
 
       {/* Matches SIDE_PADDING: inset-4 beside the list rows, none in the strip. */}
       <div data-element-layer className={`pointer-events-none absolute ${isStrip ? "inset-0" : "inset-4"}`}>
-        {boundElements.map((element) => (
-          <SvgElementItem
-            key={element.id}
-            slideId={slide.id}
-            element={element}
-            isSelected={selectedElementIds.includes(element.id)}
-            bounds={bounds}
-          />
-        ))}
+        <BoxElements slideId={slide.id} elements={boundElements} selectedElementIds={selectedElementIds} bounds={bounds} />
         <GroupSelectionOverlay slideId={slide.id} elements={boundElements} bounds={bounds} />
         <SnapGuides slideId={slide.id} containerId={SIDE_CONTAINER_ID} />
       </div>

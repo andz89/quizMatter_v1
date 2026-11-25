@@ -48,6 +48,7 @@ import { finishDraft } from "@/app/actions";
 import { isEmbedSlide } from "./embed";
 import { todayCalendarDate } from "./calendarDate";
 import { newTable, type TableCellSpot } from "./table";
+import { moveLayer } from "./layers";
 import { fitIntoRow, gridRowNeeds, shareOut } from "./optionRows";
 import { measureOptionNeeds } from "./measureOptions";
 import type { Photo, PresentationDetails, Presentation, ReviewerFields, Slide, SlideType, SvgElement } from "./schema";
@@ -512,7 +513,7 @@ interface EditorState {
   activeTextEditor: Editor | null;
   // Which text that editor is typing in, so the format toolbar can change its font size.
   activeTextTarget: TextTarget | null;
-  setActiveTextEditor: (editor: Editor | null, target?: TextTarget | null) => void;
+  setActiveTextEditor: (editor: Editor | null, target?: TextTarget | null, keepColorPanel?: boolean) => void;
   // Sets the chosen font size of questions, options or text boxes (all to the same size).
   setTextFontSizes: (targets: TextTarget[], fontSize: number) => void;
 
@@ -541,6 +542,9 @@ interface EditorState {
   deleteElements: (slideId: string, elementIds: string[]) => void;
   // Brings elements forward/to front or sends them backward/to back (see moveInLayers).
   moveElementsInLayers: (slideId: string, elementIds: string[], move: LayerMove) => void;
+  // The Layers panel's drag: puts a row (one element, a whole group or one member) just above or below another
+  // row in its box (see moveLayer).
+  reorderLayers: (slideId: string, movingIds: string[], targetId: string, place: "above" | "below") => void;
   // Returns the copies' ids. Copies of a whole group form a new group of their own.
   duplicateElements: (slideId: string, elementIds: string[]) => string[];
   // Removes every element bound to one box (the question or an option).
@@ -597,6 +601,13 @@ interface EditorState {
   isWordPanelOpen: boolean;
   toggleWordPanel: () => void;
   closeWordPanel: () => void;
+  // The Layers panel lists the selected slide's elements, box by box, top layer first.
+  isLayersPanelOpen: boolean;
+  toggleLayersPanel: () => void;
+  closeLayersPanel: () => void;
+  // The elements under the pointer in the Layers panel: outlined on the slide. Not saved, not in undo.
+  hoveredLayerIds: string[];
+  setHoveredLayerIds: (ids: string[]) => void;
   wordFile: WordFile | null;
   setWordFile: (wordFile: WordFile | null) => void;
   // A line picked up with a tap on its handle (for touch screens, where dragging doesn't work): the next tap on a
@@ -1523,12 +1534,13 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   activeTextEditor: null,
   activeTextTarget: null,
-  // Leaving a text box with no shape selected closes the color panel — nothing is left for it to color.
-  setActiveTextEditor: (editor, target = null) =>
+  // Leaving a text box with no shape selected closes the color panel — nothing is left for it to color. Unless the
+  // focus went into the panel itself (its hex box), which then colors the words picked while typing.
+  setActiveTextEditor: (editor, target = null, keepColorPanel = false) =>
     set((state) => ({
       activeTextEditor: editor,
       activeTextTarget: editor ? target : null,
-      isColorPanelOpen: editor || state.selectedElementIds.length > 0 ? state.isColorPanelOpen : false,
+      isColorPanelOpen: editor || keepColorPanel || state.selectedElementIds.length > 0 ? state.isColorPanelOpen : false,
     })),
 
   setTextFontSizes: (targets, fontSize) => {
@@ -1656,6 +1668,15 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const slide = presentation.slides.find((s) => s.id === slideId);
     if (!slide) return;
     const elements = moveInLayers(slide.elements, elementIds, move);
+    if (elements === slide.elements) return;
+    set({ presentation: updateSlide(presentation, slideId, (s) => ({ ...s, elements })) });
+  },
+
+  reorderLayers: (slideId, movingIds, targetId, place) => {
+    const { presentation } = get();
+    const slide = presentation.slides.find((s) => s.id === slideId);
+    if (!slide) return;
+    const elements = moveLayer(slide.elements, movingIds, targetId, place);
     if (elements === slide.elements) return;
     set({ presentation: updateSlide(presentation, slideId, (s) => ({ ...s, elements })) });
   },
@@ -1797,6 +1818,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         isEffectsPanelOpen: next ? false : state.isEffectsPanelOpen,
         isPresentationsPanelOpen: next ? false : state.isPresentationsPanelOpen,
         isWordPanelOpen: next ? false : state.isWordPanelOpen,
+        isLayersPanelOpen: next ? false : state.isLayersPanelOpen,
         isPhotosPanelOpen: next ? false : state.isPhotosPanelOpen,
       };
     }),
@@ -1814,6 +1836,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         isEffectsPanelOpen: next ? false : state.isEffectsPanelOpen,
         isPresentationsPanelOpen: next ? false : state.isPresentationsPanelOpen,
         isWordPanelOpen: next ? false : state.isWordPanelOpen,
+        isLayersPanelOpen: next ? false : state.isLayersPanelOpen,
       };
     }),
   closePhotosPanel: () => set({ isPhotosPanelOpen: false }),
@@ -1832,6 +1855,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         isEffectsPanelOpen: next ? false : state.isEffectsPanelOpen,
         isPresentationsPanelOpen: next ? false : state.isPresentationsPanelOpen,
         isWordPanelOpen: next ? false : state.isWordPanelOpen,
+        isLayersPanelOpen: next ? false : state.isLayersPanelOpen,
         isPhotosPanelOpen: next ? false : state.isPhotosPanelOpen,
       };
     }),
@@ -1848,6 +1872,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         isEffectsPanelOpen: next ? false : state.isEffectsPanelOpen,
         isPresentationsPanelOpen: next ? false : state.isPresentationsPanelOpen,
         isWordPanelOpen: next ? false : state.isWordPanelOpen,
+        isLayersPanelOpen: next ? false : state.isLayersPanelOpen,
         isPhotosPanelOpen: next ? false : state.isPhotosPanelOpen,
       };
     }),
@@ -1863,6 +1888,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         isEffectsPanelOpen: next ? false : state.isEffectsPanelOpen,
         isPresentationsPanelOpen: next ? false : state.isPresentationsPanelOpen,
         isWordPanelOpen: next ? false : state.isWordPanelOpen,
+        isLayersPanelOpen: next ? false : state.isLayersPanelOpen,
         isPhotosPanelOpen: next ? false : state.isPhotosPanelOpen,
       };
     }),
@@ -1879,6 +1905,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         isBackgroundPanelOpen: next ? false : state.isBackgroundPanelOpen,
         isPresentationsPanelOpen: next ? false : state.isPresentationsPanelOpen,
         isWordPanelOpen: next ? false : state.isWordPanelOpen,
+        isLayersPanelOpen: next ? false : state.isLayersPanelOpen,
         isPhotosPanelOpen: next ? false : state.isPhotosPanelOpen,
       };
     }),
@@ -1896,6 +1923,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         isEffectsPanelOpen: next ? false : state.isEffectsPanelOpen,
         isPhotosPanelOpen: next ? false : state.isPhotosPanelOpen,
         isWordPanelOpen: next ? false : state.isWordPanelOpen,
+        isLayersPanelOpen: next ? false : state.isLayersPanelOpen,
       };
     }),
   closePresentationsPanel: () => set({ isPresentationsPanelOpen: false }),
@@ -1906,6 +1934,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       const next = !state.isWordPanelOpen;
       return {
         isWordPanelOpen: next,
+        isLayersPanelOpen: next ? false : state.isLayersPanelOpen,
         isElementsPanelOpen: next ? false : state.isElementsPanelOpen,
         isColorPanelOpen: next ? false : state.isColorPanelOpen,
         isBackgroundPanelOpen: next ? false : state.isBackgroundPanelOpen,
@@ -1915,6 +1944,26 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       };
     }),
   closeWordPanel: () => set({ isWordPanelOpen: false, heldWordLine: null }),
+
+  isLayersPanelOpen: false,
+  toggleLayersPanel: () =>
+    set((state) => {
+      const next = !state.isLayersPanelOpen;
+      return {
+        isLayersPanelOpen: next,
+        hoveredLayerIds: [],
+        isElementsPanelOpen: next ? false : state.isElementsPanelOpen,
+        isColorPanelOpen: next ? false : state.isColorPanelOpen,
+        isBackgroundPanelOpen: next ? false : state.isBackgroundPanelOpen,
+        isEffectsPanelOpen: next ? false : state.isEffectsPanelOpen,
+        isPresentationsPanelOpen: next ? false : state.isPresentationsPanelOpen,
+        isPhotosPanelOpen: next ? false : state.isPhotosPanelOpen,
+        isWordPanelOpen: next ? false : state.isWordPanelOpen,
+      };
+    }),
+  closeLayersPanel: () => set({ isLayersPanelOpen: false, hoveredLayerIds: [] }),
+  hoveredLayerIds: [],
+  setHoveredLayerIds: (hoveredLayerIds) => set({ hoveredLayerIds }),
   wordFile: null,
   // A new file's lines are other lines: a held place would point at another one.
   setWordFile: (wordFile) => set({ wordFile, heldWordLine: null }),
@@ -1952,6 +2001,21 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 // record that as a new edit.
 let skipHistory = false;
 let lastPresentationChangeAt = 0;
+// A held drag (beginHistoryStep): "start" = its first change starts a step, "join" = the rest join it, however slow.
+let heldStep: "start" | "join" | null = null;
+
+/**
+ * A drag that is one undo step however long it pauses (e.g. the Color panel's shade square): its first change starts
+ * a new step and every change until endHistoryStep joins it. The next edit after it starts its own step.
+ */
+export function beginHistoryStep() {
+  heldStep = "start";
+}
+
+export function endHistoryStep() {
+  heldStep = null;
+  lastPresentationChangeAt = 0;
+}
 
 /**
  * Runs a presentation change that isn't the user's own edit — like fitting a box to its drawing when it
@@ -2000,7 +2064,8 @@ useEditorStore.subscribe((state, prev) => {
   if (state.presentation === prev.presentation || skipHistory) return;
 
   const now = Date.now();
-  const startsNewStep = now - lastPresentationChangeAt > HISTORY_GROUP_MS;
+  const startsNewStep = heldStep === "start" || (heldStep !== "join" && now - lastPresentationChangeAt > HISTORY_GROUP_MS);
+  if (heldStep === "start") heldStep = "join";
   lastPresentationChangeAt = now;
   if (!startsNewStep) return;
 

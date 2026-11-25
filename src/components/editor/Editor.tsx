@@ -16,6 +16,7 @@ import { BackgroundPanel } from "./BackgroundPanel";
 import { EffectsPanel } from "./EffectsPanel";
 import { PresentationsPanel } from "./PresentationsPanel";
 import { WordFilePanel } from "./WordFilePanel";
+import { LayersPanel } from "./LayersPanel";
 import { SmallScreenNote } from "./SmallScreenNote";
 import { ReviewBanner } from "./ReviewControls";
 import { SentBackBanner } from "./SentBackBanner";
@@ -98,6 +99,7 @@ export function Editor({
   const isEffectsPanelOpen = useEditorStore((s) => s.isEffectsPanelOpen);
   const isPresentationsPanelOpen = useEditorStore((s) => s.isPresentationsPanelOpen);
   const isWordPanelOpen = useEditorStore((s) => s.isWordPanelOpen);
+  const isLayersPanelOpen = useEditorStore((s) => s.isLayersPanelOpen);
   const closeColorPanel = useEditorStore((s) => s.closeColorPanel);
   const selectedElementIds = useEditorStore((s) => s.selectedElementIds);
   const clearElementSelection = useEditorStore((s) => s.clearElementSelection);
@@ -246,6 +248,7 @@ export function Editor({
           {isEffectsPanelOpen && <EffectsPanel />}
           {isPresentationsPanelOpen && <PresentationsPanel />}
           {isWordPanelOpen && <WordFilePanel />}
+          {isLayersPanelOpen && <LayersPanel />}
         </div>
         <div className="flex min-w-0 flex-1 flex-col">
           <Workspace />

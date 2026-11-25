@@ -144,6 +144,12 @@ Tests that delete data (the announcements ones empty the announcements table) do
 - `text-case.mjs`: the text bar's Change case (Aa) on a question: Sentence case on all the text while typing with
   nothing selected (a bolded "th" stays bold), UPPERCASE on selected words only, Capitalize Each Word across a bold
   split, one undo per pick, lowercase on a picked box, saved.
+- `custom-colors.mjs`: the Color panel's 36 Solid colors and its Custom picker: a hex typed for a picked question
+  box, dragging the shade square (the text and the hex box change; it goes into Recent), a hex while typing colors
+  only the words picked (the panel stays open) and keeps showing their color, a drag after it colors only those
+  words and (with a 1 second pause) is one undo step, a bad hex goes back, saved, a cursor with no words picked
+  colors the whole text, the box's own color typed still goes to red words, a hex pasted with spaces works, a hex
+  colors the words picked in a table cell (and goes into Recent), Recent kept after a reload.
 - `text-limits.mjs`: pasting past the limit into the question, an answer choice (5,000 characters) and a text box
   (50,000 as HTML, so 10,000 "&" is refused) leaves the text as it was with one toast; up to the limit goes in;
   typing at the limit is refused, deleting works; Ctrl+S saves; the slide name box's `maxlength`.
@@ -308,6 +314,17 @@ when another is picked), moving into and between boxes (Alt keeps a free picture
   "Photo (link)", no toast; the box closes. Custom "1, 9" is refused with words; Custom "2" has only the photo slide
   and no key. Text (.txt): plain options, the photo links and "## Answer key" at the end. Screenshots of the box:
   `download-box.png` (Word, All slides) and `download-box-custom.png` (Custom).
+- `layers-panel.mjs`: the editor's Layers panel. A slide with a circle hidden under a rectangle, a group and a star
+  in answer B: the boxes ("On the slide", "Answer B"), top layer first with the group folded, ▸ shows its members,
+  hovering a row outlines one element on the slide, a click selects the hidden circle (screenshot
+  `layers-panel.png`), dragging it above the rectangle saves that order, one Ctrl+Z puts it back, Enter picks a
+  focused row, a row dropped over the next box's row stays in its own box, a True or false slide doesn't list its
+  hidden answer C's star, a hidden slide shows its note, 1,000 elements list within 3 seconds, and dragging an
+  element on that slide isn't much slower with the panel open (each row redraws only for its own element). A fifth
+  slide (review fixes): a star covered by a rectangle in answer A, picked from the panel, has its handles on top;
+  Shift-click on a group member's row adds, then takes out, only that member; dragging an open group's row moves its
+  members with it; a hovered row whose element is deleted leaves no outline after undo. Escape closes. Rows are
+  found by `[data-layer-row]`.
 - `word-file.mjs`: the editor's Word file panel. A .docx made in the test (`fflate`) lists one piece per line (an
   empty line skipped), an old `.doc` is refused with words, Copy copies the line as it is, lines dragged onto the
   question box and answer B replace their text without "1." / "b.", Undo brings B back, a line dropped on the slide

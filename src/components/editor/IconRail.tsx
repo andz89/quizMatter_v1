@@ -2,10 +2,10 @@
 
 import type { ReactNode } from "react";
 import { useEditorStore } from "@/lib/store";
-import { BookOpenIcon, FileTextIcon, ImageIcon, PaintBucketIcon, ShapesIcon, SparklesIcon } from "lucide-react";
+import { BookOpenIcon, FileTextIcon, ImageIcon, LayersIcon, PaintBucketIcon, ShapesIcon, SparklesIcon } from "lucide-react";
 
 /**
- * Canva-style narrow icon bar: "Elements", "Photos", "Background", "Effects", "Presentations" and "Word file" expand their sidebar panels.
+ * Canva-style narrow icon bar: "Elements", "Photos", "Background", "Effects", "Presentations", "Word file" and "Layers" expand their sidebar panels.
  */
 export function IconRail() {
   const isElementsPanelOpen = useEditorStore((s) => s.isElementsPanelOpen);
@@ -20,6 +20,8 @@ export function IconRail() {
   const togglePresentationsPanel = useEditorStore((s) => s.togglePresentationsPanel);
   const isWordPanelOpen = useEditorStore((s) => s.isWordPanelOpen);
   const toggleWordPanel = useEditorStore((s) => s.toggleWordPanel);
+  const isLayersPanelOpen = useEditorStore((s) => s.isLayersPanelOpen);
+  const toggleLayersPanel = useEditorStore((s) => s.toggleLayersPanel);
 
   return (
     <aside className="flex w-24 shrink-0 flex-col gap-0.5 overflow-y-auto border-r border-border-default bg-bg-surface px-1 py-3">
@@ -40,6 +42,9 @@ export function IconRail() {
       </RailButton>
       <RailButton label="Word file" title="Drag lines from a Word file onto your slides" active={isWordPanelOpen} onClick={toggleWordPanel}>
         <FileTextIcon size={22} />
+      </RailButton>
+      <RailButton label="Layers" title="Everything on this slide, top layer first" active={isLayersPanelOpen} onClick={toggleLayersPanel}>
+        <LayersIcon size={22} />
       </RailButton>
     </aside>
   );

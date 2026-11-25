@@ -107,8 +107,10 @@ export function useCanvasTextEditor({
     onFocus: ({ editor }) => setActiveTextEditor(editor, targetRef.current),
     // Only clear it if it's still this text — when jumping straight into another one, that one may
     // already have claimed it.
-    onBlur: ({ editor }) => {
-      if (useEditorStore.getState().activeTextEditor === editor) setActiveTextEditor(null);
+    onBlur: ({ editor, event }) => {
+      // Into the Color panel's hex box: the panel stays open (see setActiveTextEditor).
+      const intoColorPanel = !!(event.relatedTarget as HTMLElement | null)?.closest?.("[data-color-panel]");
+      if (useEditorStore.getState().activeTextEditor === editor) setActiveTextEditor(null, null, intoColorPanel);
       onStopEditing();
     },
   });
