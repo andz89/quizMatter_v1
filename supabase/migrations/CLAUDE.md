@@ -143,7 +143,10 @@ A refusal raises an error with its own code. The app turns the code into a messa
   `photo_upload_fits`; newest `reserve_photo_upload` returns `{ previous }` (the record it replaced, null when new),
   and `release_photo_upload(target, src, previous)` (service role) puts it back; newest `sync_slide_photos` refuses
   (`QMSTO`) a slide that gets one of the owner's uploads that doesn't count now when it doesn't fit (admins skip).
-  Apply it **before** the app (the route calls `release_photo_upload`).
+  Its section 0 also catches up the live database, which got an early version of `20261231002600` (one limit for
+  all, `photo_storage_limit()` with no arguments): it re-creates every photo storage function in its newest form and
+  removes rows the early backfill made for photos someone else shared. Apply it **before** the app (the route calls
+  `release_photo_upload`).
 - Click limits: `20261013000000_click_limits.sql`, `20261014000000_click_auto_ban.sql`, `20261017000000_click_history.sql`.
   `20261211000000_save_photo_click_limits.sql` (test `supabase/tests/save_photo_click_limits.sql`): saving
   presentations (`presentation_save` + `presentation_save_daily`, from `count_presentation_write`: once per request,

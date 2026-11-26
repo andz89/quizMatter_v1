@@ -1,6 +1,12 @@
--- Photo storage review fixes (on top of 20261231002600_photo_storage.sql, already live).
+-- Photo storage review fixes (on top of 20261231002600_photo_storage.sql).
 -- Test: supabase/tests/photo_storage_fixes.sql.
 --
+-- 0. Catch-up. The live database got an early version of 20261231002600 (one limit for all, photo_storage_limit()
+--    with no arguments); that file was changed in place afterwards. This brings any version of it to the newest
+--    one: photo_storage_limit(target) (500 MB for an editor, none for an admin), photo_upload_fits, hidden shared
+--    copies don't count, remove_my_photo's `hidden` and real `removed`, photo_uploads_unknown_sizes as one jsonb
+--    array, and the backfill counting only the teacher's own uploads. On a database that already has the newest
+--    version (a local reset), it changes nothing.
 -- 1. Saving a slide checks the limit too. Before, only uploads were checked: a teacher could upload 50 MB, take the
 --    photos out of "My photos" (they then count only while on a saved slide or 10 minutes after the upload), keep
 --    them on unsaved slides, upload 50 MB more, and so on, then save slides holding all of it. Now a slide that gets
@@ -12,10 +18,27 @@
 --
 -- Deploy: paste this into the live SQL editor BEFORE the app that calls release_photo_upload.
 
+-- ─── 0. The limit, per account (the early version had one limit for all, with no arguments) ──────────────────
+-- Same numbers as PHOTO_STORAGE_LIMIT_BYTES / EDITOR_PHOTO_STORAGE_LIMIT_BYTES (src/lib/photoStorage.ts).
+drop function if exists public.photo_storage_limit();
+create or replace function public.photo_storage_limit(target uuid) returns bigint
+language sql stable security definer
+set search_path = ''
+as $$
+  select case
+    when exists (select 1 from public.admins a where a.user_id = target) then null
+    when exists (select 1 from public.editors e where e.user_id = target) then 524288000::bigint -- 500 × 1024 × 1024
+    else 52428800::bigint -- 50 × 1024 × 1024
+  end;
+$$;
+
+revoke all on function public.photo_storage_limit(uuid) from public, anon, authenticated;
+grant execute on function public.photo_storage_limit(uuid) to service_role;
+
 -- ─── Does this upload count for them right now? (the one rule; photo_storage_used and photo_upload_fits use it) ─
 -- It's in their "My photos", on a slide of a presentation they own (not a shared copy QuizMatter hid), or it was
 -- (re)uploaded less than 10 minutes ago (its space is held while the file is stored).
-create function public.photo_upload_counts(target uuid, target_src text) returns boolean
+create or replace function public.photo_upload_counts(target uuid, target_src text) returns boolean
 language sql stable security definer
 set search_path = ''
 as $$
@@ -58,7 +81,7 @@ $$;
 
 -- ─── Before an upload's file is stored (upload-image, with the secret key) ───────────────────────────────────
 -- Answers { previous }: the row this upload replaced (null when it's new), for release_photo_upload.
-drop function public.reserve_photo_upload(uuid, text, integer);
+drop function if exists public.reserve_photo_upload(uuid, text, integer);
 create function public.reserve_photo_upload(target uuid, target_src text, file_bytes integer) returns jsonb
 language plpgsql security definer
 set search_path = ''
@@ -109,6 +132,12 @@ begin
 end;
 $$;
 
+revoke all on function public.photo_storage_used(uuid) from public, anon, authenticated;
+grant execute on function public.photo_storage_used(uuid) to service_role;
+
+revoke all on function public.photo_upload_fits(uuid, text, integer) from public, anon, authenticated;
+grant execute on function public.photo_upload_fits(uuid, text, integer) to service_role;
+
 revoke all on function public.photo_upload_counts(uuid, text) from public, anon, authenticated;
 grant execute on function public.photo_upload_counts(uuid, text) to service_role;
 
@@ -117,6 +146,90 @@ grant execute on function public.reserve_photo_upload(uuid, text, integer) to se
 
 revoke all on function public.release_photo_upload(uuid, text, jsonb) from public, anon, authenticated;
 grant execute on function public.release_photo_upload(uuid, text, jsonb) to service_role;
+
+-- ─── 0. For the Photos panel's bar (the limit per account) ──────────────────────────────────────────────────
+create or replace function public.my_photo_storage() returns jsonb
+language sql stable security definer
+set search_path = ''
+as $$
+  select jsonb_build_object(
+    'used', public.photo_storage_used((select auth.uid())),
+    'limit', public.photo_storage_limit((select auth.uid()))
+  );
+$$;
+
+-- ─── 0. Removing a photo from "My photos" (newest: `hidden` slides, hidden shared copies left out, real `removed`)
+create or replace function public.remove_my_photo(target_src text, mode text) returns jsonb
+language plpgsql security definer
+set search_path = ''
+as $$
+declare
+  me uuid := auth.uid();
+  uses jsonb;
+  removed boolean := false;
+begin
+  if me is null then
+    raise exception 'Please log in again.' using errcode = '42501';
+  end if;
+  if mode is null or mode not in ('if_unused', 'ask', 'remove') then
+    raise exception 'Unknown mode.' using errcode = '22023';
+  end if;
+
+  select coalesce(jsonb_agg(u order by u.title, u.id), '[]'::jsonb) into uses
+  from (
+    select pr.id, pr.title, pr.shared_from is not null as is_shared_copy,
+      jsonb_agg(s.position + 1 order by s.position) as slides,
+      coalesce(
+        jsonb_agg(s.position + 1 order by s.position) filter (where coalesce((s.data ->> 'hidden')::boolean, false)),
+        '[]'::jsonb
+      ) as hidden
+    from public.slide_photos sp
+    join public.presentations pr on pr.id = sp.presentation_id
+    join public.slides s on s.presentation_id = sp.presentation_id and s.id = sp.slide_id
+    where sp.src = target_src and pr.owner_id = me and (pr.shared_from is null or pr.hidden_at is null)
+    group by pr.id, pr.title, pr.shared_from
+  ) u;
+
+  if mode = 'remove' or (mode = 'if_unused' and uses = '[]'::jsonb) then
+    -- Through the photos table's own triggers: a photo waiting for QuizMatter is still refused (QMPHL).
+    delete from public.photos p where p.user_id = me and p.src = target_src;
+    -- False when it was already gone (e.g. removed in another tab).
+    removed := found;
+  end if;
+
+  return jsonb_build_object(
+    'removed', removed,
+    'uses', uses,
+    'bytes', (select u.bytes from public.photo_uploads u where u.user_id = me and u.src = target_src),
+    'used', public.photo_storage_used(me),
+    'limit', public.photo_storage_limit(me)
+  );
+end;
+$$;
+
+-- ─── 0. Real sizes to fix: one jsonb array (the early version returned rows, which PostgREST cuts at 1,000) ──
+drop function if exists public.photo_uploads_unknown_sizes();
+create function public.photo_uploads_unknown_sizes() returns jsonb
+language sql stable security definer
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(distinct u.src), '[]'::jsonb) from public.photo_uploads u where not u.size_known;
+$$;
+
+revoke all on function public.my_photo_storage() from public, anon;
+grant execute on function public.my_photo_storage() to authenticated, service_role;
+revoke all on function public.remove_my_photo(text, text) from public, anon;
+grant execute on function public.remove_my_photo(text, text) to authenticated, service_role;
+revoke all on function public.photo_uploads_unknown_sizes() from public, anon, authenticated;
+grant execute on function public.photo_uploads_unknown_sizes() to service_role;
+
+-- ─── 0. The early backfill counted every "My photos" file for whoever had it, even one someone else shared ────
+-- (an admin's shared photo, another editor's waiting one). The newest adds only the teacher's own. A backfilled row
+-- still has its "My photos" row's exact time (an upload since then has the upload's own time), so only those go.
+delete from public.photo_uploads u
+using public.photos p, public.shared_photos sp
+where p.user_id = u.user_id and p.src = u.src and p.created_at = u.created_at
+  and sp.src = u.src and sp.uploaded_by is distinct from u.user_id;
 
 -- ─── Saving a slide checks the limit too ─────────────────────────────────────────────────────────────────────
 -- sync_slide_photos (after insert or update of a slide's data) keeps slide_photos. New: when the slide gets photos
