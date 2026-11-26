@@ -166,6 +166,12 @@ A refusal raises an error with its own code. The app turns the code into a messa
   `freed_rows`) replaces the row trigger `remember_freed_slide_photo`, so the freed list is read and written once
   per statement: a big delete no longer slows down with the square of its rows. A presentation being deleted adds
   nothing (it's already gone when its `slide_photos` go). No app change: apply it before or after the app.
+  `20261231003100_photo_storage_fixes_4.sql` (test `supabase/tests/photo_storage_fixes_4.sql`): newest
+  `sync_slide_photos` also makes every photo of a changed slide public on a live QuizMatter lesson (inserting only
+  new rows had stopped `publish_photos_of_new_slide` for the photos that stay); newest `remove_my_photo` moves the
+  hold's time back exactly one day, and newest `release_photo_upload` matches `written_at` or `written_at` minus
+  one day, so an upload of the same file still in progress can still release its record. The test also times 100
+  slides of 50 photos deleted in one save (the cascade runs one statement per slide): about 0.1 s. No app change.
 - Click limits: `20261013000000_click_limits.sql`, `20261014000000_click_auto_ban.sql`, `20261017000000_click_history.sql`.
   `20261211000000_save_photo_click_limits.sql` (test `supabase/tests/save_photo_click_limits.sql`): saving
   presentations (`presentation_save` + `presentation_save_daily`, from `count_presentation_write`: once per request,

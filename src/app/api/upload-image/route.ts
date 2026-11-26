@@ -25,6 +25,8 @@ import { createClient } from "@/lib/supabase/server";
  * goes to the shared_photos table (for every teacher, with its file size) instead of "My photos". It also needs &source=<who owns it
  * or where it came from>, and &name=<file name> gives it its name (to show and search); both are only set the
  * first time it's shared. Each shared photo remembers who uploaded it (uploaded_by, filled in by the database).
+ * An own photo is refused first (before the file is read) when the teacher is banned (403) or any of
+ * UPLOAD_PAUSE_FEATURES is paused (429); if either can't be read, 500.
  * An own photo must fit the teacher's photo storage (reserve_photo_upload, before the click limit counts it; 50 MB,
  * 500 MB for an editor; 413 with code QMSTO when full, refused tries counted with count_write; the space is given
  * back with release_photo_upload if anything after it refuses: the click limit, storing the file or the My photos
@@ -43,14 +45,16 @@ export async function POST(request: Request) {
   } else {
     // A teacher's own photo: every teacher may upload (their photo storage limits it, below). A banned one is
     // refused before the file takes up storage (the photos table refuses them too). A paused one too (a read only),
-    // so a script sending uploads during its pause never holds space (reserve + release) on each try. If the pause
-    // can't be read, count_photo_upload below still refuses it.
-    const [{ data: isBanned, error: banError }, { data: pausedRows }] = await Promise.all([
+    // so a script sending uploads during its pause never holds space (reserve + release) on each try.
+    const [{ data: isBanned, error: banError }, { data: pausedRows, error: pausedError }] = await Promise.all([
       supabase.rpc("is_banned"),
       supabase.rpc("my_paused_features"),
     ]);
-    // Unknown (the check failed) is not "not banned": stop before the file is read or stored.
-    if (banError) return Response.json({ error: "Couldn't upload the photo. Please try again." }, { status: 500 });
+    // Unknown (a check failed) is not "not banned" or "not paused": stop before the file is read or stored. (A
+    // photo_rows pause is only checked again at the My photos row, after the file was counted and stored.)
+    if (banError || pausedError) {
+      return Response.json({ error: "Couldn't upload the photo. Please try again." }, { status: 500 });
+    }
     if (isBanned === true) return banned();
     // Also photo_rows: the My photos row at the end would be refused, after the file was stored and counted.
     if (pausedRows?.some((row) => (UPLOAD_PAUSE_FEATURES as readonly string[]).includes(row.feature))) {

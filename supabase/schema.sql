@@ -3434,13 +3434,15 @@ begin
   perform pg_advisory_xact_lock(hashtext('photo_storage:' || target::text));
   if previous is null or jsonb_typeof(previous) = 'null' then
     delete from public.photo_uploads u
-    where u.user_id = target and u.src = target_src and u.created_at = written_at;
+    where u.user_id = target and u.src = target_src
+      and u.created_at in (written_at, written_at - interval '1 day');
   else
     update public.photo_uploads u
     set bytes = (previous ->> 'bytes')::int,
       size_known = (previous ->> 'size_known')::boolean,
       created_at = (previous ->> 'created_at')::timestamptz
-    where u.user_id = target and u.src = target_src and u.created_at = written_at;
+    where u.user_id = target and u.src = target_src
+      and u.created_at in (written_at, written_at - interval '1 day');
   end if;
 end;
 $$;
@@ -3547,13 +3549,13 @@ begin
     removed := found;
   end if;
 
-  -- The upload is done (its My photos row existed), so its 10-minute hold isn't needed any more. Same lock as
-  -- reserve_photo_upload. A release of another upload of this file still in progress then matches nothing and leaves
-  -- the record as it is (it counts again once that upload's My photos row is written).
+  -- The upload is done (its My photos row existed), so its 10-minute hold isn't needed any more: its time moves
+  -- back by exactly one day (past the hold), so an upload of this file still in progress can still release the
+  -- record it wrote (release_photo_upload matches that time too). Same lock as reserve_photo_upload.
   if removed then
     perform pg_advisory_xact_lock(hashtext('photo_storage:' || me::text));
     update public.photo_uploads u
-    set created_at = now() - interval '10 minutes'
+    set created_at = u.created_at - interval '1 day'
     where u.user_id = me and u.src = target_src and u.created_at > now() - interval '10 minutes';
   end if;
 
@@ -4811,6 +4813,15 @@ begin
   where sp.presentation_id = new.presentation_id and sp.slide_id = new.id and not (sp.src = any (new_srcs));
   insert into public.slide_photos (presentation_id, slide_id, src)
   select new.presentation_id, new.id, s from unnest(new_srcs) s where not (s = any (old_srcs));
+
+  -- The new ones were made public by publish_photos_of_new_slide; the ones that stayed are too, as when every row
+  -- was inserted again (same rule: a live, shown QuizMatter presentation).
+  update public.shared_photos sp set is_public = true
+  where sp.src = any (new_srcs) and not sp.is_public
+    and exists (
+      select 1 from public.presentations p
+      where p.id = new.presentation_id and p.from_admin and p.is_published and p.hidden_at is null
+    );
   return null;
 end;
 $$;

@@ -467,9 +467,10 @@ The super admin shows a message to chosen teachers on chosen pages (Admin → An
 
 Each teacher may keep 50 MB of photos; an editor 500 MB (they make QuizMatter lessons). Admins have no limit. Design: `docs/superpowers/specs/2026-11-26-photo-storage-limit-design.md`.
 Migrations: `20261231002600_photo_storage.sql`, `20261231002700_photo_storage_fixes.sql`,
-`20261231002800_photo_storage_fixes_2.sql`, `20261231003000_photo_storage_fixes_3.sql`; tests:
-`supabase/tests/photo_storage.sql`, `supabase/tests/photo_storage_fixes.sql`, `supabase/tests/photo_storage_fixes_2.sql`,
-`supabase/tests/photo_storage_fixes_3.sql`, `e2e/photo-storage.mjs`.
+`20261231002800_photo_storage_fixes_2.sql`, `20261231003000_photo_storage_fixes_3.sql`,
+`20261231003100_photo_storage_fixes_4.sql`; tests: `supabase/tests/photo_storage.sql`,
+`supabase/tests/photo_storage_fixes.sql`, `supabase/tests/photo_storage_fixes_2.sql`,
+`supabase/tests/photo_storage_fixes_3.sql`, `supabase/tests/photo_storage_fixes_4.sql`, `e2e/photo-storage.mjs`.
 Keep these rules:
 
 - **What counts:** a photo the teacher **uploaded** (a `photo_uploads` row) while it's in their "My photos" **or**
@@ -488,7 +489,8 @@ Keep these rules:
   while it still has that time, so a second upload of the same file at once keeps its own record (known edge: if both
   are refused, one 10-minute hold can stay until it runs out; see `supabase/migrations/CLAUDE.md`). A teacher whose
   uploads or My photos rows are paused is refused before the reservation (`UPLOAD_PAUSE_FEATURES` in
-  `my_paused_features`, read with `is_banned`; the Photos panel greys out Upload for the same list), so a paused
+  `my_paused_features`, read with `is_banned`; if either read fails, 500; the Photos panel greys out Upload for the
+  same list), so a paused
   script never holds space or counts an upload. **Saving a slide checks too** (`sync_slide_photos`): a slide that gets one of the
   owner's uploads that doesn't count right now (e.g. taken out of My photos while only on unsaved slides) must fit,
   else the save is refused with `QMSTO` (`REFUSALS`), so the limit can't be passed by uploading, removing and saving
@@ -509,8 +511,9 @@ Keep these rules:
   answers where (`uses`: slide numbers are places in the list, like the slide grid's "Slide 3", and a hidden one says
   "(hidden)") and the Photos panel's box says it still counts until it's off those slides (and the published copy,
   "Update shared presentation"). `removed` is true only when a row was really deleted (not when another tab already
-  removed it); then the upload's 10-minute hold ends too, so a photo just uploaded and removed frees its space at
-  once.
+  removed it); then the upload's 10-minute hold ends too (its time moves back exactly one day, which
+  `release_photo_upload` also matches, so an upload of the same file still in progress can still release its
+  record), so a photo just uploaded and removed frees its space at once.
 - **Privacy:** the upload records are in the Privacy Policy ("Your work"). Keep that true.
 
 # Diagrams and Picture Shapes
