@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { canHaveElementEffects, effectSteps, moveEffectStep, nextEffectOrder, stepNumbers, withEffect } from "./elementEffects";
+import { canHaveElementEffects, effectSteps, effectsToEnd, moveEffectStep, nextEffectOrder, stepNumbers, withEffect } from "./elementEffects";
 import { slideSchema, type Slide, type SvgElement } from "./schema";
 
 type Effect = SvgElement["effect"];
@@ -74,6 +74,13 @@ test("moveEffectStep moves a step and rewrites orders 1..n", () => {
   assert.deepEqual(effectSteps(moved), [["b"], ["c"], ["a"]]);
   assert.deepEqual(moved.elements.map((e) => e.effect?.order), [3, 1, 2]);
   assert.equal(moveEffectStep(s, 1, 1), s);
+});
+
+test("copies keep their effect but come in last, a copied group sharing one step", () => {
+  const target = slide([el("a", fx(4))]);
+  const copies = effectsToEnd([el("c1", fx(1, "pop")), el("g1", fx(2), "new-g"), el("g2", fx(2), "new-g"), el("plain")], target);
+  assert.deepEqual(copies.map((e) => e.effect?.order), [5, 6, 6, undefined]);
+  assert.equal(copies[0].effect?.type, "pop");
 });
 
 test("a saved effect with bad values is left out, and the slide still opens", () => {

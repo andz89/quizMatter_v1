@@ -69,6 +69,24 @@ export function withEffect(slide: Slide, ids: string[], type: ElementEffectType 
   return { ...slide, elements };
 }
 
+/**
+ * Copies (duplicate, paste) keep their effect and speed but come in last on the slide they're added to: each its own
+ * new step, a copied group's members sharing one. Copies without an effect are returned as they are.
+ */
+export function effectsToEnd(copies: SvgElement[], slide: Pick<Slide, "elements">): SvgElement[] {
+  let next = nextEffectOrder(slide);
+  const groupOrders = new Map<string, number>();
+  return copies.map((e) => {
+    if (!e.effect) return e;
+    let order = e.groupId ? groupOrders.get(e.groupId) : undefined;
+    if (order === undefined) {
+      order = next++;
+      if (e.groupId) groupOrders.set(e.groupId, order);
+    }
+    return { ...e, effect: { ...e.effect, order } };
+  });
+}
+
 /** Moves the step at place `from` to place `to` (0-based) and rewrites every order to 1..n. */
 export function moveEffectStep(slide: Slide, from: number, to: number): Slide {
   const steps = effectSteps(slide);
