@@ -1,5 +1,13 @@
 # Photo storage limit (50 MB per teacher)
 
+> **Later change (2026-11-26): editors get 500 MB.** Editors make QuizMatter lessons and upload far more photos, so
+> `photo_storage_limit(target)` returns 500 MB for a teacher in `editors`, 50 MB for everyone else, null for an admin
+> (it replaces the admin checks in `photo_upload_fits`, `my_photo_storage` and `remove_my_photo`). It's read each
+> time: losing the editor role brings them back to 50 MB (nothing is deleted; uploads stop while over it). The full
+> message names the teacher's own limit (`storageFullMessage(limit)` in the app, `(% MB)` in `QMSTO`). Approaches
+> considered: a per-role limits table (too much for two fixed numbers) vs. the role check inside the one function
+> (chosen). The migration wasn't live yet, so it was edited in place.
+
 Date: 2026-11-26. Status: approved in chat, ready for a plan.
 
 ## Why

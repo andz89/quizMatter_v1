@@ -1,4 +1,4 @@
--- Photo storage limit, 50 MB per teacher (supabase/migrations/20261231002600_photo_storage.sql).
+-- Photo storage limit, 50 MB per teacher and 500 MB per editor (supabase/migrations/20261231002600_photo_storage.sql).
 -- Run on a local database with every migration applied:
 --   psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/photo_storage.sql
 -- Passes when it ends without an error. Everything is rolled back.
@@ -30,13 +30,31 @@ insert into public.photos (user_id, src, width, height)
 values ('00000000-0000-4000-8000-0000000005a1', pg_temp.f('a'), 10, 10);
 
 -- ─── The limit ────────────────────────────────────────────────────────────────────────────────────────────────
+-- 500 MB for the editor, 50 MB for a teacher, none for the admin.
 do $$
 begin
-  if public.photo_storage_limit() <> 52428800 then
-    raise exception 'FAIL: the limit is %, not 52428800 (50 MB)', public.photo_storage_limit();
+  if public.photo_storage_limit('00000000-0000-4000-8000-0000000005a1') is distinct from 524288000 then
+    raise exception 'FAIL: the editor''s limit is %, not 524288000 (500 MB)', public.photo_storage_limit('00000000-0000-4000-8000-0000000005a1');
+  end if;
+  if public.photo_storage_limit('00000000-0000-4000-8000-0000000005a2') is distinct from 52428800 then
+    raise exception 'FAIL: the teacher''s limit is %, not 52428800 (50 MB)', public.photo_storage_limit('00000000-0000-4000-8000-0000000005a2');
+  end if;
+  if public.photo_storage_limit('00000000-0000-4000-8000-0000000005a3') is not null then
+    raise exception 'FAIL: the admin should have no limit';
   end if;
 end;
 $$;
+
+-- Taking the editor role away brings them back to 50 MB (the role comes back until the rollback).
+delete from public.editors where user_id = '00000000-0000-4000-8000-0000000005a1';
+do $$
+begin
+  if public.photo_storage_limit('00000000-0000-4000-8000-0000000005a1') is distinct from 52428800 then
+    raise exception 'FAIL: a former editor''s limit should be 50 MB';
+  end if;
+end;
+$$;
+insert into public.editors (user_id) values ('00000000-0000-4000-8000-0000000005a1');
 
 -- ─── Counted in "My photos" and on own slides, once ───────────────────────────────────────────────────────────
 do $$
@@ -139,26 +157,50 @@ $$;
 insert into public.photos (user_id, src, width, height)
 values ('00000000-0000-4000-8000-0000000005a1', pg_temp.f('a'), 10, 10);
 
--- 24 uploads of 2 MB in progress (held): 1000 + 24 × 2097152 = 50332648 used.
+-- The editor (500 MB): 249 uploads of 2 MB in progress (held): 1000 + 249 × 2097152 = 522191848 used.
 create function pg_temp.fill(target uuid, n int) returns void language sql as $$
   insert into public.photo_uploads (user_id, src, bytes)
   select target, 'https://images.quizmatter.com/uploads/' || md5(target::text || i) || md5(i::text) || '.webp', 2097152
   from generate_series(1, n) i;
 $$;
-select pg_temp.fill('00000000-0000-4000-8000-0000000005a1', 24);
+select pg_temp.fill('00000000-0000-4000-8000-0000000005a1', 249);
+
+-- A teacher (50 MB): 24 of them, 50331648 used: the next 2 MB doesn't fit, 2097152 exactly does.
+select pg_temp.fill('00000000-0000-4000-8000-0000000005a2', 24);
+do $$
+begin
+  if public.photo_upload_fits('00000000-0000-4000-8000-0000000005a2', pg_temp.f('e'), 2097153) then
+    raise exception 'FAIL: photo_upload_fits let a teacher past 50 MB';
+  end if;
+  if not public.photo_upload_fits('00000000-0000-4000-8000-0000000005a2', pg_temp.f('e'), 2097152) then
+    raise exception 'FAIL: photo_upload_fits refused a teacher''s upload that fits exactly';
+  end if;
+  perform public.reserve_photo_upload('00000000-0000-4000-8000-0000000005a2', pg_temp.f('e'), 2097153);
+  raise exception 'FAIL: a teacher''s upload past 50 MB was accepted';
+exception when sqlstate 'QMSTO' then
+  if sqlerrm <> 'Your photo storage is full (50 MB).' then
+    raise exception 'FAIL: the teacher''s message was %', sqlerrm;
+  end if;
+end;
+$$;
+update public.photo_uploads set created_at = now() - interval '1 hour'
+where user_id = '00000000-0000-4000-8000-0000000005a2';
 
 -- Over the limit: photo_upload_fits says no (asked before the click limit counts), reserve refuses, nothing written.
 do $$
 begin
   if public.photo_upload_fits('00000000-0000-4000-8000-0000000005a1', pg_temp.f('c'), 2096153) then
-    raise exception 'FAIL: photo_upload_fits let an upload past 50 MB through';
+    raise exception 'FAIL: photo_upload_fits let an upload past 500 MB through';
   end if;
   if not public.photo_upload_fits('00000000-0000-4000-8000-0000000005a1', pg_temp.f('c'), 2096152) then
     raise exception 'FAIL: photo_upload_fits refused an upload that fits exactly';
   end if;
   perform public.reserve_photo_upload('00000000-0000-4000-8000-0000000005a1', pg_temp.f('c'), 2096153);
-  raise exception 'FAIL: an upload past 50 MB was accepted';
-exception when sqlstate 'QMSTO' then null;
+  raise exception 'FAIL: an upload past 500 MB was accepted';
+exception when sqlstate 'QMSTO' then
+  if sqlerrm <> 'Your photo storage is full (500 MB).' then
+    raise exception 'FAIL: the editor''s message was %', sqlerrm;
+  end if;
 end;
 $$;
 do $$
@@ -173,8 +215,8 @@ $$;
 select public.reserve_photo_upload('00000000-0000-4000-8000-0000000005a1', pg_temp.f('c'), 2096152);
 do $$
 begin
-  if public.photo_storage_used('00000000-0000-4000-8000-0000000005a1') <> 52428800 then
-    raise exception 'FAIL: expected 52428800 used, got %', public.photo_storage_used('00000000-0000-4000-8000-0000000005a1');
+  if public.photo_storage_used('00000000-0000-4000-8000-0000000005a1') <> 524288000 then
+    raise exception 'FAIL: expected 524288000 used, got %', public.photo_storage_used('00000000-0000-4000-8000-0000000005a1');
   end if;
 end;
 $$;
@@ -183,7 +225,7 @@ $$;
 select public.reserve_photo_upload('00000000-0000-4000-8000-0000000005a1', pg_temp.f('a'), 1000);
 do $$
 begin
-  if public.photo_storage_used('00000000-0000-4000-8000-0000000005a1') <> 52428800 then
+  if public.photo_storage_used('00000000-0000-4000-8000-0000000005a1') <> 524288000 then
     raise exception 'FAIL: uploading a counted photo again changed the total';
   end if;
 end;
@@ -289,7 +331,7 @@ do $$
 declare
   s jsonb := public.my_photo_storage();
 begin
-  if s is distinct from '{"used": 1000, "limit": 52428800}'::jsonb then
+  if s is distinct from '{"used": 1000, "limit": 524288000}'::jsonb then
     raise exception 'FAIL: my_photo_storage gave %', s;
   end if;
 end;
@@ -323,7 +365,7 @@ begin
   ) then
     raise exception 'FAIL: wrong uses: %', r -> 'uses';
   end if;
-  if (r ->> 'bytes')::int <> 1000 or (r ->> 'used')::bigint <> 1000 or (r ->> 'limit')::bigint <> 52428800 then
+  if (r ->> 'bytes')::int <> 1000 or (r ->> 'used')::bigint <> 1000 or (r ->> 'limit')::bigint <> 524288000 then
     raise exception 'FAIL: wrong sizes: %', r;
   end if;
   if not exists (select 1 from public.photos where src = pg_temp.f('a')) then

@@ -21,7 +21,7 @@ import {
 import { contains } from "./search";
 import { modalAttachmentSchema, type ModalAttachment } from "./announcements";
 import { MAX_GIF_BYTES } from "./photoTypes";
-import { STORAGE_FULL_MESSAGE, isStorageFull, type PhotoStorage } from "./photoStorage";
+import { isStorageFull, storageFullMessage, type PhotoStorage } from "./photoStorage";
 import { useEditorStore } from "./store";
 import { createClient } from "./supabase/client";
 import { PHOTO_ID } from "./svgLibrary";
@@ -109,8 +109,9 @@ async function shrinkPhoto(file: Blob, webpOnly = false): Promise<ShrunkPhoto> {
 async function sendPhoto(shrunk: ShrunkPhoto, shared?: { categoryId: string; source: string; name: string }): Promise<Photo> {
   // Last seen full (e.g. a photo dropped onto a slide): asked again first, since a save may have freed space, and
   // the 2 MB photo isn't sent when it's still full. The upload route checks anyway.
-  if (!shared && lastStorage && isStorageFull(lastStorage) && isStorageFull(await loadPhotoStorage().catch(() => lastStorage!))) {
-    throw new PhotoError(STORAGE_FULL_MESSAGE);
+  if (!shared && lastStorage && isStorageFull(lastStorage)) {
+    const now = await loadPhotoStorage().catch(() => lastStorage!);
+    if (isStorageFull(now)) throw new PhotoError(storageFullMessage(now.limit));
   }
   const params = new URLSearchParams({ width: String(shrunk.width), height: String(shrunk.height) });
   if (shared) {
@@ -133,7 +134,7 @@ async function sendPhoto(shrunk: ShrunkPhoto, shared?: { categoryId: string; sou
   return photo.data;
 }
 
-// ─── Photo storage (50 MB per teacher; src/lib/photoStorage.ts) ─────────────────────────────────────────────────
+// ─── Photo storage (50 MB per teacher, 500 MB per editor; src/lib/photoStorage.ts) ──────────────────────────────
 
 // Who shows the storage (the Photos panel). Uploads and removes tell them the new total from their own answers,
 // so a photo dropped onto a slide updates the open panel too, without another request.

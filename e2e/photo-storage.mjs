@@ -1,4 +1,4 @@
-// Photo storage (50 MB per teacher; supabase/migrations/20261231002600_photo_storage.sql): the Photos panel's bar,
+// Photo storage (50 MB per teacher, 500 MB per editor; supabase/migrations/20261231002600_photo_storage.sql): the Photos panel's bar,
 // the warning before removing a photo that's still on a slide, an upload's answer carrying the new total, and a
 // full account refused (413, QMSTO) with the full message and Upload greyed out.
 import { randomBytes, randomUUID } from "node:crypto";
@@ -61,7 +61,7 @@ const openMyPhotos = async () => {
 try {
   await openMyPhotos();
   const barText = await page.getByTestId("photo-storage").innerText();
-  check("the bar shows what's used of 50 MB", barText.includes("1.8 MB of 50 MB"), barText);
+  check("the bar shows what's used of the editor's 500 MB", barText.includes("1.8 MB of 500 MB"), barText);
   await page.screenshot({ path: `${SHOTS}photo-storage-bar.png` });
 
   // Removing a photo that's on slide 1 asks first, names the presentation, and says it still counts.
@@ -88,23 +88,23 @@ try {
   const answer = await uploaded.json();
   check(
     "an upload answers with the new total",
-    uploaded.ok() && answer.storage?.limit === 52428800 && answer.storage.used > 1887437,
+    uploaded.ok() && answer.storage?.limit === 524288000 && answer.storage.used > 1887437,
     `${uploaded.status()} ${JSON.stringify(answer)}`
   );
 
-  // Full: 25 uploads of 2 MB in progress (held). The upload is refused, the panel says so, Upload is greyed out.
+  // Full: 250 uploads of 2 MB in progress (held). The upload is refused, the panel says so, Upload is greyed out.
   psql(`insert into public.photo_uploads (user_id, src, bytes)
         select '${editor.id}', 'https://images.quizmatter.com/uploads/' || md5('${editor.id}' || i) || md5(i::text) || '.webp', 2097152
-        from generate_series(1, 25) i;`);
+        from generate_series(1, 250) i;`);
   const refused = await context.request.post(uploadUrl, { data: webp(), headers: { "Content-Type": "image/webp" } });
   const refusedAnswer = await refused.json();
   check(
     "a full account's upload is refused (413, QMSTO)",
-    refused.status() === 413 && refusedAnswer.code === "QMSTO",
+    refused.status() === 413 && refusedAnswer.code === "QMSTO" && refusedAnswer.error.includes("(500 MB)"),
     `${refused.status()} ${JSON.stringify(refusedAnswer)}`
   );
   await openMyPhotos();
-  check("the full message shows", await page.getByText("Your photo storage is full (50 MB).").isVisible());
+  check("the full message shows", await page.getByText("Your photo storage is full (500 MB).").isVisible());
   check("Upload is greyed out", await page.getByRole("button", { name: "Upload photo" }).isDisabled());
   await page.screenshot({ path: `${SHOTS}photo-storage-full.png` });
 } finally {

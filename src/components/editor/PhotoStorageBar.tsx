@@ -1,8 +1,8 @@
-import { STORAGE_FULL_MESSAGE, formatStorage, isStorageFull, type PhotoStorage } from "@/lib/photoStorage";
+import { formatStorage, isStorageFull, storageFullMessage, type PhotoStorage } from "@/lib/photoStorage";
 
 /**
- * The Photos panel's storage bar ("My Photos" tab): how much of the teacher's 50 MB their photos use. Violet,
- * coral when full (with what to do). Only for teachers with a limit (not admins).
+ * The Photos panel's storage bar ("My Photos" tab): how much of the teacher's 50 MB (an editor's 500 MB) their photos
+ * use. Violet, coral when full (with what to do). Only for teachers with a limit (not admins).
  */
 export function PhotoStorageBar({ storage }: { storage: PhotoStorage & { limit: number } }) {
   const isFull = isStorageFull(storage);
@@ -20,7 +20,7 @@ export function PhotoStorageBar({ storage }: { storage: PhotoStorage & { limit: 
       </div>
       {isFull ? (
         <p className="rounded-dropdown bg-danger-soft px-3 py-2 text-xs font-semibold text-danger-strong">
-          {STORAGE_FULL_MESSAGE}
+          {storageFullMessage(storage.limit)}
         </p>
       ) : (
         <p className="text-xs text-text-secondary">Counts photos in My photos and on your slides.</p>

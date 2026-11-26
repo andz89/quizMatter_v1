@@ -148,7 +148,7 @@ editor / view / review, and renders `Editor.tsx`, which calls `store.loadPresent
   `duplicateSlide`, so a picture stays in its answer box; one undo step; refused past `MAX_SLIDES`). Test:
   `e2e/slide-drag.mjs`.
 - **Photo storage** in the Photos panel's "My Photos" tab (root `CLAUDE.md`, "Photo Storage"): `PhotoStorageBar`
-  ("1.8 MB of 50 MB", coral with `STORAGE_FULL_MESSAGE` when full, and Upload greyed out), read each time the tab
+  ("1.8 MB of 50 MB", or of 500 MB for an editor; coral with `storageFullMessage` when full, and Upload greyed out), read each time the tab
   opens and after each save while it's open (`savedAt`: a save may free space), and updated by `watchPhotoStorage`;
   not for admins (no limit). Removing a photo: one `removeMyPhoto` call (`if_unused`, the tile goes at once); when
   the open presentation has it on a slide (maybe unsaved; never in review mode, a draft doesn't count) it asks first

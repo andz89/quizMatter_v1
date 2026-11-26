@@ -1,9 +1,24 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { PHOTO_STORAGE_LIMIT_BYTES, formatStorage, isStorageFull, stillUsedMessage } from "./photoStorage";
+import {
+  EDITOR_PHOTO_STORAGE_LIMIT_BYTES,
+  PHOTO_STORAGE_LIMIT_BYTES,
+  formatStorage,
+  isStorageFull,
+  stillUsedMessage,
+  storageFullMessage,
+} from "./photoStorage";
 
-test("the limit is 50 MB, the same number as the database's photo_storage_limit()", () => {
+test("the limits are 50 MB and 500 MB (editors), the same numbers as the database's photo_storage_limit()", () => {
   assert.equal(PHOTO_STORAGE_LIMIT_BYTES, 52428800);
+  assert.equal(EDITOR_PHOTO_STORAGE_LIMIT_BYTES, 524288000);
+});
+
+test("storageFullMessage names the teacher's own limit", () => {
+  const rest = ". To free space, remove photos from My photos and from your slides.";
+  assert.equal(storageFullMessage(52428800), `Your photo storage is full (50 MB)${rest}`);
+  assert.equal(storageFullMessage(524288000), `Your photo storage is full (500 MB)${rest}`);
+  assert.equal(storageFullMessage(null), `Your photo storage is full${rest}`);
 });
 
 test("formatStorage: one decimal under 10 MB, whole MB from 10 MB", () => {
@@ -13,6 +28,7 @@ test("formatStorage: one decimal under 10 MB, whole MB from 10 MB", () => {
   assert.equal(formatStorage(10485760), "10 MB");
   assert.equal(formatStorage(47185920), "45 MB");
   assert.equal(formatStorage(52428800), "50 MB");
+  assert.equal(formatStorage(524288000), "500 MB");
 });
 
 test("isStorageFull: only with a limit, at or past it", () => {

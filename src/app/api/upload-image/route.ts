@@ -2,7 +2,7 @@ import { pausedUntilFromError } from "@/lib/clickLimits";
 import { MAX_STORED_PHOTO_BYTES, PHOTO_URL_PREFIX } from "@/lib/constants";
 import { photoFileName, readPhotoType, savePhotoFile } from "@/lib/photoFiles";
 import { readUploadBody } from "@/lib/photoTypes";
-import { STORAGE_FULL_MESSAGE } from "@/lib/photoStorage";
+import { storageFullMessage } from "@/lib/photoStorage";
 import {
   photoSchema,
   photoStorageSchema,
@@ -23,7 +23,7 @@ import { createClient } from "@/lib/supabase/server";
  * or where it came from>, and &name=<file name> gives it its name (to show and search); both are only set the
  * first time it's shared. Each shared photo remembers who uploaded it (uploaded_by, filled in by the database).
  * An own photo must fit the teacher's photo storage (photo_upload_fits before the click limit counts it, then
- * reserve_photo_upload; 50 MB; 413 with code QMSTO when full),
+ * reserve_photo_upload; 50 MB, 500 MB for an editor; 413 with code QMSTO when full),
  * and the answer carries their new total (`storage`).
  */
 export async function POST(request: Request) {
@@ -90,9 +90,9 @@ export async function POST(request: Request) {
     }
   }
 
-  // An own photo must fit the teacher's photo storage (50 MB; admins have no limit). Asked before the click limit
-  // counts it: a size limit is never a click limit, so refused tries must not pause or ban. Secret key: the
-  // functions are the server's only (teachers can't write their own upload records).
+  // An own photo must fit the teacher's photo storage (50 MB, an editor 500 MB; admins have no limit). Asked before
+  // the click limit counts it: a size limit is never a click limit, so refused tries must not pause or ban. Secret
+  // key: the functions are the server's only (teachers can't write their own upload records).
   const admin = shared ? null : createAdminClient();
   if (!shared) {
     if (!admin) return Response.json({ error: "Couldn't upload the photo. Please try again." }, { status: 500 });
@@ -102,7 +102,7 @@ export async function POST(request: Request) {
       file_bytes: body.byteLength,
     });
     if (fitsError) return Response.json({ error: "Couldn't upload the photo. Please try again." }, { status: 500 });
-    if (fits !== true) return storageFull();
+    if (fits !== true) return storageFull(supabase);
   }
 
   // Counted before the file takes up storage (the super admin: no limit). Own photos: 30 in a minute or 300 in a
@@ -126,7 +126,7 @@ export async function POST(request: Request) {
       target_src: photo.data.src,
       file_bytes: body.byteLength,
     });
-    if (storageError?.code === "QMSTO") return storageFull();
+    if (storageError?.code === "QMSTO") return storageFull(supabase);
     if (storageError) return Response.json({ error: "Couldn't upload the photo. Please try again." }, { status: 500 });
   }
 
@@ -165,8 +165,12 @@ export async function POST(request: Request) {
   return Response.json(storage.success ? { ...photo.data, storage: storage.data } : photo.data);
 }
 
-function storageFull() {
-  return Response.json({ error: STORAGE_FULL_MESSAGE, code: "QMSTO" }, { status: 413 });
+/** 413 with the teacher's own limit in the words (left out if it can't be read). Only asked when full. */
+async function storageFull(supabase: Awaited<ReturnType<typeof createClient>>) {
+  const { data } = await supabase.rpc("my_photo_storage");
+  const storage = photoStorageSchema.safeParse(data);
+  const error = storageFullMessage(storage.success ? storage.data.limit : null);
+  return Response.json({ error, code: "QMSTO" }, { status: 413 });
 }
 
 function tooBig() {

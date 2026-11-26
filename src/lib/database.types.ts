@@ -952,7 +952,7 @@ isOneToOne: false
             }[]
                            },
 "photo_storage_limit":
-{ Args: Record<PropertyKey, never>; Returns: number
+{ Args: { "target": string }; Returns: number
                            },
 "photo_storage_used":
 { Args: { "target": string }; Returns: number

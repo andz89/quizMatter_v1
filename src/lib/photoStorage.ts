@@ -1,16 +1,24 @@
-// Photo storage: each teacher may keep 50 MB of photos they uploaded and still use (in "My photos" or on their
+// Photo storage: each teacher may keep 50 MB (an editor 500 MB) of photos they uploaded and still use (in "My photos" or on their
 // own slides). The database counts and refuses (supabase/migrations/20261231002600_photo_storage.sql); this file
 // holds the app's side: the limit, the words and how sizes are shown. No imports, so tests load it.
 
-/** 50 MB. Same number as the database's photo_storage_limit(): change both together. */
+/** 50 MB. Same number as the database's photo_storage_limit(target): change both together. */
 export const PHOTO_STORAGE_LIMIT_BYTES = 50 * 1024 * 1024;
 
-/** How much a teacher uses. `limit` is null for an admin (no limit). */
+/** An editor's limit, 500 MB. Same number as the database's photo_storage_limit(target): change both together. */
+export const EDITOR_PHOTO_STORAGE_LIMIT_BYTES = 500 * 1024 * 1024;
+
+/** How much a teacher uses and their own limit (50 MB, 500 MB for an editor). `limit` is null for an admin. */
 export type PhotoStorage = { used: number; limit: number | null };
 
-/** The upload route's words when an upload would pass the limit (QMSTO). */
-export const STORAGE_FULL_MESSAGE =
-  "Your photo storage is full (50 MB). To free space, remove photos from My photos and from your slides.";
+/**
+ * The words when an upload would pass the limit (QMSTO), with the teacher's own limit. Without it (the upload route
+ * couldn't read it) the number is left out.
+ */
+export function storageFullMessage(limit: number | null): string {
+  const size = limit === null ? "" : ` (${formatStorage(limit)})`;
+  return `Your photo storage is full${size}. To free space, remove photos from My photos and from your slides.`;
+}
 
 /** After removing a photo from "My photos" that's still on slides. */
 export const STILL_COUNTS_TOAST =

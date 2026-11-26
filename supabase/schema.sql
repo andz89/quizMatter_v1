@@ -2856,8 +2856,7 @@ CREATE OR REPLACE FUNCTION "public"."my_photo_storage"() RETURNS "jsonb"
     AS $$
   select jsonb_build_object(
     'used', public.photo_storage_used((select auth.uid())),
-    'limit', case when exists (select 1 from public.admins a where a.user_id = (select auth.uid()))
-                  then null else public.photo_storage_limit() end
+    'limit', public.photo_storage_limit((select auth.uid()))
   );
 $$;
 
@@ -2919,15 +2918,19 @@ $$;
 ALTER FUNCTION "public"."my_submissions"() OWNER TO "postgres";
 
 
-CREATE OR REPLACE FUNCTION "public"."photo_storage_limit"() RETURNS bigint
-    LANGUAGE "sql" IMMUTABLE
+CREATE OR REPLACE FUNCTION "public"."photo_storage_limit"("target" "uuid") RETURNS bigint
+    LANGUAGE "sql" STABLE SECURITY DEFINER
     SET "search_path" TO ''
     AS $$
-  select 52428800::bigint; -- 50 × 1024 × 1024
+  select case
+    when exists (select 1 from public.admins a where a.user_id = target) then null
+    when exists (select 1 from public.editors e where e.user_id = target) then 524288000::bigint -- 500 × 1024 × 1024
+    else 52428800::bigint -- 50 × 1024 × 1024
+  end;
 $$;
 
 
-ALTER FUNCTION "public"."photo_storage_limit"() OWNER TO "postgres";
+ALTER FUNCTION "public"."photo_storage_limit"("target" "uuid") OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."photo_storage_used"("target" "uuid") RETURNS bigint
@@ -2956,7 +2959,7 @@ CREATE OR REPLACE FUNCTION "public"."photo_upload_fits"("target" "uuid", "target
     LANGUAGE "sql" STABLE SECURITY DEFINER
     SET "search_path" TO ''
     AS $$
-  select exists (select 1 from public.admins a where a.user_id = target)
+  select public.photo_storage_limit(target) is null
     or exists (
       select 1 from public.photo_uploads u
       where u.user_id = target and u.src = target_src
@@ -2970,7 +2973,7 @@ CREATE OR REPLACE FUNCTION "public"."photo_upload_fits"("target" "uuid", "target
           )
         )
     )
-    or public.photo_storage_used(target) + file_bytes <= public.photo_storage_limit();
+    or public.photo_storage_used(target) + file_bytes <= public.photo_storage_limit(target);
 $$;
 
 
@@ -3485,8 +3488,7 @@ begin
     'uses', uses,
     'bytes', (select u.bytes from public.photo_uploads u where u.user_id = me and u.src = target_src),
     'used', public.photo_storage_used(me),
-    'limit', case when exists (select 1 from public.admins a where a.user_id = me)
-                  then null else public.photo_storage_limit() end
+    'limit', public.photo_storage_limit(me)
   );
 end;
 $$;
@@ -3534,7 +3536,8 @@ begin
   perform pg_advisory_xact_lock(hashtext('photo_storage:' || target::text));
 
   if not public.photo_upload_fits(target, target_src, file_bytes) then
-    raise exception 'Your photo storage is full (50 MB).' using errcode = 'QMSTO';
+    raise exception 'Your photo storage is full (% MB).', public.photo_storage_limit(target) / 1048576
+      using errcode = 'QMSTO';
   end if;
 
   insert into public.photo_uploads (user_id, src, bytes, size_known, created_at)
@@ -7148,9 +7151,8 @@ GRANT ALL ON FUNCTION "public"."my_submissions"() TO "service_role";
 
 
 
-REVOKE ALL ON FUNCTION "public"."photo_storage_limit"() FROM PUBLIC;
-GRANT ALL ON FUNCTION "public"."photo_storage_limit"() TO "authenticated";
-GRANT ALL ON FUNCTION "public"."photo_storage_limit"() TO "service_role";
+REVOKE ALL ON FUNCTION "public"."photo_storage_limit"("target" "uuid") FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."photo_storage_limit"("target" "uuid") TO "service_role";
 
 
 

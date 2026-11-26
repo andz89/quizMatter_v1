@@ -1,18 +1,26 @@
--- Photo storage limit: 50 MB per teacher.
+-- Photo storage limit: 50 MB per teacher, 500 MB per editor.
 -- Spec: docs/superpowers/specs/2026-11-26-photo-storage-limit-design.md. Test: supabase/tests/photo_storage.sql.
 --
 -- A photo counts against a teacher while THEY UPLOADED it (a photo_uploads row) and they still use it: it's in
 -- their "My photos" or on a slide of a presentation they own (their shared copy too). Each file counts once. A photo
--- someone copied never counts for the copier. Admins skip the limit. Nothing is ever deleted because of it.
+-- someone copied never counts for the copier. Editors get 500 MB; admins skip the limit. Nothing is ever deleted
+-- because of it.
 --
 -- Deploy: paste this into the live SQL editor BEFORE the app that calls these functions.
 
--- ─── The limit (PHOTO_STORAGE_LIMIT_BYTES in src/lib/photoStorage.ts: change both together) ─────────────────────
-create function public.photo_storage_limit() returns bigint
-language sql immutable
+-- ─── The limit (PHOTO_STORAGE_LIMIT_BYTES / EDITOR_PHOTO_STORAGE_LIMIT_BYTES in src/lib/photoStorage.ts: change
+-- both together) ───────────────────────────────────────────────────────────────────────────────────────────────
+-- null for an admin (no limit), 500 MB for an editor, 50 MB for everyone else. Read when asked, so taking the editor
+-- role away brings the teacher back to 50 MB at once (nothing is deleted; new uploads just stop while over it).
+create function public.photo_storage_limit(target uuid) returns bigint
+language sql stable security definer
 set search_path = ''
 as $$
-  select 52428800::bigint; -- 50 × 1024 × 1024
+  select case
+    when exists (select 1 from public.admins a where a.user_id = target) then null
+    when exists (select 1 from public.editors e where e.user_id = target) then 524288000::bigint -- 500 × 1024 × 1024
+    else 52428800::bigint -- 50 × 1024 × 1024
+  end;
 $$;
 
 -- ─── Who uploaded which file ─────────────────────────────────────────────────────────────────────────────────
@@ -61,12 +69,13 @@ as $$
 $$;
 
 -- ─── Does this upload fit? (upload-image asks first, before the click limit counts it; secret key) ───────────
--- True for an admin, or when the file already counts for them (uploading it again adds nothing), or when it fits.
+-- True for an admin (no limit), or when the file already counts for them (uploading it again adds nothing), or
+-- when it fits.
 create function public.photo_upload_fits(target uuid, target_src text, file_bytes integer) returns boolean
 language sql stable security definer
 set search_path = ''
 as $$
-  select exists (select 1 from public.admins a where a.user_id = target)
+  select public.photo_storage_limit(target) is null
     or exists (
       select 1 from public.photo_uploads u
       where u.user_id = target and u.src = target_src
@@ -80,7 +89,7 @@ as $$
           )
         )
     )
-    or public.photo_storage_used(target) + file_bytes <= public.photo_storage_limit();
+    or public.photo_storage_used(target) + file_bytes <= public.photo_storage_limit(target);
 $$;
 
 -- ─── Before an upload's file is stored (upload-image, with the secret key) ───────────────────────────────────
@@ -93,7 +102,8 @@ begin
   perform pg_advisory_xact_lock(hashtext('photo_storage:' || target::text));
 
   if not public.photo_upload_fits(target, target_src, file_bytes) then
-    raise exception 'Your photo storage is full (50 MB).' using errcode = 'QMSTO';
+    raise exception 'Your photo storage is full (% MB).', public.photo_storage_limit(target) / 1048576
+      using errcode = 'QMSTO';
   end if;
 
   insert into public.photo_uploads (user_id, src, bytes, size_known, created_at)
@@ -111,8 +121,7 @@ set search_path = ''
 as $$
   select jsonb_build_object(
     'used', public.photo_storage_used((select auth.uid())),
-    'limit', case when exists (select 1 from public.admins a where a.user_id = (select auth.uid()))
-                  then null else public.photo_storage_limit() end
+    'limit', public.photo_storage_limit((select auth.uid()))
   );
 $$;
 
@@ -159,8 +168,7 @@ begin
     'uses', uses,
     'bytes', (select u.bytes from public.photo_uploads u where u.user_id = me and u.src = target_src),
     'used', public.photo_storage_used(me),
-    'limit', case when exists (select 1 from public.admins a where a.user_id = me)
-                  then null else public.photo_storage_limit() end
+    'limit', public.photo_storage_limit(me)
   );
 end;
 $$;
@@ -187,8 +195,8 @@ as $$
 $$;
 
 -- ─── Grants ──────────────────────────────────────────────────────────────────────────────────────────────────
-revoke all on function public.photo_storage_limit() from public, anon;
-grant execute on function public.photo_storage_limit() to authenticated, service_role;
+revoke all on function public.photo_storage_limit(uuid) from public, anon, authenticated;
+grant execute on function public.photo_storage_limit(uuid) to service_role;
 
 revoke all on function public.photo_storage_used(uuid) from public, anon, authenticated;
 grant execute on function public.photo_storage_used(uuid) to service_role;

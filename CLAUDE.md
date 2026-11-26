@@ -463,23 +463,24 @@ The super admin shows a message to chosen teachers on chosen pages (Admin → An
 - **Privacy:** what's used to choose them, and the closed records, are in the Privacy Policy. A new filter on another
   detail updates it too.
 
-# Photo Storage (50 MB per teacher)
+# Photo Storage (50 MB per teacher, 500 MB per editor)
 
-Each teacher may keep 50 MB of photos. Design: `docs/superpowers/specs/2026-11-26-photo-storage-limit-design.md`.
+Each teacher may keep 50 MB of photos; an editor 500 MB (they make QuizMatter lessons). Admins have no limit. Design: `docs/superpowers/specs/2026-11-26-photo-storage-limit-design.md`.
 Migration: `20261231002600_photo_storage.sql`; tests: `supabase/tests/photo_storage.sql`, `e2e/photo-storage.mjs`.
 Keep these rules:
 
 - **What counts:** a photo the teacher **uploaded** (a `photo_uploads` row) while it's in their "My photos" **or**
   on a slide of a presentation **they own** (their shared copy too), once per file (`photo_storage_used`). A photo
   someone copied never counts for the copier; once the uploader stops using it, it counts for nobody (accepted:
-  copies don't make new files). Photos in a review draft don't count. Admins have no limit.
+  copies don't make new files). Photos in a review draft don't count.
 - **The database is the real check:** `upload-image` first asks `photo_upload_fits` (before the click limit counts
   the upload, so a full account's tries never pause or ban), then calls `reserve_photo_upload` with the secret key
   before the file is stored (one teacher at a time, an advisory lock; a new upload holds its space for 10 minutes);
-  over the limit = `QMSTO` (413, `STORAGE_FULL_MESSAGE`). The browser skips sending a photo while the last total it
+  over the limit = `QMSTO` (413, `storageFullMessage(limit)`, with their own limit). The browser skips sending a photo while the last total it
   saw is full (it asks again first, `sendPhoto`). Teachers only read their own `photo_uploads` rows, so they can't
-  delete records to free space. The limit is `photo_storage_limit()` and `PHOTO_STORAGE_LIMIT_BYTES`
-  (`src/lib/photoStorage.ts`): change both together.
+  delete records to free space. The limit is `photo_storage_limit(target)` (null for an admin, 500 MB for an editor,
+  else 50 MB; read each time, so losing the editor role means 50 MB again) and `PHOTO_STORAGE_LIMIT_BYTES` /
+  `EDITOR_PHOTO_STORAGE_LIMIT_BYTES` (`src/lib/photoStorage.ts`): change both together.
 - **Nothing is deleted because of it.** Over the limit (e.g. old photos counted at 2 MB until the weekly cleanup
   sends their real size, `set_photo_upload_sizes`) only stops new uploads.
 - **Removing from My photos** is `remove_my_photo(src, mode)`: one request when no slide of theirs has it; else it
