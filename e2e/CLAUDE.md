@@ -81,8 +81,8 @@ Tests that delete data (the announcements ones empty the announcements table) do
 - `hidden-slides.mjs`: hide a slide, save, present (→ / ← skip it), the all-slides grid, then publish it: on the view
   page another teacher's Prev/Next skip it (counter "2 / 2", details still "3 slides"), the owner and an admin see it
   faded; show it again.
-- `present-answer-key.mjs`: presenting fullscreen. The tip ("If this slide has a saved answer key…") shows right of
-  the bottom-left buttons in the same row, fades in, outlasts the buttons' 3 seconds and is gone after about 6; its ✕ fades it out sooner
+- `present-answer-key.mjs`: presenting fullscreen. The tip ("If this slide has a saved answer key…") shows at the bottom
+  center on its white card, clear of the bottom-left buttons, fades in, outlasts the buttons' 3 seconds and is gone after about 6; its ✕ fades it out sooner
   without changing the slide. Space shows and hides a choice slide's ✓ and opens and closes a short-answer slide's
   answer popup (Escape closes it too, still presenting); on a slide with no answer key Space goes to the next slide;
   the check button's hover text ends with "(Space)".
@@ -295,6 +295,18 @@ when another is picked), moving into and between boxes (Alt keeps a free picture
   counted), an upload's answer with the new total, a teacher whose My photos rows are paused (`photo_rows`) refused
   with 429 before anything is reserved or counted as an upload, and a full account: its upload refused (413, `QMSTO`), the full
   message shown and Upload greyed out (screenshots `photo-storage-bar.png`, `-warning.png`, `-full.png`).
+- `photo-storage-teacher.mjs`: a plain teacher's 50 MB in many cases (the account is filled with `psql`: 1 MB
+  records an hour old, in My photos). At 49 MB a 0.5 MB upload works; 1 MB more is refused (413, `QMSTO`, "(50 MB)",
+  the real total in the answer), holds no space and isn't an upload click; exactly the space left fits, then even
+  1 KB is refused; a photo that already counts uploads again while full. The editor while full: "50 MB of 50 MB", the
+  message, Upload greyed out. Removing an unused photo frees it (a fresh upload at once, not after 10 minutes); one
+  still on a slide keeps counting; taking it off the slide frees it, putting it back while full is refused
+  (`QMSTO`); a counted photo and another teacher's photo go on a slide while full (the copy never counts). Two
+  uploads at once with room for one: one 200, one 413. In the editor, a photo with 100 bytes left shows the full
+  message and stores nothing; at 40 MB it uploads (then it leaves the editor, so its auto save can't write over the
+  slides). The editor's own save (`save_presentation`) while full: moving a photo between slides, or deleting its
+  slide and putting it on a new one, in one save works; deleting the presentation frees it. An editor at 100 MB uploads, then without the role is refused
+  (50 MB); an admin at 60 MB has no limit (screenshots `photo-storage-teacher-full.png`, `-refused.png`).
 - `photo-uploads.mjs`: a plain teacher uploads their own photo (answer with their 50 MB storage, in My photos; the
   Photos panel shows the bar and a working Upload, no "available soon"); a plain teacher's profile photo is refused before anything is counted; an editor's is stored
   and the profile switches to it, counted once; a too-big upload sent in pieces (no Content-Length) gets 413.

@@ -391,8 +391,8 @@ export function PresentationView() {
       style={{ background: "var(--text-primary)" }}
       onClick={handleScreenClick}
     >
-      {/* Bottom left. Left to right: Exit, All slides, Reveal, then the tip. Reveal is last, so when it hides the other
-          buttons don't move. */}
+      {/* Bottom left. Left to right: Exit, All slides, Reveal. Reveal is last, so when it hides the other buttons don't
+          move. */}
       <div className="absolute bottom-5 left-5 z-10 flex max-w-[calc(100%-40px)] items-center gap-2">
         <div className={`flex shrink-0 gap-2 ${buttonsClass}`}>
           <button
@@ -434,31 +434,33 @@ export function PresentationView() {
             </button>
           )}
         </div>
-
-        {/* A tip next to the buttons when the presentation opens. It stays even when the buttons hide. */}
-        {tip !== "gone" && (
-          <div
-            role="status"
-            onClick={(e) => e.stopPropagation()}
-            onTransitionEnd={() => {
-              if (tip === "leaving") setTip("gone");
-            }}
-            className={`flex min-w-0 items-center gap-3 rounded-card bg-surface py-2 pl-4 pr-2 text-sm text-text-primary transition-opacity duration-500 ${
-              tip === "shown" ? "opacity-100" : "opacity-0"
-            }`}
-          >
-            <span>If this slide has a saved answer key, click the check icon or press Space to reveal it.</span>
-            <button
-              type="button"
-              onClick={() => setTip("leaving")}
-              title="Close tip"
-              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-dropdown text-text-secondary hover:bg-accent-soft hover:text-text-primary"
-            >
-              <XIcon size={16} />
-            </button>
-          </div>
-        )}
       </div>
+
+      {/* A tip at the bottom center when the presentation opens. It stays even when the buttons hide. */}
+      {tip !== "gone" && (
+        <div
+          role="status"
+          onClick={(e) => e.stopPropagation()}
+          onTransitionEnd={() => {
+            if (tip === "leaving") setTip("gone");
+          }}
+          className={`absolute bottom-5 left-1/2 z-10 flex w-max max-w-[calc(100%-40px)] -translate-x-1/2 items-center gap-3 rounded-card border border-border-default bg-bg-surface py-2 pl-4 pr-2 text-sm text-text-primary transition-opacity duration-500 ${
+            tip === "shown" ? "opacity-100" : "opacity-0"
+          }`}
+        >
+          <span>
+            If this slide has a saved answer key, click the check icon at the bottom left or press Space to reveal it.
+          </span>
+          <button
+            type="button"
+            onClick={() => setTip("leaving")}
+            title="Close tip"
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-dropdown text-text-secondary hover:bg-accent-soft hover:text-text-primary"
+          >
+            <XIcon size={16} />
+          </button>
+        </div>
+      )}
 
       <div className="relative overflow-hidden" style={{ width: CANVAS_WIDTH * scale, height: CANVAS_HEIGHT * scale }}>
         {/* Each slide keeps one drawing while it's near: the slide shown, the one we came from (under it until its
