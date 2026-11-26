@@ -9,13 +9,13 @@ import { useEditorStore, isPanelEscape } from "@/lib/store";
 import {
   ELEMENT_EFFECTS,
   ELEMENT_EFFECT_LABELS,
-  SLIDE_EFFECT_SPEED_DEFAULT,
   SLIDE_EFFECT_SPEED_MAX,
   SLIDE_EFFECT_SPEED_MIN,
   SLIDE_TRANSITIONS,
   SLIDE_TRANSITION_LABELS,
   type ElementEffectType,
   type Slide,
+  type SvgElement,
 } from "@/lib/schema";
 import { canHaveElementEffects, effectSteps } from "@/lib/elementEffects";
 import { PanelLabel } from "./PanelControls";
@@ -30,8 +30,9 @@ type Tab = "slide" | "element";
 
 /**
  * Sidebar panel for effects while presenting full screen, in two tabs. Slide effects: how every slide comes in (one
- * for the whole presentation). Element effects: on a blank or title slide, picked elements come in one click at a
- * time, in the order listed. Both count as unsaved changes until Save.
+ * for the whole presentation). Element effects: on a blank or title slide, the list of elements that come in one
+ * click at a time; a picked one's row opens with its effect and speed, and a picked one with no effect gets a
+ * dashed row to add one. Both count as unsaved changes until Save.
  */
 export function EffectsPanel() {
   const closeEffectsPanel = useEditorStore((s) => s.closeEffectsPanel);
@@ -116,7 +117,7 @@ function SpeedControl({ value, onChange }: { value: number; onChange: (speed: nu
   const stepClass =
     "flex h-7 w-7 shrink-0 items-center justify-center rounded-dropdown border border-border-default bg-bg-surface text-text-primary enabled:hover:bg-bg-page disabled:opacity-40";
   return (
-    <div className="flex flex-col gap-1.5 px-4 pb-3">
+    <div className="flex flex-col gap-1.5">
       <span className="flex justify-between text-xs font-semibold uppercase tracking-[0.05em] text-text-header">
         Speed
         <span className="font-normal normal-case tracking-normal text-text-secondary">
@@ -166,7 +167,11 @@ function SlideEffectsTab() {
           onPick={() => setPresentationDetails({ transition: effect })}
         >
           {/* "None" has nothing to speed up. */}
-          {effect !== "none" && <SpeedControl value={transitionSpeed} onChange={(speed) => setPresentationDetails({ transitionSpeed: speed })} />}
+          {effect !== "none" && (
+            <div className="px-4 pb-3">
+              <SpeedControl value={transitionSpeed} onChange={(speed) => setPresentationDetails({ transitionSpeed: speed })} />
+            </div>
+          )}
         </EffectChoice>
       ))}
     </section>
@@ -177,107 +182,136 @@ function ElementEffectsTab() {
   const slide = useEditorStore((s) => s.presentation.slides.find((sl) => sl.id === s.selectedSlideId));
   const selectedIds = useEditorStore((s) => s.selectedElementIds);
   const setElementEffect = useEditorStore((s) => s.setElementEffect);
+  const moveElementEffect = useEditorStore((s) => s.moveElementEffect);
+  const sensors = useSensors(useSensor(PointerSensor, POINTER_OPTIONS));
 
   if (!slide) return null;
   if (!canHaveElementEffects(slide)) {
     return <p className="text-sm text-text-secondary">Element effects work on Blank and Title slides.</p>;
   }
 
-  const picked = slide.elements.filter((e) => selectedIds.includes(e.id));
-  // The picked elements' shared effect; mixed or none shows None.
-  const first = picked[0]?.effect;
-  const shared = first && picked.every((e) => e.effect?.type === first.type) ? first : undefined;
-  const speed = shared && picked.every((e) => e.effect?.speed === shared.speed) ? shared.speed : SLIDE_EFFECT_SPEED_DEFAULT;
-  const ids = picked.map((e) => e.id);
-  const pick = (type: ElementEffectType | null) => setElementEffect(slide.id, ids, type);
-
-  return (
-    <>
-      <section className="flex flex-col gap-3">
-        <PanelLabel>Element effect</PanelLabel>
-        <p className="text-xs text-text-secondary">While presenting, each click shows the next element with an effect.</p>
-        {picked.length === 0 ? (
-          <p className="text-sm text-text-secondary">Pick a picture or text on the slide to give it an effect.</p>
-        ) : (
-          <>
-            <EffectChoice label="None" selected={!shared && !picked.some((e) => e.effect)} onPick={() => pick(null)} />
-            {ELEMENT_EFFECTS.map((type) => (
-              <EffectChoice key={type} label={ELEMENT_EFFECT_LABELS[type]} selected={shared?.type === type} onPick={() => pick(type)}>
-                <SpeedControl value={speed} onChange={(next) => setElementEffect(slide.id, ids, type, next)} />
-              </EffectChoice>
-            ))}
-          </>
-        )}
-      </section>
-      <EffectSteps slide={slide} />
-    </>
-  );
-}
-
-/** "On this slide": the steps in the order they come in. Click = select, drag = reorder, ✕ = no effect. */
-function EffectSteps({ slide }: { slide: Slide }) {
-  const moveElementEffect = useEditorStore((s) => s.moveElementEffect);
-  const sensors = useSensors(useSensor(PointerSensor, POINTER_OPTIONS));
   const steps = effectSteps(slide);
-  if (steps.length === 0) return null;
   const keys = steps.map((ids) => ids[0]);
-
+  // Picked elements with no effect yet get the dashed "add" row under the list.
+  const newcomers = slide.elements.filter((e) => selectedIds.includes(e.id) && !e.effect);
   const handleDragEnd = ({ active, over }: DragEndEvent) => {
     if (!over || active.id === over.id) return;
     moveElementEffect(slide.id, keys.indexOf(String(active.id)), keys.indexOf(String(over.id)));
   };
 
   return (
-    <section className="flex flex-col gap-2">
+    <section className="flex flex-col gap-3">
       <PanelLabel>On this slide</PanelLabel>
-      <DndContext sensors={sensors} collisionDetection={closestCenter} modifiers={VERTICAL_ONLY} onDragEnd={handleDragEnd}>
-        <SortableContext items={keys} strategy={verticalListSortingStrategy}>
-          <ol className="flex flex-col gap-2">
-            {steps.map((ids, i) => (
-              <StepRow key={keys[i]} id={keys[i]} number={i + 1} slide={slide} ids={ids} />
-            ))}
-          </ol>
-        </SortableContext>
-      </DndContext>
+      <p className="text-xs text-text-secondary">While presenting, each click shows the next element, in this order.</p>
+      {steps.length > 0 && (
+        <DndContext sensors={sensors} collisionDetection={closestCenter} modifiers={VERTICAL_ONLY} onDragEnd={handleDragEnd}>
+          <SortableContext items={keys} strategy={verticalListSortingStrategy}>
+            <ol className="flex flex-col gap-2">
+              {steps.map((ids, i) => (
+                <StepRow key={keys[i]} id={keys[i]} number={i + 1} slide={slide} ids={ids} />
+              ))}
+            </ol>
+          </SortableContext>
+        </DndContext>
+      )}
+      {newcomers.length > 0 ? (
+        <div className="flex flex-col gap-3 rounded-button border border-dashed border-accent bg-accent-soft px-3 py-3">
+          <div className="flex flex-col">
+            <span className="truncate text-sm font-semibold text-text-primary">{rowName(newcomers)}</span>
+            <span className="text-xs text-text-secondary">No effect yet: pick one</span>
+          </div>
+          <EffectSwitch
+            onPick={(type) =>
+              setElementEffect(
+                slide.id,
+                newcomers.map((e) => e.id),
+                type,
+              )
+            }
+          />
+        </div>
+      ) : (
+        steps.length === 0 && <p className="text-sm text-text-secondary">Pick a picture or text on the slide to give it an effect.</p>
+      )}
     </section>
   );
 }
 
+/** A row's name: a group's size, else its elements' names (like the Layers panel's rows). */
+function rowName(elements: SvgElement[]) {
+  const isGroup = !!elements[0]?.groupId && elements.every((e) => e.groupId === elements[0].groupId);
+  return isGroup ? `Group · ${elements.length} items` : elements.map((e) => elementName(e)).join(", ");
+}
+
+/** Fade | Pop up, as one two-part switch. Picking the one already on changes nothing. */
+function EffectSwitch({ value, onPick }: { value?: ElementEffectType; onPick: (type: ElementEffectType) => void }) {
+  return (
+    <div role="radiogroup" aria-label="Effect" className="grid grid-cols-2 gap-1 rounded-button border border-border-default bg-bg-surface p-1">
+      {ELEMENT_EFFECTS.map((type) => (
+        <button
+          key={type}
+          type="button"
+          role="radio"
+          aria-checked={value === type}
+          onClick={() => {
+            if (value !== type) onPick(type);
+          }}
+          className={`rounded-dropdown border px-2 py-1.5 text-center text-sm font-semibold transition-colors ${
+            value === type ? "border-accent bg-accent-soft text-accent" : "border-transparent text-text-secondary hover:text-text-primary"
+          }`}
+        >
+          {ELEMENT_EFFECT_LABELS[type]}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * One step: drag handle, number, name, effect, ✕. Click selects its elements; while they're picked the row opens
+ * with its effect switch and speed inside it.
+ */
 function StepRow({ id, number, slide, ids }: { id: string; number: number; slide: Slide; ids: string[] }) {
   const selectElements = useEditorStore((s) => s.selectElements);
   const setElementEffect = useEditorStore((s) => s.setElementEffect);
   const selectedIds = useEditorStore((s) => (s.selectedSlideId === slide.id ? s.selectedElementIds : NO_IDS));
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
   const elements = slide.elements.filter((e) => ids.includes(e.id));
-  const isGroup = !!elements[0]?.groupId && elements.every((e) => e.groupId === elements[0].groupId);
-  const name = isGroup ? `Group · ${elements.length} items` : elements.map((e) => elementName(e)).join(", ");
   const effect = elements[0]?.effect;
-  const isSelected = ids.every((i) => selectedIds.includes(i));
+  const isOpen = ids.every((i) => selectedIds.includes(i));
 
   return (
     <li
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition }}
-      className={`flex items-center gap-2 rounded-button border px-2 py-2 ${isDragging ? "z-10" : ""} ${
-        isSelected ? "border-accent bg-accent-soft" : "border-border-default bg-bg-surface hover:bg-bg-page"
+      className={`flex flex-col rounded-button border ${isDragging ? "z-10" : ""} ${
+        isOpen ? "border-accent bg-accent-soft" : "border-border-default bg-bg-surface hover:bg-bg-page"
       }`}
     >
-      <span {...attributes} {...listeners} title="Drag to change the order" className="flex cursor-grab text-text-secondary">
-        <GripVerticalIcon size={16} />
-      </span>
-      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-dropdown bg-accent text-[11px] font-bold text-white">{number}</span>
-      <button type="button" onClick={() => selectElements(ids)} className="flex min-w-0 flex-1 flex-col text-left">
-        <span className="truncate text-sm font-semibold text-text-primary">{name}</span>
-        {effect && <span className="text-xs text-text-secondary">{ELEMENT_EFFECT_LABELS[effect.type]}</span>}
-      </button>
-      <button
-        type="button"
-        onClick={() => setElementEffect(slide.id, ids, null)}
-        title="Remove effect"
-        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-dropdown text-text-secondary hover:bg-danger-soft hover:text-danger-strong"
-      >
-        <XIcon size={14} />
-      </button>
+      <div className="flex items-center gap-2 px-2 py-2">
+        <span {...attributes} {...listeners} title="Drag to change the order" className="flex cursor-grab text-text-secondary">
+          <GripVerticalIcon size={16} />
+        </span>
+        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-dropdown bg-accent text-[11px] font-bold text-white">{number}</span>
+        <button type="button" onClick={() => selectElements(ids)} className="flex min-w-0 flex-1 flex-col text-left">
+          <span className="truncate text-sm font-semibold text-text-primary">{rowName(elements)}</span>
+          {effect && <span className="text-xs text-text-secondary">{ELEMENT_EFFECT_LABELS[effect.type]}</span>}
+        </button>
+        <button
+          type="button"
+          onClick={() => setElementEffect(slide.id, ids, null)}
+          title="Remove effect"
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-dropdown text-text-secondary hover:bg-danger-soft hover:text-danger-strong"
+        >
+          <XIcon size={14} />
+        </button>
+      </div>
+      {isOpen && effect && (
+        <div className="flex flex-col gap-3 px-3 pb-3">
+          <EffectSwitch value={effect.type} onPick={(type) => setElementEffect(slide.id, ids, type)} />
+          <SpeedControl value={effect.speed} onChange={(speed) => setElementEffect(slide.id, ids, effect.type, speed)} />
+        </div>
+      )}
     </li>
   );
 }

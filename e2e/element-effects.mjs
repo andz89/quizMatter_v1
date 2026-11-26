@@ -98,11 +98,21 @@ try {
   await slideBox("s1").locator('[data-element-id="c"]').click();
   await page.locator('button[title="Slide and element effects"]').first().click();
   await page.getByRole("tab", { name: "Element effects" }).click();
-  await page.getByRole("button", { name: "Fade", exact: true }).click();
+  const rows = page.locator("ol li");
+  check("a picked element with no effect gets the dashed row", await page.getByText("No effect yet: pick one").isVisible());
+  check("…and the list has only the 2 steps", (await rows.count()) === 2);
+  await page.getByRole("radio", { name: "Fade" }).click();
   const badge = slideBox("s1").locator('[title="Comes in at click 3"]');
   await badge.waitFor({ timeout: 3000 }).catch(() => {});
   check("the Effects panel gives c step 3 and its badge shows", (await badge.count()) === 1);
-  check("On this slide lists 3 steps", (await page.locator("ol li").count()) === 3);
+  check("On this slide lists 3 steps", (await rows.count()) === 3);
+  check("the dashed row is gone", (await page.getByText("No effect yet: pick one").count()) === 0);
+  check("the picked step's row opens with its switch and speed inside", (await rows.nth(2).getByRole("radio", { name: "Fade" }).getAttribute("aria-checked")) === "true" && (await rows.nth(2).getByLabel("Speed").count()) === 1);
+  check("the other rows stay closed", (await rows.nth(0).getByRole("radiogroup").count()) === 0);
+  // Clicking another row picks its element and opens that row instead; its switch changes the effect.
+  await rows.nth(0).getByRole("button", { name: /Star/ }).click();
+  await rows.nth(0).getByRole("radio", { name: "Pop up" }).click();
+  check("a row's switch changes its effect", (await rows.nth(0).textContent()).includes("Pop up") && (await rows.nth(2).getByRole("radiogroup").count()) === 0);
   await page.screenshot({ path: SHOTS + "element-effects-panel.png" });
 
   // On a question slide the tab only says where effects work.

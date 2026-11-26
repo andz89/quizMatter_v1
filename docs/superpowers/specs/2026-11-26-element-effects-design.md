@@ -75,11 +75,11 @@ effect: { type: "fade" | "pop", order: int 1..MAX_ELEMENTS, speed: int SLIDE_EFF
 - Element effects tab, for the selected slide:
   - Not Blank / Title: a note, "Element effects work on Blank and Title slides.", and nothing else.
   - Nothing picked: a hint to pick an element on the slide.
-  - An element or group picked: the choices None / Fade / Pop up (same card look as the slide effect choices), and
-    Speed under the picked one (the same − / slider / + control; reuse it, don't copy it).
-  - Below: "On this slide", the slide's steps in order as rows (number, the element's name like the Layers panel's
-    row names, its effect). Click = select the element. Drag (`@dnd-kit`, as in the Layers panel) = reorder. Each
-    row has a remove (✕) that sets the effect back to None.
+  - "On this slide", the slide's steps in order as rows (number, the element's name like the Layers panel's row
+    names, its effect). Click = select the element. Drag (`@dnd-kit`, as in the Layers panel) = reorder. Each row
+    has a remove (✕). While a row's elements are picked, the row opens with a Fade | Pop up switch and the Speed
+    control inside it (changed 2026-11-26 at the user's request: the choices live in the item, not above the list).
+  - A picked element with no effect: a dashed row under the list ("No effect yet") with the same switch to add one.
 - Several separate elements picked and given an effect: each gets its own step, one after another at the end, in
   their order on the slide. A group is one step.
 - A new effect goes at the end (`max order + 1`). Changing an element's effect type or speed keeps its step.

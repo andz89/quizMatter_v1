@@ -64,10 +64,12 @@ editor / view / review, and renders `Editor.tsx`, which calls `store.loadPresent
   the others, so a new panel adds its `is…Open: next ? false : …` line to every toggle.
 - **Effects panel** (`EffectsPanel`, spec `docs/superpowers/specs/2026-11-26-element-effects-design.md`): two tabs.
   "Slide effects" = the presentation's `transition` / `transitionSpeed`. "Element effects" (only Blank and Title
-  slides, `canHaveElementEffects`; other slides get a note): the picked elements' None / Fade / Pop up and speed
-  (`setElementEffect`, whole groups; a new one comes in last, one already set keeps its step), then "On this slide",
-  the steps in order (`effectSteps`): click selects, drag reorders (`moveElementEffect`, `@dnd-kit`), ✕ removes.
-  Both tabs share `SpeedControl`. While the panel is open, `SvgElementItem` shows each element's step number at its
+  slides, `canHaveElementEffects`; other slides get a note): "On this slide", the steps in order (`effectSteps`).
+  Click a row = select its elements, and while they're picked the row opens with the Fade | Pop up switch
+  (`EffectSwitch`) and the speed inside it; drag reorders (`moveElementEffect`, `@dnd-kit`); ✕ removes. A picked
+  element with no effect gets a dashed row under the list ("No effect yet") with the same switch, which adds it
+  (`setElementEffect`, whole groups; a new one comes in last, one already set keeps its step). Both tabs share
+  `SpeedControl`. While the panel is open, `SvgElementItem` shows each element's step number at its
   top-left (editor only). Duplicate and paste keep a copy's effect but put it last (`effectsToEnd`). The math is in
   `src/lib/elementEffects.ts`; presenting in `src/components/presentation/CLAUDE.md`.
 - **Color panel** (`ColorPanel`): one panel for every color target (text, shapes, borders, table cells, diagram
