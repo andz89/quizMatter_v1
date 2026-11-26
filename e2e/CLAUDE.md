@@ -91,7 +91,9 @@ Tests that delete data (the announcements ones empty the announcements table) do
   question slide ignores its effect; ← back shows the slide whole, then hides the last step, then the first; two quick
   presses leave both fully shown. In the editor, a picked element with no effect gets the dashed "No effect yet" row; its Fade
   adds it (its badge "3" and a third row in "On this slide"), the picked row opens with its switch and speed while the
-  others stay closed, another row's switch changes its effect, and a question slide's tab says where effects work.
+  others stay closed, another row's switch changes its effect, a click on an open row closes it, no row is drawn
+  over another (open, closed, after dragging row 3 to the top), a short row dragged over an open one keeps its size,
+  and a question slide's tab says where effects work.
 - `add-slide-menu.mjs`: the slide's + and the workspace's Add slide have no "Embed image" (the other 8 types stay),
   and an image slide saved before still opens with its picture. Outside the editor that picture (from another
   website) isn't asked for: the view page names the website, and presenting loads it only after "Show picture".

@@ -66,7 +66,9 @@ editor / view / review, and renders `Editor.tsx`, which calls `store.loadPresent
   "Slide effects" = the presentation's `transition` / `transitionSpeed`. "Element effects" (only Blank and Title
   slides, `canHaveElementEffects`; other slides get a note): "On this slide", the steps in order (`effectSteps`).
   Click a row = select its elements, and while they're picked the row opens with the Fade | Pop up switch
-  (`EffectSwitch`) and the speed inside it; drag reorders (`moveElementEffect`, `@dnd-kit`); ✕ removes. A picked
+  (`EffectSwitch`) and the speed inside it, and a click on it again closes it; drag reorders (rows only move,
+  `CSS.Translate`: with `CSS.Transform` a short row dragged over an open one was stretched to its height;
+  `moveElementEffect`, `@dnd-kit`); ✕ removes. A picked
   element with no effect gets a dashed row under the list ("No effect yet") with the same switch, which adds it
   (`setElementEffect`, whole groups; a new one comes in last, one already set keeps its step). Both tabs share
   `SpeedControl`. While the panel is open, `SvgElementItem` shows each element's step number at its

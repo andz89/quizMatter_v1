@@ -269,7 +269,7 @@ function EffectSwitch({ value, onPick }: { value?: ElementEffectType; onPick: (t
 
 /**
  * One step: drag handle, number, name, effect, ✕. Click selects its elements; while they're picked the row opens
- * with its effect switch and speed inside it.
+ * with its effect switch and speed inside it, and a click on it again closes it.
  */
 function StepRow({ id, number, slide, ids }: { id: string; number: number; slide: Slide; ids: string[] }) {
   const selectElements = useEditorStore((s) => s.selectElements);
@@ -283,8 +283,10 @@ function StepRow({ id, number, slide, ids }: { id: string; number: number; slide
   return (
     <li
       ref={setNodeRef}
-      style={{ transform: CSS.Transform.toString(transform), transition }}
-      className={`flex flex-col rounded-button border ${isDragging ? "z-10" : ""} ${
+      // Translate only: rows have different heights (an open one is taller), and a scaled row was drawn stretched
+      // over its neighbors while dragging.
+      style={{ transform: CSS.Translate.toString(transform), transition }}
+      className={`relative flex flex-col rounded-button border ${isDragging ? "z-10" : ""} ${
         isOpen ? "border-accent bg-accent-soft" : "border-border-default bg-bg-surface hover:bg-bg-page"
       }`}
     >
@@ -293,7 +295,13 @@ function StepRow({ id, number, slide, ids }: { id: string; number: number; slide
           <GripVerticalIcon size={16} />
         </span>
         <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-dropdown bg-accent text-[11px] font-bold text-white">{number}</span>
-        <button type="button" onClick={() => selectElements(ids)} className="flex min-w-0 flex-1 flex-col text-left">
+        {/* An open row's click closes it (and lets go of its elements). */}
+        <button
+          type="button"
+          onClick={() => selectElements(isOpen ? [] : ids)}
+          aria-expanded={isOpen}
+          className="flex min-w-0 flex-1 flex-col text-left"
+        >
           <span className="truncate text-sm font-semibold text-text-primary">{rowName(elements)}</span>
           {effect && <span className="text-xs text-text-secondary">{ELEMENT_EFFECT_LABELS[effect.type]}</span>}
         </button>

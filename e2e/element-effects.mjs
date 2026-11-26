@@ -113,6 +113,52 @@ try {
   await rows.nth(0).getByRole("button", { name: /Star/ }).click();
   await rows.nth(0).getByRole("radio", { name: "Pop up" }).click();
   check("a row's switch changes its effect", (await rows.nth(0).textContent()).includes("Pop up") && (await rows.nth(2).getByRole("radiogroup").count()) === 0);
+  // No row is ever drawn over another (opening, closing, and after a drag).
+  const overlaps = async () => {
+    const boxes = await rows.evaluateAll((els) => els.map((el) => el.getBoundingClientRect()).map((r) => ({ top: r.top, bottom: r.bottom, left: r.left })));
+    return boxes.some((b, i) => i > 0 && (b.top < boxes[i - 1].bottom - 1 || Math.abs(b.left - boxes[0].left) > 1));
+  };
+  await page.waitForTimeout(400);
+  check("an open row pushes the rows under it down", !(await overlaps()));
+  // Clicking the open row again closes it (and lets go of its element).
+  await rows.nth(0).getByRole("button", { name: /Star/ }).click();
+  await page.waitForTimeout(400);
+  check("clicking an open row again closes it", (await rows.nth(0).getByRole("radiogroup").count()) === 0);
+  check("…with no row drawn over another", !(await overlaps()));
+  await page.screenshot({ path: SHOTS + "element-effects-closed.png" });
+  // Drag row 3 to the top, then open and close rows: still no overlap.
+  const grip = (i) => rows.nth(i).locator('[title="Drag to change the order"]');
+  const from = await grip(2).boundingBox();
+  const to = await grip(0).boundingBox();
+  await page.mouse.move(from.x + 5, from.y + 5);
+  await page.mouse.down();
+  await page.mouse.move(from.x + 5, from.y - 10, { steps: 4 });
+  await page.mouse.move(to.x + 5, to.y + 2, { steps: 8 });
+  await page.mouse.up();
+  await page.waitForTimeout(500);
+  check("dragging row 3 to the top makes it step 1", (await slideBox("s1").locator('[title="Comes in at click 1"]').count()) === 1 && (await rows.nth(0).textContent()).includes("Fade"));
+  for (const i of [0, 1, 0]) {
+    await rows.nth(i).getByRole("button", { name: /Star/ }).click();
+    await page.waitForTimeout(400);
+  }
+  check("after a drag, opening and closing rows draws none over another", !(await overlaps()));
+  // Mid-drag: a short row dragged over an open (taller) one keeps its own size (it isn't stretched).
+  check("row 1 is open before the drag", (await rows.nth(0).getByRole("radiogroup").count()) === 1);
+  const shortRow = await rows.nth(2).boundingBox();
+  const g = await grip(2).boundingBox();
+  await page.mouse.move(g.x + 5, g.y + 5);
+  await page.mouse.down();
+  await page.mouse.move(g.x + 5, g.y - 10, { steps: 4 });
+  await page.mouse.move(g.x + 5, (await rows.nth(0).boundingBox()).y + 20, { steps: 8 });
+  await page.waitForTimeout(300);
+  const dragged = await rows.nth(2).boundingBox();
+  await page.screenshot({ path: SHOTS + "element-effects-mid-drag.png" });
+  // Back to where it started, so the drop changes nothing.
+  await page.mouse.move(g.x + 5, g.y + 5, { steps: 8 });
+  await page.mouse.up();
+  await page.waitForTimeout(400);
+  check("a dragged row keeps its size over an open row", Math.abs(dragged.width - shortRow.width) < 1 && Math.abs(dragged.height - shortRow.height) < 1, JSON.stringify({ shortRow, dragged }));
+  await page.screenshot({ path: SHOTS + "element-effects-after-drag.png" });
   await page.screenshot({ path: SHOTS + "element-effects-panel.png" });
 
   // On a question slide the tab only says where effects work.
