@@ -34,7 +34,7 @@ export function IconRail() {
       <RailButton label="Background" active={isBackgroundPanelOpen} onClick={toggleBackgroundPanel}>
         <PaintBucketIcon size={22} />
       </RailButton>
-      <RailButton label="Effects" title="Slide effects" active={isEffectsPanelOpen} onClick={toggleEffectsPanel}>
+      <RailButton label="Effects" title="Slide and element effects" active={isEffectsPanelOpen} onClick={toggleEffectsPanel}>
         <SparklesIcon size={22} />
       </RailButton>
       <RailButton label="Presentations" title="Slides from published presentations" active={isPresentationsPanelOpen} onClick={togglePresentationsPanel}>

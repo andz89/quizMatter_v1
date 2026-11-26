@@ -785,7 +785,7 @@ export const SvgElementItem = memo(function SvgElementItem({ slideId, element, i
       {showSelection && effectStep !== null && (
         <span
           title={`Comes in at click ${effectStep}`}
-          className="pointer-events-none absolute -left-2.5 -top-2.5 z-10 flex h-5 min-w-5 items-center justify-center rounded-dropdown bg-accent px-1 text-[11px] font-bold text-white"
+          className="pointer-events-none absolute right-full top-0 z-10 mr-2 flex h-5 min-w-5 items-center justify-center rounded-dropdown bg-accent px-1 text-[11px] font-bold text-white"
           // Stays upright on a turned element.
           style={{ transform: `rotate(${-angle}deg)` }}
         >

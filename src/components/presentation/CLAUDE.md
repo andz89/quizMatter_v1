@@ -29,6 +29,17 @@ Slides drawn without the editor: fullscreen presenting, cards, the view page, re
   when the computer asks to reduce motion (the teacher picked one on purpose; "None" turns them off). Speed 1–5 (default 3):
   seconds in `SLIDE_EFFECT_SECONDS` / `SLIDE_FADE_SECONDS` (`constants.ts`). A new effect goes in
   `startSlideEffect` and `SLIDE_TRANSITIONS` (`schema.ts`), and gets a choice in the editor's `EffectsPanel`.
+- **Element effects** (Fade, Pop up; spec `docs/superpowers/specs/2026-11-26-element-effects-design.md`): only on
+  Blank and Title slides (`effectSteps` in `src/lib/elementEffects.ts` gives none on other types, so a question slide
+  presents as before). `stepsShown` counts the shown slide's steps that came in: Next (right-side click, →, ↓,
+  Space) brings in the next step before moving on; once all are in, Space does today's answer toggle. Back hides the
+  last step at once, then goes to the previous slide. Arriving going back shows all steps; going forward or from the
+  "Show all slides" grid (`isGridJump`), none. Elements not in yet are drawn see-through (`hiddenElementIds` →
+  `StaticElementView`'s `opacity-0` class on the inner box marked `data-element-id`), so photos are ready; slides
+  drawn ahead hide all their steps, the slide we came from keeps what it showed. `startElementEffect` plays one step
+  with `motion/mini` (`ELEMENT_EFFECT_SECONDS`, `constants.ts`); the next press cancels it and clears its inline
+  styles, so the class decides. Nothing is hidden anywhere else (cards, thumbnails, the view page, the editor).
+  Test: `e2e/element-effects.mjs`.
 - `PresentDraftButton.tsx`: Present for a presentation that isn't open in the editor (a review's submitted
   version). Downloads `PresentationView` only when clicked, with the Spinner meanwhile. `showView={false}` leaves the
   showing to another Present on screen (a page under the presentation modal), so only one view hears the keys.

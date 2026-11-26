@@ -86,6 +86,11 @@ Tests that delete data (the announcements ones empty the announcements table) do
   without changing the slide. Space shows and hides a choice slide's ✓ and opens and closes a short-answer slide's
   answer popup (Escape closes it too, still presenting); on a slide with no answer key Space goes to the next slide;
   the check button's hover text ends with "(Space)".
+- `element-effects.mjs`: element effects. Presenting a blank slide: an element with no effect shows at once, the
+  others start hidden; →, then Space, bring in Fade and Pop up (ending at full size); the next press goes on; a
+  question slide ignores its effect; ← back shows the slide whole, then hides the last step, then the first; two quick
+  presses leave both fully shown. In the editor, the Effects panel's Element effects tab gives a picked element Fade
+  (its badge "3" and a third row in "On this slide"), and a question slide's tab says where effects work.
 - `add-slide-menu.mjs`: the slide's + and the workspace's Add slide have no "Embed image" (the other 8 types stay),
   and an image slide saved before still opens with its picture. Outside the editor that picture (from another
   website) isn't asked for: the view page names the website, and presenting loads it only after "Show picture".

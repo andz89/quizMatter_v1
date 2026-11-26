@@ -308,6 +308,15 @@ data. Spec: `docs/superpowers/specs/2026-10-23-stable-presentation-data-design.m
   text moved with Track Changes on read once (`w:moveFrom` skipped), `stripItemMark` (a single letter only as A–E in
   an answer box or I / V / X in the question box, never right before another initial: "J. K. Rowling"), `droppedTextHtml`, `pickedSlideTexts` + `PICKED_LINES_MAX` (ticked lines → question and A–D), `suggestItems` (numbered lines and up to 4
   lines under each, for Show suggestions; `stripItemMark` also removes a "____" blank in front of a number), `WORD_LINES_MAX` (2,000). Tests: `wordText.test.ts`, `wordFile.test.ts`.
+- `elementEffects.ts`: element effects (an element's `effect`: `fade` / `pop`, its step `order`, speed 1–5;
+  DATA_VERSION 7, `20261231002900_element_effects.sql`; spec
+  `docs/superpowers/specs/2026-11-26-element-effects-design.md`). Only types from `schema.ts`, tested in
+  `elementEffects.test.ts`: `canHaveElementEffects` (blank / title only), `effectSteps` (element ids per step; same
+  order = one step, a group = one step at its lowest order, gaps don't matter), `stepNumbers`, `nextEffectOrder`,
+  `withEffect` (set or remove; a new one comes in last, one already set keeps its step), `moveEffectStep` (reorder,
+  orders rewritten 1..n), `effectsToEnd` (duplicate / paste: copies come in last). The database doesn't check it:
+  `cleanElement` leaves out a bad one. How the editor and presenting use them: `src/components/editor/CLAUDE.md`,
+  "Effects panel", and `src/components/presentation/CLAUDE.md`.
 - `layers.ts`: the editor's Layers panel math (imports only `constants.ts` and `embed.ts`, tested in
   `layers.test.ts`): `layerBoxes` (rows per box, top layer first, groups folded), `shownLayerBoxes` (only the boxes
   the slide shows, named, in their order on the slide) and `moveLayer` (a dragged row just above or below another

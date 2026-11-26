@@ -449,3 +449,5 @@ export function getOptionsGridStyle(box: BoxLayout): { gridTemplateRows: string 
 export const SLIDE_EFFECT_SECONDS: Record<number, number> = { 1: 1.6, 2: 1.3, 3: 1, 4: 0.7, 5: 0.45 };
 // "Fade" has its own, faster times: it goes through the dark screen (out, then in), so the same time felt slow.
 export const SLIDE_FADE_SECONDS: Record<number, number> = { 1: 1, 2: 0.8, 3: 0.6, 4: 0.45, 5: 0.3 };
+// How long an element effect (Fade, Pop up) takes at each speed, 1 = slowest.
+export const ELEMENT_EFFECT_SECONDS: Record<number, number> = { 1: 0.9, 2: 0.7, 3: 0.5, 4: 0.35, 5: 0.25 };
