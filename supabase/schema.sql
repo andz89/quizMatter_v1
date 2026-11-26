@@ -2939,22 +2939,36 @@ CREATE OR REPLACE FUNCTION "public"."photo_storage_used"("target" "uuid") RETURN
     AS $$
   select coalesce(sum(u.bytes), 0)::bigint
   from public.photo_uploads u
-  where u.user_id = target
-    and (
-      u.created_at > now() - interval '10 minutes'
-      or exists (select 1 from public.photos p where p.user_id = target and p.src = u.src)
-      or exists (
-        select 1 from public.slide_photos sp
-        join public.presentations pr on pr.id = sp.presentation_id
-        where sp.src = u.src and pr.owner_id = target
-          -- Not a shared copy QuizMatter hid (the teacher can't change it, so it would count for good).
-          and (pr.shared_from is null or pr.hidden_at is null)
-      )
-    );
+  where u.user_id = target and public.photo_upload_counts(target, u.src);
 $$;
 
 
 ALTER FUNCTION "public"."photo_storage_used"("target" "uuid") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."photo_upload_counts"("target" "uuid", "target_src" "text") RETURNS boolean
+    LANGUAGE "sql" STABLE SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+  select exists (
+    select 1 from public.photo_uploads u
+    where u.user_id = target and u.src = target_src
+      and (
+        u.created_at > now() - interval '10 minutes'
+        or exists (select 1 from public.photos p where p.user_id = target and p.src = u.src)
+        or exists (
+          select 1 from public.slide_photos sp
+          join public.presentations pr on pr.id = sp.presentation_id
+          where sp.src = u.src and pr.owner_id = target
+            -- Not a shared copy QuizMatter hid (the teacher can't change it, so it would count for good).
+            and (pr.shared_from is null or pr.hidden_at is null)
+        )
+      )
+  );
+$$;
+
+
+ALTER FUNCTION "public"."photo_upload_counts"("target" "uuid", "target_src" "text") OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."photo_upload_fits"("target" "uuid", "target_src" "text", "file_bytes" integer) RETURNS boolean
@@ -2962,19 +2976,7 @@ CREATE OR REPLACE FUNCTION "public"."photo_upload_fits"("target" "uuid", "target
     SET "search_path" TO ''
     AS $$
   select public.photo_storage_limit(target) is null
-    or exists (
-      select 1 from public.photo_uploads u
-      where u.user_id = target and u.src = target_src
-        and (
-          u.created_at > now() - interval '10 minutes'
-          or exists (select 1 from public.photos p where p.user_id = target and p.src = u.src)
-          or exists (
-            select 1 from public.slide_photos sp
-            join public.presentations pr on pr.id = sp.presentation_id
-            where sp.src = u.src and pr.owner_id = target and (pr.shared_from is null or pr.hidden_at is null)
-          )
-        )
-    )
+    or public.photo_upload_counts(target, target_src)
     or public.photo_storage_used(target) + file_bytes <= public.photo_storage_limit(target);
 $$;
 
@@ -3424,6 +3426,28 @@ $$;
 ALTER FUNCTION "public"."refuse_locked_photo_delete"() OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."release_photo_upload"("target" "uuid", "target_src" "text", "previous" "jsonb") RETURNS "void"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+begin
+  perform pg_advisory_xact_lock(hashtext('photo_storage:' || target::text));
+  if previous is null or jsonb_typeof(previous) = 'null' then
+    delete from public.photo_uploads u where u.user_id = target and u.src = target_src;
+  else
+    update public.photo_uploads u
+    set bytes = (previous ->> 'bytes')::int,
+      size_known = (previous ->> 'size_known')::boolean,
+      created_at = (previous ->> 'created_at')::timestamptz
+    where u.user_id = target and u.src = target_src;
+  end if;
+end;
+$$;
+
+
+ALTER FUNCTION "public"."release_photo_upload"("target" "uuid", "target_src" "text", "previous" "jsonb") OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."remove_banned_editor"() RETURNS "trigger"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO ''
@@ -3534,12 +3558,15 @@ $$;
 ALTER FUNCTION "public"."remove_profile_photo"() OWNER TO "postgres";
 
 
-CREATE OR REPLACE FUNCTION "public"."reserve_photo_upload"("target" "uuid", "target_src" "text", "file_bytes" integer) RETURNS "void"
+CREATE OR REPLACE FUNCTION "public"."reserve_photo_upload"("target" "uuid", "target_src" "text", "file_bytes" integer) RETURNS "jsonb"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO ''
     AS $$
+declare
+  previous jsonb;
 begin
-  -- One teacher's uploads are checked one at a time, so two at once can't both slip past the limit.
+  -- One teacher's uploads (and saves of slides with their uploads) are checked one at a time, so two at once can't
+  -- both slip past the limit.
   perform pg_advisory_xact_lock(hashtext('photo_storage:' || target::text));
 
   if not public.photo_upload_fits(target, target_src, file_bytes) then
@@ -3547,10 +3574,16 @@ begin
       using errcode = 'QMSTO';
   end if;
 
+  select jsonb_build_object('bytes', u.bytes, 'size_known', u.size_known, 'created_at', u.created_at)
+  into previous
+  from public.photo_uploads u where u.user_id = target and u.src = target_src;
+
   insert into public.photo_uploads (user_id, src, bytes, size_known, created_at)
   values (target, target_src, file_bytes, true, now())
   on conflict (user_id, src) do update
     set bytes = excluded.bytes, size_known = true, created_at = now();
+
+  return jsonb_build_object('previous', previous);
 end;
 $$;
 
@@ -4684,6 +4717,9 @@ CREATE OR REPLACE FUNCTION "public"."sync_slide_photos"() RETURNS "trigger"
 declare
   new_srcs text[] := public.slide_photo_srcs(new.data);
   old_srcs text[];
+  owner uuid;
+  storage_limit bigint;
+  extra bigint;
 begin
   select coalesce(array_agg(sp.src order by sp.src), '{}') into old_srcs
   from public.slide_photos sp
@@ -4692,6 +4728,24 @@ begin
   -- Same photos as before (e.g. only the words changed): nothing to write.
   if new_srcs = old_srcs then
     return null;
+  end if;
+
+  select p.owner_id into owner from public.presentations p where p.id = new.presentation_id;
+  storage_limit := public.photo_storage_limit(owner);
+  if storage_limit is not null
+    and exists (
+      select 1 from public.photo_uploads u
+      where u.user_id = owner and u.src = any (new_srcs) and not (u.src = any (old_srcs))
+    )
+  then
+    perform pg_advisory_xact_lock(hashtext('photo_storage:' || owner::text));
+    select coalesce(sum(u.bytes), 0) into extra
+    from public.photo_uploads u
+    where u.user_id = owner and u.src = any (new_srcs) and not (u.src = any (old_srcs))
+      and not public.photo_upload_counts(owner, u.src);
+    if extra > 0 and public.photo_storage_used(owner) + extra > storage_limit then
+      raise exception 'Your photo storage is full (% MB).', storage_limit / 1048576 using errcode = 'QMSTO';
+    end if;
   end if;
 
   delete from public.slide_photos sp where sp.presentation_id = new.presentation_id and sp.slide_id = new.id;
@@ -7168,6 +7222,11 @@ GRANT ALL ON FUNCTION "public"."photo_storage_used"("target" "uuid") TO "service
 
 
 
+REVOKE ALL ON FUNCTION "public"."photo_upload_counts"("target" "uuid", "target_src" "text") FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."photo_upload_counts"("target" "uuid", "target_src" "text") TO "service_role";
+
+
+
 REVOKE ALL ON FUNCTION "public"."photo_upload_fits"("target" "uuid", "target_src" "text", "file_bytes" integer) FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."photo_upload_fits"("target" "uuid", "target_src" "text", "file_bytes" integer) TO "service_role";
 
@@ -7278,6 +7337,11 @@ GRANT ALL ON FUNCTION "public"."refuse_banned_write"() TO "service_role";
 
 REVOKE ALL ON FUNCTION "public"."refuse_locked_photo_delete"() FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."refuse_locked_photo_delete"() TO "service_role";
+
+
+
+REVOKE ALL ON FUNCTION "public"."release_photo_upload"("target" "uuid", "target_src" "text", "previous" "jsonb") FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."release_photo_upload"("target" "uuid", "target_src" "text", "previous" "jsonb") TO "service_role";
 
 
 

@@ -24,3 +24,14 @@ test("sizesToFix gives each estimated photo its real size, or 1 byte when it is 
   );
   assert.deepEqual(sizesToFix([], sizes), {});
 });
+
+test("sizesToFix keeps a size between 1 byte and 2 MB (photo_uploads' own limits)", () => {
+  const sizes = new Map([
+    ["https://images.quizmatter.com/uploads/big.webp", 3 * 1024 * 1024],
+    ["https://images.quizmatter.com/uploads/empty.webp", 0],
+  ]);
+  assert.deepEqual(
+    sizesToFix(["https://images.quizmatter.com/uploads/big.webp", "https://images.quizmatter.com/uploads/empty.webp"], sizes),
+    { "https://images.quizmatter.com/uploads/big.webp": 2 * 1024 * 1024, "https://images.quizmatter.com/uploads/empty.webp": 1 }
+  );
+});

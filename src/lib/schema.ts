@@ -130,6 +130,20 @@ export const photoStorageSchema = z.object({
   limit: z.number().int().positive().nullable(),
 });
 
+// A photo file's size in bytes, for its upload record (photo_uploads.bytes: same 2 MB cap, MAX_STORED_PHOTO_BYTES).
+export const uploadBytesSchema = z.number().int().min(1).max(MAX_STORED_PHOTO_BYTES);
+
+// The real sizes the weekly photo cleanup sends to set_photo_upload_sizes: { src: bytes }.
+export const photoUploadSizesSchema = z.record(photoSchema.shape.src, uploadBytesSchema);
+
+// An upload record as it was before reserve_photo_upload replaced it (null = there was none), sent back to
+// release_photo_upload when the upload stops after the reservation.
+const uploadRecordSchema = z
+  .object({ bytes: uploadBytesSchema, size_known: z.boolean(), created_at: z.string().max(40) })
+  .nullable();
+export type UploadRecord = z.infer<typeof uploadRecordSchema>;
+export const reserveAnswerSchema = z.object({ previous: uploadRecordSchema });
+
 // remove_my_photo's answer: whether a row was really removed, my own presentations whose slides still have it (slide
 // numbers are places in the list, 1 = first, like the slide grid's "Slide 3"; `hidden`: the hidden ones among them),
 // its size (null if I never uploaded it) and my new total.

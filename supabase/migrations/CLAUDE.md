@@ -85,7 +85,8 @@ A refusal raises an error with its own code. The app turns the code into a messa
 - `QMBLK`: a click limit paused the feature (the pause end time is in `details`), read by `pausedUntilFromError`
   (`src/lib/clickLimits.ts`).
 - `QMPPL`: an editor already saved 3 profile photos today (`set_profile_photo`).
-- `QMSTO`: the teacher's photo storage (50 MB, 500 MB for an editor) is full (`reserve_photo_upload`; the upload route answers 413).
+- `QMSTO`: the teacher's photo storage (50 MB, 500 MB for an editor) is full (`reserve_photo_upload`; the upload
+  route answers 413; also a slide save, `sync_slide_photos`, in `REFUSALS`).
 - `QMONE`: another announcement of the same type (modal or bar) is on; the message is its name, and Admin →
   Announcements asks to turn it off (`check_one_on`).
 
@@ -137,6 +138,12 @@ A refusal raises an error with its own code. The app turns the code into a messa
   jsonb array, not rows: PostgREST cuts rows at 1,000) / `set_photo_upload_sizes(sizes)` (service role). Existing "My photos" rows were
   added at their shared photo's size, else 2 MB, but only the teacher's own: a file with a `shared_photos` row only
   for its `uploaded_by` (one without can't be traced, accepted). Apply it **before** the app.
+  `20261231002700_photo_storage_fixes.sql` (test `supabase/tests/photo_storage_fixes.sql`): `photo_upload_counts(target,
+  src)` (not granted) is the one "does it count" rule, used by the newest `photo_storage_used` and
+  `photo_upload_fits`; newest `reserve_photo_upload` returns `{ previous }` (the record it replaced, null when new),
+  and `release_photo_upload(target, src, previous)` (service role) puts it back; newest `sync_slide_photos` refuses
+  (`QMSTO`) a slide that gets one of the owner's uploads that doesn't count now when it doesn't fit (admins skip).
+  Apply it **before** the app (the route calls `release_photo_upload`).
 - Click limits: `20261013000000_click_limits.sql`, `20261014000000_click_auto_ban.sql`, `20261017000000_click_history.sql`.
   `20261211000000_save_photo_click_limits.sql` (test `supabase/tests/save_photo_click_limits.sql`): saving
   presentations (`presentation_save` + `presentation_save_daily`, from `count_presentation_write`: once per request,

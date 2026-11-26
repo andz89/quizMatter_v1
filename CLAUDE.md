@@ -466,25 +466,35 @@ The super admin shows a message to chosen teachers on chosen pages (Admin → An
 # Photo Storage (50 MB per teacher, 500 MB per editor)
 
 Each teacher may keep 50 MB of photos; an editor 500 MB (they make QuizMatter lessons). Admins have no limit. Design: `docs/superpowers/specs/2026-11-26-photo-storage-limit-design.md`.
-Migration: `20261231002600_photo_storage.sql`; tests: `supabase/tests/photo_storage.sql`, `e2e/photo-storage.mjs`.
+Migrations: `20261231002600_photo_storage.sql`, `20261231002700_photo_storage_fixes.sql`; tests:
+`supabase/tests/photo_storage.sql`, `supabase/tests/photo_storage_fixes.sql`, `e2e/photo-storage.mjs`.
 Keep these rules:
 
 - **What counts:** a photo the teacher **uploaded** (a `photo_uploads` row) while it's in their "My photos" **or**
   on a slide of a presentation **they own** (their shared copy too), once per file (`photo_storage_used`). A photo
   someone copied never counts for the copier; once the uploader stops using it, it counts for nobody (accepted:
   copies don't make new files). Photos in a review draft don't count, nor a shared copy QuizMatter hid (the teacher
-  can't update or delete it, `QMHID`, so it would count for good).
-- **The database is the real check:** `upload-image` first asks `photo_upload_fits` (before the click limit counts
-  the upload, so a full account's tries never pause or ban; a refused try is counted with `count_write('photos')`,
-  30 a minute, so a script is slowed), then calls `reserve_photo_upload` with the secret key
-  before the file is stored (one teacher at a time, an advisory lock; a new upload holds its space for 10 minutes);
-  over the limit = `QMSTO` (413, `storageFullMessage(limit)`, with their own limit, and their total `storage`). The
+  can't update or delete it, `QMHID`, so it would count for good). The rule is written once, in
+  `photo_upload_counts(target, src)`; a new upload also counts for its first 10 minutes.
+- **The database is the real check:** `upload-image` calls `reserve_photo_upload` with the secret key before the
+  click limit counts the upload (so a full account's tries never pause or ban; a refused try is counted with
+  `count_write('photos')`, 30 a minute, so a script is slowed) and before the file is stored (one teacher at a time,
+  an advisory lock; a new upload holds its space for 10 minutes; over the limit = `QMSTO`, 413,
+  `storageFullMessage(limit)`, with their own limit, and their total `storage`). It answers the record it replaced
+  (`previous`); if the click limit or storing the file then refuses, `release_photo_upload` puts it back, so a
+  refused upload holds no space. **Saving a slide checks too** (`sync_slide_photos`): a slide that gets one of the
+  owner's uploads that doesn't count right now (e.g. taken out of My photos while only on unsaved slides) must fit,
+  else the save is refused with `QMSTO` (`REFUSALS`), so the limit can't be passed by uploading, removing and saving
+  later. Photos that already count and copied photos never trigger it. Known edge: a teacher already over the limit
+  who moves a photo between slides in one save may be refused, if the old slide is saved first. The
   browser skips sending a photo that won't fit in the last total it saw (it asks again first, `sendPhoto`). Teachers only read their own `photo_uploads` rows, so they can't
   delete records to free space. The limit is `photo_storage_limit(target)` (null for an admin, 500 MB for an editor,
   else 50 MB; read each time, so losing the editor role means 50 MB again) and `PHOTO_STORAGE_LIMIT_BYTES` /
   `EDITOR_PHOTO_STORAGE_LIMIT_BYTES` (`src/lib/photoStorage.ts`): change both together.
-- **Nothing is deleted because of it.** Over the limit (e.g. old photos counted at 2 MB until the weekly cleanup
-  sends their real size, `set_photo_upload_sizes`) only stops new uploads.
+- **Nothing is deleted because of it.** Over the limit (e.g. old photos counted at 2 MB until their real size is
+  sent, `set_photo_upload_sizes`) only stops new uploads. The weekly cleanup sends the sizes, and so does Admin →
+  Photo cleanup's "Find unused photos" (`fixPhotoUploadSizes`, `src/lib/cleanupPhotos.ts`), so nobody waits for
+  Sunday.
 - **Removing from My photos** is `remove_my_photo(src, mode)`: one request when no slide of theirs has it; else it
   answers where (`uses`: slide numbers are places in the list, like the slide grid's "Slide 3", and a hidden one says
   "(hidden)") and the Photos panel's box says it still counts until it's off those slides (and the published copy,

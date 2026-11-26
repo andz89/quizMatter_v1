@@ -303,10 +303,6 @@ export type { PhotoCategory, SharedPhoto, SharedPhotoWithInfo } from "./schema";
 const remembered = new Map<string, Promise<unknown>>();
 let isWatchingLogOut = false;
 
-/**
- * `load()`'s answer, kept under `key` (see `remembered`). The request itself is kept, so two calls at once share
- * one request (e.g. React runs effects twice while developing). A failed one is forgotten, to try again next time.
- */
 /** On log out, forgets what this tab remembered for the teacher (`remembered`, `lastStorage`). Set up once. */
 function watchLogOut() {
   if (isWatchingLogOut) return;
@@ -319,6 +315,10 @@ function watchLogOut() {
   });
 }
 
+/**
+ * `load()`'s answer, kept under `key` (see `remembered`). The request itself is kept, so two calls at once share
+ * one request (e.g. React runs effects twice while developing). A failed one is forgotten, to try again next time.
+ */
 function remember<T>(key: string, load: () => Promise<T>): Promise<T> {
   watchLogOut();
   let saved = remembered.get(key) as Promise<T> | undefined;

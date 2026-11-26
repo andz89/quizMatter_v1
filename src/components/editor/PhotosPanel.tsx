@@ -46,7 +46,7 @@ export function PhotosPanel() {
   const [uploadingFiles, setUploadingFiles] = useState(0);
   // Uploaded too fast: paused for a while (the photo_upload and photo_rows click limits, each a minute and a day).
   const isUploadPaused = useIsPaused("photo_upload", "photo_upload_daily", "photo_rows", "photo_rows_daily");
-  // How much of the 50 MB the teacher's photos use (src/lib/photoStorage.ts). null until read; limit null = an admin.
+  // How much of the teacher's limit (50 MB, 500 MB for an editor) their photos use (src/lib/photoStorage.ts). null until read; limit null = an admin.
   const [storage, setStorage] = useState<PhotoStorage | null>(null);
   // A photo still on the teacher's slides, waiting for "Remove from My photos" in the confirm box.
   const [stillUsed, setStillUsed] = useState<{ photo: Photo; message: string } | null>(null);

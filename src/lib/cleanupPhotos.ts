@@ -1,4 +1,6 @@
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { MAX_STORED_PHOTO_BYTES } from "./constants";
+import { photoUploadSizesSchema } from "./schema";
 import type { Database } from "./database.types";
 import { z } from "zod";
 import type { R2Bucket } from "@cloudflare/workers-types";
@@ -43,17 +45,33 @@ export async function cleanupPhotos(env: CleanupEnv) {
   console.log(`Photo cleanup: checked ${checked} files, deleted ${keys.length}.`, keys);
 
   // Photos uploaded before the storage limit count as 2 MB until their real size is known (photo_uploads): send the
-  // sizes this listing just saw (a file no longer in R2 gets 1 byte, so it leaves the list). After the first run the
-  // list is empty. A failure is only logged: the deletes are done.
+  // sizes this listing just saw. After the first run the list is empty. A failure is only logged: the deletes are done.
+  const fixed = await fixPhotoUploadSizes(supabase, sizes);
+  if (typeof fixed === "string") console.error(`Photo cleanup: ${fixed}`);
+  else if (fixed > 0) console.log(`Photo cleanup: fixed ${fixed} photo sizes.`);
+}
+
+/**
+ * Sends the real size of every estimated upload record (photo_uploads_unknown_sizes) to set_photo_upload_sizes,
+ * from `sizes` (R2's whole listing: src → bytes; a file no longer in R2 gets 1 byte, so it leaves the list). Used by
+ * the weekly cleanup and by Admin → Photo cleanup's "Find unused photos". Needs the secret-key client. Answers how
+ * many it fixed, or what went wrong.
+ */
+export async function fixPhotoUploadSizes(
+  supabase: SupabaseClient<Database>,
+  sizes: Map<string, number>,
+): Promise<number | string> {
   const unknown = await supabase.rpc("photo_uploads_unknown_sizes");
-  if (unknown.error) return console.error("Photo cleanup: couldn't read the sizes to fix.", unknown.error);
+  if (unknown.error) return "couldn't read the sizes to fix.";
   const unknownSrcs = z.array(z.string()).safeParse(unknown.data);
-  if (!unknownSrcs.success) return console.error("Photo cleanup: the sizes to fix came back in a wrong shape.");
-  const fixes = sizesToFix(unknownSrcs.data, sizes);
-  if (Object.keys(fixes).length === 0) return;
-  const { error: fixError } = await supabase.rpc("set_photo_upload_sizes", { sizes: fixes });
-  if (fixError) console.error("Photo cleanup: couldn't fix the sizes.", fixError);
-  else console.log(`Photo cleanup: fixed ${Object.keys(fixes).length} photo sizes.`);
+  if (!unknownSrcs.success) return "the sizes to fix came back in a wrong shape.";
+  // Checked with zod before it's saved (see CLAUDE.md, "Saving Data").
+  const fixes = photoUploadSizesSchema.safeParse(sizesToFix(unknownSrcs.data, sizes));
+  if (!fixes.success) return "a size to fix is wrong.";
+  const count = Object.keys(fixes.data).length;
+  if (count === 0) return 0;
+  const { error } = await supabase.rpc("set_photo_upload_sizes", { sizes: fixes.data });
+  return error ? "couldn't fix the sizes." : count;
 }
 
 /**
@@ -62,7 +80,8 @@ export async function cleanupPhotos(env: CleanupEnv) {
  */
 export function sizesToFix(unknown: string[], sizes: Map<string, number>): Record<string, number> {
   const fixes: Record<string, number> = {};
-  for (const src of unknown) fixes[src] = sizes.get(src) ?? 1;
+  // Kept between 1 byte and 2 MB (photo_uploads' own limits), so one odd file can't stop the rest.
+  for (const src of unknown) fixes[src] = Math.min(Math.max(sizes.get(src) ?? 1, 1), MAX_STORED_PHOTO_BYTES);
   return fixes;
 }
 

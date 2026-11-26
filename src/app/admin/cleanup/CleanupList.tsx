@@ -30,7 +30,7 @@ export type CleanupFile = {
  */
 export function CleanupList({ categories }: { categories: PhotoCategory[] }) {
   // The last search's result; null until the button is clicked.
-  const [result, setResult] = useState<{ files: CleanupFile[]; stored: string } | null>(null);
+  const [result, setResult] = useState<Awaited<ReturnType<typeof findCleanupFiles>>>(null);
   const [isSearching, setIsSearching] = useState(false);
   // Files kept or deleted on this page, taken off the lists.
   const [doneSrcs, setDoneSrcs] = useState<Set<string>>(new Set());
@@ -48,6 +48,9 @@ export function CleanupList({ categories }: { categories: PhotoCategory[] }) {
     }
     setResult(found);
     setDoneSrcs(new Set());
+    // Photos counted at 2 MB in teachers' storage until their real size was sent (see findCleanupFiles).
+    if (found.sizesFixed === null) toast.error("Couldn't fix the photo sizes in teachers' storage. Search again to try again.");
+    else if (found.sizesFixed > 0) toast.success(`Fixed the real size of ${found.sizesFixed} photos in teachers' storage.`);
   };
 
   const shown = result?.files.filter((file) => !doneSrcs.has(file.src)) ?? [];
