@@ -147,6 +147,15 @@ editor / view / review, and renders `Editor.tsx`, which calls `store.loadPresent
   → a toast. Both ways end in the store's `insertSlides` (new ids for the slide, options and elements via
   `duplicateSlide`, so a picture stays in its answer box; one undo step; refused past `MAX_SLIDES`). Test:
   `e2e/slide-drag.mjs`.
+- **Photo storage** in the Photos panel's "My Photos" tab (root `CLAUDE.md`, "Photo Storage"): `PhotoStorageBar`
+  ("1.8 MB of 50 MB", coral with `STORAGE_FULL_MESSAGE` when full, and Upload greyed out), read each time the tab
+  opens and after each save while it's open (`savedAt`: a save may free space), and updated by `watchPhotoStorage`;
+  not for admins (no limit). Removing a photo: one `removeMyPhoto` call (`if_unused`, the tile goes at once); when
+  the open presentation has it on a slide (maybe unsaved; never in review mode, a draft doesn't count) it asks first
+  (`ask`). If a slide of theirs has it and it counts (`bytes` and `limit` filled), `ConfirmModal` lists where
+  (`stillUsedMessage`; its message keeps line breaks) and "Remove from My photos" removes it anyway, with
+  `STILL_COUNTS_TOAST`; when it counts for nothing (an admin, a photo they didn't upload) it's removed without the
+  box. A failed remove puts back only that photo, so an upload that finished meanwhile stays. Test: `e2e/photo-storage.mjs`.
 - Teachers' own photo uploads are **for editors and admins only, for now** (`checkCanUpload` in
   `src/lib/photos.tsx`, which asks `is_editor` / `is_admin` once). Other teachers' "My Photos" tab shows "This will
   be available soon." with Upload greyed out, and a file dropped on a slide only shows a toast

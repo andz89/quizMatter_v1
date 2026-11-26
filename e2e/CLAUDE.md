@@ -277,6 +277,10 @@ when another is picked), moving into and between boxes (Alt keeps a free picture
   nothing in the console on them (a missing outside host would).
 - `photo-delete.mjs`: Photo cleanup's Delete refuses a file under 7 days old (a WebP and an announcement's GIF,
   which counts as our file), and the page shows no Delete button on it.
+- `photo-storage.mjs`: the Photos panel's storage bar ("1.8 MB of 50 MB"), removing a photo that's on a slide
+  (the box names the presentation and slide and says it still counts; after Remove it's out of My photos and still
+  counted), an upload's answer with the new total, and a full account: its upload refused (413, `QMSTO`), the full
+  message shown and Upload greyed out (screenshots `photo-storage-bar.png`, `-warning.png`, `-full.png`).
 - `photo-uploads.mjs`: a plain teacher's profile photo is refused before anything is counted; an editor's is stored
   and the profile switches to it, counted once; a too-big upload sent in pieces (no Content-Length) gets 413.
 - `announcements-admin.mjs`: the super admin makes a corner box and an HTML modal in the form; a teacher sees them.

@@ -78,7 +78,9 @@ export default function PrivacyPage() {
         </p>
         <p>
           <strong>Your work.</strong> Your presentations and slides, folders, bookmarks (Saved), likes and reports. If
-          you’re an editor, also your reviews, submissions and the photos you upload.
+          you’re an editor, also your reviews, submissions and the photos you upload. For each photo you upload we
+          keep a record of which file it is and its size, to count your photo storage (50 MB per teacher), until you
+          delete your account.
         </p>
         <p>
           <strong>Announcements.</strong> QuizMatter sometimes shows a message (a pop-up, a bar at the top or a box in the corner) to some

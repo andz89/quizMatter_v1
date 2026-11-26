@@ -2,7 +2,15 @@ import { pausedUntilFromError } from "@/lib/clickLimits";
 import { MAX_STORED_PHOTO_BYTES, PHOTO_URL_PREFIX } from "@/lib/constants";
 import { photoFileName, readPhotoType, savePhotoFile } from "@/lib/photoFiles";
 import { readUploadBody } from "@/lib/photoTypes";
-import { photoSchema, sharedPhotoBytesSchema, sharedPhotoInfoSchema, sharedPhotoSchema } from "@/lib/schema";
+import { STORAGE_FULL_MESSAGE } from "@/lib/photoStorage";
+import {
+  photoSchema,
+  photoStorageSchema,
+  sharedPhotoBytesSchema,
+  sharedPhotoInfoSchema,
+  sharedPhotoSchema,
+} from "@/lib/schema";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -14,6 +22,9 @@ import { createClient } from "@/lib/supabase/server";
  * goes to the shared_photos table (for every teacher, with its file size) instead of "My photos". It also needs &source=<who owns it
  * or where it came from>, and &name=<file name> gives it its name (to show and search); both are only set the
  * first time it's shared. Each shared photo remembers who uploaded it (uploaded_by, filled in by the database).
+ * An own photo must fit the teacher's photo storage (photo_upload_fits before the click limit counts it, then
+ * reserve_photo_upload; 50 MB; 413 with code QMSTO when full),
+ * and the answer carries their new total (`storage`).
  */
 export async function POST(request: Request) {
   const supabase = await createClient();
@@ -79,6 +90,21 @@ export async function POST(request: Request) {
     }
   }
 
+  // An own photo must fit the teacher's photo storage (50 MB; admins have no limit). Asked before the click limit
+  // counts it: a size limit is never a click limit, so refused tries must not pause or ban. Secret key: the
+  // functions are the server's only (teachers can't write their own upload records).
+  const admin = shared ? null : createAdminClient();
+  if (!shared) {
+    if (!admin) return Response.json({ error: "Couldn't upload the photo. Please try again." }, { status: 500 });
+    const { data: fits, error: fitsError } = await admin.rpc("photo_upload_fits", {
+      target: data.claims.sub,
+      target_src: photo.data.src,
+      file_bytes: body.byteLength,
+    });
+    if (fitsError) return Response.json({ error: "Couldn't upload the photo. Please try again." }, { status: 500 });
+    if (fits !== true) return storageFull();
+  }
+
   // Counted before the file takes up storage (the super admin: no limit). Own photos: 30 in a minute or 300 in a
   // day pauses uploads for a while, and the 3rd time in a row bans (the photo_upload and photo_upload_daily click
   // limits). Shared photos (admins only, often many at once): 30 a minute, never paused (count_write).
@@ -91,6 +117,18 @@ export async function POST(request: Request) {
   }
   if (pausedUntilFromError(rateError)) return paused();
   if (rateError) return Response.json({ error: "Couldn't upload the photo. Please try again." }, { status: 500 });
+
+  // The real check: the database checks again one upload at a time and holds its space for 10 minutes while the
+  // file is stored, so two uploads at once can't both slip past.
+  if (admin) {
+    const { error: storageError } = await admin.rpc("reserve_photo_upload", {
+      target: data.claims.sub,
+      target_src: photo.data.src,
+      file_bytes: body.byteLength,
+    });
+    if (storageError?.code === "QMSTO") return storageFull();
+    if (storageError) return Response.json({ error: "Couldn't upload the photo. Please try again." }, { status: 500 });
+  }
 
   // Rare. The upload stays counted; the teacher sees it failed and can try again.
   try {
@@ -120,7 +158,15 @@ export async function POST(request: Request) {
   if (shared && source?.success) {
     await supabase.from("shared_photos").update({ source: source.data }).eq("src", shared.data.src).eq("source", "");
   }
-  return Response.json(photo.data);
+  if (shared) return Response.json(photo.data);
+  // The teacher's new total, so the Photos panel's bar updates without asking again (left out if it can't be read).
+  const { data: storageData } = await supabase.rpc("my_photo_storage");
+  const storage = photoStorageSchema.safeParse(storageData);
+  return Response.json(storage.success ? { ...photo.data, storage: storage.data } : photo.data);
+}
+
+function storageFull() {
+  return Response.json({ error: STORAGE_FULL_MESSAGE, code: "QMSTO" }, { status: 413 });
 }
 
 function tooBig() {
