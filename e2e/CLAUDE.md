@@ -287,7 +287,8 @@ when another is picked), moving into and between boxes (Alt keeps a free picture
   which counts as our file), and the page shows no Delete button on it.
 - `photo-storage.mjs`: the Photos panel's storage bar ("1.8 MB of 50 MB"), removing a photo that's on a slide
   (the box names the presentation and slide and says it still counts; after Remove it's out of My photos and still
-  counted), an upload's answer with the new total, and a full account: its upload refused (413, `QMSTO`), the full
+  counted), an upload's answer with the new total, a teacher whose My photos rows are paused (`photo_rows`) refused
+  with 429 before anything is reserved or counted as an upload, and a full account: its upload refused (413, `QMSTO`), the full
   message shown and Upload greyed out (screenshots `photo-storage-bar.png`, `-warning.png`, `-full.png`).
 - `photo-uploads.mjs`: a plain teacher uploads their own photo (answer with their 50 MB storage, in My photos; the
   Photos panel shows the bar and a working Upload, no "available soon"); a plain teacher's profile photo is refused before anything is counted; an editor's is stored

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useEditorStore, isPanelEscape } from "@/lib/store";
-import { useIsPaused } from "@/lib/clickLimits";
+import { UPLOAD_PAUSE_FEATURES, useIsPaused } from "@/lib/clickLimits";
 import { toast } from "sonner";
 import { PHOTO_TYPES } from "@/lib/constants";
 import {
@@ -45,7 +45,7 @@ export function PhotosPanel() {
   // How many picked photos are still uploading, to show the Spinner on the button.
   const [uploadingFiles, setUploadingFiles] = useState(0);
   // Uploaded too fast: paused for a while (the photo_upload and photo_rows click limits, each a minute and a day).
-  const isUploadPaused = useIsPaused("photo_upload", "photo_upload_daily", "photo_rows", "photo_rows_daily");
+  const isUploadPaused = useIsPaused(...UPLOAD_PAUSE_FEATURES);
   // How much of the teacher's limit (50 MB, 500 MB for an editor) their photos use (src/lib/photoStorage.ts). null until read; limit null = an admin.
   const [storage, setStorage] = useState<PhotoStorage | null>(null);
   // A photo still on the teacher's slides, waiting for "Remove from My photos" in the confirm box.

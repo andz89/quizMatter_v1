@@ -1,4 +1,4 @@
-import { pausedUntilFromError } from "@/lib/clickLimits";
+import { pausedUntilFromError, UPLOAD_PAUSE_FEATURES } from "@/lib/clickLimits";
 import { MAX_STORED_PHOTO_BYTES, PHOTO_URL_PREFIX } from "@/lib/constants";
 import { photoFileName, readPhotoType, savePhotoFile } from "@/lib/photoFiles";
 import { readUploadBody } from "@/lib/photoTypes";
@@ -42,11 +42,20 @@ export async function POST(request: Request) {
     if (isAdmin !== true) return Response.json({ error: "Only admins can share photos." }, { status: 403 });
   } else {
     // A teacher's own photo: every teacher may upload (their photo storage limits it, below). A banned one is
-    // refused before the file takes up storage (the photos table refuses them too).
-    const { data: isBanned, error: banError } = await supabase.rpc("is_banned");
+    // refused before the file takes up storage (the photos table refuses them too). A paused one too (a read only),
+    // so a script sending uploads during its pause never holds space (reserve + release) on each try. If the pause
+    // can't be read, count_photo_upload below still refuses it.
+    const [{ data: isBanned, error: banError }, { data: pausedRows }] = await Promise.all([
+      supabase.rpc("is_banned"),
+      supabase.rpc("my_paused_features"),
+    ]);
     // Unknown (the check failed) is not "not banned": stop before the file is read or stored.
     if (banError) return Response.json({ error: "Couldn't upload the photo. Please try again." }, { status: 500 });
     if (isBanned === true) return banned();
+    // Also photo_rows: the My photos row at the end would be refused, after the file was stored and counted.
+    if (pausedRows?.some((row) => (UPLOAD_PAUSE_FEATURES as readonly string[]).includes(row.feature))) {
+      return paused();
+    }
   }
 
   // Reading stops as soon as it's too big, so a huge upload is never held in memory.

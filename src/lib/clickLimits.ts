@@ -29,6 +29,17 @@ export const CLICK_FEATURES = {
 
 export type ClickFeature = keyof typeof CLICK_FEATURES;
 
+/**
+ * An own photo upload is stopped by any of these: the upload's own limits, and the My photos row it ends with (the
+ * photos table's). The Photos panel greys out Upload for them, and the upload route refuses before it reserves space.
+ */
+export const UPLOAD_PAUSE_FEATURES: readonly ClickFeature[] = [
+  "photo_upload",
+  "photo_upload_daily",
+  "photo_rows",
+  "photo_rows_daily",
+];
+
 /** When the pause ends (Unix ms), if the database refused because the feature is paused (QMBLK); else null. */
 export function pausedUntilFromError(error: { code?: string; details?: string } | null): number | null {
   if (error?.code !== "QMBLK") return null;

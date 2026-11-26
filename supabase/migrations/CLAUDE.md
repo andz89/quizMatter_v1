@@ -154,7 +154,18 @@ A refusal raises an error with its own code. The app turns the code into a messa
   while it still has that time. `remember_freed_slide_photo` (after delete on `slide_photos`) keeps the owner's own
   uploads taken off their slides in the transaction-local setting `qm.freed_slide_photos`; the newest
   `sync_slide_photos` skips those (`slide_photo_freed`, not granted), so moving a photo between slides in one save is
-  never new storage. Apply it **before** the app (the route sends `written_at`).
+  never new storage. Apply it **before** the app (the route sends `written_at`). Known edge, left on purpose: two
+  uploads of the same file at once that are **both** refused, the first releasing before the second, leave the
+  first one's record (its 10-minute hold) in place. It frees itself after 10 minutes, the file was never stored, and
+  the usual cause (a click-limit pause) lasts at least that long; a full fix would need a new column.
+  `20261231003000_photo_storage_fixes_3.sql` (test `supabase/tests/photo_storage_fixes_3.sql`): newest
+  `remove_my_photo` ends a fresh upload's 10-minute hold when it really removed the My photos row (the record's
+  `created_at` moves back past the 10 minutes; the record stays, so it still counts while on their slides), newest
+  `sync_slide_photos` deletes and inserts only the photos that change (not every row of the slide), and
+  `remember_freed_slide_photos` (after delete, **for each statement**, the deleted rows as the transition table
+  `freed_rows`) replaces the row trigger `remember_freed_slide_photo`, so the freed list is read and written once
+  per statement: a big delete no longer slows down with the square of its rows. A presentation being deleted adds
+  nothing (it's already gone when its `slide_photos` go). No app change: apply it before or after the app.
 - Click limits: `20261013000000_click_limits.sql`, `20261014000000_click_auto_ban.sql`, `20261017000000_click_history.sql`.
   `20261211000000_save_photo_click_limits.sql` (test `supabase/tests/save_photo_click_limits.sql`): saving
   presentations (`presentation_save` + `presentation_save_daily`, from `count_presentation_write`: once per request,
@@ -162,7 +173,8 @@ A refusal raises an error with its own code. The app turns the code into a messa
   called by the upload route) and photos rows (`photo_rows` + `photo_rows_daily`, from `count_photo_write`) count
   `count_click` instead of `count_write`: 30 in a minute pauses 10 minutes (1 hour if again within 24 hours), 1,000
   saves / 300 uploads / 300 photo rows a day pause until midnight (Philippine time), the 3rd time in a row bans. `count_click` doesn't check bans, so both
-  triggers check `is_banned()` first (`QMBAN`). `count_write` is left only for admins' shared photos (`'photos'`).
+  triggers check `is_banned()` first (`QMBAN`). `count_write('photos')` is left for admins' shared photos and for a teacher's upload refused because their photo
+  storage is full (`QMSTO`): 30 a minute, never paused, so a script sending to a full account is slowed.
   Folders and settings: `count_table_write('<feature>')`, statement triggers on `folders`, `folder_items`
   (`folders`) and `user_settings` (`settings`); it counts `<feature>` and `<feature>_daily` (500 a day each), once
   per request (flag `quizmatter.counted_<feature>`), only when

@@ -3449,31 +3449,36 @@ $$;
 ALTER FUNCTION "public"."release_photo_upload"("target" "uuid", "target_src" "text", "previous" "jsonb", "written_at" timestamp with time zone) OWNER TO "postgres";
 
 
-CREATE OR REPLACE FUNCTION "public"."remember_freed_slide_photo"() RETURNS "trigger"
+CREATE OR REPLACE FUNCTION "public"."remember_freed_slide_photos"() RETURNS "trigger"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO ''
     AS $$
 declare
-  owner uuid;
-  freed jsonb;
+  added jsonb;
 begin
-  select p.owner_id into owner from public.presentations p
-  where p.id = old.presentation_id and (p.shared_from is null or p.hidden_at is null);
-  if owner is null
-    or not exists (select 1 from public.photo_uploads u where u.user_id = owner and u.src = old.src)
-  then
+  select jsonb_agg(distinct p.owner_id::text || ' ' || o.src) into added
+  from freed_rows o
+  join public.presentations p on p.id = o.presentation_id and (p.shared_from is null or p.hidden_at is null)
+  where exists (select 1 from public.photo_uploads u where u.user_id = p.owner_id and u.src = o.src);
+  if added is null then
     return null;
   end if;
-  freed := coalesce(nullif(current_setting('qm.freed_slide_photos', true), '')::jsonb, '[]'::jsonb);
-  if not freed ? (owner::text || ' ' || old.src) then
-    perform set_config('qm.freed_slide_photos', (freed || to_jsonb(owner::text || ' ' || old.src))::text, true);
-  end if;
+
+  perform set_config('qm.freed_slide_photos', (
+    select jsonb_agg(k)::text
+    from (
+      select jsonb_array_elements_text(
+        coalesce(nullif(current_setting('qm.freed_slide_photos', true), '')::jsonb, '[]'::jsonb)) as k
+      union
+      select jsonb_array_elements_text(added)
+    ) s
+  ), true);
   return null;
 end;
 $$;
 
 
-ALTER FUNCTION "public"."remember_freed_slide_photo"() OWNER TO "postgres";
+ALTER FUNCTION "public"."remember_freed_slide_photos"() OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."remove_banned_editor"() RETURNS "trigger"
@@ -3540,6 +3545,16 @@ begin
     delete from public.photos p where p.user_id = me and p.src = target_src;
     -- False when it was already gone (e.g. removed in another tab).
     removed := found;
+  end if;
+
+  -- The upload is done (its My photos row existed), so its 10-minute hold isn't needed any more. Same lock as
+  -- reserve_photo_upload. A release of another upload of this file still in progress then matches nothing and leaves
+  -- the record as it is (it counts again once that upload's My photos row is written).
+  if removed then
+    perform pg_advisory_xact_lock(hashtext('photo_storage:' || me::text));
+    update public.photo_uploads u
+    set created_at = now() - interval '10 minutes'
+    where u.user_id = me and u.src = target_src and u.created_at > now() - interval '10 minutes';
   end if;
 
   return jsonb_build_object(
@@ -4791,9 +4806,11 @@ begin
     end if;
   end if;
 
-  delete from public.slide_photos sp where sp.presentation_id = new.presentation_id and sp.slide_id = new.id;
+  -- Only the photos that left the slide, then only the new ones (the rest stay as they are).
+  delete from public.slide_photos sp
+  where sp.presentation_id = new.presentation_id and sp.slide_id = new.id and not (sp.src = any (new_srcs));
   insert into public.slide_photos (presentation_id, slide_id, src)
-  select new.presentation_id, new.id, unnest(new_srcs);
+  select new.presentation_id, new.id, s from unnest(new_srcs) s where not (s = any (old_srcs));
   return null;
 end;
 $$;
@@ -5991,7 +6008,7 @@ CREATE OR REPLACE TRIGGER "refuse_locked_photo_delete" BEFORE DELETE ON "public"
 
 
 
-CREATE OR REPLACE TRIGGER "remember_freed_slide_photo" AFTER DELETE ON "public"."slide_photos" FOR EACH ROW EXECUTE FUNCTION "public"."remember_freed_slide_photo"();
+CREATE OR REPLACE TRIGGER "remember_freed_slide_photos" AFTER DELETE ON "public"."slide_photos" REFERENCING OLD TABLE AS "freed_rows" FOR EACH STATEMENT EXECUTE FUNCTION "public"."remember_freed_slide_photos"();
 
 
 
@@ -7392,8 +7409,8 @@ GRANT ALL ON FUNCTION "public"."release_photo_upload"("target" "uuid", "target_s
 
 
 
-REVOKE ALL ON FUNCTION "public"."remember_freed_slide_photo"() FROM PUBLIC;
-GRANT ALL ON FUNCTION "public"."remember_freed_slide_photo"() TO "service_role";
+REVOKE ALL ON FUNCTION "public"."remember_freed_slide_photos"() FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."remember_freed_slide_photos"() TO "service_role";
 
 
 

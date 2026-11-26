@@ -231,7 +231,8 @@ data. Spec: `docs/superpowers/specs/2026-10-23-stable-presentation-data-design.m
 
 ## Other groups
 
-- Limits: `clickLimits.ts` (the one click-limit system, see root `CLAUDE.md`), `browserLimits.ts` (sign up / login
+- Limits: `clickLimits.ts` (the one click-limit system, see root `CLAUDE.md`; `UPLOAD_PAUSE_FEATURES`, the four
+  features that stop an own photo upload, shared by the Photos panel and `upload-image`), `browserLimits.ts` (sign up / login
   speed bumps kept in the browser).
 - Photo storage (50 MB per teacher, 500 MB per editor, root `CLAUDE.md`): `photoStorage.ts` (no imports, tested in `photoStorage.test.ts`): `PHOTO_STORAGE_LIMIT_BYTES` and `EDITOR_PHOTO_STORAGE_LIMIT_BYTES` (same as the database's `photo_storage_limit(target)`), `formatStorage` (rounded down), `isStorageFull` (full, or with a size: that photo won't fit), `stillUsedMessage` (the remove warning's words), `storageFullMessage(limit)` (the full words, with the teacher's own limit), `STILL_COUNTS_TOAST`. `photos.tsx`: `loadPhotoStorage`, `watchPhotoStorage` (uploads, removes and `loadPhotoStorage` tell listeners the new total; `sendPhoto` keeps the last one, also from a refused 413, and when the photo won't fit in it, asks again before sending; forgotten on log out) and `removeMyPhoto(src, mode)` (`remove_my_photo`: `if_unused` / `ask` / `remove`). `cleanupPhotos.ts` sends the real sizes of photos counted at 2 MB (`sizesToFix`; a file gone from R2 gets 1 byte).
 - Photos: `photos.tsx` (upload, My photos, shared photos; `isPhotoLocked` / `PHOTO_LOCKED_MESSAGE` for `QMPHL`, a

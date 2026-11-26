@@ -92,6 +92,23 @@ try {
     `${uploaded.status()} ${JSON.stringify(answer)}`
   );
 
+  // My photos rows paused (photo_rows): the upload stops before anything is reserved or counted.
+  const uploadRecords = () => psql(`select count(*) from public.photo_uploads where user_id = '${editor.id}'`);
+  const recordsBefore = uploadRecords();
+  psql(`insert into public.click_rate (user_id, feature, window_start, clicks, paused_until)
+        values ('${editor.id}', 'photo_rows', now(), 0, now() + interval '10 minutes')
+        on conflict (user_id, feature) do update set paused_until = excluded.paused_until`);
+  const pausedUpload = await context.request.post(uploadUrl, { data: webp(), headers: { "Content-Type": "image/webp" } });
+  check("a teacher whose photo rows are paused gets 429", pausedUpload.status() === 429, `${pausedUpload.status()}`);
+  check("the paused upload reserved nothing", uploadRecords() === recordsBefore, uploadRecords());
+  check(
+    "the paused upload wasn't counted as an upload",
+    psql(`select count(*) from public.click_rate where user_id = '${editor.id}' and feature = 'photo_upload'`) === "1" &&
+      psql(`select clicks from public.click_rate where user_id = '${editor.id}' and feature = 'photo_upload'`) === "1",
+    psql(`select clicks from public.click_rate where user_id = '${editor.id}' and feature = 'photo_upload'`)
+  );
+  psql(`update public.click_rate set paused_until = null where user_id = '${editor.id}' and feature = 'photo_rows'`);
+
   // Full: 250 uploads of 2 MB in progress (held). The upload is refused, the panel says so, Upload is greyed out.
   psql(`insert into public.photo_uploads (user_id, src, bytes)
         select '${editor.id}', 'https://images.quizmatter.com/uploads/' || md5('${editor.id}' || i) || md5(i::text) || '.webp', 2097152
