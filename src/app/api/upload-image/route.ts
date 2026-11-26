@@ -6,7 +6,7 @@ import { storageFullMessage } from "@/lib/photoStorage";
 import {
   photoSchema,
   reserveAnswerSchema,
-  type UploadRecord,
+  type UploadReservation,
   uploadBytesSchema,
   photoStorageSchema,
   sharedPhotoBytesSchema,
@@ -27,8 +27,8 @@ import { createClient } from "@/lib/supabase/server";
  * first time it's shared. Each shared photo remembers who uploaded it (uploaded_by, filled in by the database).
  * An own photo must fit the teacher's photo storage (reserve_photo_upload, before the click limit counts it; 50 MB,
  * 500 MB for an editor; 413 with code QMSTO when full, refused tries counted with count_write; the space is given
- * back with release_photo_upload if the click limit or storing the file refuses), and the answer (also the 413)
- * carries their total (`storage`).
+ * back with release_photo_upload if anything after it refuses: the click limit, storing the file or the My photos
+ * row; only while the record is still this upload's), and the answer (also the 413) carries their total (`storage`).
  */
 export async function POST(request: Request) {
   const supabase = await createClient();
@@ -95,7 +95,7 @@ export async function POST(request: Request) {
   // uploads at once can't both slip past. Secret key: the functions are the server's only (teachers can't write
   // their own upload records).
   const admin = shared ? null : createAdminClient();
-  let reservation: { target: string; target_src: string; previous: UploadRecord } | null = null;
+  let reservation: ({ target: string; target_src: string } & UploadReservation) | null = null;
   if (!shared) {
     if (!admin) return Response.json({ error: "Couldn't upload the photo. Please try again." }, { status: 500 });
     // Checked with zod before it's saved (see CLAUDE.md, "Saving Data").
@@ -115,13 +115,16 @@ export async function POST(request: Request) {
       }
       return storageFull(supabase);
     }
+    if (storageError) return Response.json({ error: "Couldn't upload the photo. Please try again." }, { status: 500 });
     const answer = reserveAnswerSchema.safeParse(reserved);
-    if (storageError || !answer.success) {
-      return Response.json({ error: "Couldn't upload the photo. Please try again." }, { status: 500 });
-    }
-    reservation = { target: data.claims.sub, target_src: photo.data.src, previous: answer.data.previous };
+    // Never expected (the answer is the database's own). The space was held but the answer can't say how to give it
+    // back exactly, so it's held for its 10 minutes.
+    if (!answer.success) return Response.json({ error: "Couldn't upload the photo. Please try again." }, { status: 500 });
+    reservation = { target: data.claims.sub, target_src: photo.data.src, ...answer.data };
   }
-  // Gives the reserved space back (the row as it was before), when the upload stops after the reservation.
+  // Gives the reserved space back (the row as it was before), when the upload stops after the reservation. The
+  // database changes the row only while it still has this reservation's time (`written_at`), so a later upload of
+  // the same file keeps its own.
   const release = async () => {
     if (admin && reservation) await admin.rpc("release_photo_upload", reservation);
   };
@@ -158,6 +161,8 @@ export async function POST(request: Request) {
           { onConflict: "src" },
         )
     : await supabase.from("photos").upsert({ ...photo.data, user_id: data.claims.sub, created_at }, { onConflict: "user_id,src" });
+  // Not in My photos (and not on a slide yet): the reserved space is given back.
+  if (error) await release();
   // The photos table has its own click limit (photo_rows), for rows sent by hand.
   if (pausedUntilFromError(error)) return paused();
   if (error) return Response.json({ error: "Couldn't upload the photo. Please try again." }, { status: 500 });

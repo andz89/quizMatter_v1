@@ -3426,26 +3426,54 @@ $$;
 ALTER FUNCTION "public"."refuse_locked_photo_delete"() OWNER TO "postgres";
 
 
-CREATE OR REPLACE FUNCTION "public"."release_photo_upload"("target" "uuid", "target_src" "text", "previous" "jsonb") RETURNS "void"
+CREATE OR REPLACE FUNCTION "public"."release_photo_upload"("target" "uuid", "target_src" "text", "previous" "jsonb", "written_at" timestamp with time zone) RETURNS "void"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO ''
     AS $$
 begin
   perform pg_advisory_xact_lock(hashtext('photo_storage:' || target::text));
   if previous is null or jsonb_typeof(previous) = 'null' then
-    delete from public.photo_uploads u where u.user_id = target and u.src = target_src;
+    delete from public.photo_uploads u
+    where u.user_id = target and u.src = target_src and u.created_at = written_at;
   else
     update public.photo_uploads u
     set bytes = (previous ->> 'bytes')::int,
       size_known = (previous ->> 'size_known')::boolean,
       created_at = (previous ->> 'created_at')::timestamptz
-    where u.user_id = target and u.src = target_src;
+    where u.user_id = target and u.src = target_src and u.created_at = written_at;
   end if;
 end;
 $$;
 
 
-ALTER FUNCTION "public"."release_photo_upload"("target" "uuid", "target_src" "text", "previous" "jsonb") OWNER TO "postgres";
+ALTER FUNCTION "public"."release_photo_upload"("target" "uuid", "target_src" "text", "previous" "jsonb", "written_at" timestamp with time zone) OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."remember_freed_slide_photo"() RETURNS "trigger"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+declare
+  owner uuid;
+  freed jsonb;
+begin
+  select p.owner_id into owner from public.presentations p
+  where p.id = old.presentation_id and (p.shared_from is null or p.hidden_at is null);
+  if owner is null
+    or not exists (select 1 from public.photo_uploads u where u.user_id = owner and u.src = old.src)
+  then
+    return null;
+  end if;
+  freed := coalesce(nullif(current_setting('qm.freed_slide_photos', true), '')::jsonb, '[]'::jsonb);
+  if not freed ? (owner::text || ' ' || old.src) then
+    perform set_config('qm.freed_slide_photos', (freed || to_jsonb(owner::text || ' ' || old.src))::text, true);
+  end if;
+  return null;
+end;
+$$;
+
+
+ALTER FUNCTION "public"."remember_freed_slide_photo"() OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."remove_banned_editor"() RETURNS "trigger"
@@ -3564,6 +3592,7 @@ CREATE OR REPLACE FUNCTION "public"."reserve_photo_upload"("target" "uuid", "tar
     AS $$
 declare
   previous jsonb;
+  written_at timestamptz := clock_timestamp();
 begin
   -- One teacher's uploads (and saves of slides with their uploads) are checked one at a time, so two at once can't
   -- both slip past the limit.
@@ -3579,11 +3608,11 @@ begin
   from public.photo_uploads u where u.user_id = target and u.src = target_src;
 
   insert into public.photo_uploads (user_id, src, bytes, size_known, created_at)
-  values (target, target_src, file_bytes, true, now())
+  values (target, target_src, file_bytes, true, written_at)
   on conflict (user_id, src) do update
-    set bytes = excluded.bytes, size_known = true, created_at = now();
+    set bytes = excluded.bytes, size_known = true, created_at = excluded.created_at;
 
-  return jsonb_build_object('previous', previous);
+  return jsonb_build_object('previous', previous, 'written_at', written_at);
 end;
 $$;
 
@@ -4469,6 +4498,18 @@ $$;
 ALTER FUNCTION "public"."share_presentation"("target_id" "text") OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."slide_photo_freed"("target" "uuid", "target_src" "text") RETURNS boolean
+    LANGUAGE "sql" STABLE
+    SET "search_path" TO ''
+    AS $$
+  select coalesce(nullif(current_setting('qm.freed_slide_photos', true), '')::jsonb, '[]'::jsonb)
+    ? (target::text || ' ' || target_src);
+$$;
+
+
+ALTER FUNCTION "public"."slide_photo_freed"("target" "uuid", "target_src" "text") OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."slide_photo_srcs"("data" "jsonb") RETURNS "text"[]
     LANGUAGE "sql" IMMUTABLE
     SET "search_path" TO ''
@@ -4742,7 +4783,9 @@ begin
     select coalesce(sum(u.bytes), 0) into extra
     from public.photo_uploads u
     where u.user_id = owner and u.src = any (new_srcs) and not (u.src = any (old_srcs))
-      and not public.photo_upload_counts(owner, u.src);
+      and not public.photo_upload_counts(owner, u.src)
+      -- Moved here from another of their slides in this same save: it counted already.
+      and not public.slide_photo_freed(owner, u.src);
     if extra > 0 and public.photo_storage_used(owner) + extra > storage_limit then
       raise exception 'Your photo storage is full (% MB).', storage_limit / 1048576 using errcode = 'QMSTO';
     end if;
@@ -5945,6 +5988,10 @@ CREATE OR REPLACE TRIGGER "refuse_locked_photo_delete" BEFORE DELETE ON "public"
 
 
 CREATE OR REPLACE TRIGGER "refuse_locked_photo_delete" BEFORE DELETE ON "public"."shared_photos" FOR EACH ROW EXECUTE FUNCTION "public"."refuse_locked_photo_delete"();
+
+
+
+CREATE OR REPLACE TRIGGER "remember_freed_slide_photo" AFTER DELETE ON "public"."slide_photos" FOR EACH ROW EXECUTE FUNCTION "public"."remember_freed_slide_photo"();
 
 
 
@@ -7340,8 +7387,13 @@ GRANT ALL ON FUNCTION "public"."refuse_locked_photo_delete"() TO "service_role";
 
 
 
-REVOKE ALL ON FUNCTION "public"."release_photo_upload"("target" "uuid", "target_src" "text", "previous" "jsonb") FROM PUBLIC;
-GRANT ALL ON FUNCTION "public"."release_photo_upload"("target" "uuid", "target_src" "text", "previous" "jsonb") TO "service_role";
+REVOKE ALL ON FUNCTION "public"."release_photo_upload"("target" "uuid", "target_src" "text", "previous" "jsonb", "written_at" timestamp with time zone) FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."release_photo_upload"("target" "uuid", "target_src" "text", "previous" "jsonb", "written_at" timestamp with time zone) TO "service_role";
+
+
+
+REVOKE ALL ON FUNCTION "public"."remember_freed_slide_photo"() FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."remember_freed_slide_photo"() TO "service_role";
 
 
 
@@ -7493,6 +7545,11 @@ GRANT ALL ON FUNCTION "public"."share_new_editor_photos"() TO "service_role";
 REVOKE ALL ON FUNCTION "public"."share_presentation"("target_id" "text") FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."share_presentation"("target_id" "text") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."share_presentation"("target_id" "text") TO "service_role";
+
+
+
+REVOKE ALL ON FUNCTION "public"."slide_photo_freed"("target" "uuid", "target_src" "text") FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."slide_photo_freed"("target" "uuid", "target_src" "text") TO "service_role";
 
 
 

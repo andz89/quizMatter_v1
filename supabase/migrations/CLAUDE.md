@@ -147,6 +147,13 @@ A refusal raises an error with its own code. The app turns the code into a messa
   all, `photo_storage_limit()` with no arguments): it re-creates every photo storage function in its newest form and
   removes rows the early backfill made for photos someone else shared. Apply it **before** the app (the route calls
   `release_photo_upload`).
+  `20261231002800_photo_storage_fixes_2.sql` (test `supabase/tests/photo_storage_fixes_2.sql`): newest
+  `reserve_photo_upload` writes `clock_timestamp()` and answers it (`{ previous, written_at }`); the newest
+  `release_photo_upload(target, src, previous, written_at)` (the 3-argument one is dropped) changes the row only
+  while it still has that time. `remember_freed_slide_photo` (after delete on `slide_photos`) keeps the owner's own
+  uploads taken off their slides in the transaction-local setting `qm.freed_slide_photos`; the newest
+  `sync_slide_photos` skips those (`slide_photo_freed`, not granted), so moving a photo between slides in one save is
+  never new storage. Apply it **before** the app (the route sends `written_at`).
 - Click limits: `20261013000000_click_limits.sql`, `20261014000000_click_auto_ban.sql`, `20261017000000_click_history.sql`.
   `20261211000000_save_photo_click_limits.sql` (test `supabase/tests/save_photo_click_limits.sql`): saving
   presentations (`presentation_save` + `presentation_save_daily`, from `count_presentation_write`: once per request,

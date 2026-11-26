@@ -466,8 +466,9 @@ The super admin shows a message to chosen teachers on chosen pages (Admin → An
 # Photo Storage (50 MB per teacher, 500 MB per editor)
 
 Each teacher may keep 50 MB of photos; an editor 500 MB (they make QuizMatter lessons). Admins have no limit. Design: `docs/superpowers/specs/2026-11-26-photo-storage-limit-design.md`.
-Migrations: `20261231002600_photo_storage.sql`, `20261231002700_photo_storage_fixes.sql`; tests:
-`supabase/tests/photo_storage.sql`, `supabase/tests/photo_storage_fixes.sql`, `e2e/photo-storage.mjs`.
+Migrations: `20261231002600_photo_storage.sql`, `20261231002700_photo_storage_fixes.sql`,
+`20261231002800_photo_storage_fixes_2.sql`; tests: `supabase/tests/photo_storage.sql`,
+`supabase/tests/photo_storage_fixes.sql`, `supabase/tests/photo_storage_fixes_2.sql`, `e2e/photo-storage.mjs`.
 Keep these rules:
 
 - **What counts:** a photo the teacher **uploaded** (a `photo_uploads` row) while it's in their "My photos" **or**
@@ -481,18 +482,21 @@ Keep these rules:
   `count_write('photos')`, 30 a minute, so a script is slowed) and before the file is stored (one teacher at a time,
   an advisory lock; a new upload holds its space for 10 minutes; over the limit = `QMSTO`, 413,
   `storageFullMessage(limit)`, with their own limit, and their total `storage`). It answers the record it replaced
-  (`previous`); if the click limit or storing the file then refuses, `release_photo_upload` puts it back, so a
-  refused upload holds no space. **Saving a slide checks too** (`sync_slide_photos`): a slide that gets one of the
+  (`previous`) and the time it wrote (`written_at`); if the click limit, storing the file or the My photos row then
+  refuses, `release_photo_upload` puts it back, so a refused upload holds no space. The release changes the row only
+  while it still has that time, so a second upload of the same file at once keeps its own record. **Saving a slide checks too** (`sync_slide_photos`): a slide that gets one of the
   owner's uploads that doesn't count right now (e.g. taken out of My photos while only on unsaved slides) must fit,
   else the save is refused with `QMSTO` (`REFUSALS`), so the limit can't be passed by uploading, removing and saving
-  later. Photos that already count and copied photos never trigger it. Known edge: a teacher already over the limit
-  who moves a photo between slides in one save may be refused, if the old slide is saved first. The
+  later. Photos that already count and copied photos never trigger it, and neither does moving one of their photos to
+  another slide in the same save (a photo taken off one of the owner's slides is remembered for the rest of the
+  request, `remember_freed_slide_photo` / `slide_photo_freed`, a transaction-local setting). The
   browser skips sending a photo that won't fit in the last total it saw (it asks again first, `sendPhoto`). Teachers only read their own `photo_uploads` rows, so they can't
   delete records to free space. The limit is `photo_storage_limit(target)` (null for an admin, 500 MB for an editor,
   else 50 MB; read each time, so losing the editor role means 50 MB again) and `PHOTO_STORAGE_LIMIT_BYTES` /
   `EDITOR_PHOTO_STORAGE_LIMIT_BYTES` (`src/lib/photoStorage.ts`): change both together.
 - **Nothing is deleted because of it.** Over the limit (e.g. old photos counted at 2 MB until their real size is
-  sent, `set_photo_upload_sizes`) only stops new uploads. The weekly cleanup sends the sizes, and so does Admin →
+  sent, `set_photo_upload_sizes`) only stops new uploads and saving a slide that adds a photo which doesn't count
+  yet; every other save works. The weekly cleanup sends the sizes, and so does Admin →
   Photo cleanup's "Find unused photos" (`fixPhotoUploadSizes`, `src/lib/cleanupPhotos.ts`), so nobody waits for
   Sunday.
 - **Removing from My photos** is `remove_my_photo(src, mode)`: one request when no slide of theirs has it; else it

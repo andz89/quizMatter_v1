@@ -137,12 +137,14 @@ export const uploadBytesSchema = z.number().int().min(1).max(MAX_STORED_PHOTO_BY
 export const photoUploadSizesSchema = z.record(photoSchema.shape.src, uploadBytesSchema);
 
 // An upload record as it was before reserve_photo_upload replaced it (null = there was none), sent back to
-// release_photo_upload when the upload stops after the reservation.
+// release_photo_upload when the upload stops after the reservation, with the time the reservation wrote
+// (`written_at`): the release changes the row only while it still has that time (another upload of the same file
+// since then wrote its own).
 const uploadRecordSchema = z
   .object({ bytes: uploadBytesSchema, size_known: z.boolean(), created_at: z.string().max(40) })
   .nullable();
-export type UploadRecord = z.infer<typeof uploadRecordSchema>;
-export const reserveAnswerSchema = z.object({ previous: uploadRecordSchema });
+export const reserveAnswerSchema = z.object({ previous: uploadRecordSchema, written_at: z.string().min(1).max(40) });
+export type UploadReservation = z.infer<typeof reserveAnswerSchema>;
 
 // remove_my_photo's answer: whether a row was really removed, my own presentations whose slides still have it (slide
 // numbers are places in the list, 1 = first, like the slide grid's "Slide 3"; `hidden`: the hidden ones among them),

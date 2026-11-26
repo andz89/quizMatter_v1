@@ -1,4 +1,5 @@
--- Photo storage review fixes (supabase/migrations/20261231002700_photo_storage_fixes.sql): saving a slide checks the
+-- Photo storage review fixes (supabase/migrations/20261231002700_photo_storage_fixes.sql; release's newest form,
+-- with written_at, in 20261231002800_photo_storage_fixes_2.sql): saving a slide checks the
 -- limit too, and reserve_photo_upload / release_photo_upload give a reservation back.
 -- Run on a local database with every migration applied:
 --   psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/photo_storage_fixes.sql
@@ -110,10 +111,11 @@ declare
   answer jsonb;
 begin
   answer := public.reserve_photo_upload('00000000-0000-4000-8000-0000000006a2', pg_temp.f('e'), 5000);
-  if answer <> '{"previous": null}'::jsonb then
+  if answer -> 'previous' <> 'null'::jsonb or answer ->> 'written_at' is null then
     raise exception 'FAIL: a new upload''s answer was %', answer;
   end if;
-  perform public.release_photo_upload('00000000-0000-4000-8000-0000000006a2', pg_temp.f('e'), answer -> 'previous');
+  perform public.release_photo_upload('00000000-0000-4000-8000-0000000006a2', pg_temp.f('e'), answer -> 'previous',
+    (answer ->> 'written_at')::timestamptz);
   if exists (select 1 from public.photo_uploads where user_id = '00000000-0000-4000-8000-0000000006a2' and src = pg_temp.f('e')) then
     raise exception 'FAIL: a released new upload left its record';
   end if;
@@ -134,7 +136,8 @@ begin
   if not public.photo_upload_counts('00000000-0000-4000-8000-0000000006a2', pg_temp.f('c')) then
     raise exception 'FAIL: a reserved upload should count while it''s held';
   end if;
-  perform public.release_photo_upload('00000000-0000-4000-8000-0000000006a2', pg_temp.f('c'), answer -> 'previous');
+  perform public.release_photo_upload('00000000-0000-4000-8000-0000000006a2', pg_temp.f('c'), answer -> 'previous',
+    (answer ->> 'written_at')::timestamptz);
   select * into row_after from public.photo_uploads where user_id = '00000000-0000-4000-8000-0000000006a2' and src = pg_temp.f('c');
   if row_after.bytes <> 2097152 or row_after.created_at > now() - interval '50 minutes' then
     raise exception 'FAIL: the released row wasn''t put back: % bytes, %', row_after.bytes, row_after.created_at;
@@ -150,7 +153,7 @@ set local role authenticated;
 select set_config('request.jwt.claims', '{"sub": "00000000-0000-4000-8000-0000000006a2", "role": "authenticated"}', true);
 do $$
 begin
-  perform public.release_photo_upload('00000000-0000-4000-8000-0000000006a1', pg_temp.f('a'), null);
+  perform public.release_photo_upload('00000000-0000-4000-8000-0000000006a1', pg_temp.f('a'), null, now());
   raise exception 'FAIL: a teacher called release_photo_upload';
 exception when insufficient_privilege then
   null;

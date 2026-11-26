@@ -1016,7 +1016,7 @@ isOneToOne: false
 { Args: { "target": string }; Returns: undefined
                            },
 "release_photo_upload":
-{ Args: { "previous": Json,"target": string,"target_src": string }; Returns: undefined
+{ Args: { "previous": Json,"target": string,"target_src": string,"written_at": string }; Returns: undefined
                            },
 "remove_my_photo":
 { Args: { "mode": string,"target_src": string }; Returns: Json
@@ -1081,6 +1081,9 @@ isOneToOne: false
                            },
 "share_presentation":
 { Args: { "target_id": string }; Returns: Json
+                           },
+"slide_photo_freed":
+{ Args: { "target": string,"target_src": string }; Returns: boolean
                            },
 "slide_photo_srcs":
 { Args: { "data": Json }; Returns: (string)[]
