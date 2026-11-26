@@ -198,6 +198,17 @@ export const SLIDE_EFFECT_SPEED_MIN = 1;
 export const SLIDE_EFFECT_SPEED_MAX = 5;
 export const SLIDE_EFFECT_SPEED_DEFAULT = 3;
 
+// How an element comes in while presenting, one click each (Effects panel → Element effects). Only on blank and title
+// slides (canHaveElementEffects in elementEffects.ts). Added in DATA_VERSION 7.
+export const ELEMENT_EFFECTS = ["fade", "pop"] as const;
+export type ElementEffectType = (typeof ELEMENT_EFFECTS)[number];
+export const ELEMENT_EFFECT_LABELS: Record<ElementEffectType, string> = { fade: "Fade", pop: "Pop up" };
+export const elementEffectSchema = z.object({
+  type: z.enum(ELEMENT_EFFECTS),
+  order: z.number().int().min(1).max(MAX_ELEMENTS),
+  speed: z.number().int().min(SLIDE_EFFECT_SPEED_MIN).max(SLIDE_EFFECT_SPEED_MAX),
+});
+
 // What a shared photo shows, in words (admins type it; Claude searches it with find_photos).
 export const SHARED_PHOTO_TAG_MAX = MAX_TAGS;
 export const sharedPhotoInfoSchema = z.object({
@@ -486,6 +497,10 @@ export const svgElementSchema = z.object({
       height: z.number().positive().max(1),
     })
     .optional(),
+  // How it comes in while presenting (blank and title slides only): its effect, its step (elements with the same
+  // order come in together; a group's members share one) and the speed (1–5, like the slide effect). Missing = it
+  // shows with the slide. Added in DATA_VERSION 7.
+  effect: elementEffectSchema.optional(),
 });
 
 // Longest typed answer (short-answer, blank and custom slides), in the editor and from Claude.
@@ -513,7 +528,7 @@ export function embedLinkSchema(kind: EmbedKind) {
 // a save from a lower version than the one that last saved that presentation (QMOLD), so an editor tab running
 // older code can't drop fields it doesn't know. Bump it whenever the saved shape changes: see "Changing the saved
 // shape" in src/lib/CLAUDE.md.
-export const DATA_VERSION = 6;
+export const DATA_VERSION = 7;
 
 // True when a presentation was saved by newer app code than this tab runs. Copying it here would drop fields this tab
 // doesn't know, so copy paths check this first (the database refuses it too, with QMOLD).
@@ -555,6 +570,8 @@ function cleanElement(element: unknown): unknown {
   if (cleaned.clockTime !== undefined && !clockTimeSchema.safeParse(cleaned.clockTime).success) delete cleaned.clockTime;
   // The database doesn't check dates either: one no calendar can show is left out (= DEFAULT_CALENDAR_DATE).
   if (cleaned.calendarDate !== undefined && !calendarDateSchema.safeParse(cleaned.calendarDate).success) delete cleaned.calendarDate;
+  // Nor element effects: one the editor can't make is left out (= the element shows with the slide).
+  if (cleaned.effect !== undefined && !elementEffectSchema.safeParse(cleaned.effect).success) delete cleaned.effect;
   // The database doesn't check diagrams or math tools, so a request edited by hand could save one the editor can't
   // make, and that one element would stop the whole presentation from opening. It's left out (= its starting look).
   for (const [field, schema] of [...Object.entries(DIAGRAM_SCHEMAS), ...Object.entries(MATH_TOOL_SCHEMAS)]) {

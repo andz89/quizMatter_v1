@@ -300,8 +300,8 @@ test("a table cell keeps a safe background color, and an unsafe one is left out 
   assert.deepEqual(cells?.[1], { html: "<p>Yo</p>" });
 });
 
-test("the saved shape is version 6 (option row heights)", () => {
-  assert.equal(DATA_VERSION, 6);
+test("the saved shape is version 7 (element effects)", () => {
+  assert.equal(DATA_VERSION, 7);
 });
 
 // A choice slide in the shape the editor makes, for the row height tests.
