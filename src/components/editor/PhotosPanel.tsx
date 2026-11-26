@@ -8,7 +8,6 @@ import { PHOTO_TYPES } from "@/lib/constants";
 import {
   PHOTO_LOCKED_MESSAGE,
   addPhotoToSlide,
-  checkCanUpload,
   isPhotoLocked,
   loadMyPhotos,
   loadPhotoStorage,
@@ -45,8 +44,6 @@ export function PhotosPanel() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   // How many picked photos are still uploading, to show the Spinner on the button.
   const [uploadingFiles, setUploadingFiles] = useState(0);
-  // Only editors and admins can upload for now (see checkCanUpload). null until known.
-  const [canUpload, setCanUpload] = useState<boolean | null>(null);
   // Uploaded too fast: paused for a while (the photo_upload and photo_rows click limits, each a minute and a day).
   const isUploadPaused = useIsPaused("photo_upload", "photo_upload_daily", "photo_rows", "photo_rows_daily");
   // How much of the 50 MB the teacher's photos use (src/lib/photoStorage.ts). null until read; limit null = an admin.
@@ -62,10 +59,6 @@ export function PhotosPanel() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [closePhotosPanel]);
 
-  useEffect(() => {
-    checkCanUpload().then(setCanUpload);
-  }, []);
-
   // Uploads (also a photo dropped onto a slide) and removes send the new total.
   useEffect(() => watchPhotoStorage(setStorage), []);
 
@@ -75,12 +68,11 @@ export function PhotosPanel() {
     if (isMyPhotosTab && myPhotos === null) loadMyPhotos().then(setMyPhotos, () => setMyPhotos("failed"));
   }, [isMyPhotosTab, myPhotos]);
   // Read each time the tab opens and after each save while it's open (taking a photo off the slides and saving
-  // frees space), for teachers who can upload. If it fails, the bar keeps what it had (or doesn't show).
+  // frees space). If it fails, the bar keeps what it had (or doesn't show).
   const savedAt = useEditorStore((s) => s.savedAt);
-  const needsStorage = isMyPhotosTab && canUpload === true;
   useEffect(() => {
-    if (needsStorage) loadPhotoStorage().then(setStorage, () => {});
-  }, [needsStorage, savedAt]);
+    if (isMyPhotosTab) loadPhotoStorage().then(setStorage, () => {});
+  }, [isMyPhotosTab, savedAt]);
   const isFull = storage !== null && isStorageFull(storage);
 
   // A new upload goes to the top of the list (or moves there, if it was already in it).
@@ -219,15 +211,10 @@ export function PhotosPanel() {
             hidden
             onChange={(e) => handleFiles(e.target.files)}
           />
-          {canUpload === false && (
-            <p className="rounded-dropdown bg-highlight-soft px-3 py-2 text-xs font-semibold text-highlight-strong">
-              This will be available soon.
-            </p>
-          )}
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            disabled={!canUpload || isUploadPaused || isFull}
+            disabled={isUploadPaused || isFull}
             className="flex items-center justify-center gap-2 rounded-card border border-transparent bg-accent-soft p-2 text-[13px] font-semibold text-text-primary transition-colors hover:border-accent disabled:pointer-events-none disabled:opacity-40"
           >
             <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-button bg-accent text-white">
@@ -236,12 +223,10 @@ export function PhotosPanel() {
             Upload photo
           </button>
 
-          {canUpload && storage && storage.limit !== null && (
+          {storage && storage.limit !== null && (
             <PhotoStorageBar storage={{ used: storage.used, limit: storage.limit }} />
           )}
-          {canUpload && (
-            <p className="text-xs text-text-secondary">You can also drag photos from your computer onto the slide.</p>
-          )}
+          <p className="text-xs text-text-secondary">You can also drag photos from your computer onto the slide.</p>
           <p className="text-xs text-text-secondary">Only use photos you have the right to use.</p>
 
           <div className="mt-2">

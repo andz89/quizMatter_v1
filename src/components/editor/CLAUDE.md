@@ -156,11 +156,9 @@ editor / view / review, and renders `Editor.tsx`, which calls `store.loadPresent
   (`stillUsedMessage`; its message keeps line breaks) and "Remove from My photos" removes it anyway, with
   `STILL_COUNTS_TOAST`; when it counts for nothing (an admin, a photo they didn't upload) it's removed without the
   box. A failed remove puts back only that photo, so an upload that finished meanwhile stays. Test: `e2e/photo-storage.mjs`.
-- Teachers' own photo uploads are **for editors and admins only, for now** (`checkCanUpload` in
-  `src/lib/photos.tsx`, which asks `is_editor` / `is_admin` once). Other teachers' "My Photos" tab shows "This will
-  be available soon." with Upload greyed out, and a file dropped on a slide only shows a toast
-  (`useElementDropTarget`). Old "My photos" still show and can be added. `upload-image` refuses them too (403).
-  Admin → Photos and Claude's photo import still upload.
+- **Every teacher uploads their own photos** (opened 2026-11-26, once the storage limit was in; spec
+  `docs/superpowers/specs/2026-11-26-open-photo-uploads-design.md`): the "My Photos" tab's Upload and a file dropped
+  on a slide; Upload greys out only while paused or full. Test: `e2e/photo-uploads.mjs`.
 - Modals: `AnswerModal`, `DetailsModal` (title, grades, subject…; the Author is locked text in review mode, on an
   editor's own presentation, and when the presentation is linked to an editor, store `isAuthorLinked` from the edit
   page's `authorId`: the database always writes their name there), `SlideGridModal`, `ConfirmModal` (the app's one

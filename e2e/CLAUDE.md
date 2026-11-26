@@ -281,7 +281,8 @@ when another is picked), moving into and between boxes (Alt keeps a free picture
   (the box names the presentation and slide and says it still counts; after Remove it's out of My photos and still
   counted), an upload's answer with the new total, and a full account: its upload refused (413, `QMSTO`), the full
   message shown and Upload greyed out (screenshots `photo-storage-bar.png`, `-warning.png`, `-full.png`).
-- `photo-uploads.mjs`: a plain teacher's profile photo is refused before anything is counted; an editor's is stored
+- `photo-uploads.mjs`: a plain teacher uploads their own photo (answer with their 50 MB storage, in My photos; the
+  Photos panel shows the bar and a working Upload, no "available soon"); a plain teacher's profile photo is refused before anything is counted; an editor's is stored
   and the profile switches to it, counted once; a too-big upload sent in pieces (no Content-Length) gets 413.
 - `announcements-admin.mjs`: the super admin makes a corner box and an HTML modal in the form; a teacher sees them.
 - `announcements-show-after.mjs`: the super admin sets "It shows after 8 seconds" in the form (not on a top bar;
