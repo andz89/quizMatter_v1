@@ -21,8 +21,8 @@ for the presentation).
   Blank or Title slide, a picked element (or group) can get None / Fade / Pop up and a speed. While presenting, Next
   shows the next element before it moves to the next slide.
 - Non-goals: effects on the question box or answer choice cards; exit effects; effects that play by themselves; a
-  Preview button in the editor; Claude's connector making or reading effects; the view page's Prev/Next (it isn't
-  presenting).
+  Preview button in the editor; the view page's Prev/Next (it isn't presenting). (Claude's connector was a non-goal
+  here; the user asked for it afterwards: `2026-11-26-claude-element-effects-design.md`.)
 - Anti-goals: a slide without element effects must present exactly as it does today. Effects must never hide an
   element anywhere except while presenting (cards, thumbnails, the view page, downloads and the editor show
   everything).

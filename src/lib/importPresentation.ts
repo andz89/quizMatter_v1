@@ -75,6 +75,7 @@ import { fitInBox, MIN_ELEMENT_SIZE, TRIM_PADDING, type Rect, type Size } from "
 import ASSET_SHAPES from "./assetShapes.json";
 import { createId } from "./id";
 import { groupByName } from "./importGroups";
+import { applyRecipeEffects, effectSteps, type RecipeEffect } from "./elementEffects";
 import { fitTableRows, tableStartSize } from "./importTable";
 import { DEFAULT_CALENDAR_DATE, fromDateInput } from "./calendarDate";
 import { todayInManila } from "./age";
@@ -94,6 +95,7 @@ import {
 } from "./svgLibrary";
 import {
   DETAIL_MAX_LENGTH,
+  ELEMENT_EFFECTS,
   embedLinkSchema,
   FACTOR_TREE_LIMIT_MESSAGE,
   factorTreeFits,
@@ -101,6 +103,7 @@ import {
   GRADES,
   gradesSchema,
   MAX_ANSWER_LENGTH,
+  MAX_ELEMENTS,
   MAX_ITEM_COUNT,
   MAX_REFERENCE_LINKS,
   MAX_SLIDES,
@@ -209,6 +212,17 @@ const groupName = z
   .describe(
     'Give the same name to the pieces that belong together (e.g. a ribbon and its words: "banner"), so the teacher moves them as one. Only within one slide, and all in the same box.',
   );
+
+// How a piece comes in while presenting (blank and title slides), one click at a time. Same words as read_presentation.
+const effectRecipe = z
+  .object({
+    type: z.enum(ELEMENT_EFFECTS).describe('"fade" (fades in) or "pop" (pops up: grows in with a little bounce).'),
+    step: fitted(1, MAX_ELEMENTS).describe("The click it comes in at: 1 = the first click, 2 = the next… Pieces with the same step come in together."),
+    speed: fitted(SLIDE_EFFECT_SPEED_MIN, SLIDE_EFFECT_SPEED_MAX)
+      .optional()
+      .describe(`${SLIDE_EFFECT_SPEED_MIN} = slowest, ${SLIDE_EFFECT_SPEED_MAX} = fastest. Leave out for ${SLIDE_EFFECT_SPEED_DEFAULT}.`),
+  })
+  .describe("Blank and title slides only: the piece is hidden when the slide opens and comes in on a click. Leave out to show it with the slide.");
 
 // One box of a diagram: its text ("\n" = a new line) and, if wanted, its own look (the same fields the editor saves). Long
 // text shrinks to fit the box (unlike other slide text). Claude always uses the automatic layout; teachers can move and resize
@@ -436,6 +450,7 @@ const elementRecipe = z.object({
       "Place the picture yourself instead of letting the app place it, in px: on a blank, title or custom slide on the 1280×720 slide, on a question slide inside its box. Only with count 1.",
     ),
   group: groupName.optional(),
+  effect: effectRecipe.optional(),
   // The id makes the JSON Schema write these rules once (as "element") instead of once per slide type.
 }).meta({ id: "element" });
 
@@ -477,6 +492,7 @@ const placedTextBoxes = z
       rotation: whole(0, 359).optional().describe("Turn it, in degrees clockwise."),
       opacity: whole(OPACITY_MIN, 100).optional().describe("How solid it is, in percent. Leave out for 100."),
       group: groupName.optional(),
+      effect: effectRecipe.optional(),
     }).meta({ id: "textBox" }),
   )
   .max(12)
@@ -937,6 +953,16 @@ Arrows that point at part of a picture ("callouts", blank, title and custom slid
 - "from" = where the arrow comes from: left, right, top or bottom. "at" = which part it points at: top, middle or bottom for arrows from the left or right; left, middle or right for arrows from the top or bottom.
 - Up to 3 from the left and 3 from the right; at most 1 from the top and 1 from the bottom.
 
+=== Click by click (element effects, blank and title slides only) ===
+
+- Give a piece in "elements" or "textBoxes" an "effect" and it is hidden when the slide opens, then comes in when the teacher clicks (Next), before the next slide: { "type": "fade" or "pop", "step": 1, "speed": 3 }.
+- "step" is the click it comes in at: 1 = the first click, 2 = the next. Pieces with the same step come in together. "speed" 1 (slowest) to 5 (fastest); leave it out for 3.
+- Use it on teaching slides where showing things one at a time helps the class think: the points of a lesson one by one (each point its own text box), the steps of a worked example, a picture and then its label, the answer to a question the slide asks after the class has guessed. "fade" is calm and fits most slides; "pop" is playful, for a reward, a key word or young pupils.
+- Use it on a few slides, not every piece of every slide: the title and anything the class needs to read first stay without an effect, and 2–5 clicks a slide is plenty.
+- A group comes in as one: give "effect" to one of its pieces (e.g. the ribbon) and its words come in with it. A picture's callouts come in with the picture, and every copy of a picture with "count" comes in together.
+- The slide's own "title" and "text" can't have one, nor "design" or the answer canvas. On other slide types it's left out (the layout report says so).
+- read_presentation gives a piece's effect the same way ({ "type", "step", "speed" }). Send it back to keep the teacher's effects.
+
 === Checking before the final version (the layout report) ===
 
 - send_presentation replies with a layout report: every box's size, and where each text and picture landed, in the same px as "position". Lines starting with "!" point out things to check: pictures that wrapped to more rows or shrank a lot, pictures on top of text, text that will probably be cut off, text that's hard to read on what's behind it.
@@ -1191,6 +1217,12 @@ function buildSlide(
   }
   // Element id → the "group" name Claude gave it (made into groups below).
   const groupNames = new Map<string, string>();
+  // Element id → the effect Claude gave it (put on the elements below). A picture's callouts come in with it.
+  const effects = new Map<string, RecipeEffect>();
+  const withCallouts = (parts: SvgElement[], effect: RecipeEffect | undefined) => {
+    if (effect) for (const part of parts) effects.set(part.id, effect);
+    return parts;
+  };
   // Text boxes Claude placed itself. They sit on top of the pictures, so a label can go on one.
   const placedText = recipe.textBoxes.flatMap((box, i) => {
     const boxName: BoxName = isCanvas ? "canvas" : (box.in ?? "side");
@@ -1221,6 +1253,7 @@ function buildSlide(
       notes.push(`text box ${i + 1} is probably too long for its box, so it will be cut off.`);
     }
     if (box.group) groupNames.set(element.id, box.group);
+    if (box.effect) effects.set(element.id, box.effect);
     return [element];
   });
 
@@ -1278,8 +1311,9 @@ function buildSlide(
       }
       const id = createId();
       if (el.group) groupNames.set(id, el.group);
+      if (el.effect) effects.set(id, el.effect);
       pictures.push({ id, assetId: el.asset, color, containerId, ...settings, ...picture });
-      calloutParts.push(...calloutElements(picture, el.callouts ?? []));
+      calloutParts.push(...withCallouts(calloutElements(picture, el.callouts ?? []), el.effect));
       return;
     }
 
@@ -1292,6 +1326,7 @@ function buildSlide(
       const pictureSize = fitAroundCallouts(startSize(asset, settings, size, areaOf(containerId)), callouts, areaOf(containerId));
       const id = createId();
       if (el.group) groupNames.set(id, el.group);
+      if (el.effect) effects.set(id, el.effect);
       list.push({
         base: {
           id,
@@ -1341,7 +1376,7 @@ function buildSlide(
       // Already in the drawing's shape (startSize); this only adds the editor's 2px gap around it.
       const picture = fitToDrawing(slot, drawnShape(base.assetId, base));
       pictures.push({ ...base, ...picture });
-      calloutParts.push(...calloutElements(picture, callouts));
+      calloutParts.push(...withCallouts(calloutElements(picture, callouts), effects.get(base.id)));
     });
   }
 
@@ -1386,7 +1421,13 @@ function buildSlide(
     reportError(`group "${name}": its pieces are in different boxes. A group's pieces must all be in the same box ("in").`);
   }
   for (const name of grouped.lonely) notes.push(`group "${name}" has only one piece, so it isn't a group. Give the same name to the pieces that go with it.`);
+  // Effects (after grouping, so a group comes in as one step).
+  const withEffects = applyRecipeEffects(slide, effects);
+  slide.elements = withEffects.elements;
+  if (withEffects.ignored) notes.push(`"effect" only works on blank and title slides, so this slide's effects were left out.`);
   const report = describeSlide(slide, texts, pictures, notes);
+  const clicks = effectSteps(slide).length;
+  if (clicks) report.push(`Effects: ${clicks} click${clicks > 1 ? "s" : ""} bring in the pieces with an "effect", before the next slide.`);
   // Short-answer pictures were placed in the room under the question ("side"); they sit on the slide itself.
   slide.elements = moveShortAnswerPicturesToSlide(slide);
 
@@ -1394,10 +1435,21 @@ function buildSlide(
   // slide with no design, whose elements then move into the answer box.
   if (isCanvas && recipe.answer !== undefined) slide.correctAnswer = recipe.answer;
   if ((recipe.type === "short-answer" || isCanvas) && recipe.answerCanvas) {
-    const canvas = buildSlide({ type: "blank", design: [], ...recipe.answerCanvas }, (message) =>
-      reportError(`answer canvas: ${message}`),
+    // The answer canvas shows all at once in its popup, so its pieces' effects are left out.
+    const { elements: canvasElements, textBoxes: canvasTextBoxes } = recipe.answerCanvas;
+    const hasEffects = [...canvasElements, ...canvasTextBoxes].some((item) => item.effect);
+    const canvas = buildSlide(
+      {
+        type: "blank",
+        design: [],
+        ...recipe.answerCanvas,
+        elements: canvasElements.map((item) => ({ ...item, effect: undefined })),
+        textBoxes: canvasTextBoxes.map((item) => ({ ...item, effect: undefined })),
+      },
+      (message) => reportError(`answer canvas: ${message}`),
     );
     slide.answerType = "canvas";
+    if (hasEffects) report.push(`! "effect" doesn't work in the answer canvas, so it was left out there.`);
     slide.elements.push(...canvas.slide.elements.map((el) => ({ ...el, containerId: ANSWER_CONTAINER_ID })));
     // Its pictures sit on the canvas, which its own report calls "slide".
     const lines = canvas.report.map((line) => `  ${line.replaceAll('"slide"', '"answer canvas"')}`);

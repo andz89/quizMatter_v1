@@ -1,10 +1,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  applyRecipeEffects,
   canHaveElementEffects,
   effectSteps,
   moveEffectStep,
   nextEffectOrder,
+  recipeEffectOf,
   splitGroupSteps,
   stepNumbers,
   tidyEffects,
@@ -139,4 +141,34 @@ test("a saved effect with bad values is left out, and the slide still opens", ()
   });
   assert.equal(parsed.elements[0].effect, undefined);
   assert.deepEqual(parsed.elements[1].effect, fx(1, "pop"));
+});
+
+test("applyRecipeEffects puts Claude's steps on the elements, tidied, a group as one step", () => {
+  const s = slide([el("t"), el("a"), el("r", undefined, "g"), el("w", undefined, "g")]);
+  const effects = new Map([
+    ["a", { type: "pop" as const, step: 7 }],
+    ["r", { type: "fade" as const, step: 3, speed: 5 }],
+  ]);
+  const { elements, ignored } = applyRecipeEffects(s, effects);
+  assert.equal(ignored, false);
+  assert.deepEqual(
+    elements.map((e) => e.effect),
+    [undefined, { type: "pop", order: 2, speed: 3 }, { type: "fade", order: 1, speed: 5 }, { type: "fade", order: 1, speed: 5 }],
+  );
+});
+
+test("applyRecipeEffects keeps none on a question slide and says so", () => {
+  const s = slide([el("a")], "choice");
+  const { elements, ignored } = applyRecipeEffects(s, new Map([["a", { type: "fade" as const, step: 1 }]]));
+  assert.equal(ignored, true);
+  assert.equal(elements[0].effect, undefined);
+  assert.equal(applyRecipeEffects(s, new Map()).ignored, false);
+});
+
+test("recipeEffectOf gives the click a piece comes in at, only where effects play", () => {
+  const s = slide([el("a", fx(4)), el("b", fx(9, "pop")), el("c")]);
+  assert.deepEqual(recipeEffectOf(s, s.elements[1]), { type: "pop", step: 2, speed: 3 });
+  assert.equal(recipeEffectOf(s, s.elements[2]), undefined);
+  const question = slide([el("a", fx(1))], "choice");
+  assert.equal(recipeEffectOf(question, question.elements[0]), undefined);
 });

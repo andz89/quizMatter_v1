@@ -318,7 +318,9 @@ data. Spec: `docs/superpowers/specs/2026-10-23-stable-presentation-data-design.m
   `withEffect` (set or remove; a new one comes in last, one already set keeps its step), `moveEffectStep` (reorder,
   orders rewritten 1..n), `withCopiesAtEnd` (duplicate / paste: copies come in last), `tidyEffects` (a group gets
   one whole step with its lead's effect, orders rewritten 1..n; run after every add, group and ungroup, so an order
-  never passes the save check's cap), `splitGroupSteps` (before ungrouping: each member its own step). The database doesn't check it:
+  never passes the save check's cap), `splitGroupSteps` (before ungrouping: each member its own step),
+  `applyRecipeEffects` / `recipeEffectOf` (Claude's import and `read_presentation`: an effect written as its `step`;
+  see `src/pages/api/CLAUDE.md`). The database doesn't check it:
   `cleanElement` leaves out a bad one. How the editor and presenting use them: `src/components/editor/CLAUDE.md`,
   "Effects panel", and `src/components/presentation/CLAUDE.md`.
 - `layers.ts`: the editor's Layers panel math (imports only `constants.ts` and `embed.ts`, tested in

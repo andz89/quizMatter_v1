@@ -117,6 +117,11 @@ Tests that delete data (the announcements ones empty the announcements table) do
   cell colors: the format names a cell's `fill`, `send_presentation` refuses one that isn't a color and builds
   solid and gradient ones, the draft opens in the editor with the colored cells, and `read_presentation` gives a
   saved cell's `fill` back (none for a plain cell).
+- `claude-element-effects.mjs`: Claude's connector and element effects: the format's "Click by click" section and
+  `"step"`; `send_presentation` takes effects (a step of 2.4 and a speed of 9 pulled into range), the layout report
+  counts 3 clicks and notes a question slide's effect left out; the finished draft opens with 3 steps in the Effects
+  panel (Pop up on step 2, the "leaf" group as one step); `read_presentation` gives saved orders 3 and 8 as steps 1
+  and 2, nothing for a piece without one or on a question slide.
 - `claude-text-fit.mjs`: Claude's connector and text that never shrinks: the format says so and that option rows are
   sized by their text; Claude's own 90 px options under its own 160 px strip and a question too long for its
   `questionHeight` are reported as cut off; with the size left out, the options keep 45 px, the strip makes room, and

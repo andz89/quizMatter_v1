@@ -5,6 +5,7 @@ import type { Database } from "@/lib/database.types";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { z } from "zod";
 import { buildSlides, getClaudeFormat, claudeDetailsSchema } from "@/lib/importPresentation";
+import { recipeEffectOf } from "@/lib/elementEffects";
 import { getDraft, replaceDraft, saveDraft } from "@/lib/drafts";
 import { loadPresentation } from "@/lib/fetchPresentation";
 import { PHOTO_MAX_SIDE, thumbnailUrl } from "@/lib/constants";
@@ -421,21 +422,26 @@ function shrinkPresentation({ slides, ...details }: Presentation) {
     svg.length > MAX_READ_SVG_LENGTH ? `(a drawing, ${Math.round(svg.length / 1000)} KB, left out)` : svg;
   return {
     ...details,
-    slides: slides.map(({ questionHtml, ...slide }) => ({
-      ...slide,
-      question: questionHtml ? htmlToText(questionHtml) : slide.question,
-      elements: slide.elements.map((element) => ({
-        ...element,
-        ...(element.text && { text: { ...element.text, html: htmlToText(element.text.html) } }),
-        ...(element.table && {
-          table: {
-            ...element.table,
-            rows: element.table.rows.map((cells) => cells.map((cell) => ({ html: htmlToText(cell.html), ...(cell.fill && { fill: cell.fill }) }))),
-          },
-        }),
-        ...(element.svg && { svg: svgNote(element.svg) }),
-      })),
-    })),
+    slides: slides.map((original) => {
+      const { questionHtml, ...slide } = original;
+      return {
+        ...slide,
+        question: questionHtml ? htmlToText(questionHtml) : slide.question,
+        elements: slide.elements.map(({ effect, ...element }) => ({
+          ...element,
+          // In the recipe's words (the click it comes in at), and only where it plays (blank and title slides).
+          ...(effect && { effect: recipeEffectOf(original, { ...element, effect }) }),
+          ...(element.text && { text: { ...element.text, html: htmlToText(element.text.html) } }),
+          ...(element.table && {
+            table: {
+              ...element.table,
+              rows: element.table.rows.map((cells) => cells.map((cell) => ({ html: htmlToText(cell.html), ...(cell.fill && { fill: cell.fill }) }))),
+            },
+          }),
+          ...(element.svg && { svg: svgNote(element.svg) }),
+        })),
+      };
+    }),
   };
 }
 

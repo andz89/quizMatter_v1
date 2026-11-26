@@ -147,6 +147,37 @@ export function withCopiesAtEnd(slide: Pick<Slide, "elements">, copies: SvgEleme
   return tidyEffects([...slide.elements, ...moved]);
 }
 
+/** An effect as Claude's recipe and read_presentation write it: the step it comes in at (1-based) instead of `order`. */
+export interface RecipeEffect {
+  type: ElementEffectType;
+  step: number;
+  speed?: number;
+}
+
+/**
+ * Claude's import: puts the effects Claude gave (element id → its recipe effect) on the slide's elements, tidied like
+ * the editor's (steps 1..n, a group one whole step). On a slide that can't have element effects, none is kept and
+ * `ignored` is true, so the layout report can say so.
+ */
+export function applyRecipeEffects(
+  slide: Pick<Slide, "type" | "elements">,
+  effects: Map<string, RecipeEffect>,
+): { elements: SvgElement[]; ignored: boolean } {
+  if (effects.size === 0) return { elements: slide.elements, ignored: false };
+  if (!canHaveElementEffects(slide)) return { elements: slide.elements, ignored: true };
+  const elements = slide.elements.map((e) => {
+    const effect = effects.get(e.id);
+    return effect ? { ...e, effect: { type: effect.type, order: effect.step, speed: effect.speed ?? DEFAULT_SPEED } } : e;
+  });
+  return { elements: tidyEffects(elements), ignored: false };
+}
+
+/** read_presentation: an element's effect in the recipe's words (its step), or undefined when it has none that plays. */
+export function recipeEffectOf(slide: Slide, element: SvgElement): RecipeEffect | undefined {
+  const step = element.effect ? stepNumbers(slide).get(element.id) : undefined;
+  return element.effect && step ? { type: element.effect.type, step, speed: element.effect.speed } : undefined;
+}
+
 /** Moves the step at place `from` to place `to` (0-based) and rewrites every order to 1..n. */
 export function moveEffectStep(slide: Slide, from: number, to: number): Slide {
   const steps = [...effectSteps(slide)];
