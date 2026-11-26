@@ -66,7 +66,9 @@ effect: { type: "fade" | "pop", order: int 1..MAX_ELEMENTS, speed: int SLIDE_EFF
   with their effect elements hidden too, so the slide effect brings in a slide without them.
 - The effects play with `motion/mini` (`animate`, `reduceMotion: false`, like the slide effect). Fade: opacity 0 → 1.
   Pop up: opacity 0 → 1 and scale 0.5 → 1 with a small overshoot. Duration from the element's speed (new seconds in
-  `constants.ts`, next to `SLIDE_EFFECT_SECONDS`). A press during an effect ends it at once and goes on.
+  `constants.ts`, next to `SLIDE_EFFECT_SECONDS`). A press during an element effect ends it at once and goes on. A
+  press that would bring in or hide a step while the slide effect waits for photos or plays only ends the slide
+  effect, so a step never plays on a slide the teacher can't see yet.
 - `PresentDraftButton` and the home cards' `PresentingView` use `PresentationView`, so they get it by themselves.
 
 ## Editor
@@ -83,9 +85,16 @@ effect: { type: "fade" | "pop", order: int 1..MAX_ELEMENTS, speed: int SLIDE_EFF
 - Several separate elements picked and given an effect: each gets its own step, one after another at the end, in
   their order on the slide. A group is one step.
 - A new effect goes at the end (`max order + 1`). Changing an element's effect type or speed keeps its step.
-- A pasted or duplicated element (within a slide) keeps its effect type and speed but goes to the end.
+- A pasted or duplicated element (within a slide) keeps its effect type and speed but goes to the end
+  (`withCopiesAtEnd`).
+- Every add, group and ungroup rewrites the orders to 1..n (`tidyEffects`), so duplicating and deleting again and
+  again can't push an order past `MAX_ELEMENTS` (the save check would then refuse the whole presentation).
+- Grouping gives every member the effect of its lead (the member with the lowest order), so a group is always one
+  whole step. Ungrouping gives each former member its own step where the group was (`splitGroupSteps`), so each can
+  be changed alone.
 - On the canvas, while the Effects panel is open, each element with an effect shows a small step number badge at its
-  top-left (editor only, not saved).
+  top-left (editor only, not saved); inside the corner when the element sits at a slide's or box's left edge. The
+  step numbers are remembered per slide object, so many badges stay fast while dragging.
 - Store actions (undoable, through `updateSlide`, so a hidden slide stays locked): `setElementEffect(ids, type |
   null, speed?)` and `moveElementEffect(slideId, fromStep, toStep)` (rewrites orders 1..n).
 
@@ -95,7 +104,7 @@ effect: { type: "fade" | "pop", order: int 1..MAX_ELEMENTS, speed: int SLIDE_EFF
 - No Privacy Policy change (nothing new is collected).
 - Notes: `src/components/presentation/CLAUDE.md` (presenting steps), `src/components/editor/CLAUDE.md` (the tab),
   `src/lib/CLAUDE.md` (`elementEffects.ts`, DATA_VERSION 7).
-- Tests: `src/lib/elementEffects.test.ts` (steps, groups, gaps, slide types, reorder math);
+- Tests: `src/lib/elementEffects.test.ts` (steps, groups, gaps, slide types, reorder math, tidying, ungrouping);
   `e2e/element-effects.mjs` (set effects in the editor, save, present: Next shows steps, Back hides, Space then
   the answer, a question slide ignores them).
 
@@ -106,3 +115,12 @@ effect: { type: "fade" | "pop", order: int 1..MAX_ELEMENTS, speed: int SLIDE_EFF
 - After all steps, Space works exactly as today (toggle the answer key), so slides without effects don't change.
 - Several picked elements get separate steps; a group is one step.
 - The step badge shows only while the Effects panel is open.
+
+## Review fixes (2026-11-26, `/code-review high`)
+
+- Orders tidied to 1..n after every add, group and ungroup (above).
+- A group is always one whole step; ungrouping splits it into one step per member (above).
+- Changing slides while the new one still loads: `stepsShown` belongs to `shownIndex`; the slide still on screen keeps
+  its own count (`fromStepsShown`), and going back to it keeps the steps it showed.
+- Picking the slide already shown in the "Show all slides" grid sets no `isGridJump`.
+- Step presses during a slide effect only end it (above). The badge moves inside at a left edge (above).
