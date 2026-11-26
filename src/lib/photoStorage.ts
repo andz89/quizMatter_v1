@@ -1,16 +1,24 @@
-// Photo storage: each teacher may keep 50 MB of photos they uploaded and still use (in "My photos" or on their
+// Photo storage: each teacher may keep 50 MB (an editor 500 MB) of photos they uploaded and still use (in "My photos" or on their
 // own slides). The database counts and refuses (supabase/migrations/20261231002600_photo_storage.sql); this file
 // holds the app's side: the limit, the words and how sizes are shown. No imports, so tests load it.
 
-/** 50 MB. Same number as the database's photo_storage_limit(): change both together. */
+/** 50 MB. Same number as the database's photo_storage_limit(target): change both together. */
 export const PHOTO_STORAGE_LIMIT_BYTES = 50 * 1024 * 1024;
 
-/** How much a teacher uses. `limit` is null for an admin (no limit). */
+/** An editor's limit, 500 MB. Same number as the database's photo_storage_limit(target): change both together. */
+export const EDITOR_PHOTO_STORAGE_LIMIT_BYTES = 500 * 1024 * 1024;
+
+/** How much a teacher uses and their own limit (50 MB, 500 MB for an editor). `limit` is null for an admin. */
 export type PhotoStorage = { used: number; limit: number | null };
 
-/** The upload route's words when an upload would pass the limit (QMSTO). */
-export const STORAGE_FULL_MESSAGE =
-  "Your photo storage is full (50 MB). To free space, remove photos from My photos and from your slides.";
+/**
+ * The words when an upload would pass the limit (QMSTO), with the teacher's own limit. Without it (the upload route
+ * couldn't read it) the number is left out.
+ */
+export function storageFullMessage(limit: number | null): string {
+  const size = limit === null ? "" : ` (${formatStorage(limit)})`;
+  return `Your photo storage is full${size}. To free space, remove photos from My photos and from your slides.`;
+}
 
 /** After removing a photo from "My photos" that's still on slides. */
 export const STILL_COUNTS_TOAST =
@@ -28,12 +36,17 @@ export function formatStorage(bytes: number): string {
   return `${Math.floor(mb)} MB`;
 }
 
-export function isStorageFull(storage: PhotoStorage): boolean {
-  return storage.limit !== null && storage.used >= storage.limit;
+/**
+ * Full (at or past the limit), or with `addBytes`: a photo that big wouldn't fit (the database's rule in
+ * photo_upload_fits: used + size <= limit fits).
+ */
+export function isStorageFull(storage: PhotoStorage, addBytes = 0): boolean {
+  if (storage.limit === null) return false;
+  return addBytes > 0 ? storage.used + addBytes > storage.limit : storage.used >= storage.limit;
 }
 
 /** One of my own presentations whose slides still have the photo (from remove_my_photo). */
-type StillUsedIn = { title: string; is_shared_copy: boolean; slides: number[] };
+type StillUsedIn = { title: string; is_shared_copy: boolean; slides: number[]; hidden: number[] };
 
 /**
  * The "This photo is still on your slides" box's words: where it is, then why removing it from My photos frees
@@ -41,7 +54,9 @@ type StillUsedIn = { title: string; is_shared_copy: boolean; slides: number[] };
  */
 export function stillUsedMessage(uses: StillUsedIn[], bytes: number | null, unsavedHere: boolean): string {
   const lines = uses.map((use) => {
-    const where = `${use.slides.length === 1 ? "slide" : "slides"} ${use.slides.join(", ")}`;
+    // A hidden slide is easy to miss in the slide grid, so it says so.
+    const numbers = use.slides.map((n) => (use.hidden.includes(n) ? `${n} (hidden)` : String(n)));
+    const where = `${use.slides.length === 1 ? "slide" : "slides"} ${numbers.join(", ")}`;
     const title = use.title || "Untitled presentation";
     return use.is_shared_copy
       ? `• ${title}, published version (${where}): open it and click Update shared presentation to take it out there too`

@@ -92,6 +92,17 @@
   error; one piece = a note in the layout report). `groupByName` in `src/lib/importGroups.ts` (tests
   `importGroups.test.ts`).
 - Claude can pick the slide effect in its details (`transition`, `transitionSpeed`); left out = the default.
+- **Element effects (click by click):** a piece in `elements` or `textBoxes` of a blank or title slide can have
+  `"effect": { "type": "fade" | "pop", "step", "speed" }` (step and speed are slips pulled into range, `fitted`). The
+  import keeps it as the element's saved `effect` (`order` = step) through `applyRecipeEffects`
+  (`src/lib/elementEffects.ts`), which runs the editor's `tidyEffects`: steps become 1..n and a group is one step with
+  its lead's effect. A picture's callouts and every copy of a `count` picture come in with it. On another slide type
+  it's left out with a layout-report note, and the answer canvas drops it (a note too). The report says how many
+  clicks a slide takes. `read_presentation` gives it back in the same words (`recipeEffectOf`: the step from
+  `stepNumbers`, none on a question slide), so an edited version keeps the teacher's effects. The format's "Click by
+  click" section says when to use them (a few slides, 2–5 clicks, the title without one). The slide's own `title` /
+  `text` and `design` can't have one. Spec: `docs/superpowers/specs/2026-11-26-claude-element-effects-design.md`.
+  Test: `e2e/claude-element-effects.mjs`.
 - Picture boxes are fitted to the drawing's real shape from `src/lib/assetShapes.json` (see `src/lib/CLAUDE.md`).
 - **After adding or renaming a tool, the user must reconnect the connector in claude.ai and start a new chat**, or
   Claude won't see it. Say so when you finish such a change.

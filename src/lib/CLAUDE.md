@@ -231,9 +231,10 @@ data. Spec: `docs/superpowers/specs/2026-10-23-stable-presentation-data-design.m
 
 ## Other groups
 
-- Limits: `clickLimits.ts` (the one click-limit system, see root `CLAUDE.md`), `browserLimits.ts` (sign up / login
+- Limits: `clickLimits.ts` (the one click-limit system, see root `CLAUDE.md`; `UPLOAD_PAUSE_FEATURES`, the four
+  features that stop an own photo upload, shared by the Photos panel and `upload-image`), `browserLimits.ts` (sign up / login
   speed bumps kept in the browser).
-- Photo storage (50 MB per teacher, root `CLAUDE.md`): `photoStorage.ts` (no imports, tested in `photoStorage.test.ts`): `PHOTO_STORAGE_LIMIT_BYTES` (same as the database's `photo_storage_limit()`), `formatStorage` (rounded down), `isStorageFull`, `stillUsedMessage` (the remove warning's words), `STORAGE_FULL_MESSAGE`, `STILL_COUNTS_TOAST`. `photos.tsx`: `loadPhotoStorage`, `watchPhotoStorage` (uploads, removes and `loadPhotoStorage` tell listeners the new total; `sendPhoto` keeps the last one and, when it was full, asks again before sending a photo) and `removeMyPhoto(src, mode)` (`remove_my_photo`: `if_unused` / `ask` / `remove`). `cleanupPhotos.ts` sends the real sizes of photos counted at 2 MB (`sizesToFix`; a file gone from R2 gets 1 byte).
+- Photo storage (50 MB per teacher, 500 MB per editor, root `CLAUDE.md`): `photoStorage.ts` (no imports, tested in `photoStorage.test.ts`): `PHOTO_STORAGE_LIMIT_BYTES` and `EDITOR_PHOTO_STORAGE_LIMIT_BYTES` (same as the database's `photo_storage_limit(target)`), `formatStorage` (rounded down), `isStorageFull` (full, or with a size: that photo won't fit), `stillUsedMessage` (the remove warning's words), `storageFullMessage(limit)` (the full words, with the teacher's own limit), `STILL_COUNTS_TOAST`. `photos.tsx`: `loadPhotoStorage`, `watchPhotoStorage` (uploads, removes and `loadPhotoStorage` tell listeners the new total; `sendPhoto` keeps the last one, also from a refused 413, and when the photo won't fit in it, asks again before sending; forgotten on log out) and `removeMyPhoto(src, mode)` (`remove_my_photo`: `if_unused` / `ask` / `remove`). `cleanupPhotos.ts` sends the real sizes of photos counted at 2 MB (`sizesToFix`; a file gone from R2 gets 1 byte).
 - Photos: `photos.tsx` (upload, My photos, shared photos; `isPhotoLocked` / `PHOTO_LOCKED_MESSAGE` for `QMPHL`, a
   photo in something waiting for QuizMatter can't be removed; the editor's Photos panel shows only public shared
   photos, even to admins), `photoFiles.ts` (R2 files, server), `photoTypes.ts` (what a file really is, from its first bytes:
@@ -308,6 +309,20 @@ data. Spec: `docs/superpowers/specs/2026-10-23-stable-presentation-data-design.m
   text moved with Track Changes on read once (`w:moveFrom` skipped), `stripItemMark` (a single letter only as A–E in
   an answer box or I / V / X in the question box, never right before another initial: "J. K. Rowling"), `droppedTextHtml`, `pickedSlideTexts` + `PICKED_LINES_MAX` (ticked lines → question and A–D), `suggestItems` (numbered lines and up to 4
   lines under each, for Show suggestions; `stripItemMark` also removes a "____" blank in front of a number), `WORD_LINES_MAX` (2,000). Tests: `wordText.test.ts`, `wordFile.test.ts`.
+- `elementEffects.ts`: element effects (an element's `effect`: `fade` / `pop`, its step `order`, speed 1–5;
+  DATA_VERSION 7, `20261231002900_element_effects.sql`; spec
+  `docs/superpowers/specs/2026-11-26-element-effects-design.md`). Only types from `schema.ts`, tested in
+  `elementEffects.test.ts`: `canHaveElementEffects` (blank / title only), `effectSteps` (element ids per step; same
+  order = one step, a group = one step at its lowest order, gaps don't matter; remembered per slide object, since
+  every element's badge asks), `stepNumbers` (same), `nextEffectOrder`,
+  `withEffect` (set or remove; a new one comes in last, one already set keeps its step), `moveEffectStep` (reorder,
+  orders rewritten 1..n), `withCopiesAtEnd` (duplicate / paste: copies come in last), `tidyEffects` (a group gets
+  one whole step with its lead's effect, orders rewritten 1..n; run after every add, group and ungroup, so an order
+  never passes the save check's cap), `splitGroupSteps` (before ungrouping: each member its own step),
+  `applyRecipeEffects` / `recipeEffectOf` (Claude's import and `read_presentation`: an effect written as its `step`;
+  see `src/pages/api/CLAUDE.md`). The database doesn't check it:
+  `cleanElement` leaves out a bad one. How the editor and presenting use them: `src/components/editor/CLAUDE.md`,
+  "Effects panel", and `src/components/presentation/CLAUDE.md`.
 - `layers.ts`: the editor's Layers panel math (imports only `constants.ts` and `embed.ts`, tested in
   `layers.test.ts`): `layerBoxes` (rows per box, top layer first, groups folded), `shownLayerBoxes` (only the boxes
   the slide shows, named, in their order on the slide) and `moveLayer` (a dragged row just above or below another

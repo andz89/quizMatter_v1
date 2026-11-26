@@ -130,12 +130,35 @@ export const photoStorageSchema = z.object({
   limit: z.number().int().positive().nullable(),
 });
 
-// remove_my_photo's answer: whether it was removed, my own presentations whose slides still have it (slide numbers
-// are places in the list, 1 = first), its size (null if I never uploaded it) and my new total.
+// A photo file's size in bytes, for its upload record (photo_uploads.bytes: same 2 MB cap, MAX_STORED_PHOTO_BYTES).
+export const uploadBytesSchema = z.number().int().min(1).max(MAX_STORED_PHOTO_BYTES);
+
+// The real sizes the weekly photo cleanup sends to set_photo_upload_sizes: { src: bytes }.
+export const photoUploadSizesSchema = z.record(photoSchema.shape.src, uploadBytesSchema);
+
+// An upload record as it was before reserve_photo_upload replaced it (null = there was none), sent back to
+// release_photo_upload when the upload stops after the reservation, with the time the reservation wrote
+// (`written_at`): the release changes the row only while it still has that time (another upload of the same file
+// since then wrote its own).
+const uploadRecordSchema = z
+  .object({ bytes: uploadBytesSchema, size_known: z.boolean(), created_at: z.string().max(40) })
+  .nullable();
+export const reserveAnswerSchema = z.object({ previous: uploadRecordSchema, written_at: z.string().min(1).max(40) });
+export type UploadReservation = z.infer<typeof reserveAnswerSchema>;
+
+// remove_my_photo's answer: whether a row was really removed, my own presentations whose slides still have it (slide
+// numbers are places in the list, 1 = first, like the slide grid's "Slide 3"; `hidden`: the hidden ones among them),
+// its size (null if I never uploaded it) and my new total.
 export const removePhotoResultSchema = photoStorageSchema.extend({
   removed: z.boolean(),
   uses: z.array(
-    z.object({ id: z.string(), title: z.string(), is_shared_copy: z.boolean(), slides: z.array(z.number().int()) })
+    z.object({
+      id: z.string(),
+      title: z.string(),
+      is_shared_copy: z.boolean(),
+      slides: z.array(z.number().int()),
+      hidden: z.array(z.number().int()),
+    })
   ),
   bytes: z.number().int().positive().nullable(),
 });
@@ -174,6 +197,17 @@ export const SLIDE_TRANSITION_LABELS: Record<(typeof SLIDE_TRANSITIONS)[number],
 export const SLIDE_EFFECT_SPEED_MIN = 1;
 export const SLIDE_EFFECT_SPEED_MAX = 5;
 export const SLIDE_EFFECT_SPEED_DEFAULT = 3;
+
+// How an element comes in while presenting, one click each (Effects panel → Element effects). Only on blank and title
+// slides (canHaveElementEffects in elementEffects.ts). Added in DATA_VERSION 7.
+export const ELEMENT_EFFECTS = ["fade", "pop"] as const;
+export type ElementEffectType = (typeof ELEMENT_EFFECTS)[number];
+export const ELEMENT_EFFECT_LABELS: Record<ElementEffectType, string> = { fade: "Fade", pop: "Pop up" };
+export const elementEffectSchema = z.object({
+  type: z.enum(ELEMENT_EFFECTS),
+  order: z.number().int().min(1).max(MAX_ELEMENTS),
+  speed: z.number().int().min(SLIDE_EFFECT_SPEED_MIN).max(SLIDE_EFFECT_SPEED_MAX),
+});
 
 // What a shared photo shows, in words (admins type it; Claude searches it with find_photos).
 export const SHARED_PHOTO_TAG_MAX = MAX_TAGS;
@@ -463,6 +497,10 @@ export const svgElementSchema = z.object({
       height: z.number().positive().max(1),
     })
     .optional(),
+  // How it comes in while presenting (blank and title slides only): its effect, its step (elements with the same
+  // order come in together; a group's members share one) and the speed (1–5, like the slide effect). Missing = it
+  // shows with the slide. Added in DATA_VERSION 7.
+  effect: elementEffectSchema.optional(),
 });
 
 // Longest typed answer (short-answer, blank and custom slides), in the editor and from Claude.
@@ -490,7 +528,7 @@ export function embedLinkSchema(kind: EmbedKind) {
 // a save from a lower version than the one that last saved that presentation (QMOLD), so an editor tab running
 // older code can't drop fields it doesn't know. Bump it whenever the saved shape changes: see "Changing the saved
 // shape" in src/lib/CLAUDE.md.
-export const DATA_VERSION = 6;
+export const DATA_VERSION = 7;
 
 // True when a presentation was saved by newer app code than this tab runs. Copying it here would drop fields this tab
 // doesn't know, so copy paths check this first (the database refuses it too, with QMOLD).
@@ -532,6 +570,8 @@ function cleanElement(element: unknown): unknown {
   if (cleaned.clockTime !== undefined && !clockTimeSchema.safeParse(cleaned.clockTime).success) delete cleaned.clockTime;
   // The database doesn't check dates either: one no calendar can show is left out (= DEFAULT_CALENDAR_DATE).
   if (cleaned.calendarDate !== undefined && !calendarDateSchema.safeParse(cleaned.calendarDate).success) delete cleaned.calendarDate;
+  // Nor element effects: one the editor can't make is left out (= the element shows with the slide).
+  if (cleaned.effect !== undefined && !elementEffectSchema.safeParse(cleaned.effect).success) delete cleaned.effect;
   // The database doesn't check diagrams or math tools, so a request edited by hand could save one the editor can't
   // make, and that one element would stop the whole presentation from opening. It's left out (= its starting look).
   for (const [field, schema] of [...Object.entries(DIAGRAM_SCHEMAS), ...Object.entries(MATH_TOOL_SCHEMAS)]) {

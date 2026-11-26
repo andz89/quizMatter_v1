@@ -1778,7 +1778,7 @@ CREATE OR REPLACE FUNCTION "public"."current_data_version"() RETURNS integer
     SET "search_path" TO ''
     AS $$
   -- Same as DATA_VERSION in src/lib/schema.ts.
-  select 6;
+  select 7;
 $$;
 
 
@@ -2856,8 +2856,7 @@ CREATE OR REPLACE FUNCTION "public"."my_photo_storage"() RETURNS "jsonb"
     AS $$
   select jsonb_build_object(
     'used', public.photo_storage_used((select auth.uid())),
-    'limit', case when exists (select 1 from public.admins a where a.user_id = (select auth.uid()))
-                  then null else public.photo_storage_limit() end
+    'limit', public.photo_storage_limit((select auth.uid()))
   );
 $$;
 
@@ -2919,15 +2918,19 @@ $$;
 ALTER FUNCTION "public"."my_submissions"() OWNER TO "postgres";
 
 
-CREATE OR REPLACE FUNCTION "public"."photo_storage_limit"() RETURNS bigint
-    LANGUAGE "sql" IMMUTABLE
+CREATE OR REPLACE FUNCTION "public"."photo_storage_limit"("target" "uuid") RETURNS bigint
+    LANGUAGE "sql" STABLE SECURITY DEFINER
     SET "search_path" TO ''
     AS $$
-  select 52428800::bigint; -- 50 × 1024 × 1024
+  select case
+    when exists (select 1 from public.admins a where a.user_id = target) then null
+    when exists (select 1 from public.editors e where e.user_id = target) then 524288000::bigint -- 500 × 1024 × 1024
+    else 52428800::bigint -- 50 × 1024 × 1024
+  end;
 $$;
 
 
-ALTER FUNCTION "public"."photo_storage_limit"() OWNER TO "postgres";
+ALTER FUNCTION "public"."photo_storage_limit"("target" "uuid") OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."photo_storage_used"("target" "uuid") RETURNS bigint
@@ -2936,41 +2939,45 @@ CREATE OR REPLACE FUNCTION "public"."photo_storage_used"("target" "uuid") RETURN
     AS $$
   select coalesce(sum(u.bytes), 0)::bigint
   from public.photo_uploads u
-  where u.user_id = target
-    and (
-      u.created_at > now() - interval '10 minutes'
-      or exists (select 1 from public.photos p where p.user_id = target and p.src = u.src)
-      or exists (
-        select 1 from public.slide_photos sp
-        join public.presentations pr on pr.id = sp.presentation_id
-        where sp.src = u.src and pr.owner_id = target
-      )
-    );
+  where u.user_id = target and public.photo_upload_counts(target, u.src);
 $$;
 
 
 ALTER FUNCTION "public"."photo_storage_used"("target" "uuid") OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."photo_upload_counts"("target" "uuid", "target_src" "text") RETURNS boolean
+    LANGUAGE "sql" STABLE SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+  select exists (
+    select 1 from public.photo_uploads u
+    where u.user_id = target and u.src = target_src
+      and (
+        u.created_at > now() - interval '10 minutes'
+        or exists (select 1 from public.photos p where p.user_id = target and p.src = u.src)
+        or exists (
+          select 1 from public.slide_photos sp
+          join public.presentations pr on pr.id = sp.presentation_id
+          where sp.src = u.src and pr.owner_id = target
+            -- Not a shared copy QuizMatter hid (the teacher can't change it, so it would count for good).
+            and (pr.shared_from is null or pr.hidden_at is null)
+        )
+      )
+  );
+$$;
+
+
+ALTER FUNCTION "public"."photo_upload_counts"("target" "uuid", "target_src" "text") OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."photo_upload_fits"("target" "uuid", "target_src" "text", "file_bytes" integer) RETURNS boolean
     LANGUAGE "sql" STABLE SECURITY DEFINER
     SET "search_path" TO ''
     AS $$
-  select exists (select 1 from public.admins a where a.user_id = target)
-    or exists (
-      select 1 from public.photo_uploads u
-      where u.user_id = target and u.src = target_src
-        and (
-          u.created_at > now() - interval '10 minutes'
-          or exists (select 1 from public.photos p where p.user_id = target and p.src = u.src)
-          or exists (
-            select 1 from public.slide_photos sp
-            join public.presentations pr on pr.id = sp.presentation_id
-            where sp.src = u.src and pr.owner_id = target
-          )
-        )
-    )
-    or public.photo_storage_used(target) + file_bytes <= public.photo_storage_limit();
+  select public.photo_storage_limit(target) is null
+    or public.photo_upload_counts(target, target_src)
+    or public.photo_storage_used(target) + file_bytes <= public.photo_storage_limit(target);
 $$;
 
 
@@ -3419,6 +3426,63 @@ $$;
 ALTER FUNCTION "public"."refuse_locked_photo_delete"() OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."release_photo_upload"("target" "uuid", "target_src" "text", "previous" "jsonb", "written_at" timestamp with time zone) RETURNS "void"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+begin
+  perform pg_advisory_xact_lock(hashtext('photo_storage:' || target::text));
+  if previous is null or jsonb_typeof(previous) = 'null' then
+    delete from public.photo_uploads u
+    where u.user_id = target and u.src = target_src
+      and u.created_at in (written_at, written_at - interval '1 day');
+  else
+    update public.photo_uploads u
+    set bytes = (previous ->> 'bytes')::int,
+      size_known = (previous ->> 'size_known')::boolean,
+      created_at = (previous ->> 'created_at')::timestamptz
+    where u.user_id = target and u.src = target_src
+      and u.created_at in (written_at, written_at - interval '1 day');
+  end if;
+end;
+$$;
+
+
+ALTER FUNCTION "public"."release_photo_upload"("target" "uuid", "target_src" "text", "previous" "jsonb", "written_at" timestamp with time zone) OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."remember_freed_slide_photos"() RETURNS "trigger"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+declare
+  added jsonb;
+begin
+  select jsonb_agg(distinct p.owner_id::text || ' ' || o.src) into added
+  from freed_rows o
+  join public.presentations p on p.id = o.presentation_id and (p.shared_from is null or p.hidden_at is null)
+  where exists (select 1 from public.photo_uploads u where u.user_id = p.owner_id and u.src = o.src);
+  if added is null then
+    return null;
+  end if;
+
+  perform set_config('qm.freed_slide_photos', (
+    select jsonb_agg(k)::text
+    from (
+      select jsonb_array_elements_text(
+        coalesce(nullif(current_setting('qm.freed_slide_photos', true), '')::jsonb, '[]'::jsonb)) as k
+      union
+      select jsonb_array_elements_text(added)
+    ) s
+  ), true);
+  return null;
+end;
+$$;
+
+
+ALTER FUNCTION "public"."remember_freed_slide_photos"() OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."remove_banned_editor"() RETURNS "trigger"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO ''
@@ -3466,18 +3530,33 @@ begin
   select coalesce(jsonb_agg(u order by u.title, u.id), '[]'::jsonb) into uses
   from (
     select pr.id, pr.title, pr.shared_from is not null as is_shared_copy,
-      jsonb_agg(s.position + 1 order by s.position) as slides
+      jsonb_agg(s.position + 1 order by s.position) as slides,
+      coalesce(
+        jsonb_agg(s.position + 1 order by s.position) filter (where coalesce((s.data ->> 'hidden')::boolean, false)),
+        '[]'::jsonb
+      ) as hidden
     from public.slide_photos sp
     join public.presentations pr on pr.id = sp.presentation_id
     join public.slides s on s.presentation_id = sp.presentation_id and s.id = sp.slide_id
-    where sp.src = target_src and pr.owner_id = me
+    where sp.src = target_src and pr.owner_id = me and (pr.shared_from is null or pr.hidden_at is null)
     group by pr.id, pr.title, pr.shared_from
   ) u;
 
   if mode = 'remove' or (mode = 'if_unused' and uses = '[]'::jsonb) then
     -- Through the photos table's own triggers: a photo waiting for QuizMatter is still refused (QMPHL).
     delete from public.photos p where p.user_id = me and p.src = target_src;
-    removed := true;
+    -- False when it was already gone (e.g. removed in another tab).
+    removed := found;
+  end if;
+
+  -- The upload is done (its My photos row existed), so its 10-minute hold isn't needed any more: its time moves
+  -- back by exactly one day (past the hold), so an upload of this file still in progress can still release the
+  -- record it wrote (release_photo_upload matches that time too). Same lock as reserve_photo_upload.
+  if removed then
+    perform pg_advisory_xact_lock(hashtext('photo_storage:' || me::text));
+    update public.photo_uploads u
+    set created_at = u.created_at - interval '1 day'
+    where u.user_id = me and u.src = target_src and u.created_at > now() - interval '10 minutes';
   end if;
 
   return jsonb_build_object(
@@ -3485,8 +3564,7 @@ begin
     'uses', uses,
     'bytes', (select u.bytes from public.photo_uploads u where u.user_id = me and u.src = target_src),
     'used', public.photo_storage_used(me),
-    'limit', case when exists (select 1 from public.admins a where a.user_id = me)
-                  then null else public.photo_storage_limit() end
+    'limit', public.photo_storage_limit(me)
   );
 end;
 $$;
@@ -3525,22 +3603,33 @@ $$;
 ALTER FUNCTION "public"."remove_profile_photo"() OWNER TO "postgres";
 
 
-CREATE OR REPLACE FUNCTION "public"."reserve_photo_upload"("target" "uuid", "target_src" "text", "file_bytes" integer) RETURNS "void"
+CREATE OR REPLACE FUNCTION "public"."reserve_photo_upload"("target" "uuid", "target_src" "text", "file_bytes" integer) RETURNS "jsonb"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO ''
     AS $$
+declare
+  previous jsonb;
+  written_at timestamptz := clock_timestamp();
 begin
-  -- One teacher's uploads are checked one at a time, so two at once can't both slip past the limit.
+  -- One teacher's uploads (and saves of slides with their uploads) are checked one at a time, so two at once can't
+  -- both slip past the limit.
   perform pg_advisory_xact_lock(hashtext('photo_storage:' || target::text));
 
   if not public.photo_upload_fits(target, target_src, file_bytes) then
-    raise exception 'Your photo storage is full (50 MB).' using errcode = 'QMSTO';
+    raise exception 'Your photo storage is full (% MB).', public.photo_storage_limit(target) / 1048576
+      using errcode = 'QMSTO';
   end if;
 
+  select jsonb_build_object('bytes', u.bytes, 'size_known', u.size_known, 'created_at', u.created_at)
+  into previous
+  from public.photo_uploads u where u.user_id = target and u.src = target_src;
+
   insert into public.photo_uploads (user_id, src, bytes, size_known, created_at)
-  values (target, target_src, file_bytes, true, now())
+  values (target, target_src, file_bytes, true, written_at)
   on conflict (user_id, src) do update
-    set bytes = excluded.bytes, size_known = true, created_at = now();
+    set bytes = excluded.bytes, size_known = true, created_at = excluded.created_at;
+
+  return jsonb_build_object('previous', previous, 'written_at', written_at);
 end;
 $$;
 
@@ -4426,6 +4515,18 @@ $$;
 ALTER FUNCTION "public"."share_presentation"("target_id" "text") OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."slide_photo_freed"("target" "uuid", "target_src" "text") RETURNS boolean
+    LANGUAGE "sql" STABLE
+    SET "search_path" TO ''
+    AS $$
+  select coalesce(nullif(current_setting('qm.freed_slide_photos', true), '')::jsonb, '[]'::jsonb)
+    ? (target::text || ' ' || target_src);
+$$;
+
+
+ALTER FUNCTION "public"."slide_photo_freed"("target" "uuid", "target_src" "text") OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."slide_photo_srcs"("data" "jsonb") RETURNS "text"[]
     LANGUAGE "sql" IMMUTABLE
     SET "search_path" TO ''
@@ -4674,6 +4775,9 @@ CREATE OR REPLACE FUNCTION "public"."sync_slide_photos"() RETURNS "trigger"
 declare
   new_srcs text[] := public.slide_photo_srcs(new.data);
   old_srcs text[];
+  owner uuid;
+  storage_limit bigint;
+  extra bigint;
 begin
   select coalesce(array_agg(sp.src order by sp.src), '{}') into old_srcs
   from public.slide_photos sp
@@ -4684,9 +4788,40 @@ begin
     return null;
   end if;
 
-  delete from public.slide_photos sp where sp.presentation_id = new.presentation_id and sp.slide_id = new.id;
+  select p.owner_id into owner from public.presentations p where p.id = new.presentation_id;
+  storage_limit := public.photo_storage_limit(owner);
+  if storage_limit is not null
+    and exists (
+      select 1 from public.photo_uploads u
+      where u.user_id = owner and u.src = any (new_srcs) and not (u.src = any (old_srcs))
+    )
+  then
+    perform pg_advisory_xact_lock(hashtext('photo_storage:' || owner::text));
+    select coalesce(sum(u.bytes), 0) into extra
+    from public.photo_uploads u
+    where u.user_id = owner and u.src = any (new_srcs) and not (u.src = any (old_srcs))
+      and not public.photo_upload_counts(owner, u.src)
+      -- Moved here from another of their slides in this same save: it counted already.
+      and not public.slide_photo_freed(owner, u.src);
+    if extra > 0 and public.photo_storage_used(owner) + extra > storage_limit then
+      raise exception 'Your photo storage is full (% MB).', storage_limit / 1048576 using errcode = 'QMSTO';
+    end if;
+  end if;
+
+  -- Only the photos that left the slide, then only the new ones (the rest stay as they are).
+  delete from public.slide_photos sp
+  where sp.presentation_id = new.presentation_id and sp.slide_id = new.id and not (sp.src = any (new_srcs));
   insert into public.slide_photos (presentation_id, slide_id, src)
-  select new.presentation_id, new.id, unnest(new_srcs);
+  select new.presentation_id, new.id, s from unnest(new_srcs) s where not (s = any (old_srcs));
+
+  -- The new ones were made public by publish_photos_of_new_slide; the ones that stayed are too, as when every row
+  -- was inserted again (same rule: a live, shown QuizMatter presentation).
+  update public.shared_photos sp set is_public = true
+  where sp.src = any (new_srcs) and not sp.is_public
+    and exists (
+      select 1 from public.presentations p
+      where p.id = new.presentation_id and p.from_admin and p.is_published and p.hidden_at is null
+    );
   return null;
 end;
 $$;
@@ -5881,6 +6016,10 @@ CREATE OR REPLACE TRIGGER "refuse_locked_photo_delete" BEFORE DELETE ON "public"
 
 
 CREATE OR REPLACE TRIGGER "refuse_locked_photo_delete" BEFORE DELETE ON "public"."shared_photos" FOR EACH ROW EXECUTE FUNCTION "public"."refuse_locked_photo_delete"();
+
+
+
+CREATE OR REPLACE TRIGGER "remember_freed_slide_photos" AFTER DELETE ON "public"."slide_photos" REFERENCING OLD TABLE AS "freed_rows" FOR EACH STATEMENT EXECUTE FUNCTION "public"."remember_freed_slide_photos"();
 
 
 
@@ -7148,14 +7287,18 @@ GRANT ALL ON FUNCTION "public"."my_submissions"() TO "service_role";
 
 
 
-REVOKE ALL ON FUNCTION "public"."photo_storage_limit"() FROM PUBLIC;
-GRANT ALL ON FUNCTION "public"."photo_storage_limit"() TO "authenticated";
-GRANT ALL ON FUNCTION "public"."photo_storage_limit"() TO "service_role";
+REVOKE ALL ON FUNCTION "public"."photo_storage_limit"("target" "uuid") FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."photo_storage_limit"("target" "uuid") TO "service_role";
 
 
 
 REVOKE ALL ON FUNCTION "public"."photo_storage_used"("target" "uuid") FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."photo_storage_used"("target" "uuid") TO "service_role";
+
+
+
+REVOKE ALL ON FUNCTION "public"."photo_upload_counts"("target" "uuid", "target_src" "text") FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."photo_upload_counts"("target" "uuid", "target_src" "text") TO "service_role";
 
 
 
@@ -7269,6 +7412,16 @@ GRANT ALL ON FUNCTION "public"."refuse_banned_write"() TO "service_role";
 
 REVOKE ALL ON FUNCTION "public"."refuse_locked_photo_delete"() FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."refuse_locked_photo_delete"() TO "service_role";
+
+
+
+REVOKE ALL ON FUNCTION "public"."release_photo_upload"("target" "uuid", "target_src" "text", "previous" "jsonb", "written_at" timestamp with time zone) FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."release_photo_upload"("target" "uuid", "target_src" "text", "previous" "jsonb", "written_at" timestamp with time zone) TO "service_role";
+
+
+
+REVOKE ALL ON FUNCTION "public"."remember_freed_slide_photos"() FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."remember_freed_slide_photos"() TO "service_role";
 
 
 
@@ -7420,6 +7573,11 @@ GRANT ALL ON FUNCTION "public"."share_new_editor_photos"() TO "service_role";
 REVOKE ALL ON FUNCTION "public"."share_presentation"("target_id" "text") FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."share_presentation"("target_id" "text") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."share_presentation"("target_id" "text") TO "service_role";
+
+
+
+REVOKE ALL ON FUNCTION "public"."slide_photo_freed"("target" "uuid", "target_src" "text") FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."slide_photo_freed"("target" "uuid", "target_src" "text") TO "service_role";
 
 
 

@@ -49,9 +49,10 @@ import { isEmbedSlide } from "./embed";
 import { todayCalendarDate } from "./calendarDate";
 import { newTable, type TableCellSpot } from "./table";
 import { moveLayer } from "./layers";
+import { canHaveElementEffects, moveEffectStep, splitGroupSteps, tidyEffects, withCopiesAtEnd, withEffect } from "./elementEffects";
 import { fitIntoRow, gridRowNeeds, shareOut } from "./optionRows";
 import { measureOptionNeeds } from "./measureOptions";
-import type { Photo, PresentationDetails, Presentation, ReviewerFields, Slide, SlideType, SvgElement } from "./schema";
+import type { ElementEffectType, Photo, PresentationDetails, Presentation, ReviewerFields, Slide, SlideType, SvgElement } from "./schema";
 import { MAX_ITEM_COUNT, MAX_SLIDES, PLAIN_TEXT_MAX, TOO_MANY_SLIDES_MESSAGE } from "./schema";
 import { TEXT_LIMIT_MESSAGE } from "./textLimit";
 import { droppedTextHtml, stripItemMark } from "./wordText";
@@ -547,6 +548,11 @@ interface EditorState {
   reorderLayers: (slideId: string, movingIds: string[], targetId: string, place: "above" | "below") => void;
   // Returns the copies' ids. Copies of a whole group form a new group of their own.
   duplicateElements: (slideId: string, elementIds: string[]) => string[];
+  // Element effects (blank and title slides only; see elementEffects.ts): sets the picked elements' effect (whole
+  // groups), or with null removes it. A new one comes in last; one already set keeps its step.
+  setElementEffect: (slideId: string, elementIds: string[], type: ElementEffectType | null, speed?: number) => void;
+  // The Effects panel's drag: moves the step at place `from` to place `to` (0-based).
+  moveElementEffect: (slideId: string, from: number, to: number) => void;
   // Removes every element bound to one box (the question or an option).
   clearContainerElements: (slideId: string, containerId: string) => void;
   // Makes the elements as big as their box allows (keeping their shape), centered. Elements in the
@@ -1478,8 +1484,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set({
       presentation: updateSlide(presentation, selectedSlideId, (s) => ({
         ...s,
-        // Grouping members of an older group can leave that group with one element — clean it up.
-        elements: dropLoneGroups(s.elements.map((el) => (selectedElementIds.includes(el.id) ? { ...el, groupId } : el))),
+        // Grouping members of an older group can leave that group with one element — clean it up. A group is one
+        // whole effect step, so every member gets the effect of its lead (tidyEffects).
+        elements: tidyEffects(
+          dropLoneGroups(s.elements.map((el) => (selectedElementIds.includes(el.id) ? { ...el, groupId } : el)))
+        ),
       })),
     });
   },
@@ -1489,8 +1498,13 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set({
       presentation: updateSlide(presentation, selectedSlideId, (s) => ({
         ...s,
-        elements: dropLoneGroups(
-          s.elements.map((el) => (selectedElementIds.includes(el.id) ? { ...el, groupId: undefined } : el))
+        // Each former member gets its own effect step, so it can be given its own effect.
+        elements: tidyEffects(
+          dropLoneGroups(
+            splitGroupSteps(s.elements, selectedElementIds).map((el) =>
+              selectedElementIds.includes(el.id) ? { ...el, groupId: undefined } : el
+            )
+          )
         ),
       })),
     });
@@ -1701,9 +1715,24 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         })
     );
 
-    set({ presentation: updateSlide(presentation, slideId, (s) => ({ ...s, elements: [...s.elements, ...copies] })) });
+    set({ presentation: updateSlide(presentation, slideId, (s) => ({ ...s, elements: withCopiesAtEnd(s, copies) })) });
 
     return copies.map((el) => el.id);
+  },
+
+  setElementEffect: (slideId, elementIds, type, speed) => {
+    const { presentation } = get();
+    const slide = presentation.slides.find((s) => s.id === slideId);
+    if (!slide || !canHaveElementEffects(slide) || elementIds.length === 0) return;
+    const ids = withGroupMembers(slide.elements, elementIds);
+    set({ presentation: updateSlide(presentation, slideId, (s) => withEffect(s, ids, type, speed)) });
+  },
+
+  moveElementEffect: (slideId, from, to) => {
+    const { presentation } = get();
+    const slide = presentation.slides.find((s) => s.id === slideId);
+    if (!slide || from === to) return;
+    set({ presentation: updateSlide(presentation, slideId, (s) => moveEffectStep(s, from, to)) });
   },
 
   clearContainerElements: (slideId, containerId) => {
@@ -1801,7 +1830,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     });
 
     set({
-      presentation: updateSlide(presentation, slideId, (s) => ({ ...s, elements: [...s.elements, ...pasted] })),
+      presentation: updateSlide(presentation, slideId, (s) => ({ ...s, elements: withCopiesAtEnd(s, pasted) })),
       selectedSlideId: slideId,
       selectedElementIds: pasted.map((el) => el.id),
     });

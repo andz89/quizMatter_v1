@@ -85,7 +85,8 @@ A refusal raises an error with its own code. The app turns the code into a messa
 - `QMBLK`: a click limit paused the feature (the pause end time is in `details`), read by `pausedUntilFromError`
   (`src/lib/clickLimits.ts`).
 - `QMPPL`: an editor already saved 3 profile photos today (`set_profile_photo`).
-- `QMSTO`: the teacher's photo storage (50 MB) is full (`reserve_photo_upload`; the upload route answers 413).
+- `QMSTO`: the teacher's photo storage (50 MB, 500 MB for an editor) is full (`reserve_photo_upload`; the upload
+  route answers 413; also a slide save, `sync_slide_photos`, in `REFUSALS`).
 - `QMONE`: another announcement of the same type (modal or bar) is on; the message is its name, and Admin →
   Announcements asks to turn it off (`check_one_on`).
 
@@ -107,12 +108,13 @@ A refusal raises an error with its own code. The app turns the code into a messa
   to the presentation they write. A new function that writes slides from app data must do the same. Its section 0
   also catches up `20261102000000_review_auto_reviewer.sql`, which never reached the live database (old
   `submit_review`, and the `background` column still there); don't run that old file again.
-  `20261210000000_data_version_cap.sql`: both columns are capped at `current_data_version()` (5 today, same as
+  `20261210000000_data_version_cap.sql`: both columns are capped at `current_data_version()` (7 today, same as
   `DATA_VERSION`; raised to 1 for hidden slides in `20261231000500_hidden_slides.sql`, test `supabase/tests/hidden_slides.sql`,
   to 2 for calendar dates in `20261231000800_calendar_date.sql`, to 3 for tables in `20261231001100_table_element.sql`,
   test `supabase/tests/table_element.sql`, to 4 for table cell fills in `20261231001900_table_cell_fill.sql`,
   test `supabase/tests/table_cell_fill.sql`, and to 5 for the mixed fraction's whole number in
-  `20261231002000_mixed_fraction.sql`, test `supabase/tests/mixed_fraction.sql`) on every insert and update, whatever writes them (triggers `cap_presentation_data_version` and
+  `20261231002000_mixed_fraction.sql`, test `supabase/tests/mixed_fraction.sql`, to 6 for option row heights in `20261231002100_option_row_heights.sql`, and to 7
+  for element effects in `20261231002900_element_effects.sql`, test `supabase/tests/element_effects.sql`) on every insert and update, whatever writes them (triggers `cap_presentation_data_version` and
   `cap_review_draft_version`), so a huge `app_version` can't make every later save refuse. Bump it in a migration
   applied before the app with the new `DATA_VERSION` deploys (`src/lib/CLAUDE.md`, "Changing the saved shape").
   `save_presentation` also refuses (`QMOLD`) a new presentation whose `copiedFrom` source has a higher
@@ -129,13 +131,47 @@ A refusal raises an error with its own code. The app turns the code into a messa
   review is waiting; a waiting photo passes to another editor with the same file; new editors' old photos are
   added; `slide_photos (src)` index. `20261128000000_fix_photo_lock.sql`: the lock trigger reads the owner with
   `to_jsonb(old)`, since `shared_photos` has no `user_id`.
-- Photo storage, 50 MB per teacher: `20261231002600_photo_storage.sql` (test `supabase/tests/photo_storage.sql`;
+- Photo storage, 50 MB per teacher, 500 MB per editor: `20261231002600_photo_storage.sql` (test `supabase/tests/photo_storage.sql`;
   root `CLAUDE.md`, "Photo Storage"). `photo_uploads` (who uploaded which file, its size; teachers read their own,
-  nobody else writes it), `photo_storage_limit()`, `photo_storage_used(target)` (not granted), `photo_upload_fits`
+  nobody else writes it), `photo_storage_limit(target)` (null = admin; not granted), `photo_storage_used(target)` (not granted), `photo_upload_fits`
   (service role: asked before the click limit counts), `reserve_photo_upload` (service role: `QMSTO` when full),
   `my_photo_storage()`, `remove_my_photo(src, mode)`, and for the weekly cleanup `photo_uploads_unknown_sizes()` (a
   jsonb array, not rows: PostgREST cuts rows at 1,000) / `set_photo_upload_sizes(sizes)` (service role). Existing "My photos" rows were
-  added at their shared photo's size, else 2 MB. Apply it **before** the app.
+  added at their shared photo's size, else 2 MB, but only the teacher's own: a file with a `shared_photos` row only
+  for its `uploaded_by` (one without can't be traced, accepted). Apply it **before** the app.
+  `20261231002700_photo_storage_fixes.sql` (test `supabase/tests/photo_storage_fixes.sql`): `photo_upload_counts(target,
+  src)` (not granted) is the one "does it count" rule, used by the newest `photo_storage_used` and
+  `photo_upload_fits`; newest `reserve_photo_upload` returns `{ previous }` (the record it replaced, null when new),
+  and `release_photo_upload(target, src, previous)` (service role) puts it back; newest `sync_slide_photos` refuses
+  (`QMSTO`) a slide that gets one of the owner's uploads that doesn't count now when it doesn't fit (admins skip).
+  Its section 0 also catches up the live database, which got an early version of `20261231002600` (one limit for
+  all, `photo_storage_limit()` with no arguments): it re-creates every photo storage function in its newest form and
+  removes rows the early backfill made for photos someone else shared. Apply it **before** the app (the route calls
+  `release_photo_upload`).
+  `20261231002800_photo_storage_fixes_2.sql` (test `supabase/tests/photo_storage_fixes_2.sql`): newest
+  `reserve_photo_upload` writes `clock_timestamp()` and answers it (`{ previous, written_at }`); the newest
+  `release_photo_upload(target, src, previous, written_at)` (the 3-argument one is dropped) changes the row only
+  while it still has that time. `remember_freed_slide_photo` (after delete on `slide_photos`) keeps the owner's own
+  uploads taken off their slides in the transaction-local setting `qm.freed_slide_photos`; the newest
+  `sync_slide_photos` skips those (`slide_photo_freed`, not granted), so moving a photo between slides in one save is
+  never new storage. Apply it **before** the app (the route sends `written_at`). Known edge, left on purpose: two
+  uploads of the same file at once that are **both** refused, the first releasing before the second, leave the
+  first one's record (its 10-minute hold) in place. It frees itself after 10 minutes, the file was never stored, and
+  the usual cause (a click-limit pause) lasts at least that long; a full fix would need a new column.
+  `20261231003000_photo_storage_fixes_3.sql` (test `supabase/tests/photo_storage_fixes_3.sql`): newest
+  `remove_my_photo` ends a fresh upload's 10-minute hold when it really removed the My photos row (the record's
+  `created_at` moves back past the 10 minutes; the record stays, so it still counts while on their slides), newest
+  `sync_slide_photos` deletes and inserts only the photos that change (not every row of the slide), and
+  `remember_freed_slide_photos` (after delete, **for each statement**, the deleted rows as the transition table
+  `freed_rows`) replaces the row trigger `remember_freed_slide_photo`, so the freed list is read and written once
+  per statement: a big delete no longer slows down with the square of its rows. A presentation being deleted adds
+  nothing (it's already gone when its `slide_photos` go). No app change: apply it before or after the app.
+  `20261231003100_photo_storage_fixes_4.sql` (test `supabase/tests/photo_storage_fixes_4.sql`): newest
+  `sync_slide_photos` also makes every photo of a changed slide public on a live QuizMatter lesson (inserting only
+  new rows had stopped `publish_photos_of_new_slide` for the photos that stay); newest `remove_my_photo` moves the
+  hold's time back exactly one day, and newest `release_photo_upload` matches `written_at` or `written_at` minus
+  one day, so an upload of the same file still in progress can still release its record. The test also times 100
+  slides of 50 photos deleted in one save (the cascade runs one statement per slide): about 0.1 s. No app change.
 - Click limits: `20261013000000_click_limits.sql`, `20261014000000_click_auto_ban.sql`, `20261017000000_click_history.sql`.
   `20261211000000_save_photo_click_limits.sql` (test `supabase/tests/save_photo_click_limits.sql`): saving
   presentations (`presentation_save` + `presentation_save_daily`, from `count_presentation_write`: once per request,
@@ -143,7 +179,8 @@ A refusal raises an error with its own code. The app turns the code into a messa
   called by the upload route) and photos rows (`photo_rows` + `photo_rows_daily`, from `count_photo_write`) count
   `count_click` instead of `count_write`: 30 in a minute pauses 10 minutes (1 hour if again within 24 hours), 1,000
   saves / 300 uploads / 300 photo rows a day pause until midnight (Philippine time), the 3rd time in a row bans. `count_click` doesn't check bans, so both
-  triggers check `is_banned()` first (`QMBAN`). `count_write` is left only for admins' shared photos (`'photos'`).
+  triggers check `is_banned()` first (`QMBAN`). `count_write('photos')` is left for admins' shared photos and for a teacher's upload refused because their photo
+  storage is full (`QMSTO`): 30 a minute, never paused, so a script sending to a full account is slowed.
   Folders and settings: `count_table_write('<feature>')`, statement triggers on `folders`, `folder_items`
   (`folders`) and `user_settings` (`settings`); it counts `<feature>` and `<feature>_daily` (500 a day each), once
   per request (flag `quizmatter.counted_<feature>`), only when

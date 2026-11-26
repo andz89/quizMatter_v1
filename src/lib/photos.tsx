@@ -21,7 +21,7 @@ import {
 import { contains } from "./search";
 import { modalAttachmentSchema, type ModalAttachment } from "./announcements";
 import { MAX_GIF_BYTES } from "./photoTypes";
-import { STORAGE_FULL_MESSAGE, isStorageFull, type PhotoStorage } from "./photoStorage";
+import { isStorageFull, storageFullMessage, type PhotoStorage } from "./photoStorage";
 import { useEditorStore } from "./store";
 import { createClient } from "./supabase/client";
 import { PHOTO_ID } from "./svgLibrary";
@@ -107,10 +107,13 @@ async function shrinkPhoto(file: Blob, webpOnly = false): Promise<ShrunkPhoto> {
  * name on the admin's computer (to show and search).
  */
 async function sendPhoto(shrunk: ShrunkPhoto, shared?: { categoryId: string; source: string; name: string }): Promise<Photo> {
-  // Last seen full (e.g. a photo dropped onto a slide): asked again first, since a save may have freed space, and
-  // the 2 MB photo isn't sent when it's still full. The upload route checks anyway.
-  if (!shared && lastStorage && isStorageFull(lastStorage) && isStorageFull(await loadPhotoStorage().catch(() => lastStorage!))) {
-    throw new PhotoError(STORAGE_FULL_MESSAGE);
+  // Last seen too full for this photo (e.g. a photo dropped onto a slide): asked again first, since a save may have
+  // freed space, and the photo isn't sent when it still doesn't fit. The upload route checks anyway. (Rare: a photo
+  // that already counts, picked again from disk, would fit in the database but is refused here when nearly full.)
+  const size = shrunk.blob.size;
+  if (!shared && lastStorage && isStorageFull(lastStorage, size)) {
+    const now = await loadPhotoStorage().catch(() => lastStorage!);
+    if (isStorageFull(now, size)) throw new PhotoError(storageFullMessage(now.limit));
   }
   const params = new URLSearchParams({ width: String(shrunk.width), height: String(shrunk.height) });
   if (shared) {
@@ -124,24 +127,27 @@ async function sendPhoto(shrunk: ShrunkPhoto, shared?: { categoryId: string; sou
     headers: { "Content-Type": shrunk.blob.type },
   });
   const result = await response.json().catch(() => null);
+  // The total comes back with a refused (full, 413) upload too, so the bar shows how full it really is.
+  const storage = photoStorageSchema.safeParse(result?.storage);
+  if (storage.success) tellStorage(storage.data);
   // Uploaded too fast: if it's paused, the notice at the bottom shows until when and the Upload button greys out.
   if (response.status === 429) await checkPauses();
   const photo = photoSchema.safeParse(result);
   if (!response.ok || !photo.success) throw new PhotoError(result?.error ?? "Couldn't upload the photo. Please try again.");
-  const storage = photoStorageSchema.safeParse(result?.storage);
-  if (storage.success) tellStorage(storage.data);
   return photo.data;
 }
 
-// ─── Photo storage (50 MB per teacher; src/lib/photoStorage.ts) ─────────────────────────────────────────────────
+// ─── Photo storage (50 MB per teacher, 500 MB per editor; src/lib/photoStorage.ts) ──────────────────────────────
 
 // Who shows the storage (the Photos panel). Uploads and removes tell them the new total from their own answers,
 // so a photo dropped onto a slide updates the open panel too, without another request.
 const storageListeners = new Set<(storage: PhotoStorage) => void>();
-// The newest total this tab has seen (sendPhoto uses it to skip sending a photo when it's full).
+// The newest total this tab has seen (sendPhoto uses it to skip sending a photo that won't fit). Forgotten on log out
+// (another teacher may log in on this tab), with `remembered`.
 let lastStorage: PhotoStorage | null = null;
 
 function tellStorage(storage: PhotoStorage) {
+  watchLogOut();
   lastStorage = storage;
   for (const listener of storageListeners) listener(storage);
 }
@@ -297,17 +303,24 @@ export type { PhotoCategory, SharedPhoto, SharedPhotoWithInfo } from "./schema";
 const remembered = new Map<string, Promise<unknown>>();
 let isWatchingLogOut = false;
 
+/** On log out, forgets what this tab remembered for the teacher (`remembered`, `lastStorage`). Set up once. */
+function watchLogOut() {
+  if (isWatchingLogOut) return;
+  isWatchingLogOut = true;
+  createClient().auth.onAuthStateChange((event) => {
+    if (event === "SIGNED_OUT") {
+      remembered.clear();
+      lastStorage = null;
+    }
+  });
+}
+
 /**
  * `load()`'s answer, kept under `key` (see `remembered`). The request itself is kept, so two calls at once share
  * one request (e.g. React runs effects twice while developing). A failed one is forgotten, to try again next time.
  */
 function remember<T>(key: string, load: () => Promise<T>): Promise<T> {
-  if (!isWatchingLogOut) {
-    isWatchingLogOut = true;
-    createClient().auth.onAuthStateChange((event) => {
-      if (event === "SIGNED_OUT") remembered.clear();
-    });
-  }
+  watchLogOut();
   let saved = remembered.get(key) as Promise<T> | undefined;
   if (!saved) {
     saved = load().catch((error) => {
@@ -379,21 +392,6 @@ export function checkIsAdmin(): Promise<boolean> {
     const { data, error } = await createClient().rpc("is_admin");
     if (error) throw error;
     return data === true;
-  }).catch(() => false);
-}
-
-/**
- * Whether the logged-in user can upload their own photos in the editor (pick a file, drop a file on
- * a slide). For now only editors and admins can; other teachers see "This will be available soon".
- * app/api/upload-image checks the same. false if unsure.
- */
-export function checkCanUpload(): Promise<boolean> {
-  return remember("canUpload", async () => {
-    const supabase = createClient();
-    const [editor, admin] = await Promise.all([supabase.rpc("is_editor"), supabase.rpc("is_admin")]);
-    if (editor.error) throw editor.error;
-    if (admin.error) throw admin.error;
-    return editor.data === true || admin.data === true;
   }).catch(() => false);
 }
 

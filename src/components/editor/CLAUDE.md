@@ -62,6 +62,22 @@ editor / view / review, and renders `Editor.tsx`, which calls `store.loadPresent
   `ColorPanel`, `BackgroundPanel`, `EffectsPanel`, `PresentationsPanel`, `WordFilePanel`, `LayersPanel`. They stay
   open after you add something (don't auto-close them). Only one is open at a time: each toggle in the store closes
   the others, so a new panel adds its `is…Open: next ? false : …` line to every toggle.
+- **Effects panel** (`EffectsPanel`, spec `docs/superpowers/specs/2026-11-26-element-effects-design.md`): two tabs.
+  "Slide effects" = the presentation's `transition` / `transitionSpeed`. "Element effects" (only Blank and Title
+  slides, `canHaveElementEffects`; other slides get a note): "On this slide", the steps in order (`effectSteps`).
+  Click a row = select its elements, and while they're picked the row opens with the Fade | Pop up switch
+  (`EffectSwitch`) and the speed inside it, and a click on it again closes it; drag reorders (rows only move,
+  `CSS.Translate`: with `CSS.Transform` a short row dragged over an open one was stretched to its height;
+  `moveElementEffect`, `@dnd-kit`); ✕ removes. A picked
+  element with no effect gets a dashed row under the list ("No effect yet") with the same switch, which adds it
+  (`setElementEffect`, whole groups; a new one comes in last, one already set keeps its step). Both tabs share
+  `SpeedControl`. While the panel is open, `SvgElementItem` shows each element's step number at its
+  top-left (editor only; inside the corner when the element is at a slide's or box's left edge). Duplicate and paste
+  keep a copy's effect but put it last (`withCopiesAtEnd`). Grouping gives every member the lead's effect, so a group
+  is always one whole step; ungrouping gives each former member its own step (`splitGroupSteps`), so each can be
+  changed alone. Every add, group and ungroup rewrites the orders to 1..n (`tidyEffects`), so they never pass the
+  save check's cap (MAX_ELEMENTS). The math is in
+  `src/lib/elementEffects.ts`; presenting in `src/components/presentation/CLAUDE.md`.
 - **Color panel** (`ColorPanel`): one panel for every color target (text, shapes, borders, table cells, diagram
   boxes, the shape box), all through its `handleColor`. 36 Solid colors (the first 18 are the originals, kept in place
   so colors already used still show as picked), 12 Light, the Gradients. "Custom" (spec
@@ -148,7 +164,7 @@ editor / view / review, and renders `Editor.tsx`, which calls `store.loadPresent
   `duplicateSlide`, so a picture stays in its answer box; one undo step; refused past `MAX_SLIDES`). Test:
   `e2e/slide-drag.mjs`.
 - **Photo storage** in the Photos panel's "My Photos" tab (root `CLAUDE.md`, "Photo Storage"): `PhotoStorageBar`
-  ("1.8 MB of 50 MB", coral with `STORAGE_FULL_MESSAGE` when full, and Upload greyed out), read each time the tab
+  ("1.8 MB of 50 MB", or of 500 MB for an editor; coral with `storageFullMessage` when full, and Upload greyed out), read each time the tab
   opens and after each save while it's open (`savedAt`: a save may free space), and updated by `watchPhotoStorage`;
   not for admins (no limit). Removing a photo: one `removeMyPhoto` call (`if_unused`, the tile goes at once); when
   the open presentation has it on a slide (maybe unsaved; never in review mode, a draft doesn't count) it asks first
@@ -156,11 +172,9 @@ editor / view / review, and renders `Editor.tsx`, which calls `store.loadPresent
   (`stillUsedMessage`; its message keeps line breaks) and "Remove from My photos" removes it anyway, with
   `STILL_COUNTS_TOAST`; when it counts for nothing (an admin, a photo they didn't upload) it's removed without the
   box. A failed remove puts back only that photo, so an upload that finished meanwhile stays. Test: `e2e/photo-storage.mjs`.
-- Teachers' own photo uploads are **for editors and admins only, for now** (`checkCanUpload` in
-  `src/lib/photos.tsx`, which asks `is_editor` / `is_admin` once). Other teachers' "My Photos" tab shows "This will
-  be available soon." with Upload greyed out, and a file dropped on a slide only shows a toast
-  (`useElementDropTarget`). Old "My photos" still show and can be added. `upload-image` refuses them too (403).
-  Admin → Photos and Claude's photo import still upload.
+- **Every teacher uploads their own photos** (opened 2026-11-26, once the storage limit was in; spec
+  `docs/superpowers/specs/2026-11-26-open-photo-uploads-design.md`): the "My Photos" tab's Upload and a file dropped
+  on a slide; Upload greys out only while paused or full. Test: `e2e/photo-uploads.mjs`.
 - Modals: `AnswerModal`, `DetailsModal` (title, grades, subject…; the Author is locked text in review mode, on an
   editor's own presentation, and when the presentation is linked to an editor, store `isAuthorLinked` from the edit
   page's `authorId`: the database always writes their name there), `SlideGridModal`, `ConfirmModal` (the app's one

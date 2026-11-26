@@ -142,6 +142,8 @@ interface SlideStaticViewProps {
    * site (YouTube) never sees the viewer. The public preview for logged-out visitors uses false.
    */
   showVideoCover?: boolean;
+  /** Presenting only: elements whose element effect hasn't played yet, drawn see-through. */
+  hiddenElementIds?: ReadonlySet<string>;
 }
 
 /** Read-only, full-size rendering of a slide — used in presentation mode. */
@@ -152,6 +154,7 @@ export function SlideStaticView({
   fullscreen = false,
   liveEmbed = false,
   showVideoCover = true,
+  hiddenElementIds,
 }: SlideStaticViewProps) {
   // Borders turn see-through instead of going away, so nothing on the slide shifts.
   const lineColor = fullscreen ? "transparent" : "var(--border-default)";
@@ -191,7 +194,7 @@ export function SlideStaticView({
               className="font-normal text-text-primary"
             />
           </div>
-          <StaticElementView elements={slide.elements.filter((el) => el.containerId === QUESTION_CONTAINER_ID)} />
+          <StaticElementView elements={slide.elements.filter((el) => el.containerId === QUESTION_CONTAINER_ID)} hiddenIds={hiddenElementIds} />
         </div>
       )}
 
@@ -203,7 +206,7 @@ export function SlideStaticView({
               style={{ height: getShapeStripHeight(slide), ...getShapeBoxFrameStyle(slide) }}
             >
               <div className="absolute inset-0">
-                <StaticElementView elements={sideElements} />
+                <StaticElementView elements={sideElements} hiddenIds={hiddenElementIds} />
               </div>
             </div>
           )}
@@ -243,7 +246,7 @@ export function SlideStaticView({
                       className="text-text-primary"
                     />
                   </div>
-                  <StaticElementView elements={optionElements} />
+                  <StaticElementView elements={optionElements} hiddenIds={hiddenElementIds} />
                 </div>
                 );
               })}
@@ -254,14 +257,14 @@ export function SlideStaticView({
                 style={getShapeBoxFrameStyle(slide)}
               >
                 <div className="absolute inset-4">
-                  <StaticElementView elements={sideElements} />
+                  <StaticElementView elements={sideElements} hiddenIds={hiddenElementIds} />
                 </div>
               </div>
             )}
           </div>
         </>
       )}
-      <StaticElementView elements={slide.elements.filter((el) => el.containerId === null)} />
+      <StaticElementView elements={slide.elements.filter((el) => el.containerId === null)} hiddenIds={hiddenElementIds} />
     </div>
   );
 }

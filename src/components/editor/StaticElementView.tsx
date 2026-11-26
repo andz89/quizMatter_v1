@@ -1,8 +1,12 @@
 import type { SvgElement } from "@/lib/schema";
 import { ElementSvg } from "./ElementSvg";
 
-/** Read-only rendering of a slide's SVG elements — used in thumbnails and presentation. */
-export function StaticElementView({ elements }: { elements: SvgElement[] }) {
+/**
+ * Read-only rendering of a slide's SVG elements — used in thumbnails and presentation. `hiddenIds`: elements whose
+ * element effect hasn't played yet while presenting (drawn, but see-through, so their photos are ready). The inner
+ * box carries `data-element-id`, so presenting can play an effect on it without touching the element's own turn.
+ */
+export function StaticElementView({ elements, hiddenIds }: { elements: SvgElement[]; hiddenIds?: ReadonlySet<string> }) {
   return (
     <>
       {elements.map((element) => (
@@ -18,7 +22,10 @@ export function StaticElementView({ elements }: { elements: SvgElement[] }) {
             opacity: (element.opacity ?? 100) / 100,
           }}
         >
-          <ElementSvg assetId={element.assetId} color={element.color} settings={element} />
+          {/* Hidden by a class, not an inline style: an effect writes inline styles and clears them when it ends. */}
+          <div data-element-id={element.id} className={`h-full w-full ${hiddenIds?.has(element.id) ? "opacity-0" : ""}`}>
+            <ElementSvg assetId={element.assetId} color={element.color} settings={element} />
+          </div>
         </div>
       ))}
     </>

@@ -3,8 +3,9 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useEditorStore } from "@/lib/store";
 import { animate } from "motion/mini";
-import { CANVAS_WIDTH, CANVAS_HEIGHT, hasAnswerContent, getSlideNumbers, hasOptions, hasReveal, stepPresentation, SLIDE_EFFECT_SECONDS, SLIDE_FADE_SECONDS } from "@/lib/constants";
-import type { Presentation } from "@/lib/schema";
+import { CANVAS_WIDTH, CANVAS_HEIGHT, hasAnswerContent, getSlideNumbers, hasOptions, hasReveal, stepPresentation, SLIDE_EFFECT_SECONDS, SLIDE_FADE_SECONDS, ELEMENT_EFFECT_SECONDS } from "@/lib/constants";
+import { effectSteps } from "@/lib/elementEffects";
+import type { Presentation, Slide } from "@/lib/schema";
 import { SlideStaticView } from "./SlideStaticView";
 import { AnswerModal } from "@/components/editor/AnswerModal";
 import { SlideThumbnailPreview } from "@/components/editor/SlideThumbnailPreview";
@@ -49,6 +50,23 @@ function startSlideEffect(
   return [animate(newLayer, { transform: [start, "translateX(0%)"] }, options)];
 }
 
+/**
+ * Plays one element effect (Effects panel → Element effects) on an element's inner box. Like the slide effect, it
+ * plays even when the computer asks to reduce motion. Pop up grows a little past full size, then settles.
+ */
+function startElementEffect(node: HTMLElement, effect: NonNullable<Slide["elements"][number]["effect"]>) {
+  const options = { duration: ELEMENT_EFFECT_SECONDS[effect.speed], reduceMotion: false };
+  if (effect.type === "pop") {
+    return animate(node, { opacity: [0, 1, 1], transform: ["scale(0.5)", "scale(1.08)", "scale(1)"] }, { ...options, times: [0, 0.7, 1], ease: "easeOut" });
+  }
+  return animate(node, { opacity: [0, 1] }, { ...options, ease: "easeOut" });
+}
+
+/** The ids of the steps from `from` on: elements that haven't come in yet. */
+function hiddenFrom(steps: string[][], from: number): ReadonlySet<string> {
+  return new Set(steps.slice(from).flat());
+}
+
 export function PresentationView() {
   const presentation = useEditorStore((s) => s.presentation);
   const presentationIndex = useEditorStore((s) => s.presentationIndex);
@@ -76,6 +94,13 @@ export function PresentationView() {
   const [isWaiting, setIsWaiting] = useState(false);
   const currentLayerRef = useRef<HTMLDivElement>(null);
   const fromLayerRef = useRef<HTMLDivElement>(null);
+  // Element effects: how many of the shown slide's steps have come in, and how many the slide we came from had (it
+  // stays as it was while the slide effect plays). The step being played now, so its effect plays once.
+  const [stepsShown, setStepsShown] = useState(0);
+  const [fromStepsShown, setFromStepsShown] = useState(0);
+  const [playing, setPlaying] = useState<{ slideId: string; step: number } | null>(null);
+  // Set by the "Show all slides" grid: a slide picked there starts with none of its steps, even going back.
+  const [isGridJump, setIsGridJump] = useState(false);
   if (presentationIndex !== shownIndex) {
     // The slide really on screen: while waiting, the new slide wasn't shown yet, so it's still the old one.
     const onScreenIndex = isWaiting && fromIndex !== null ? fromIndex : shownIndex;
@@ -85,6 +110,21 @@ export function PresentationView() {
     setFromIndex(playEffect ? onScreenIndex : null);
     setIsWaiting(playEffect);
     setShownIndex(presentationIndex);
+    // `stepsShown` belongs to `shownIndex`, which may still be loading; the slide on screen has its own count.
+    const onScreenSteps = onScreenIndex === shownIndex ? stepsShown : fromStepsShown;
+    // Going back shows a slide with all its steps in (like PowerPoint); going forward, or from the grid, with none.
+    // Back to the slide still on screen (the new one hadn't loaded yet) keeps the steps it showed.
+    const arriving = presentation.slides[presentationIndex];
+    setFromStepsShown(onScreenSteps);
+    setStepsShown(
+      presentationIndex === onScreenIndex
+        ? onScreenSteps
+        : presentationIndex < onScreenIndex && !isGridJump && arriving
+          ? effectSteps(arriving).length
+          : 0
+    );
+    setPlaying(null);
+    setIsGridJump(false);
   }
 
   useEffect(() => {
@@ -137,6 +177,62 @@ export function PresentationView() {
   }, [isWaiting, fromIndex, presentationIndex, goingBack, transition, transitionSpeed]);
 
   const slide = presentation.slides[presentationIndex];
+  const steps = slide ? effectSteps(slide) : [];
+  // While the slide effect waits or plays, a press that would change a step only ends the slide effect, so a step
+  // never plays (or goes) on a slide the teacher can't see yet. Changing slides still works as before.
+  const isChangingSlide = fromIndex !== null;
+  const endSlideEffect = () => {
+    setFromIndex(null);
+    setIsWaiting(false);
+  };
+  // Next: the next step of the slide comes in first; once every one has, the next slide.
+  const goNext = () => {
+    if (slide && stepsShown < steps.length && isChangingSlide) endSlideEffect();
+    else if (slide && stepsShown < steps.length) {
+      setPlaying({ slideId: slide.id, step: stepsShown });
+      setStepsShown(stepsShown + 1);
+    } else nextSlide();
+  };
+  // Back: the last step that came in goes again (no effect); with none in, the previous slide.
+  const goBack = () => {
+    if (stepsShown > 0 && isChangingSlide) endSlideEffect();
+    else if (stepsShown > 0) {
+      setPlaying(null);
+      setStepsShown(stepsShown - 1);
+    } else prevSlide();
+  };
+  // What each drawn slide hides: the one shown, its steps not in yet; the one we came from, as it was; the ones
+  // ahead, all their steps (they start with none); the ones behind, nothing (going back shows them whole).
+  const hiddenOf = (i: number, layer: Slide) => {
+    if (i === presentationIndex) return hiddenFrom(steps, stepsShown);
+    if (i === fromIndex) return hiddenFrom(effectSteps(layer), fromStepsShown);
+    return i > presentationIndex ? hiddenFrom(effectSteps(layer), 0) : undefined;
+  };
+
+  // A step that just came in plays its effect. Started before the screen is drawn, so the first frame already
+  // shows its start. The next press ends it at once (the clean-up), and the element's own class decides again.
+  useLayoutEffect(() => {
+    const layer = currentLayerRef.current;
+    if (!playing || !layer || playing.slideId !== slide?.id) return;
+    const nodes: HTMLElement[] = [];
+    const effects = (steps[playing.step] ?? []).flatMap((id) => {
+      const effect = slide.elements.find((e) => e.id === id)?.effect;
+      const node = layer.querySelector<HTMLElement>(`[data-element-id="${CSS.escape(id)}"]`);
+      if (!effect || !node) return [];
+      nodes.push(node);
+      return [startElementEffect(node, effect)];
+    });
+    return () => {
+      effects.forEach((effect) => effect.cancel());
+      for (const node of nodes) {
+        node.style.opacity = "";
+        node.style.transform = "";
+      }
+    };
+    // Only a new step plays: the slide and its steps are read for that step.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [playing]);
+
   // The slides drawn: the one shown, the one we came from, the one before and the next ones (see below). While an
   // effect plays, only slides that were already drawn stay: drawing a new one then would make the effect skip.
   // The slides the arrows go to from `index` (hidden ones are skipped), so those are the ones drawn ahead.
@@ -187,23 +283,27 @@ export function PresentationView() {
         if (e.key === "Escape") setShowAllSlides(false);
         return;
       }
-      // Space shows or hides the answer key, like the check button. A slide without one: Space goes on, as before.
-      if (e.key === " " && canReveal && slide) {
+      // Space brings in the next element step first. Then it shows or hides the answer key, like the check button.
+      // A slide without one: Space goes on, as before.
+      if (e.key === " " && stepsShown < steps.length) {
+        e.preventDefault();
+        goNext();
+      } else if (e.key === " " && canReveal && slide) {
         e.preventDefault();
         setRevealedSlideId(isAnswerShown ? null : slide.id);
       } else if (e.key === "ArrowRight" || e.key === "ArrowDown" || e.key === " ") {
         e.preventDefault();
-        nextSlide();
+        goNext();
       } else if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
         e.preventDefault();
-        prevSlide();
+        goBack();
       } else if (e.key === "Escape") {
         exitPresentation();
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [nextSlide, prevSlide, exitPresentation, showAllSlides, canReveal, isAnswerShown, slide]);
+  });
 
   // Opening the grid scrolls to the slide being shown, so the teacher finds their place.
   useEffect(() => {
@@ -270,8 +370,8 @@ export function PresentationView() {
 
   // Like Canva: click the left part of the screen to go back, anywhere else to go forward.
   const handleScreenClick = (e: React.MouseEvent) => {
-    if (e.clientX < window.innerWidth * PREV_ZONE) prevSlide();
-    else nextSlide();
+    if (e.clientX < window.innerWidth * PREV_ZONE) goBack();
+    else goNext();
   };
 
   if (!slide) return null;
@@ -291,8 +391,8 @@ export function PresentationView() {
       style={{ background: "var(--text-primary)" }}
       onClick={handleScreenClick}
     >
-      {/* Bottom left. Left to right: Exit, All slides, Reveal, then the tip. Reveal is last, so when it hides the other
-          buttons don't move. */}
+      {/* Bottom left. Left to right: Exit, All slides, Reveal. Reveal is last, so when it hides the other buttons don't
+          move. */}
       <div className="absolute bottom-5 left-5 z-10 flex max-w-[calc(100%-40px)] items-center gap-2">
         <div className={`flex shrink-0 gap-2 ${buttonsClass}`}>
           <button
@@ -334,31 +434,33 @@ export function PresentationView() {
             </button>
           )}
         </div>
-
-        {/* A tip next to the buttons when the presentation opens. It stays even when the buttons hide. */}
-        {tip !== "gone" && (
-          <div
-            role="status"
-            onClick={(e) => e.stopPropagation()}
-            onTransitionEnd={() => {
-              if (tip === "leaving") setTip("gone");
-            }}
-            className={`flex min-w-0 items-center gap-3 rounded-card bg-surface py-2 pl-4 pr-2 text-sm text-text-primary transition-opacity duration-500 ${
-              tip === "shown" ? "opacity-100" : "opacity-0"
-            }`}
-          >
-            <span>If this slide has a saved answer key, click the check icon or press Space to reveal it.</span>
-            <button
-              type="button"
-              onClick={() => setTip("leaving")}
-              title="Close tip"
-              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-dropdown text-text-secondary hover:bg-accent-soft hover:text-text-primary"
-            >
-              <XIcon size={16} />
-            </button>
-          </div>
-        )}
       </div>
+
+      {/* A tip at the bottom center when the presentation opens. It stays even when the buttons hide. */}
+      {tip !== "gone" && (
+        <div
+          role="status"
+          onClick={(e) => e.stopPropagation()}
+          onTransitionEnd={() => {
+            if (tip === "leaving") setTip("gone");
+          }}
+          className={`absolute bottom-5 left-1/2 z-10 flex w-max max-w-[calc(100%-40px)] -translate-x-1/2 items-center gap-3 rounded-card border border-border-default bg-bg-surface py-2 pl-4 pr-2 text-sm text-text-primary transition-opacity duration-500 ${
+            tip === "shown" ? "opacity-100" : "opacity-0"
+          }`}
+        >
+          <span>
+            If this slide has a saved answer key, click the check icon at the bottom left or press Space to reveal it.
+          </span>
+          <button
+            type="button"
+            onClick={() => setTip("leaving")}
+            title="Close tip"
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-dropdown text-text-secondary hover:bg-accent-soft hover:text-text-primary"
+          >
+            <XIcon size={16} />
+          </button>
+        </div>
+      )}
 
       <div className="relative overflow-hidden" style={{ width: CANVAS_WIDTH * scale, height: CANVAS_HEIGHT * scale }}>
         {/* Each slide keeps one drawing while it's near: the slide shown, the one we came from (under it until its
@@ -395,6 +497,7 @@ export function PresentationView() {
                   fullscreen
                   // The live embed starts after the effect: loading it mid-effect made the effect stutter.
                   liveEmbed={isCurrent && fromIndex === null}
+                  hiddenElementIds={hiddenOf(i, layer)}
                 />
               </div>
             </div>
@@ -423,6 +526,8 @@ export function PresentationView() {
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
+                    // Picking the slide already shown changes nothing, so the flag would stay for a later change.
+                    if (!isCurrent) setIsGridJump(true);
                     goToSlide(i);
                     setShowAllSlides(false);
                   }}

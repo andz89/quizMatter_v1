@@ -77,9 +77,9 @@ export default function PrivacyPage() {
           so teachers can see who reviews and makes QuizMatter lessons.
         </p>
         <p>
-          <strong>Your work.</strong> Your presentations and slides, folders, bookmarks (Saved), likes and reports. If
-          you’re an editor, also your reviews, submissions and the photos you upload. For each photo you upload we
-          keep a record of which file it is and its size, to count your photo storage (50 MB per teacher), until you
+          <strong>Your work.</strong> Your presentations and slides, the photos you upload, folders, bookmarks (Saved),
+          likes and reports. If you’re an editor, also your reviews and submissions. For each photo you upload we
+          keep a record of which file it is and its size, to count your photo storage (50 MB per teacher, 500 MB per editor), until you
           delete your account.
         </p>
         <p>

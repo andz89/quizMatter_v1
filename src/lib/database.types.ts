@@ -952,10 +952,13 @@ isOneToOne: false
             }[]
                            },
 "photo_storage_limit":
-{ Args: Record<PropertyKey, never>; Returns: number
+{ Args: { "target": string }; Returns: number
                            },
 "photo_storage_used":
 { Args: { "target": string }; Returns: number
+                           },
+"photo_upload_counts":
+{ Args: { "target": string,"target_src": string }; Returns: boolean
                            },
 "photo_upload_fits":
 { Args: { "file_bytes": number,"target": string,"target_src": string }; Returns: boolean
@@ -1012,6 +1015,9 @@ isOneToOne: false
 "recount_announcement":
 { Args: { "target": string }; Returns: undefined
                            },
+"release_photo_upload":
+{ Args: { "previous": Json,"target": string,"target_src": string,"written_at": string }; Returns: undefined
+                           },
 "remove_my_photo":
 { Args: { "mode": string,"target_src": string }; Returns: Json
                            },
@@ -1019,7 +1025,7 @@ isOneToOne: false
 { Args: Record<PropertyKey, never>; Returns: undefined
                            },
 "reserve_photo_upload":
-{ Args: { "file_bytes": number,"target": string,"target_src": string }; Returns: undefined
+{ Args: { "file_bytes": number,"target": string,"target_src": string }; Returns: Json
                            },
 "review_status":
 { Args: { "target_id": string }; Returns: {
@@ -1075,6 +1081,9 @@ isOneToOne: false
                            },
 "share_presentation":
 { Args: { "target_id": string }; Returns: Json
+                           },
+"slide_photo_freed":
+{ Args: { "target": string,"target_src": string }; Returns: boolean
                            },
 "slide_photo_srcs":
 { Args: { "data": Json }; Returns: (string)[]

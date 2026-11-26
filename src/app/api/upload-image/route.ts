@@ -1,10 +1,13 @@
-import { pausedUntilFromError } from "@/lib/clickLimits";
+import { pausedUntilFromError, UPLOAD_PAUSE_FEATURES } from "@/lib/clickLimits";
 import { MAX_STORED_PHOTO_BYTES, PHOTO_URL_PREFIX } from "@/lib/constants";
 import { photoFileName, readPhotoType, savePhotoFile } from "@/lib/photoFiles";
 import { readUploadBody } from "@/lib/photoTypes";
-import { STORAGE_FULL_MESSAGE } from "@/lib/photoStorage";
+import { storageFullMessage } from "@/lib/photoStorage";
 import {
   photoSchema,
+  reserveAnswerSchema,
+  type UploadReservation,
+  uploadBytesSchema,
   photoStorageSchema,
   sharedPhotoBytesSchema,
   sharedPhotoInfoSchema,
@@ -15,16 +18,19 @@ import { createClient } from "@/lib/supabase/server";
 
 /**
  * Saves a photo the browser already shrunk (see lib/photos.tsx) to the R2 bucket, adds it to the teacher's
- * "My photos" list, and returns it. For now only editors and admins can upload their own photos. The file is named after its own
+ * "My photos" list, and returns it. Every teacher can upload their own photos. The file is named after its own
  * fingerprint, so the same photo is stored once however many times it's added.
  * The browser sends the photo's size in the address: /api/upload-image?width=…&height=…
  * With &category=<category id> it's a shared photo instead: only admins can add one, it must be WebP, and it
  * goes to the shared_photos table (for every teacher, with its file size) instead of "My photos". It also needs &source=<who owns it
  * or where it came from>, and &name=<file name> gives it its name (to show and search); both are only set the
  * first time it's shared. Each shared photo remembers who uploaded it (uploaded_by, filled in by the database).
- * An own photo must fit the teacher's photo storage (photo_upload_fits before the click limit counts it, then
- * reserve_photo_upload; 50 MB; 413 with code QMSTO when full),
- * and the answer carries their new total (`storage`).
+ * An own photo is refused first (before the file is read) when the teacher is banned (403) or any of
+ * UPLOAD_PAUSE_FEATURES is paused (429); if either can't be read, 500.
+ * An own photo must fit the teacher's photo storage (reserve_photo_upload, before the click limit counts it; 50 MB,
+ * 500 MB for an editor; 413 with code QMSTO when full, refused tries counted with count_write; the space is given
+ * back with release_photo_upload if anything after it refuses: the click limit, storing the file or the My photos
+ * row; only while the record is still this upload's), and the answer (also the 413) carries their total (`storage`).
  */
 export async function POST(request: Request) {
   const supabase = await createClient();
@@ -37,17 +43,23 @@ export async function POST(request: Request) {
     const { data: isAdmin } = await supabase.rpc("is_admin");
     if (isAdmin !== true) return Response.json({ error: "Only admins can share photos." }, { status: 403 });
   } else {
-    // A teacher's own photo: only editors and admins can upload for now (the editor says "available soon").
-    const [{ data: isEditor }, { data: isAdmin }, { data: isBanned }] = await Promise.all([
-      supabase.rpc("is_editor"),
-      supabase.rpc("is_admin"),
+    // A teacher's own photo: every teacher may upload (their photo storage limits it, below). A banned one is
+    // refused before the file takes up storage (the photos table refuses them too). A paused one too (a read only),
+    // so a script sending uploads during its pause never holds space (reserve + release) on each try.
+    const [{ data: isBanned, error: banError }, { data: pausedRows, error: pausedError }] = await Promise.all([
       supabase.rpc("is_banned"),
+      supabase.rpc("my_paused_features"),
     ]);
-    if (isEditor !== true && isAdmin !== true) {
-      return Response.json({ error: "Uploading photos will be available soon." }, { status: 403 });
+    // Unknown (a check failed) is not "not banned" or "not paused": stop before the file is read or stored. (A
+    // photo_rows pause is only checked again at the My photos row, after the file was counted and stored.)
+    if (banError || pausedError) {
+      return Response.json({ error: "Couldn't upload the photo. Please try again." }, { status: 500 });
     }
-    // Checked before the file takes up storage (the photos table refuses them too).
     if (isBanned === true) return banned();
+    // Also photo_rows: the My photos row at the end would be refused, after the file was stored and counted.
+    if (pausedRows?.some((row) => (UPLOAD_PAUSE_FEATURES as readonly string[]).includes(row.feature))) {
+      return paused();
+    }
   }
 
   // Reading stops as soon as it's too big, so a huge upload is never held in memory.
@@ -90,20 +102,45 @@ export async function POST(request: Request) {
     }
   }
 
-  // An own photo must fit the teacher's photo storage (50 MB; admins have no limit). Asked before the click limit
-  // counts it: a size limit is never a click limit, so refused tries must not pause or ban. Secret key: the
-  // functions are the server's only (teachers can't write their own upload records).
+  // An own photo must fit the teacher's photo storage (50 MB, an editor 500 MB; admins have no limit). Reserved
+  // before the click limit counts it: a size limit is never a click limit, so refused tries must not pause or ban.
+  // The database checks one upload at a time and holds its space for 10 minutes while the file is stored, so two
+  // uploads at once can't both slip past. Secret key: the functions are the server's only (teachers can't write
+  // their own upload records).
   const admin = shared ? null : createAdminClient();
+  let reservation: ({ target: string; target_src: string } & UploadReservation) | null = null;
   if (!shared) {
     if (!admin) return Response.json({ error: "Couldn't upload the photo. Please try again." }, { status: 500 });
-    const { data: fits, error: fitsError } = await admin.rpc("photo_upload_fits", {
+    // Checked with zod before it's saved (see CLAUDE.md, "Saving Data").
+    const fileBytes = uploadBytesSchema.parse(body.byteLength);
+    const { data: reserved, error: storageError } = await admin.rpc("reserve_photo_upload", {
       target: data.claims.sub,
       target_src: photo.data.src,
-      file_bytes: body.byteLength,
+      file_bytes: fileBytes,
     });
-    if (fitsError) return Response.json({ error: "Couldn't upload the photo. Please try again." }, { status: 500 });
-    if (fits !== true) return storageFull();
+    if (storageError?.code === "QMSTO") {
+      // Refused tries are counted too (30 a minute, never paused or banned: an honest teacher never gets near it),
+      // so a script sending uploads to a full account is slowed down.
+      const { error: refusedError } = await supabase.rpc("count_write", { kind: "photos" });
+      if (refusedError?.code === "QMBAN") return banned();
+      if (refusedError?.code === "QM429") {
+        return Response.json({ error: "You're adding photos too fast. Wait a minute and try again." }, { status: 429 });
+      }
+      return storageFull(supabase);
+    }
+    if (storageError) return Response.json({ error: "Couldn't upload the photo. Please try again." }, { status: 500 });
+    const answer = reserveAnswerSchema.safeParse(reserved);
+    // Never expected (the answer is the database's own). The space was held but the answer can't say how to give it
+    // back exactly, so it's held for its 10 minutes.
+    if (!answer.success) return Response.json({ error: "Couldn't upload the photo. Please try again." }, { status: 500 });
+    reservation = { target: data.claims.sub, target_src: photo.data.src, ...answer.data };
   }
+  // Gives the reserved space back (the row as it was before), when the upload stops after the reservation. The
+  // database changes the row only while it still has this reservation's time (`written_at`), so a later upload of
+  // the same file keeps its own.
+  const release = async () => {
+    if (admin && reservation) await admin.rpc("release_photo_upload", reservation);
+  };
 
   // Counted before the file takes up storage (the super admin: no limit). Own photos: 30 in a minute or 300 in a
   // day pauses uploads for a while, and the 3rd time in a row bans (the photo_upload and photo_upload_daily click
@@ -111,6 +148,7 @@ export async function POST(request: Request) {
   const { error: rateError } = shared
     ? await supabase.rpc("count_write", { kind: "photos" })
     : await supabase.rpc("count_photo_upload");
+  if (rateError) await release();
   if (rateError?.code === "QMBAN") return banned();
   if (rateError?.code === "QM429") {
     return Response.json({ error: "You're adding photos too fast. Wait a minute and try again." }, { status: 429 });
@@ -118,22 +156,11 @@ export async function POST(request: Request) {
   if (pausedUntilFromError(rateError)) return paused();
   if (rateError) return Response.json({ error: "Couldn't upload the photo. Please try again." }, { status: 500 });
 
-  // The real check: the database checks again one upload at a time and holds its space for 10 minutes while the
-  // file is stored, so two uploads at once can't both slip past.
-  if (admin) {
-    const { error: storageError } = await admin.rpc("reserve_photo_upload", {
-      target: data.claims.sub,
-      target_src: photo.data.src,
-      file_bytes: body.byteLength,
-    });
-    if (storageError?.code === "QMSTO") return storageFull();
-    if (storageError) return Response.json({ error: "Couldn't upload the photo. Please try again." }, { status: 500 });
-  }
-
-  // Rare. The upload stays counted; the teacher sees it failed and can try again.
+  // Rare. The upload stays counted (its space is given back); the teacher sees it failed and can try again.
   try {
     await savePhotoFile(fileName, body, type);
   } catch {
+    await release();
     return Response.json({ error: "Couldn't upload the photo. Please try again." }, { status: 500 });
   }
   // Added again = moves back to the top of the list (a shared one also moves to the new category).
@@ -147,6 +174,8 @@ export async function POST(request: Request) {
           { onConflict: "src" },
         )
     : await supabase.from("photos").upsert({ ...photo.data, user_id: data.claims.sub, created_at }, { onConflict: "user_id,src" });
+  // Not in My photos (and not on a slide yet): the reserved space is given back.
+  if (error) await release();
   // The photos table has its own click limit (photo_rows), for rows sent by hand.
   if (pausedUntilFromError(error)) return paused();
   if (error) return Response.json({ error: "Couldn't upload the photo. Please try again." }, { status: 500 });
@@ -165,8 +194,18 @@ export async function POST(request: Request) {
   return Response.json(storage.success ? { ...photo.data, storage: storage.data } : photo.data);
 }
 
-function storageFull() {
-  return Response.json({ error: STORAGE_FULL_MESSAGE, code: "QMSTO" }, { status: 413 });
+/**
+ * 413 with the teacher's own limit in the words, and their total (`storage`), so the Photos panel's bar shows how
+ * full it really is (both left out if it can't be read). Only asked when full.
+ */
+async function storageFull(supabase: Awaited<ReturnType<typeof createClient>>) {
+  const { data } = await supabase.rpc("my_photo_storage");
+  const storage = photoStorageSchema.safeParse(data);
+  const error = storageFullMessage(storage.success ? storage.data.limit : null);
+  return Response.json(
+    storage.success ? { error, code: "QMSTO", storage: storage.data } : { error, code: "QMSTO" },
+    { status: 413 },
+  );
 }
 
 function tooBig() {

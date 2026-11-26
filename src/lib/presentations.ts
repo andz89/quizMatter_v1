@@ -50,6 +50,9 @@ export const REFUSALS: Record<string, string> = {
   QMSUB: "This presentation is already waiting for QuizMatter, or already in QuizMatter.",
   // Publishing an empty presentation (see the share_limits migration).
   QMPUB: PUBLISH_NEEDS_CONTENT,
+  // A slide got back a photo the teacher uploaded that no longer counted, and it doesn't fit their photo storage
+  // (sync_slide_photos, see the photo_storage_fixes migration).
+  QMSTO: "Your photo storage is full, so a photo you put back on a slide can't be saved. Remove that photo, or free space by removing photos from My photos and from your slides.",
   // Deleting an original whose shared copy QuizMatter hid (see the sharing_fixes migration).
   QMHID: `QuizMatter hid this presentation's shared copy, so it can't be deleted. If you think this is a mistake, email ${SUPPORT_EMAIL}.`,
 };

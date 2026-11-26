@@ -1,9 +1,24 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { PHOTO_STORAGE_LIMIT_BYTES, formatStorage, isStorageFull, stillUsedMessage } from "./photoStorage";
+import {
+  EDITOR_PHOTO_STORAGE_LIMIT_BYTES,
+  PHOTO_STORAGE_LIMIT_BYTES,
+  formatStorage,
+  isStorageFull,
+  stillUsedMessage,
+  storageFullMessage,
+} from "./photoStorage";
 
-test("the limit is 50 MB, the same number as the database's photo_storage_limit()", () => {
+test("the limits are 50 MB and 500 MB (editors), the same numbers as the database's photo_storage_limit()", () => {
   assert.equal(PHOTO_STORAGE_LIMIT_BYTES, 52428800);
+  assert.equal(EDITOR_PHOTO_STORAGE_LIMIT_BYTES, 524288000);
+});
+
+test("storageFullMessage names the teacher's own limit", () => {
+  const rest = ". To free space, remove photos from My photos and from your slides.";
+  assert.equal(storageFullMessage(52428800), `Your photo storage is full (50 MB)${rest}`);
+  assert.equal(storageFullMessage(524288000), `Your photo storage is full (500 MB)${rest}`);
+  assert.equal(storageFullMessage(null), `Your photo storage is full${rest}`);
 });
 
 test("formatStorage: one decimal under 10 MB, whole MB from 10 MB", () => {
@@ -13,6 +28,7 @@ test("formatStorage: one decimal under 10 MB, whole MB from 10 MB", () => {
   assert.equal(formatStorage(10485760), "10 MB");
   assert.equal(formatStorage(47185920), "45 MB");
   assert.equal(formatStorage(52428800), "50 MB");
+  assert.equal(formatStorage(524288000), "500 MB");
 });
 
 test("isStorageFull: only with a limit, at or past it", () => {
@@ -21,11 +37,17 @@ test("isStorageFull: only with a limit, at or past it", () => {
   assert.equal(isStorageFull({ used: 5, limit: null }), false);
 });
 
+test("isStorageFull with a photo's size: like the database, used + size <= limit fits", () => {
+  assert.equal(isStorageFull({ used: 52428700, limit: 52428800 }, 100), false);
+  assert.equal(isStorageFull({ used: 52428700, limit: 52428800 }, 101), true);
+  assert.equal(isStorageFull({ used: 5, limit: null }, 999999999), false);
+});
+
 test("stillUsedMessage lists where the photo is, then why it still counts", () => {
   const message = stillUsedMessage(
     [
-      { title: "Weather Quiz", is_shared_copy: false, slides: [1, 4] },
-      { title: "Plants Quiz", is_shared_copy: true, slides: [3] },
+      { title: "Weather Quiz", is_shared_copy: false, slides: [1, 4], hidden: [4] },
+      { title: "Plants Quiz", is_shared_copy: true, slides: [3], hidden: [] },
     ],
     1887437,
     false
@@ -33,7 +55,7 @@ test("stillUsedMessage lists where the photo is, then why it still counts", () =
   assert.equal(
     message,
     "It's used in:\n" +
-      "• Weather Quiz (slides 1, 4)\n" +
+      "• Weather Quiz (slides 1, 4 (hidden))\n" +
       "• Plants Quiz, published version (slide 3): open it and click Update shared presentation to take it out there too\n\n" +
       "Removing it from My photos won't free storage. It still counts (1.8 MB) until it's gone from these slides too."
   );
@@ -41,7 +63,7 @@ test("stillUsedMessage lists where the photo is, then why it still counts", () =
 
 test("stillUsedMessage: an untitled presentation, the open one not saved yet, and no known size", () => {
   assert.equal(
-    stillUsedMessage([{ title: "", is_shared_copy: false, slides: [2] }], null, true),
+    stillUsedMessage([{ title: "", is_shared_copy: false, slides: [2], hidden: [] }], null, true),
     "It's used in:\n" +
       "• Untitled presentation (slide 2)\n" +
       "• This presentation (not saved yet)\n\n" +

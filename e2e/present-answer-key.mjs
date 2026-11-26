@@ -1,10 +1,10 @@
-// Presenting fullscreen: the tip above the bottom-left buttons (fades in, stays 6 seconds, its ✕ closes it sooner)
+// Presenting fullscreen: the tip at the bottom center (fades in, stays 6 seconds, its ✕ closes it sooner)
 // and the Space key (shows / hides the answer key; on a slide without one it goes to the next slide).
 import { randomUUID } from "node:crypto";
 import { chromium } from "playwright";
 import { APP, SHOTS, api, check, deleteTeacher, finish, loggedIn, makeTeacher } from "./lib.mjs";
 
-const TIP_TEXT = "If this slide has a saved answer key, click the check icon or press Space to reveal it.";
+const TIP_TEXT = "If this slide has a saved answer key, click the check icon at the bottom left or press Space to reveal it.";
 
 // Alpha: a choice slide with B correct. Manila: a short-answer slide. Gamma: a choice slide with no answer. Delta: last.
 const teacher = await makeTeacher({ first: "Answer" });
@@ -67,11 +67,16 @@ try {
   check("tip shows when presenting starts", true);
   const tipBox = await tip.boundingBox();
   const checkBox = await page.locator('button[title$="(Space)"]').boundingBox();
-  const middle = (box) => box.y + box.height / 2;
+  const screenWidth = await page.evaluate(() => window.innerWidth);
   check(
-    "tip sits right of the bottom-left buttons, in the same row",
-    !!tipBox && !!checkBox && tipBox.x >= checkBox.x + checkBox.width && tipBox.x - (checkBox.x + checkBox.width) < 20 && Math.abs(middle(tipBox) - middle(checkBox)) < 2,
-    JSON.stringify({ tipBox, checkBox }),
+    "tip sits at the bottom center, clear of the bottom-left buttons, on its white card",
+    !!tipBox &&
+      !!checkBox &&
+      Math.abs(tipBox.x + tipBox.width / 2 - screenWidth / 2) < 2 &&
+      tipBox.x > checkBox.x + checkBox.width &&
+      Math.abs(tipBox.y + tipBox.height - (checkBox.y + checkBox.height)) < 2 &&
+      (await tip.evaluate((el) => getComputedStyle(el).backgroundColor)) === "rgb(255, 255, 255)",
+    JSON.stringify({ tipBox, checkBox, screenWidth }),
   );
   const fadedIn = await page
     .waitForFunction((text) => [...document.querySelectorAll('[role="status"]')].some((el) => el.textContent?.includes(text) && getComputedStyle(el).opacity === "1"), TIP_TEXT, { timeout: 2000 })
