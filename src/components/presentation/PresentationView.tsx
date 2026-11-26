@@ -110,10 +110,19 @@ export function PresentationView() {
     setFromIndex(playEffect ? onScreenIndex : null);
     setIsWaiting(playEffect);
     setShownIndex(presentationIndex);
+    // `stepsShown` belongs to `shownIndex`, which may still be loading; the slide on screen has its own count.
+    const onScreenSteps = onScreenIndex === shownIndex ? stepsShown : fromStepsShown;
     // Going back shows a slide with all its steps in (like PowerPoint); going forward, or from the grid, with none.
+    // Back to the slide still on screen (the new one hadn't loaded yet) keeps the steps it showed.
     const arriving = presentation.slides[presentationIndex];
-    setFromStepsShown(stepsShown);
-    setStepsShown(presentationIndex < onScreenIndex && !isGridJump && arriving ? effectSteps(arriving).length : 0);
+    setFromStepsShown(onScreenSteps);
+    setStepsShown(
+      presentationIndex === onScreenIndex
+        ? onScreenSteps
+        : presentationIndex < onScreenIndex && !isGridJump && arriving
+          ? effectSteps(arriving).length
+          : 0
+    );
     setPlaying(null);
     setIsGridJump(false);
   }
@@ -169,16 +178,25 @@ export function PresentationView() {
 
   const slide = presentation.slides[presentationIndex];
   const steps = slide ? effectSteps(slide) : [];
+  // While the slide effect waits or plays, a press that would change a step only ends the slide effect, so a step
+  // never plays (or goes) on a slide the teacher can't see yet. Changing slides still works as before.
+  const isChangingSlide = fromIndex !== null;
+  const endSlideEffect = () => {
+    setFromIndex(null);
+    setIsWaiting(false);
+  };
   // Next: the next step of the slide comes in first; once every one has, the next slide.
   const goNext = () => {
-    if (slide && stepsShown < steps.length) {
+    if (slide && stepsShown < steps.length && isChangingSlide) endSlideEffect();
+    else if (slide && stepsShown < steps.length) {
       setPlaying({ slideId: slide.id, step: stepsShown });
       setStepsShown(stepsShown + 1);
     } else nextSlide();
   };
   // Back: the last step that came in goes again (no effect); with none in, the previous slide.
   const goBack = () => {
-    if (stepsShown > 0) {
+    if (stepsShown > 0 && isChangingSlide) endSlideEffect();
+    else if (stepsShown > 0) {
       setPlaying(null);
       setStepsShown(stepsShown - 1);
     } else prevSlide();
@@ -506,7 +524,8 @@ export function PresentationView() {
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
-                    setIsGridJump(true);
+                    // Picking the slide already shown changes nothing, so the flag would stay for a later change.
+                    if (!isCurrent) setIsGridJump(true);
                     goToSlide(i);
                     setShowAllSlides(false);
                   }}

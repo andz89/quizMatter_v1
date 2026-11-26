@@ -1,6 +1,16 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { canHaveElementEffects, effectSteps, effectsToEnd, moveEffectStep, nextEffectOrder, stepNumbers, withEffect } from "./elementEffects";
+import {
+  canHaveElementEffects,
+  effectSteps,
+  moveEffectStep,
+  nextEffectOrder,
+  splitGroupSteps,
+  stepNumbers,
+  tidyEffects,
+  withCopiesAtEnd,
+  withEffect,
+} from "./elementEffects";
 import { slideSchema, type Slide, type SvgElement } from "./schema";
 
 type Effect = SvgElement["effect"];
@@ -78,9 +88,39 @@ test("moveEffectStep moves a step and rewrites orders 1..n", () => {
 
 test("copies keep their effect but come in last, a copied group sharing one step", () => {
   const target = slide([el("a", fx(4))]);
-  const copies = effectsToEnd([el("c1", fx(1, "pop")), el("g1", fx(2), "new-g"), el("g2", fx(2), "new-g"), el("plain")], target);
-  assert.deepEqual(copies.map((e) => e.effect?.order), [5, 6, 6, undefined]);
-  assert.equal(copies[0].effect?.type, "pop");
+  const all = withCopiesAtEnd(target, [el("c1", fx(1, "pop")), el("g1", fx(2), "new-g"), el("g2", fx(2), "new-g"), el("plain")]);
+  assert.deepEqual(all.map((e) => e.effect?.order), [1, 2, 3, 3, undefined]);
+  assert.equal(all[1].effect?.type, "pop");
+});
+
+test("duplicating and deleting again and again never pushes an order past the step count", () => {
+  let s = slide([el("a0", fx(1))]);
+  for (let i = 1; i <= 1200; i++) {
+    const copies = withCopiesAtEnd(s, [{ ...s.elements[0], id: `a${i}` }]);
+    s = { ...s, elements: copies.slice(1) }; // the original is deleted
+  }
+  // Deleting leaves a gap (the copy is 2); the next add closes it, so it never climbs.
+  assert.deepEqual(s.elements.map((e) => e.effect?.order), [2]);
+});
+
+test("tidyEffects rewrites orders 1..n and makes a group one whole step with its lead's effect", () => {
+  const tidied = tidyEffects([el("x", fx(7)), el("m1", fx(5, "pop"), "g"), el("m2", undefined, "g"), el("m3", fx(9), "g"), el("y")]);
+  assert.deepEqual(
+    tidied.map((e) => e.effect),
+    [fx(2), fx(1, "pop"), fx(1, "pop"), fx(1, "pop"), undefined]
+  );
+});
+
+test("splitGroupSteps gives each former member its own step where the group was", () => {
+  const before = [el("a", fx(1)), el("m1", fx(2), "g"), el("m2", fx(2), "g"), el("b", fx(3))];
+  const after = tidyEffects(splitGroupSteps(before, ["m1", "m2"]).map((e) => ({ ...e, groupId: undefined })));
+  assert.deepEqual(after.map((e) => e.effect?.order), [1, 2, 3, 4]);
+});
+
+test("effectSteps is the same answer for the same slide object", () => {
+  const s = slide([el("a", fx(1))]);
+  assert.equal(effectSteps(s), effectSteps(s));
+  assert.equal(stepNumbers(s), stepNumbers(s));
 });
 
 test("a saved effect with bad values is left out, and the slide still opens", () => {

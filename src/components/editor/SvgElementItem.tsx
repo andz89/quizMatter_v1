@@ -36,6 +36,8 @@ const ROTATE_SNAP = 15;
 const SNAP_DISTANCE = 6;
 // How far (in screen pixels) the pointer may move between press and release and still count as a click.
 const CLICK_DISTANCE = 4;
+// The room the effect step badge needs left of an element (its 20 px plus the 8 px gap).
+const STEP_BADGE_ROOM = 28;
 /** A crop handle: sx/sy say which sides it moves (-1 = left/top, 1 = right/bottom, 0 = neither). */
 interface CropHandle {
   sx: -1 | 0 | 1;
@@ -785,7 +787,10 @@ export const SvgElementItem = memo(function SvgElementItem({ slideId, element, i
       {showSelection && effectStep !== null && (
         <span
           title={`Comes in at click ${effectStep}`}
-          className="pointer-events-none absolute right-full top-0 z-10 mr-2 flex h-5 min-w-5 items-center justify-center rounded-dropdown bg-accent px-1 text-[11px] font-bold text-white"
+          // Left of the element; inside its top-left corner when there's no room there (the slide's or a box's edge).
+          className={`pointer-events-none absolute z-10 flex h-5 min-w-5 items-center justify-center rounded-dropdown bg-accent px-1 text-[11px] font-bold text-white ${
+            element.x < STEP_BADGE_ROOM ? "left-1 top-1" : "right-full top-0 mr-2"
+          }`}
           // Stays upright on a turned element.
           style={{ transform: `rotate(${-angle}deg)` }}
         >

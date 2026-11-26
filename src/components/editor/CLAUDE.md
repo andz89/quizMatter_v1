@@ -72,7 +72,11 @@ editor / view / review, and renders `Editor.tsx`, which calls `store.loadPresent
   element with no effect gets a dashed row under the list ("No effect yet") with the same switch, which adds it
   (`setElementEffect`, whole groups; a new one comes in last, one already set keeps its step). Both tabs share
   `SpeedControl`. While the panel is open, `SvgElementItem` shows each element's step number at its
-  top-left (editor only). Duplicate and paste keep a copy's effect but put it last (`effectsToEnd`). The math is in
+  top-left (editor only; inside the corner when the element is at a slide's or box's left edge). Duplicate and paste
+  keep a copy's effect but put it last (`withCopiesAtEnd`). Grouping gives every member the lead's effect, so a group
+  is always one whole step; ungrouping gives each former member its own step (`splitGroupSteps`), so each can be
+  changed alone. Every add, group and ungroup rewrites the orders to 1..n (`tidyEffects`), so they never pass the
+  save check's cap (MAX_ELEMENTS). The math is in
   `src/lib/elementEffects.ts`; presenting in `src/components/presentation/CLAUDE.md`.
 - **Color panel** (`ColorPanel`): one panel for every color target (text, shapes, borders, table cells, diagram
   boxes, the shape box), all through its `handleColor`. 36 Solid colors (the first 18 are the originals, kept in place

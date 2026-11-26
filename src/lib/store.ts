@@ -49,7 +49,7 @@ import { isEmbedSlide } from "./embed";
 import { todayCalendarDate } from "./calendarDate";
 import { newTable, type TableCellSpot } from "./table";
 import { moveLayer } from "./layers";
-import { canHaveElementEffects, effectsToEnd, moveEffectStep, withEffect } from "./elementEffects";
+import { canHaveElementEffects, moveEffectStep, splitGroupSteps, tidyEffects, withCopiesAtEnd, withEffect } from "./elementEffects";
 import { fitIntoRow, gridRowNeeds, shareOut } from "./optionRows";
 import { measureOptionNeeds } from "./measureOptions";
 import type { ElementEffectType, Photo, PresentationDetails, Presentation, ReviewerFields, Slide, SlideType, SvgElement } from "./schema";
@@ -1484,8 +1484,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set({
       presentation: updateSlide(presentation, selectedSlideId, (s) => ({
         ...s,
-        // Grouping members of an older group can leave that group with one element — clean it up.
-        elements: dropLoneGroups(s.elements.map((el) => (selectedElementIds.includes(el.id) ? { ...el, groupId } : el))),
+        // Grouping members of an older group can leave that group with one element — clean it up. A group is one
+        // whole effect step, so every member gets the effect of its lead (tidyEffects).
+        elements: tidyEffects(
+          dropLoneGroups(s.elements.map((el) => (selectedElementIds.includes(el.id) ? { ...el, groupId } : el)))
+        ),
       })),
     });
   },
@@ -1495,8 +1498,13 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set({
       presentation: updateSlide(presentation, selectedSlideId, (s) => ({
         ...s,
-        elements: dropLoneGroups(
-          s.elements.map((el) => (selectedElementIds.includes(el.id) ? { ...el, groupId: undefined } : el))
+        // Each former member gets its own effect step, so it can be given its own effect.
+        elements: tidyEffects(
+          dropLoneGroups(
+            splitGroupSteps(s.elements, selectedElementIds).map((el) =>
+              selectedElementIds.includes(el.id) ? { ...el, groupId: undefined } : el
+            )
+          )
         ),
       })),
     });
@@ -1707,7 +1715,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         })
     );
 
-    set({ presentation: updateSlide(presentation, slideId, (s) => ({ ...s, elements: [...s.elements, ...effectsToEnd(copies, s)] })) });
+    set({ presentation: updateSlide(presentation, slideId, (s) => ({ ...s, elements: withCopiesAtEnd(s, copies) })) });
 
     return copies.map((el) => el.id);
   },
@@ -1822,7 +1830,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     });
 
     set({
-      presentation: updateSlide(presentation, slideId, (s) => ({ ...s, elements: [...s.elements, ...effectsToEnd(pasted, s)] })),
+      presentation: updateSlide(presentation, slideId, (s) => ({ ...s, elements: withCopiesAtEnd(s, pasted) })),
       selectedSlideId: slideId,
       selectedElementIds: pasted.map((el) => el.id),
     });

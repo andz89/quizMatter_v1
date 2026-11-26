@@ -38,7 +38,11 @@ Slides drawn without the editor: fullscreen presenting, cards, the view page, re
   `StaticElementView`'s `opacity-0` class on the inner box marked `data-element-id`), so photos are ready; slides
   drawn ahead hide all their steps, the slide we came from keeps what it showed. `startElementEffect` plays one step
   with `motion/mini` (`ELEMENT_EFFECT_SECONDS`, `constants.ts`); the next press cancels it and clears its inline
-  styles, so the class decides. Nothing is hidden anywhere else (cards, thumbnails, the view page, the editor).
+  styles, so the class decides. While a slide effect waits for photos or plays, a press that would bring in or hide a
+  step only ends the slide effect (`endSlideEffect`), so a step never plays unseen. `stepsShown` belongs to
+  `shownIndex` (which may still be loading); the slide still on screen keeps its own count (`fromStepsShown`), and
+  going back to it before the new one showed keeps its steps. Picking the slide already shown in the grid sets no
+  `isGridJump`. Nothing is hidden anywhere else (cards, thumbnails, the view page, the editor).
   Test: `e2e/element-effects.mjs`.
 - `PresentDraftButton.tsx`: Present for a presentation that isn't open in the editor (a review's submitted
   version). Downloads `PresentationView` only when clicked, with the Spinner meanwhile. `showView={false}` leaves the
