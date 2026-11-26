@@ -62,6 +62,14 @@ editor / view / review, and renders `Editor.tsx`, which calls `store.loadPresent
   `ColorPanel`, `BackgroundPanel`, `EffectsPanel`, `PresentationsPanel`, `WordFilePanel`, `LayersPanel`. They stay
   open after you add something (don't auto-close them). Only one is open at a time: each toggle in the store closes
   the others, so a new panel adds its `is…Open: next ? false : …` line to every toggle.
+- **Effects panel** (`EffectsPanel`, spec `docs/superpowers/specs/2026-11-26-element-effects-design.md`): two tabs.
+  "Slide effects" = the presentation's `transition` / `transitionSpeed`. "Element effects" (only Blank and Title
+  slides, `canHaveElementEffects`; other slides get a note): the picked elements' None / Fade / Pop up and speed
+  (`setElementEffect`, whole groups; a new one comes in last, one already set keeps its step), then "On this slide",
+  the steps in order (`effectSteps`): click selects, drag reorders (`moveElementEffect`, `@dnd-kit`), ✕ removes.
+  Both tabs share `SpeedControl`. While the panel is open, `SvgElementItem` shows each element's step number at its
+  top-left (editor only). Duplicate and paste keep a copy's effect but put it last (`effectsToEnd`). The math is in
+  `src/lib/elementEffects.ts`; presenting in `src/components/presentation/CLAUDE.md`.
 - **Color panel** (`ColorPanel`): one panel for every color target (text, shapes, borders, table cells, diagram
   boxes, the shape box), all through its `handleColor`. 36 Solid colors (the first 18 are the originals, kept in place
   so colors already used still show as picked), 12 Light, the Gradients. "Custom" (spec

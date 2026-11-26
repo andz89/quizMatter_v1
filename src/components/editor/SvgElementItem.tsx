@@ -2,6 +2,7 @@
 
 import { memo, useEffect, useRef, useState } from "react";
 import { tidyUp, useEditorStore } from "@/lib/store";
+import { stepNumbers } from "@/lib/elementEffects";
 import { canCrop, getDiagramBoxes, getElementAsset } from "@/lib/svgLibrary";
 import { ElementSvg } from "./ElementSvg";
 import { TextBoxContent } from "./TextBoxContent";
@@ -129,6 +130,12 @@ export const SvgElementItem = memo(function SvgElementItem({ slideId, element, i
   // While ghost previews show the dragged element(s) in a different box, hide the real ones so they're not duplicated.
   const isGhosting = useEditorStore((s) => s.elementDragGhosts.some((g) => g.id === element.id));
   const isLayerHovered = useEditorStore((s) => s.hoveredLayerIds.includes(element.id));
+  // Its element effect's step (1, 2, 3…), shown only while the Effects panel is open (editor only, never saved).
+  const effectStep = useEditorStore((s) => {
+    if (!element.effect || !s.isEffectsPanelOpen) return null;
+    const slide = s.presentation.slides.find((sl) => sl.id === slideId);
+    return slide ? (stepNumbers(slide).get(element.id) ?? null) : null;
+  });
 
   const dragState = useRef<DragState | null>(null);
   // Set when a pointer press and release on a selected diagram was a click (see stopDrag).
@@ -773,6 +780,17 @@ export const SvgElementItem = memo(function SvgElementItem({ slideId, element, i
             />
           )}
         </div>
+      )}
+
+      {showSelection && effectStep !== null && (
+        <span
+          title={`Comes in at click ${effectStep}`}
+          className="pointer-events-none absolute -left-2.5 -top-2.5 z-10 flex h-5 min-w-5 items-center justify-center rounded-dropdown bg-accent px-1 text-[11px] font-bold text-white"
+          // Stays upright on a turned element.
+          style={{ transform: `rotate(${-angle}deg)` }}
+        >
+          {effectStep}
+        </span>
       )}
 
       {/* A selected table's lines: before the handles, so the handles stay on top of them. */}

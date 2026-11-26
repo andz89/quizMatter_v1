@@ -203,7 +203,7 @@ const BoxRows = memo(function BoxRows({ slideId, items, openGroups, onToggle }: 
 });
 
 /** A row's name: a text box's first words, else what the element is. */
-function elementName(element: SvgElement) {
+export function elementName(element: SvgElement) {
   const asset = getElementAsset(element.assetId);
   if (asset?.isTextBox) {
     const text = new DOMParser().parseFromString(element.text?.html ?? "", "text/html").body.textContent?.trim() ?? "";
