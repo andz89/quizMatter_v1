@@ -135,7 +135,8 @@ A refusal raises an error with its own code. The app turns the code into a messa
   (service role: asked before the click limit counts), `reserve_photo_upload` (service role: `QMSTO` when full),
   `my_photo_storage()`, `remove_my_photo(src, mode)`, and for the weekly cleanup `photo_uploads_unknown_sizes()` (a
   jsonb array, not rows: PostgREST cuts rows at 1,000) / `set_photo_upload_sizes(sizes)` (service role). Existing "My photos" rows were
-  added at their shared photo's size, else 2 MB. Apply it **before** the app.
+  added at their shared photo's size, else 2 MB, but only the teacher's own: a file with a `shared_photos` row only
+  for its `uploaded_by` (one without can't be traced, accepted). Apply it **before** the app.
 - Click limits: `20261013000000_click_limits.sql`, `20261014000000_click_auto_ban.sql`, `20261017000000_click_history.sql`.
   `20261211000000_save_photo_click_limits.sql` (test `supabase/tests/save_photo_click_limits.sql`): saving
   presentations (`presentation_save` + `presentation_save_daily`, from `count_presentation_write`: once per request,

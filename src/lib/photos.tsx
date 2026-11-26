@@ -107,11 +107,13 @@ async function shrinkPhoto(file: Blob, webpOnly = false): Promise<ShrunkPhoto> {
  * name on the admin's computer (to show and search).
  */
 async function sendPhoto(shrunk: ShrunkPhoto, shared?: { categoryId: string; source: string; name: string }): Promise<Photo> {
-  // Last seen full (e.g. a photo dropped onto a slide): asked again first, since a save may have freed space, and
-  // the 2 MB photo isn't sent when it's still full. The upload route checks anyway.
-  if (!shared && lastStorage && isStorageFull(lastStorage)) {
+  // Last seen too full for this photo (e.g. a photo dropped onto a slide): asked again first, since a save may have
+  // freed space, and the photo isn't sent when it still doesn't fit. The upload route checks anyway. (Rare: a photo
+  // that already counts, picked again from disk, would fit in the database but is refused here when nearly full.)
+  const size = shrunk.blob.size;
+  if (!shared && lastStorage && isStorageFull(lastStorage, size)) {
     const now = await loadPhotoStorage().catch(() => lastStorage!);
-    if (isStorageFull(now)) throw new PhotoError(storageFullMessage(now.limit));
+    if (isStorageFull(now, size)) throw new PhotoError(storageFullMessage(now.limit));
   }
   const params = new URLSearchParams({ width: String(shrunk.width), height: String(shrunk.height) });
   if (shared) {
@@ -125,12 +127,13 @@ async function sendPhoto(shrunk: ShrunkPhoto, shared?: { categoryId: string; sou
     headers: { "Content-Type": shrunk.blob.type },
   });
   const result = await response.json().catch(() => null);
+  // The total comes back with a refused (full, 413) upload too, so the bar shows how full it really is.
+  const storage = photoStorageSchema.safeParse(result?.storage);
+  if (storage.success) tellStorage(storage.data);
   // Uploaded too fast: if it's paused, the notice at the bottom shows until when and the Upload button greys out.
   if (response.status === 429) await checkPauses();
   const photo = photoSchema.safeParse(result);
   if (!response.ok || !photo.success) throw new PhotoError(result?.error ?? "Couldn't upload the photo. Please try again.");
-  const storage = photoStorageSchema.safeParse(result?.storage);
-  if (storage.success) tellStorage(storage.data);
   return photo.data;
 }
 
@@ -139,10 +142,12 @@ async function sendPhoto(shrunk: ShrunkPhoto, shared?: { categoryId: string; sou
 // Who shows the storage (the Photos panel). Uploads and removes tell them the new total from their own answers,
 // so a photo dropped onto a slide updates the open panel too, without another request.
 const storageListeners = new Set<(storage: PhotoStorage) => void>();
-// The newest total this tab has seen (sendPhoto uses it to skip sending a photo when it's full).
+// The newest total this tab has seen (sendPhoto uses it to skip sending a photo that won't fit). Forgotten on log out
+// (another teacher may log in on this tab), with `remembered`.
 let lastStorage: PhotoStorage | null = null;
 
 function tellStorage(storage: PhotoStorage) {
+  watchLogOut();
   lastStorage = storage;
   for (const listener of storageListeners) listener(storage);
 }
@@ -302,13 +307,20 @@ let isWatchingLogOut = false;
  * `load()`'s answer, kept under `key` (see `remembered`). The request itself is kept, so two calls at once share
  * one request (e.g. React runs effects twice while developing). A failed one is forgotten, to try again next time.
  */
+/** On log out, forgets what this tab remembered for the teacher (`remembered`, `lastStorage`). Set up once. */
+function watchLogOut() {
+  if (isWatchingLogOut) return;
+  isWatchingLogOut = true;
+  createClient().auth.onAuthStateChange((event) => {
+    if (event === "SIGNED_OUT") {
+      remembered.clear();
+      lastStorage = null;
+    }
+  });
+}
+
 function remember<T>(key: string, load: () => Promise<T>): Promise<T> {
-  if (!isWatchingLogOut) {
-    isWatchingLogOut = true;
-    createClient().auth.onAuthStateChange((event) => {
-      if (event === "SIGNED_OUT") remembered.clear();
-    });
-  }
+  watchLogOut();
   let saved = remembered.get(key) as Promise<T> | undefined;
   if (!saved) {
     saved = load().catch((error) => {

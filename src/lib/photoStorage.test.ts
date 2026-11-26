@@ -37,11 +37,17 @@ test("isStorageFull: only with a limit, at or past it", () => {
   assert.equal(isStorageFull({ used: 5, limit: null }), false);
 });
 
+test("isStorageFull with a photo's size: like the database, used + size <= limit fits", () => {
+  assert.equal(isStorageFull({ used: 52428700, limit: 52428800 }, 100), false);
+  assert.equal(isStorageFull({ used: 52428700, limit: 52428800 }, 101), true);
+  assert.equal(isStorageFull({ used: 5, limit: null }, 999999999), false);
+});
+
 test("stillUsedMessage lists where the photo is, then why it still counts", () => {
   const message = stillUsedMessage(
     [
-      { title: "Weather Quiz", is_shared_copy: false, slides: [1, 4] },
-      { title: "Plants Quiz", is_shared_copy: true, slides: [3] },
+      { title: "Weather Quiz", is_shared_copy: false, slides: [1, 4], hidden: [4] },
+      { title: "Plants Quiz", is_shared_copy: true, slides: [3], hidden: [] },
     ],
     1887437,
     false
@@ -49,7 +55,7 @@ test("stillUsedMessage lists where the photo is, then why it still counts", () =
   assert.equal(
     message,
     "It's used in:\n" +
-      "• Weather Quiz (slides 1, 4)\n" +
+      "• Weather Quiz (slides 1, 4 (hidden))\n" +
       "• Plants Quiz, published version (slide 3): open it and click Update shared presentation to take it out there too\n\n" +
       "Removing it from My photos won't free storage. It still counts (1.8 MB) until it's gone from these slides too."
   );
@@ -57,7 +63,7 @@ test("stillUsedMessage lists where the photo is, then why it still counts", () =
 
 test("stillUsedMessage: an untitled presentation, the open one not saved yet, and no known size", () => {
   assert.equal(
-    stillUsedMessage([{ title: "", is_shared_copy: false, slides: [2] }], null, true),
+    stillUsedMessage([{ title: "", is_shared_copy: false, slides: [2], hidden: [] }], null, true),
     "It's used in:\n" +
       "• Untitled presentation (slide 2)\n" +
       "• This presentation (not saved yet)\n\n" +

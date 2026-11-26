@@ -112,6 +112,8 @@ export function PhotosPanel() {
     try {
       const result = await removeMyPhoto(photo.src, usedHere ? "ask" : "if_unused");
       if (result.removed) return;
+      // Already gone (removed in another tab): it stays off the list.
+      if (!usedHere && result.uses.length === 0) return;
       // It counts for nothing (an admin, or a photo they didn't upload): nothing to warn about, so it just goes.
       if (result.bytes === null || result.limit === null) return removeAnyway(photo, putBack, false);
       putBack?.();
@@ -127,8 +129,9 @@ export function PhotosPanel() {
   const removeAnyway = async (photo: Photo, putBack: (() => void) | null, stillCounts: boolean) => {
     const undo = putBack ?? removeFromList(photo);
     try {
-      await removeMyPhoto(photo.src, "remove");
-      if (stillCounts) toast(STILL_COUNTS_TOAST);
+      const result = await removeMyPhoto(photo.src, "remove");
+      // Not removed = it was already gone (another tab): nothing changed, so no toast.
+      if (stillCounts && result.removed) toast(STILL_COUNTS_TOAST);
     } catch (error) {
       undo();
       toast.error(isPhotoLocked(error) ? PHOTO_LOCKED_MESSAGE : "Couldn't remove the photo. Please try again.");

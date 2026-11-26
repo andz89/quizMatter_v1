@@ -130,12 +130,19 @@ export const photoStorageSchema = z.object({
   limit: z.number().int().positive().nullable(),
 });
 
-// remove_my_photo's answer: whether it was removed, my own presentations whose slides still have it (slide numbers
-// are places in the list, 1 = first), its size (null if I never uploaded it) and my new total.
+// remove_my_photo's answer: whether a row was really removed, my own presentations whose slides still have it (slide
+// numbers are places in the list, 1 = first, like the slide grid's "Slide 3"; `hidden`: the hidden ones among them),
+// its size (null if I never uploaded it) and my new total.
 export const removePhotoResultSchema = photoStorageSchema.extend({
   removed: z.boolean(),
   uses: z.array(
-    z.object({ id: z.string(), title: z.string(), is_shared_copy: z.boolean(), slides: z.array(z.number().int()) })
+    z.object({
+      id: z.string(),
+      title: z.string(),
+      is_shared_copy: z.boolean(),
+      slides: z.array(z.number().int()),
+      hidden: z.array(z.number().int()),
+    })
   ),
   bytes: z.number().int().positive().nullable(),
 });

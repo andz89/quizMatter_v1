@@ -2947,6 +2947,8 @@ CREATE OR REPLACE FUNCTION "public"."photo_storage_used"("target" "uuid") RETURN
         select 1 from public.slide_photos sp
         join public.presentations pr on pr.id = sp.presentation_id
         where sp.src = u.src and pr.owner_id = target
+          -- Not a shared copy QuizMatter hid (the teacher can't change it, so it would count for good).
+          and (pr.shared_from is null or pr.hidden_at is null)
       )
     );
 $$;
@@ -2969,7 +2971,7 @@ CREATE OR REPLACE FUNCTION "public"."photo_upload_fits"("target" "uuid", "target
           or exists (
             select 1 from public.slide_photos sp
             join public.presentations pr on pr.id = sp.presentation_id
-            where sp.src = u.src and pr.owner_id = target
+            where sp.src = u.src and pr.owner_id = target and (pr.shared_from is null or pr.hidden_at is null)
           )
         )
     )
@@ -3469,18 +3471,23 @@ begin
   select coalesce(jsonb_agg(u order by u.title, u.id), '[]'::jsonb) into uses
   from (
     select pr.id, pr.title, pr.shared_from is not null as is_shared_copy,
-      jsonb_agg(s.position + 1 order by s.position) as slides
+      jsonb_agg(s.position + 1 order by s.position) as slides,
+      coalesce(
+        jsonb_agg(s.position + 1 order by s.position) filter (where coalesce((s.data ->> 'hidden')::boolean, false)),
+        '[]'::jsonb
+      ) as hidden
     from public.slide_photos sp
     join public.presentations pr on pr.id = sp.presentation_id
     join public.slides s on s.presentation_id = sp.presentation_id and s.id = sp.slide_id
-    where sp.src = target_src and pr.owner_id = me
+    where sp.src = target_src and pr.owner_id = me and (pr.shared_from is null or pr.hidden_at is null)
     group by pr.id, pr.title, pr.shared_from
   ) u;
 
   if mode = 'remove' or (mode = 'if_unused' and uses = '[]'::jsonb) then
     -- Through the photos table's own triggers: a photo waiting for QuizMatter is still refused (QMPHL).
     delete from public.photos p where p.user_id = me and p.src = target_src;
-    removed := true;
+    -- False when it was already gone (e.g. removed in another tab).
+    removed := found;
   end if;
 
   return jsonb_build_object(

@@ -121,6 +121,22 @@ begin
 end;
 $$;
 
+-- QuizMatter hid the shared copy: the teacher can't update or delete it (QMHID), so it doesn't count.
+-- (Hiding needs an admin; the admin's claims only for these two updates.)
+select set_config('request.jwt.claims',
+  json_build_object('sub', '00000000-0000-4000-8000-0000000005a3', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+update public.presentations set hidden_at = now() where id = 'test-ps-shared';
+do $$
+begin
+  if public.photo_storage_used('00000000-0000-4000-8000-0000000005a1') <> 0
+    or not public.photo_upload_fits('00000000-0000-4000-8000-0000000005a1', pg_temp.f('a'), 1) then
+    raise exception 'FAIL: a photo only in a hidden shared copy should not count';
+  end if;
+end;
+$$;
+update public.presentations set hidden_at = null where id = 'test-ps-shared';
+select set_config('request.jwt.claims', '', true);
+
 -- Gone from the shared copy too: counts for nobody (s2's copy still uses the file).
 delete from public.slides where presentation_id = 'test-ps-shared';
 do $$
@@ -358,7 +374,7 @@ begin
   if not exists (
     select 1 from jsonb_array_elements(r -> 'uses') u
     where u ->> 'id' = 'test-ps-p1' and u ->> 'title' = 'Weather Quiz'
-      and (u ->> 'is_shared_copy')::boolean = false and u -> 'slides' = '[2]'::jsonb
+      and (u ->> 'is_shared_copy')::boolean = false and u -> 'slides' = '[2]'::jsonb and u -> 'hidden' = '[]'::jsonb
   ) or not exists (
     select 1 from jsonb_array_elements(r -> 'uses') u
     where u ->> 'id' = 'test-ps-shared' and (u ->> 'is_shared_copy')::boolean and u -> 'slides' = '[1]'::jsonb
@@ -374,6 +390,35 @@ begin
 end;
 $$;
 
+-- Slide 2 hidden: listed in `hidden` (the box says so). The shared copy hidden by QuizMatter: not listed.
+reset role;
+update public.slides set data = data || '{"hidden": true}' where presentation_id = 'test-ps-p1' and id = 's1';
+select set_config('request.jwt.claims',
+  json_build_object('sub', '00000000-0000-4000-8000-0000000005a3', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+update public.presentations set hidden_at = now() where id = 'test-ps-shared';
+select set_config('request.jwt.claims',
+  json_build_object('sub', '00000000-0000-4000-8000-0000000005a1', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+set local role authenticated;
+do $$
+declare
+  r jsonb := public.remove_my_photo(pg_temp.f('a'), 'ask');
+begin
+  if r -> 'uses' <> jsonb_build_array(jsonb_build_object(
+    'id', 'test-ps-p1', 'title', 'Weather Quiz', 'is_shared_copy', false, 'slides', '[2]'::jsonb, 'hidden', '[2]'::jsonb
+  )) then
+    raise exception 'FAIL: hidden slide / hidden copy uses: %', r -> 'uses';
+  end if;
+end;
+$$;
+reset role;
+update public.slides set data = data - 'hidden' where presentation_id = 'test-ps-p1' and id = 's1';
+select set_config('request.jwt.claims',
+  json_build_object('sub', '00000000-0000-4000-8000-0000000005a3', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+update public.presentations set hidden_at = null where id = 'test-ps-shared';
+select set_config('request.jwt.claims',
+  json_build_object('sub', '00000000-0000-4000-8000-0000000005a1', 'role', 'authenticated', 'aal', 'aal2')::text, true);
+set local role authenticated;
+
 -- 'remove' takes it off the list; it still counts (on slides).
 do $$
 declare
@@ -382,6 +427,11 @@ begin
   if not (r ->> 'removed')::boolean or exists (select 1 from public.photos where src = pg_temp.f('a'))
     or (r ->> 'used')::bigint <> 1000 then
     raise exception 'FAIL: remove: %', r;
+  end if;
+  -- Again (as from another tab): nothing to delete, so removed is false.
+  r := public.remove_my_photo(pg_temp.f('a'), 'remove');
+  if (r ->> 'removed')::boolean then
+    raise exception 'FAIL: removing a photo already gone said removed: %', r;
   end if;
 end;
 $$;

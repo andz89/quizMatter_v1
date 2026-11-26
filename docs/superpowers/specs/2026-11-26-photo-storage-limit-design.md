@@ -25,7 +25,8 @@ A photo counts against a teacher only when **they uploaded it** and **they still
 
 - it's in their "My photos" (`photos` row with their `user_id`), **or**
 - it's on a slide of a presentation **they own** (`slide_photos` of a `presentations` row with their `owner_id`).
-  This includes their published (shared) copy: `share_presentation` makes the copy with the same `owner_id`.
+  This includes their published (shared) copy: `share_presentation` makes the copy with the same `owner_id`. Not a
+  shared copy QuizMatter hid: the teacher can't update or delete it (`QMHID`), so they could never free that space.
 
 Each file counts **once** per teacher, however many places use it.
 
@@ -120,8 +121,11 @@ by `auth.uid()`). `mode`:
 The delete goes through the existing triggers (`refuse_locked_photo_delete` → `QMPHL` still works). Answer:
 `{ removed, uses, bytes, used, limit }`:
 
-- `uses`: my own presentations whose slides have it: `[{ id, title, is_shared_copy, slides: [1, 4] }]` (slide
-  numbers = the slide's place in the list, `position + 1`; a shared copy is a row with `shared_from` set).
+- `removed`: true only when a "My photos" row was really deleted (false when another tab already removed it).
+- `uses`: my own presentations whose slides have it: `[{ id, title, is_shared_copy, slides: [1, 4], hidden: [4] }]`
+  (slide numbers = the slide's place in the list, `position + 1`, like the slide grid's "Slide 4"; `hidden` = the
+  hidden ones among them, shown as "4 (hidden)"; a shared copy is a row with `shared_from` set; a hidden shared copy
+  is left out).
 - `bytes`: this photo's size from my `photo_uploads` row (null if I never uploaded it, e.g. an old row an admin's
   "keep photo" added), so the warning can say what it costs.
 - `used` / `limit`: my total after the call, so the panel's bar updates with no extra request.

@@ -36,12 +36,17 @@ export function formatStorage(bytes: number): string {
   return `${Math.floor(mb)} MB`;
 }
 
-export function isStorageFull(storage: PhotoStorage): boolean {
-  return storage.limit !== null && storage.used >= storage.limit;
+/**
+ * Full (at or past the limit), or with `addBytes`: a photo that big wouldn't fit (the database's rule in
+ * photo_upload_fits: used + size <= limit fits).
+ */
+export function isStorageFull(storage: PhotoStorage, addBytes = 0): boolean {
+  if (storage.limit === null) return false;
+  return addBytes > 0 ? storage.used + addBytes > storage.limit : storage.used >= storage.limit;
 }
 
 /** One of my own presentations whose slides still have the photo (from remove_my_photo). */
-type StillUsedIn = { title: string; is_shared_copy: boolean; slides: number[] };
+type StillUsedIn = { title: string; is_shared_copy: boolean; slides: number[]; hidden: number[] };
 
 /**
  * The "This photo is still on your slides" box's words: where it is, then why removing it from My photos frees
@@ -49,7 +54,9 @@ type StillUsedIn = { title: string; is_shared_copy: boolean; slides: number[] };
  */
 export function stillUsedMessage(uses: StillUsedIn[], bytes: number | null, unsavedHere: boolean): string {
   const lines = uses.map((use) => {
-    const where = `${use.slides.length === 1 ? "slide" : "slides"} ${use.slides.join(", ")}`;
+    // A hidden slide is easy to miss in the slide grid, so it says so.
+    const numbers = use.slides.map((n) => (use.hidden.includes(n) ? `${n} (hidden)` : String(n)));
+    const where = `${use.slides.length === 1 ? "slide" : "slides"} ${numbers.join(", ")}`;
     const title = use.title || "Untitled presentation";
     return use.is_shared_copy
       ? `• ${title}, published version (${where}): open it and click Update shared presentation to take it out there too`

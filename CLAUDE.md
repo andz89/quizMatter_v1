@@ -472,20 +472,24 @@ Keep these rules:
 - **What counts:** a photo the teacher **uploaded** (a `photo_uploads` row) while it's in their "My photos" **or**
   on a slide of a presentation **they own** (their shared copy too), once per file (`photo_storage_used`). A photo
   someone copied never counts for the copier; once the uploader stops using it, it counts for nobody (accepted:
-  copies don't make new files). Photos in a review draft don't count.
+  copies don't make new files). Photos in a review draft don't count, nor a shared copy QuizMatter hid (the teacher
+  can't update or delete it, `QMHID`, so it would count for good).
 - **The database is the real check:** `upload-image` first asks `photo_upload_fits` (before the click limit counts
-  the upload, so a full account's tries never pause or ban), then calls `reserve_photo_upload` with the secret key
+  the upload, so a full account's tries never pause or ban; a refused try is counted with `count_write('photos')`,
+  30 a minute, so a script is slowed), then calls `reserve_photo_upload` with the secret key
   before the file is stored (one teacher at a time, an advisory lock; a new upload holds its space for 10 minutes);
-  over the limit = `QMSTO` (413, `storageFullMessage(limit)`, with their own limit). The browser skips sending a photo while the last total it
-  saw is full (it asks again first, `sendPhoto`). Teachers only read their own `photo_uploads` rows, so they can't
+  over the limit = `QMSTO` (413, `storageFullMessage(limit)`, with their own limit, and their total `storage`). The
+  browser skips sending a photo that won't fit in the last total it saw (it asks again first, `sendPhoto`). Teachers only read their own `photo_uploads` rows, so they can't
   delete records to free space. The limit is `photo_storage_limit(target)` (null for an admin, 500 MB for an editor,
   else 50 MB; read each time, so losing the editor role means 50 MB again) and `PHOTO_STORAGE_LIMIT_BYTES` /
   `EDITOR_PHOTO_STORAGE_LIMIT_BYTES` (`src/lib/photoStorage.ts`): change both together.
 - **Nothing is deleted because of it.** Over the limit (e.g. old photos counted at 2 MB until the weekly cleanup
   sends their real size, `set_photo_upload_sizes`) only stops new uploads.
 - **Removing from My photos** is `remove_my_photo(src, mode)`: one request when no slide of theirs has it; else it
-  answers where (`uses`) and the Photos panel's box says it still counts until it's off those slides (and the
-  published copy, "Update shared presentation").
+  answers where (`uses`: slide numbers are places in the list, like the slide grid's "Slide 3", and a hidden one says
+  "(hidden)") and the Photos panel's box says it still counts until it's off those slides (and the published copy,
+  "Update shared presentation"). `removed` is true only when a row was really deleted (not when another tab already
+  removed it).
 - **Privacy:** the upload records are in the Privacy Policy ("Your work"). Keep that true.
 
 # Diagrams and Picture Shapes

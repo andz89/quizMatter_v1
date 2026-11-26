@@ -23,8 +23,8 @@ import { createClient } from "@/lib/supabase/server";
  * or where it came from>, and &name=<file name> gives it its name (to show and search); both are only set the
  * first time it's shared. Each shared photo remembers who uploaded it (uploaded_by, filled in by the database).
  * An own photo must fit the teacher's photo storage (photo_upload_fits before the click limit counts it, then
- * reserve_photo_upload; 50 MB, 500 MB for an editor; 413 with code QMSTO when full),
- * and the answer carries their new total (`storage`).
+ * reserve_photo_upload; 50 MB, 500 MB for an editor; 413 with code QMSTO when full, refused tries counted with
+ * count_write), and the answer (also the 413) carries their total (`storage`).
  */
 export async function POST(request: Request) {
   const supabase = await createClient();
@@ -102,7 +102,16 @@ export async function POST(request: Request) {
       file_bytes: body.byteLength,
     });
     if (fitsError) return Response.json({ error: "Couldn't upload the photo. Please try again." }, { status: 500 });
-    if (fits !== true) return storageFull(supabase);
+    if (fits !== true) {
+      // Refused tries are counted too (30 a minute, never paused or banned: an honest teacher never gets near it), so
+      // a script sending uploads to a full account is slowed down.
+      const { error: refusedError } = await supabase.rpc("count_write", { kind: "photos" });
+      if (refusedError?.code === "QMBAN") return banned();
+      if (refusedError?.code === "QM429") {
+        return Response.json({ error: "You're adding photos too fast. Wait a minute and try again." }, { status: 429 });
+      }
+      return storageFull(supabase);
+    }
   }
 
   // Counted before the file takes up storage (the super admin: no limit). Own photos: 30 in a minute or 300 in a
@@ -165,12 +174,18 @@ export async function POST(request: Request) {
   return Response.json(storage.success ? { ...photo.data, storage: storage.data } : photo.data);
 }
 
-/** 413 with the teacher's own limit in the words (left out if it can't be read). Only asked when full. */
+/**
+ * 413 with the teacher's own limit in the words, and their total (`storage`), so the Photos panel's bar shows how
+ * full it really is (both left out if it can't be read). Only asked when full.
+ */
 async function storageFull(supabase: Awaited<ReturnType<typeof createClient>>) {
   const { data } = await supabase.rpc("my_photo_storage");
   const storage = photoStorageSchema.safeParse(data);
   const error = storageFullMessage(storage.success ? storage.data.limit : null);
-  return Response.json({ error, code: "QMSTO" }, { status: 413 });
+  return Response.json(
+    storage.success ? { error, code: "QMSTO", storage: storage.data } : { error, code: "QMSTO" },
+    { status: 413 },
+  );
 }
 
 function tooBig() {
